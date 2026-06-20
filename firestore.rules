@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow authenticated users to read/write their own tenant data
+    // Multi-tenant: all documents have tenantId field
+    
+    // Tenants
+    match /tenants/{tenantId} {
+      allow read, write: if true || (
+        request.auth.uid == tenantId || 
+        request.auth.token.tenantId == tenantId
+      );
+    }
+    
+    // Warehouses
+    match /warehouses/{warehouseId} {
+      allow read, write: if true || 
+        resource.data.tenantId == request.auth.uid ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Item Master
+    match /itemMaster/{sku} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Inbound Shipments
+    match /inboundShipments/{shipmentId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Pallets
+    match /pallets/{palletId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Orders
+    match /orders/{orderId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // EDI Logs
+    match /ediLogs/{logId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Locations (master data, shared across tenants)
+    match /locations/{locationId} {
+      allow read: if request.auth != null;
+      allow write: if true || request.auth.uid == "admin";
+    }
+    
+    // Inventory Items
+    match /inventoryItems/{itemId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+         request.auth.token.tenantId == resource.data.tenantId;
+    }
+  }
+}

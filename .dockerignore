@@ -1,0 +1,17 @@
+node_modules
+dist
+.cache
+.git
+.github
+.vscode
+.idea
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+coverage
+.lovable
+wrangler.jsonc
+README.md
+SELF_HOSTING.md

@@ -1,0 +1,2 @@
+# Drop *.sql files in this folder — Postgres runs them once on first init.
+# Example: db/init/001_schema.sql

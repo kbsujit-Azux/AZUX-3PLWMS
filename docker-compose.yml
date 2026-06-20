@@ -1,0 +1,46 @@
+services:
+  app:
+    build: .
+    container_name: azux-wms
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"   # Nginx on the host proxies to this
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: "0.0.0.0"
+      # Read from .env file (see .env.example)
+      DATABASE_URL: ${DATABASE_URL}
+      SESSION_SECRET: ${SESSION_SECRET}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [azux]
+
+  db:
+    image: postgres:16-alpine
+    container_name: azux-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-azux_wms}
+      POSTGRES_USER: ${POSTGRES_USER:-azux_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - azux_pgdata:/var/lib/postgresql/data
+      # Initial schema (optional): drop .sql files into ./db/init/
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"   # bound to localhost only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-azux_app} -d ${POSTGRES_DB:-azux_wms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [azux]
+
+volumes:
+  azux_pgdata:
+
+networks:
+  azux:
+    driver: bridge
