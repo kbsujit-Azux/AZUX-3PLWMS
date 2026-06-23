@@ -55,34 +55,70 @@ export const ediLogs: EdiLog[] = [
 export type OrderLine = {
   sku: string;
   description: string;
+  upc?: string;
+  style?: string;
+  color?: string;
+  size?: string;
+  dim?: string;
   qtyOrdered: number;
   qtyAllocated: number;
+  cartons?: number;
   unitPrice: number;
 };
 
 export type Order = {
   id: string;             // Internal order number
+  customerOrderNumber?: string;
   poNumber: string;       // EDI 940 BEG03 / customer PO
   ediRef: string;         // EDI 940 W05 shipment id
   tenantId: string;
   warehouseId: string;
-  shipTo: string;
+
+  shipToCode: string;
+  shipToName: string;
+  shipToAddress1: string;
+  shipToAddress2?: string;
+  shipToCity: string;
+  shipToState: string;
+  shipToZip: string;
+
+  billToCode?: string;
+  billToName?: string;
+  billToAddress1?: string;
+  billToAddress2?: string;
+  billToCity?: string;
+  billToState?: string;
+  billToZip?: string;
+
   carrier: string;
   serviceLevel: string;
   status: "new" | "released" | "picking" | "packed" | "shipped" | "exception";
-  source: "EDI_940" | "CSV" | "API";
+  source: "EDI-940" | "CSV" | "API" | "MANUAL";
   receivedAt: string;
-  requiredShipBy: string;
+  entryDate: string;
+  cancelDate: string;
+  mustShipDate: string;
+
   lines: OrderLine[];
 };
 
+const defaultAddress = {
+  shipToCode: "DEF",
+  shipToAddress1: "123 Main St",
+  shipToCity: "Anytown",
+  shipToState: "NY",
+  shipToZip: "10001",
+  entryDate: ts("2026-05-17T14:00:00Z"),
+  cancelDate: ts("2026-06-18T23:59:00Z"),
+};
+
 export const orders: Order[] = [
-  { id: "SO-554120", poNumber: "PO-554120", ediRef: "W05-554120-A", tenantId: "acme", warehouseId: "atl1", shipTo: "Asheville, NC", carrier: "FedEx",  serviceLevel: "Ground",   status: "shipped",   source: "EDI_940", receivedAt: ts("2026-05-17T14:00:00Z"), requiredShipBy: ts("2026-05-18T23:59:00Z"), lines: [ { sku: "ACM-TENT-2P-OLV", description: "Ridgeline 2P Tent, Olive", qtyOrdered: 4, qtyAllocated: 4, unitPrice: 189 }, { sku: "ACM-STV-CMP-01", description: "Compact Camp Stove", qtyOrdered: 6, qtyAllocated: 6, unitPrice: 54.99 } ] },
-  { id: "SO-770412", poNumber: "PO-770412", ediRef: "W05-770412-A", tenantId: "northstar", warehouseId: "ord2", shipTo: "Madison, WI",  carrier: "UPS",    serviceLevel: "Ground",   status: "picking",   source: "EDI_940", receivedAt: ts("2026-05-19T05:58:00Z"), requiredShipBy: ts("2026-05-21T23:59:00Z"), lines: [ { sku: "NSA-HOOD-BLK-M", description: "Classic Hoodie, Black, M", qtyOrdered: 120, qtyAllocated: 120, unitPrice: 48 } ] },
-  { id: "SO-770411", poNumber: "PO-770411", ediRef: "W05-770411-A", tenantId: "northstar", warehouseId: "lax3", shipTo: "Phoenix, AZ",  carrier: "USPS",   serviceLevel: "Priority", status: "exception", source: "EDI_940", receivedAt: ts("2026-05-19T01:05:00Z"), requiredShipBy: ts("2026-05-20T23:59:00Z"), lines: [ { sku: "NSA-TEE-WHT-L", description: "Premium Tee White, L", qtyOrdered: 240, qtyAllocated: 180, unitPrice: 22 } ] },
-  { id: "SO-310995", poNumber: "PO-310995", ediRef: "W05-310995-A", tenantId: "harborlite", warehouseId: "ewr1", shipTo: "Boston, MA",  carrier: "FedEx",  serviceLevel: "2-Day",    status: "shipped",   source: "EDI_940", receivedAt: ts("2026-05-18T10:00:00Z"), requiredShipBy: ts("2026-05-19T23:59:00Z"), lines: [ { sku: "HLE-EARB-PRO", description: "ProSound Earbuds Gen 3", qtyOrdered: 18, qtyAllocated: 18, unitPrice: 129 } ] },
-  { id: "SO-220115", poNumber: "PO-220115", ediRef: "W05-220115-A", tenantId: "verdant",   warehouseId: "ord2", shipTo: "Austin, TX",  carrier: "UPS",    serviceLevel: "Ground",   status: "new",       source: "EDI_940", receivedAt: ts("2026-05-18T20:02:00Z"), requiredShipBy: ts("2026-05-22T23:59:00Z"), lines: [ { sku: "VRD-MAG-GLY",   description: "Magnesium Glycinate 120ct", qtyOrdered: 36, qtyAllocated: 0,  unitPrice: 24 } ] },
-  { id: "SO-554121", poNumber: "PO-554121", ediRef: "—",            tenantId: "acme",       warehouseId: "atl1", shipTo: "Knoxville, TN", carrier: "OTR LTL", serviceLevel: "Standard", status: "released",  source: "CSV",     receivedAt: ts("2026-05-19T07:40:00Z"), requiredShipBy: ts("2026-05-23T23:59:00Z"), lines: [ { sku: "ACM-TENT-2P-OLV", description: "Ridgeline 2P Tent, Olive", qtyOrdered: 12, qtyAllocated: 12, unitPrice: 189 } ] },
-  { id: "SO-220116", poNumber: "PO-220116", ediRef: "—",            tenantId: "verdant",   warehouseId: "atl1", shipTo: "Denver, CO",  carrier: "USPS",   serviceLevel: "Priority", status: "packed",    source: "API",     receivedAt: ts("2026-05-19T08:10:00Z"), requiredShipBy: ts("2026-05-20T23:59:00Z"), lines: [ { sku: "VRD-COLL-30CT",  description: "Collagen Peptides 30ct", qtyOrdered: 24, qtyAllocated: 24, unitPrice: 32 } ] },
-  { id: "SO-220117", poNumber: "PO-220117", ediRef: "W05-220117-A", tenantId: "verdant",   warehouseId: "atl1", shipTo: "Seattle, WA", carrier: "UPS",    serviceLevel: "Ground",   status: "new",       source: "EDI_940", receivedAt: ts("2026-05-19T11:25:00Z"), requiredShipBy: ts("2026-05-24T23:59:00Z"), lines: [ { sku: "VRD-BCAA-30CT",   description: "BCAA Recovery 30ct",         qtyOrdered: 24, qtyAllocated: 0,  unitPrice: 28 }, { sku: "VRD-MAG-GLY",     description: "Magnesium Glycinate 120ct",  qtyOrdered: 12, qtyAllocated: 0,  unitPrice: 24 } ] },
+  { id: "SO-554120", poNumber: "PO-554120", customerOrderNumber: "ORD-1001", ediRef: "W05-554120-A", tenantId: "acme", warehouseId: "atl1", shipToName: "Asheville Client", shipToCode: "ASH", shipToAddress1: "456 Oak", shipToCity: "Asheville", shipToState: "NC", shipToZip: "28801", entryDate: ts("2026-05-17T14:00:00Z"), cancelDate: ts("2026-05-25T23:59:00Z"), carrier: "FedEx",  serviceLevel: "Ground",   status: "shipped",   source: "EDI-940", receivedAt: ts("2026-05-17T14:00:00Z"), mustShipDate: ts("2026-05-18T23:59:00Z"), lines: [ { sku: "ACM-TENT-2P-OLV", description: "Ridgeline 2P Tent, Olive", qtyOrdered: 4, qtyAllocated: 4, unitPrice: 189 }, { sku: "ACM-STV-CMP-01", description: "Compact Camp Stove", qtyOrdered: 6, qtyAllocated: 6, unitPrice: 54.99 } ] },
+  { id: "SO-770412", poNumber: "PO-770412", customerOrderNumber: "ORD-1002", ediRef: "W05-770412-A", tenantId: "northstar", warehouseId: "ord2", shipToName: "Madison Retail", shipToCode: "MAD", shipToAddress1: "789 Pine", shipToCity: "Madison", shipToState: "WI", shipToZip: "53703", entryDate: ts("2026-05-19T05:58:00Z"), cancelDate: ts("2026-05-25T23:59:00Z"), carrier: "UPS",    serviceLevel: "Ground",   status: "picking",   source: "EDI-940", receivedAt: ts("2026-05-19T05:58:00Z"), mustShipDate: ts("2026-05-21T23:59:00Z"), lines: [ { sku: "NSA-HOOD-BLK-M", description: "Classic Hoodie, Black, M", qtyOrdered: 120, qtyAllocated: 120, unitPrice: 48 } ] },
+  { id: "SO-770411", poNumber: "PO-770411", customerOrderNumber: "ORD-1003", ediRef: "W05-770411-A", tenantId: "northstar", warehouseId: "lax3", shipToName: "Phoenix Dist", shipToCode: "PHX", shipToAddress1: "101 Desert", shipToCity: "Phoenix", shipToState: "AZ", shipToZip: "85001", entryDate: ts("2026-05-19T01:05:00Z"), cancelDate: ts("2026-05-25T23:59:00Z"), carrier: "USPS",   serviceLevel: "Priority", status: "exception", source: "EDI-940", receivedAt: ts("2026-05-19T01:05:00Z"), mustShipDate: ts("2026-05-20T23:59:00Z"), lines: [ { sku: "NSA-TEE-WHT-L", description: "Premium Tee White, L", qtyOrdered: 240, qtyAllocated: 180, unitPrice: 22 } ] },
+  { id: "SO-310995", poNumber: "PO-310995", customerOrderNumber: "ORD-1004", ediRef: "W05-310995-A", tenantId: "harborlite", warehouseId: "ewr1", shipToName: "Boston Audio", shipToCode: "BOS", shipToAddress1: "202 Harbor", shipToCity: "Boston", shipToState: "MA", shipToZip: "02101", entryDate: ts("2026-05-18T10:00:00Z"), cancelDate: ts("2026-05-25T23:59:00Z"), carrier: "FedEx",  serviceLevel: "2-Day",    status: "shipped",   source: "EDI-940", receivedAt: ts("2026-05-18T10:00:00Z"), mustShipDate: ts("2026-05-19T23:59:00Z"), lines: [ { sku: "HLE-EARB-PRO", description: "ProSound Earbuds Gen 3", qtyOrdered: 18, qtyAllocated: 18, unitPrice: 129 } ] },
+  { id: "SO-220115", poNumber: "PO-220115", customerOrderNumber: "ORD-1005", ediRef: "W05-220115-A", tenantId: "verdant",   warehouseId: "ord2", shipToName: "Austin Health", shipToCode: "AUS", shipToAddress1: "303 Tech", shipToCity: "Austin", shipToState: "TX", shipToZip: "73301", entryDate: ts("2026-05-18T20:02:00Z"), cancelDate: ts("2026-05-25T23:59:00Z"), carrier: "UPS",    serviceLevel: "Ground",   status: "new",       source: "EDI-940", receivedAt: ts("2026-05-18T20:02:00Z"), mustShipDate: ts("2026-05-22T23:59:00Z"), lines: [ { sku: "VRD-MAG-GLY",   description: "Magnesium Glycinate 120ct", qtyOrdered: 36, qtyAllocated: 0,  unitPrice: 24 } ] },
+  { id: "SO-554121", poNumber: "PO-554121", customerOrderNumber: "ORD-1006", ediRef: "—",            tenantId: "acme",       warehouseId: "atl1", shipToName: "Knoxville Camp", shipToCode: "KNX", shipToAddress1: "404 River", shipToCity: "Knoxville", shipToState: "TN", shipToZip: "37901", entryDate: ts("2026-05-19T07:40:00Z"), cancelDate: ts("2026-05-25T23:59:00Z"), carrier: "OTR LTL", serviceLevel: "Standard", status: "released",  source: "CSV",     receivedAt: ts("2026-05-19T07:40:00Z"), mustShipDate: ts("2026-05-23T23:59:00Z"), lines: [ { sku: "ACM-TENT-2P-OLV", description: "Ridgeline 2P Tent, Olive", qtyOrdered: 12, qtyAllocated: 12, unitPrice: 189 } ] },
+  { id: "SO-220116", poNumber: "PO-220116", customerOrderNumber: "ORD-1007", ediRef: "—",            tenantId: "verdant",   warehouseId: "atl1", shipToName: "Denver Nutri", shipToCode: "DEN", shipToAddress1: "505 Peak", shipToCity: "Denver", shipToState: "CO", shipToZip: "80201", entryDate: ts("2026-05-19T08:10:00Z"), cancelDate: ts("2026-05-25T23:59:00Z"), carrier: "USPS",   serviceLevel: "Priority", status: "packed",    source: "API",     receivedAt: ts("2026-05-19T08:10:00Z"), mustShipDate: ts("2026-05-20T23:59:00Z"), lines: [ { sku: "VRD-COLL-30CT",  description: "Collagen Peptides 30ct", qtyOrdered: 24, qtyAllocated: 24, unitPrice: 32 } ] },
+  { id: "SO-220117", poNumber: "PO-220117", customerOrderNumber: "ORD-1008", ediRef: "W05-220117-A", tenantId: "verdant",   warehouseId: "atl1", shipToName: "Seattle Fit", shipToCode: "SEA", shipToAddress1: "606 Rain", shipToCity: "Seattle", shipToState: "WA", shipToZip: "98101", entryDate: ts("2026-05-19T11:25:00Z"), cancelDate: ts("2026-05-25T23:59:00Z"), carrier: "UPS",    serviceLevel: "Ground",   status: "new",       source: "EDI-940", receivedAt: ts("2026-05-19T11:25:00Z"), mustShipDate: ts("2026-05-24T23:59:00Z"), lines: [ { sku: "VRD-BCAA-30CT",   description: "BCAA Recovery 30ct",         qtyOrdered: 24, qtyAllocated: 0,  unitPrice: 28 }, { sku: "VRD-MAG-GLY",     description: "Magnesium Glycinate 120ct",  qtyOrdered: 12, qtyAllocated: 0,  unitPrice: 24 } ] },
 ];

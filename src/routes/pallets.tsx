@@ -448,7 +448,7 @@ function PalletsPage() {
                       </span>
                     </div>
                     <div className="mt-1 text-[11px] text-muted-foreground">
-                      <span className="font-mono">{w.orderId}</span> · {order?.shipTo ?? "—"}
+                      <span className="font-mono">{w.orderId}</span> · {order?.shipToName ?? "—"}
                     </div>
                     <div className="mt-0.5 text-[10px] font-mono text-muted-foreground">
                       {tenant?.code} · {wh?.code} · {w.carrier} · {w.assignee}

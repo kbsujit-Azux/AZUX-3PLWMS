@@ -79,7 +79,7 @@ const NMFC_BY_CATEGORY: Record<string, { nmfc: string; class: BolFreightLine["fr
   Default:    { nmfc: "999999", class: "100" },
 };
 
-function consigneeFor(shipTo: string): Party {
+function consigneeFor(order: Order): Party {
   // Mock destination registry keyed by ship-to label
   const map: Record<string, Party> = {
     "Asheville, NC":  { name: "Blue Ridge Outfitters",   address1: "118 Patton Ave",        city: "Asheville",  state: "NC", zip: "28801", contact: "K. Watts",    phone: "828-555-0118", cid: "CID-AVL-014" },
@@ -90,9 +90,9 @@ function consigneeFor(shipTo: string): Party {
     "Knoxville, TN":  { name: "Smoky Mtn Outdoor LLC",   address1: "401 Henley St",         city: "Knoxville",  state: "TN", zip: "37902", contact: "R. Patel",    phone: "865-555-0401", cid: "CID-TYS-018" },
     "Denver, CO":     { name: "Front Range Wellness",    address1: "1437 Larimer St",       city: "Denver",     state: "CO", zip: "80202", contact: "S. Becker",   phone: "303-555-1437", cid: "CID-DEN-026" },
   };
-  return map[shipTo] ?? {
-    name: shipTo, address1: "—", city: shipTo.split(",")[0]?.trim() ?? "—",
-    state: (shipTo.split(",")[1]?.trim() ?? "—").slice(0, 2), zip: "—",
+  return map[order.shipToName] ?? {
+    name: order.shipToName, address1: order.shipToAddress1, city: order.shipToCity,
+    state: order.shipToState, zip: order.shipToZip,
   };
 }
 
@@ -178,9 +178,9 @@ export function buildBolFromOrder(o: Order): BillOfLading {
     cod: 0,
     declaredValue: +(o.lines.reduce((a, l) => a + l.qtyOrdered * l.unitPrice, 0)).toFixed(2),
     shipper: shipperFor(o.warehouseId, o.tenantId),
-    consignee: consigneeFor(o.shipTo),
+    consignee: consigneeFor(o),
     specialInstructions: "Driver: count & sign for all pieces. Do not break seal without WH supervisor.",
-    pickupDate: o.requiredShipBy,
+    pickupDate: o.mustShipDate,
     createdAt: o.receivedAt,
     childOrderIds: [o.id],
     lines,
@@ -191,7 +191,7 @@ export function buildBolFromOrder(o: Order): BillOfLading {
 /** Group eligible orders by destination + carrier to surface Master BOL candidates. */
 export type ConsolidationGroup = {
   key: string;                 // destination|carrier
-  shipTo: string;
+  shipToName: string;
   carrier: string;
   warehouseId: string;
   orderIds: string[];
@@ -204,7 +204,7 @@ export function buildConsolidationGroups(pool: Order[] = orders): ConsolidationG
   const groups = new Map<string, ConsolidationGroup>();
   for (const o of pool) {
     if (o.status === "shipped" || o.status === "exception") continue;
-    const key = `${o.shipTo}|${o.carrier}|${o.warehouseId}`;
+    const key = `${o.shipToName}|${o.carrier}|${o.warehouseId}`;
     const ex = groups.get(key);
     const units = o.lines.reduce((a, l) => a + l.qtyOrdered, 0);
     const weight = o.lines.reduce((a, l) => {
@@ -218,7 +218,7 @@ export function buildConsolidationGroups(pool: Order[] = orders): ConsolidationG
       if (!ex.tenantIds.includes(o.tenantId)) ex.tenantIds.push(o.tenantId);
     } else {
       groups.set(key, {
-        key, shipTo: o.shipTo, carrier: o.carrier, warehouseId: o.warehouseId,
+        key, shipToName: o.shipToName, carrier: o.carrier, warehouseId: o.warehouseId,
         orderIds: [o.id], totalUnits: units,
         totalWeightLbs: +weight.toFixed(1), tenantIds: [o.tenantId],
       });
@@ -242,7 +242,7 @@ export function buildMasterBol(orderIds: string[]): BillOfLading {
   const totals = totalsOf(lines);
   const seed = `MBOL-${orderIds.join("+")}`;
   return {
-    id: `MBOL-${first.shipTo.replace(/\W+/g, "")}-${first.carrier.replace(/\W+/g, "")}`,
+    id: `MBOL-${first.shipToName.replace(/\W+/g, "")}-${first.carrier.replace(/\W+/g, "")}`,
     proNumber: proFor(scac, seed),
     bolNumber: bolNumberFor(seed, "master"),
     type: "master",
@@ -258,9 +258,9 @@ export function buildMasterBol(orderIds: string[]): BillOfLading {
     cod: 0,
     declaredValue: +subset.reduce((a, o) => a + o.lines.reduce((b, l) => b + l.qtyOrdered * l.unitPrice, 0), 0).toFixed(2),
     shipper: shipperFor(first.warehouseId, first.tenantId),
-    consignee: consigneeFor(first.shipTo),
+    consignee: consigneeFor(first),
     specialInstructions: `Master BOL consolidating ${subset.length} underlying shipments. Deliver as single drop — segregate by underlying BOL upon receipt.`,
-    pickupDate: subset.map((o) => o.requiredShipBy).sort()[0],
+    pickupDate: subset.map((o) => o.mustShipDate).sort()[0],
     createdAt: new Date().toISOString(),
     childOrderIds: subset.map((o) => o.id),
     childBolIds,

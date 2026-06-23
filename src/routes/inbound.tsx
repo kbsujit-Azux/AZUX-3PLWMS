@@ -345,14 +345,14 @@ function ShipmentCard({
                         style: l.itemStyle ?? "",
                       }).toString();
                       return (
-                        <a
-                          href={`/masters?${qs}`}
+                        <Link
+                          to={`/masters?${qs}`}
                           className="inline-flex items-center gap-1 rounded-sm border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/15"
                           title={masterReasonLabel(masterReason)}
                         >
                           <Database className="h-3 w-3" />
                           Add to Item Master
-                        </a>
+                        </Link>
                       );
                     }
                     return (

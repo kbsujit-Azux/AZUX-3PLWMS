@@ -326,7 +326,7 @@ function DocumentsPage() {
                           {tenant?.name.split(" ")[0]}
                           <span className="text-muted-foreground"> · {wh?.code}</span>
                         </TableCell>
-                        <TableCell className="py-2">{o.shipTo}</TableCell>
+                        <TableCell className="py-2">{o.shipToName}</TableCell>
                         <TableCell className="py-2">{o.carrier} <span className="text-[10px] text-muted-foreground">· {o.serviceLevel}</span></TableCell>
                         <TableCell className="py-2 text-right tabular-nums">{o.lines.length}</TableCell>
                         <TableCell className="py-2">
@@ -425,7 +425,7 @@ function ConsolidateDialog({
               <div key={g.key} className="rounded-md border border-border overflow-hidden">
                 <div className="flex items-center justify-between bg-muted/30 px-3 py-2 border-b border-border">
                   <div className="text-xs">
-                    <span className="font-semibold">{g.shipTo}</span>
+                    <span className="font-semibold">{g.shipToName}</span>
                     <span className="text-muted-foreground"> · {g.carrier}</span>
                     <span className="text-[10px] text-muted-foreground font-mono ml-2">
                       {g.orderIds.length} orders · {g.totalUnits.toLocaleString()} units · {g.totalWeightLbs.toLocaleString()} lb

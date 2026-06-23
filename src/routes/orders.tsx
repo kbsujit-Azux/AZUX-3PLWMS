@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import Papa from "papaparse";
 import {
   Search,
   Upload,
@@ -16,6 +17,12 @@ import {
   X,
   Pencil,
   Database,
+  Calendar,
+  MapPin,
+  User,
+  Package,
+  DollarSign,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +47,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/orders")({
@@ -68,11 +82,32 @@ function OrdersPage() {
   const { tenantId, warehouseId } = useWorkspace();
   const [query, setQuery] = useState("");
   const [csvOpen, setCsvOpen] = useState(false);
+  const [tick, setTick] = useState(0);
   const [lineOverrides, setLineOverrides] = useState<Record<string, OrderLine[]>>({});
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
+  const [newOrderOpen, setNewOrderOpen] = useState(false);
 
   const linesFor = (o: Order): OrderLine[] => lineOverrides[o.id] ?? o.lines;
   const isLocked = (s: Order["status"]) => s === "shipped" || s === "picking";
+
+  const handleNewOrderSave = (newOrder: Order) => {
+    orders.push(newOrder);
+    setTick((t) => t + 1);
+    setNewOrderOpen(false);
+    setDetailOrderId(newOrder.id);
+    toast.success(`Order ${newOrder.id} created`);
+  };
+
+  // Generate next sequence ID
+  const generateNextSeq = () => {
+    let maxSeq = 0;
+    for (const o of orders) {
+      const m = o.id.match(/^SO[#-]?(\d+)$/);
+      if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+    }
+    maxSeq++;
+    return `SO#-${maxSeq.toString().padStart(8, "0")}`;
+  };
 
   const exceptionsFor = (o: Order): OrderLine[] =>
     linesFor(o).filter(
@@ -91,12 +126,12 @@ function OrdersPage() {
       if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
       if (query) {
         const q = query.toLowerCase();
-        const blob = `${o.id} ${o.poNumber} ${o.ediRef} ${o.shipTo} ${o.carrier}`.toLowerCase();
+        const blob = `${o.id} ${o.poNumber} ${o.ediRef} ${o.shipToName} ${o.carrier}`.toLowerCase();
         if (!blob.includes(q)) return false;
       }
       return true;
     });
-  }, [tenantId, warehouseId, query]);
+  }, [tenantId, warehouseId, query, tick]);
 
   const stats = useMemo(() => {
     const t = { new: 0, picking: 0, exception: 0, shipped: 0, totalLines: 0 };
@@ -108,7 +143,7 @@ function OrdersPage() {
       t.totalLines += linesFor(o).length;
     }
     return t;
-  }, [filtered, lineOverrides]);
+  }, [filtered, lineOverrides, tick]);
 
   return (
     <div className="px-6 py-6 space-y-4">
@@ -126,7 +161,7 @@ function OrdersPage() {
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
             <Download className="h-3.5 w-3.5" /> Export
           </Button>
-          <Button size="sm" className="h-8 text-xs gap-1.5">
+          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setNewOrderOpen(true)}>
             <Plus className="h-3.5 w-3.5" /> New order
           </Button>
         </div>
@@ -206,7 +241,7 @@ function OrdersPage() {
                     {tenant?.name.split(" ")[0]}
                   </TableCell>
                   <TableCell className="py-2 font-mono text-[11px]">{wh?.code}</TableCell>
-                  <TableCell className="py-2">{o.shipTo}</TableCell>
+                  <TableCell className="py-2">{o.shipToName}</TableCell>
                   <TableCell className="py-2">
                     <div className="flex items-center gap-1">
                       <Truck className="h-3 w-3 text-muted-foreground" />
@@ -245,7 +280,7 @@ function OrdersPage() {
                     )}
                   </TableCell>
                   <TableCell className="py-2 text-[11px] text-muted-foreground tabular-nums">
-                    {new Date(o.requiredShipBy).toLocaleDateString(undefined, {
+                    {new Date(o.mustShipDate).toLocaleDateString(undefined, {
                       month: "short",
                       day: "2-digit",
                     })}
@@ -264,15 +299,112 @@ function OrdersPage() {
         description="Fallback ingestion when an EDI 940 feed is not active. Map your headers to the order schema."
         ediHint="EDI 940"
         targetFields={[
-          { key: "po_number",     label: "Customer PO",      required: true },
-          { key: "ship_to",       label: "Destination",      required: true },
-          { key: "carrier",       label: "Carrier SCAC",     required: true },
-          { key: "service_level", label: "Service level" },
-          { key: "sku",           label: "Line SKU",         required: true },
-          { key: "qty_ordered",   label: "Quantity ordered", required: true },
-          { key: "required_by",   label: "Required ship date" },
+          { key: "poNumber", label: "PO#", required: true },
+          { key: "customerOrderNumber", label: "Order_number", required: true },
+          { key: "sku", label: "SKU", required: true },
+          { key: "upc", label: "UPC", required: true },
+          { key: "style", label: "Style" },
+          { key: "color", label: "Color" },
+          { key: "size", label: "Size" },
+          { key: "dim", label: "Dim" },
+          { key: "qtyOrdered", label: "Units", required: true },
+          { key: "cartons", label: "Cartons", required: true },
+          { key: "shipToCode", label: "Shipto Code", required: true },
+          { key: "shipToName", label: "Shipto name", required: true },
+          { key: "shipToAddress1", label: "Shipto address1", required: true },
+          { key: "shipToAddress2", label: "Shipto Address2" },
+          { key: "shipToCity", label: "shipto City", required: true },
+          { key: "shipToState", label: "shipto State", required: true },
+          { key: "shipToZip", label: "shipto Zip", required: true },
+          { key: "billToCode", label: "billto Code" },
+          { key: "billToName", label: "billto name" },
+          { key: "billToAddress1", label: "billto address1" },
+          { key: "billToAddress2", label: "billto Address2" },
+          { key: "billToCity", label: "billto City" },
+          { key: "billToState", label: "bill toState" },
+          { key: "billToZip", label: "bill to Zip" },
+          { key: "carrier", label: "Carrier", required: true },
+          { key: "cancelDate", label: "Cancel Date", required: true },
+          { key: "mustShipDate", label: "Must Ship date", required: true },
+          { key: "tenantId", label: "Client", required: true },
+          { key: "warehouseId", label: "WH-Warehouse", required: true },
         ]}
-        exampleHeaders={["PO", "Ship To", "Carrier", "Service", "Item", "Qty", "Need By"]}
+        exampleHeaders={["PO#", "Order_number", "SKU", "UPC", "Style", "Color", "Size", "Dim", "Units", "Cartons", "Shipto Code", "Shipto name", "Shipto address1", "Shipto Address2", "shipto City", "shipto State", "shipto Zip", "billto Code", "billto name", "billto address1", "billto Address2", "billto City", "bill toState", "bill to Zip", "Carrier", "Cancel Date", "Must Ship date", "Client", "WH-Warehouse"]}
+        onConfirm={(file) => {
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+              const parsed = results.data as Record<string, string>[];
+              let maxSeq = 0;
+              for (const o of orders) {
+                // Match both SO-XXXXXX and SO#-XXXXXXXX formats
+                const m = o.id.match(/^SO[#-]?(\d+)$/);
+                if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+              }
+              const nextSeq = () => {
+                maxSeq++;
+                return `SO#-${maxSeq.toString().padStart(8, "0")}`;
+              };
+
+              const grouped = new Map<string, Order>();
+              for (const row of parsed) {
+                const po = row["poNumber"] || row["PO#"] || "";
+                if (!po) continue;
+                if (!grouped.has(po)) {
+                  grouped.set(po, {
+                    id: nextSeq(),
+                    poNumber: po,
+                    customerOrderNumber: row["customerOrderNumber"] || "",
+                    ediRef: "—",
+                    tenantId: row["tenantId"] || tenantId || "acme",
+                    warehouseId: row["warehouseId"] || warehouseId || "atl1",
+                    shipToCode: row["shipToCode"] || "",
+                    shipToName: row["shipToName"] || "",
+                    shipToAddress1: row["shipToAddress1"] || "",
+                    shipToAddress2: row["shipToAddress2"] || "",
+                    shipToCity: row["shipToCity"] || "",
+                    shipToState: row["shipToState"] || "",
+                    shipToZip: row["shipToZip"] || "",
+                    billToCode: row["billToCode"] || "",
+                    billToName: row["billToName"] || "",
+                    billToAddress1: row["billToAddress1"] || "",
+                    billToAddress2: row["billToAddress2"] || "",
+                    billToCity: row["billToCity"] || "",
+                    billToState: row["billToState"] || "",
+                    billToZip: row["billToZip"] || "",
+                    carrier: row["carrier"] || "",
+                    serviceLevel: "Standard",
+                    status: "new",
+                    source: "CSV",
+                    receivedAt: new Date().toISOString(),
+                    entryDate: new Date().toISOString(),
+                    cancelDate: row["cancelDate"] || new Date().toISOString(),
+                    mustShipDate: row["mustShipDate"] || new Date().toISOString(),
+                    lines: [],
+                  });
+                }
+                const order = grouped.get(po)!;
+                order.lines.push({
+                  sku: row["sku"] || "",
+                  description: "CSV Uploaded Item",
+                  upc: row["upc"] || "",
+                  style: row["style"] || "",
+                  color: row["color"] || "",
+                  size: row["size"] || "",
+                  dim: row["dim"] || "",
+                  qtyOrdered: parseInt(row["qtyOrdered"] || row["Units"] || "0", 10),
+                  qtyAllocated: 0,
+                  cartons: parseInt(row["cartons"] || row["Cartons"] || "0", 10),
+                  unitPrice: 0,
+                });
+              }
+              const newOrders = Array.from(grouped.values());
+              orders.push(...newOrders);
+              setTick((t) => t + 1);
+            },
+          });
+        }}
       />
 
       <OrderDetailDialog
@@ -385,7 +517,7 @@ function OrderDetailDialog({
             </span>
           </DialogTitle>
           <DialogDescription className="text-xs">
-            PO {order.poNumber} · EDI {order.ediRef} · Ship to {order.shipTo} ·{" "}
+            PO {order.poNumber} · EDI {order.ediRef} · Ship to {order.shipToName} ·{" "}
             {order.carrier} {order.serviceLevel}
           </DialogDescription>
         </DialogHeader>
@@ -410,14 +542,67 @@ function OrderDetailDialog({
           </div>
         )}
 
+        {/* Order Details Section */}
+        <div className="rounded-md border border-border bg-muted/20 p-3 mb-3 space-y-2">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order Details</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div><span className="text-muted-foreground">Customer Order #:</span> <span className="font-mono ml-1">{order.customerOrderNumber || "—"}</span></div>
+            <div><span className="text-muted-foreground">Source:</span> <span className="font-mono ml-1">{order.source}</span></div>
+            <div><span className="text-muted-foreground">Entry Date:</span> <span className="font-mono ml-1">{new Date(order.entryDate).toLocaleDateString()}</span></div>
+            <div><span className="text-muted-foreground">Cancel Date:</span> <span className="font-mono ml-1">{new Date(order.cancelDate).toLocaleDateString()}</span></div>
+            <div><span className="text-muted-foreground">Must Ship By:</span> <span className="font-mono ml-1">{new Date(order.mustShipDate).toLocaleDateString()}</span></div>
+            <div><span className="text-muted-foreground">Received:</span> <span className="font-mono ml-1">{new Date(order.receivedAt).toLocaleDateString()}</span></div>
+            <div><span className="text-muted-foreground">Tenant:</span> <span className="font-mono ml-1">{order.tenantId}</span></div>
+            <div><span className="text-muted-foreground">Warehouse:</span> <span className="font-mono ml-1">{order.warehouseId}</span></div>
+          </div>
+          
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground border-t pt-2">Ship To</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div><span className="text-muted-foreground">Code:</span> <span className="font-mono ml-1">{order.shipToCode}</span></div>
+            <div><span className="text-muted-foreground">Name:</span> <span className="ml-1">{order.shipToName}</span></div>
+            <div><span className="text-muted-foreground">Address 1:</span> <span className="ml-1">{order.shipToAddress1}</span></div>
+            <div><span className="text-muted-foreground">Address 2:</span> <span className="ml-1">{order.shipToAddress2 || "—"}</span></div>
+            <div><span className="text-muted-foreground">City:</span> <span className="ml-1">{order.shipToCity}</span></div>
+            <div><span className="text-muted-foreground">State:</span> <span className="font-mono ml-1">{order.shipToState}</span></div>
+            <div><span className="text-muted-foreground">Zip:</span> <span className="font-mono ml-1">{order.shipToZip}</span></div>
+          </div>
+
+          {(order.billToCode || order.billToName || order.billToAddress1) && (
+            <>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground border-t pt-2">Bill To</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div><span className="text-muted-foreground">Code:</span> <span className="font-mono ml-1">{order.billToCode || "—"}</span></div>
+                <div><span className="text-muted-foreground">Name:</span> <span className="ml-1">{order.billToName || "—"}</span></div>
+                <div><span className="text-muted-foreground">Address 1:</span> <span className="ml-1">{order.billToAddress1 || "—"}</span></div>
+                <div><span className="text-muted-foreground">Address 2:</span> <span className="ml-1">{order.billToAddress2 || "—"}</span></div>
+                <div><span className="text-muted-foreground">City:</span> <span className="ml-1">{order.billToCity || "—"}</span></div>
+                <div><span className="text-muted-foreground">State:</span> <span className="font-mono ml-1">{order.billToState || "—"}</span></div>
+                <div><span className="text-muted-foreground">Zip:</span> <span className="font-mono ml-1">{order.billToZip || "—"}</span></div>
+              </div>
+            </>
+          )}
+
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground border-t pt-2">Carrier</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div><span className="text-muted-foreground">Carrier:</span> <span className="ml-1">{order.carrier}</span></div>
+            <div><span className="text-muted-foreground">Service Level:</span> <span className="ml-1">{order.serviceLevel}</span></div>
+          </div>
+        </div>
+
         <div className="rounded-md border border-border overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
                 <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
                 <TableHead className="text-[10px] uppercase tracking-wider">Description</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider">UPC</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider">Style</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider">Color</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider">Size</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider">Dim</TableHead>
                 <TableHead className="text-[10px] uppercase tracking-wider text-right">Qty Ord</TableHead>
                 <TableHead className="text-[10px] uppercase tracking-wider text-right">Qty Alloc</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider text-right">Cartons</TableHead>
                 <TableHead className="text-[10px] uppercase tracking-wider text-right">Unit $</TableHead>
                 <TableHead className="text-[10px] uppercase tracking-wider text-right">Ext $</TableHead>
                 <TableHead className="text-[10px] uppercase tracking-wider w-24 text-right">Actions</TableHead>
@@ -426,7 +611,7 @@ function OrderDetailDialog({
             <TableBody>
               {draft.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-xs text-muted-foreground py-6">
+                  <TableCell colSpan={13} className="text-center text-xs text-muted-foreground py-6">
                     No lines on this order.
                   </TableCell>
                 </TableRow>
@@ -474,6 +659,61 @@ function OrderDetailDialog({
                         l.description || <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
+                    <TableCell className="py-1.5 font-mono text-[10px]">
+                      {editing ? (
+                        <Input
+                          value={l.upc || ""}
+                          onChange={(e) => updateLine(idx, { upc: e.target.value })}
+                          className="h-7 text-xs font-mono"
+                        />
+                      ) : (
+                        l.upc || <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-1.5 text-[10px]">
+                      {editing ? (
+                        <Input
+                          value={l.style || ""}
+                          onChange={(e) => updateLine(idx, { style: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      ) : (
+                        l.style || <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-1.5 text-[10px]">
+                      {editing ? (
+                        <Input
+                          value={l.color || ""}
+                          onChange={(e) => updateLine(idx, { color: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      ) : (
+                        l.color || <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-1.5 text-[10px]">
+                      {editing ? (
+                        <Input
+                          value={l.size || ""}
+                          onChange={(e) => updateLine(idx, { size: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      ) : (
+                        l.size || <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-1.5 text-[10px]">
+                      {editing ? (
+                        <Input
+                          value={l.dim || ""}
+                          onChange={(e) => updateLine(idx, { dim: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      ) : (
+                        l.dim || <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="py-1.5 text-right tabular-nums">
                       {editing ? (
                         <Input
@@ -491,6 +731,21 @@ function OrderDetailDialog({
                     </TableCell>
                     <TableCell className="py-1.5 text-right tabular-nums text-muted-foreground">
                       {l.qtyAllocated.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="py-1.5 text-right tabular-nums">
+                      {editing ? (
+                        <Input
+                          type="number"
+                          min={0}
+                          value={l.cartons || 0}
+                          onChange={(e) =>
+                            updateLine(idx, { cartons: Number(e.target.value) || 0 })
+                          }
+                          className="h-7 text-xs text-right w-20 ml-auto"
+                        />
+                      ) : (
+                        (l.cartons || 0).toLocaleString()
+                      )}
                     </TableCell>
                     <TableCell className="py-1.5 text-right tabular-nums">
                       {editing ? (
