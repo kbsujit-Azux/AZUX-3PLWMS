@@ -39,6 +39,7 @@ import { orders, type Order, type OrderLine } from "@/lib/edi-data";
 import { tenants, warehouses } from "@/lib/mock-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
+import { itemMaster, findItem } from "@/lib/master-data";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +55,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Label
+} from "@/components/ui/label";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/orders")({
