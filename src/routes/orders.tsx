@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Papa from "papaparse";
 import {
   Search,
@@ -23,6 +23,20 @@ import {
   Package,
   DollarSign,
   Loader2,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  CreditCard,
+  ShippingFast,
+  Warehouse,
+  Building2,
+  Mail,
+  Phone,
+  MoreHorizontal,
+  Eye,
+  Edit2,
+  Copy,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +72,21 @@ import {
 import {
   Label
 } from "@/components/ui/label";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Separator
+} from "@/components/ui/separator";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/orders")({
