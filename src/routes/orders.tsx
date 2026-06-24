@@ -1182,7 +1182,6 @@ function NewOrderDialog({
                             <SelectValue placeholder="Select SKU" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="" disabled>Select SKU</SelectItem>
                             {filteredItemMaster.map((it) => (
                               <SelectItem key={it.sku} value={it.sku} className="text-xs">
                                 {it.sku} — {it.description}
@@ -1352,14 +1351,18 @@ function OrderDetailDialog({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [lineDeleteIdx, setLineDeleteIdx] = useState<number | null>(null);
 
+  // Filter item master by tenant for this order (must be before early return)
+  const filteredItemMaster = useMemo(() => {
+    return itemMaster.filter((item) => item.tenantId === tenantId && item.active);
+  }, [tenantId]);
+
   // Re-seed draft whenever a new order is opened
   const orderKey = order?.id ?? null;
-  useMemo(() => {
+  useEffect(() => {
     setDraft(lines.map((l) => ({ ...l })));
     setEditingIdx(null);
     setLineDeleteIdx(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderKey]);
+  }, [orderKey, lines]);
 
   if (!order) return null;
 
@@ -1369,11 +1372,6 @@ function OrderDetailDialog({
     l.sku ? validateLineAgainstItemMaster({ sku: l.sku, tenantId }) : null,
   );
   const hasExceptions = exceptionReasons.some(Boolean);
-
-  // Filter item master by tenant for this order
-  const filteredItemMaster = useMemo(() => {
-    return itemMaster.filter((item) => item.tenantId === tenantId && item.active);
-  }, [tenantId]);
 
   const handleSkuChange = (idx: number, sku: string) => {
     const item = findItem(sku);
@@ -1653,7 +1651,6 @@ function OrderDetailDialog({
                               <SelectValue placeholder="Select SKU" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="" disabled>Select SKU</SelectItem>
                               {filteredItemMaster.map((it) => (
                                 <SelectItem key={it.sku} value={it.sku} className="text-xs">
                                   {it.sku} — {it.description}
