@@ -78,7 +78,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
@@ -268,12 +273,13 @@ function OrdersPage() {
               <TableHead className="text-[10px] uppercase tracking-wider">Status</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Master</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Required by</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={12} className="text-center text-xs text-muted-foreground py-10">
+                <TableCell colSpan={13} className="text-center text-xs text-muted-foreground py-10">
                   No orders match the current tenant / warehouse filter.
                 </TableCell>
               </TableRow>
@@ -350,6 +356,35 @@ function OrdersPage() {
                       month: "short",
                       day: "2-digit",
                     })}
+                  </TableCell>
+                  <TableCell className="py-2 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDetailOrderId(o.id);
+                        }}
+                        title="Edit order"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        disabled={o.status !== "new"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmId(o.id);
+                        }}
+                        title={o.status !== "new" ? "Only new orders can be deleted" : "Delete order"}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -503,6 +538,14 @@ function OrdersPage() {
         }}
       />
 
+      <NewOrderDialog
+        open={newOrderOpen}
+        onOpenChange={setNewOrderOpen}
+        onSave={handleNewOrderSave}
+        defaultTenantId={tenantId}
+        defaultWarehouseId={warehouseId}
+      />
+
       <OrderDetailDialog
         order={detailOrder}
         lines={detailOrder ? linesFor(detailOrder) : []}
@@ -515,6 +558,31 @@ function OrdersPage() {
           toast.success(`Order ${detailOrder.id} updated`);
         }}
       />
+
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete order {deleteConfirmId}?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              This permanently removes the order and all its lines. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDeleteConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteConfirmId) handleDeleteOrder(deleteConfirmId);
+              }}
+            >
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -538,6 +606,699 @@ function StatCell({
       </div>
       <div className={`text-base font-semibold tabular-nums ${tone}`}>{value.toLocaleString()}</div>
     </div>
+  );
+}
+
+function NewOrderDialog({
+  open,
+  onOpenChange,
+  onSave,
+  defaultTenantId,
+  defaultWarehouseId,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSave: (order: Order) => void;
+  defaultTenantId: string;
+  defaultWarehouseId: string;
+}) {
+  const now = new Date().toISOString();
+  const nextSeq = (() => {
+    let maxSeq = 0;
+    for (const o of orders) {
+      const m = o.id.match(/^SO[#-]?(\d+)$/);
+      if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+    }
+    return () => {
+      maxSeq++;
+      return `SO#-${maxSeq.toString().padStart(8, "0")}`;
+    };
+  })();
+
+  const [form, setForm] = useState<{
+    poNumber: string;
+    customerOrderNumber: string;
+    ediRef: string;
+    tenantId: string;
+    warehouseId: string;
+    shipToCode: string;
+    shipToName: string;
+    shipToAddress1: string;
+    shipToAddress2: string;
+    shipToCity: string;
+    shipToState: string;
+    shipToZip: string;
+    billToCode: string;
+    billToName: string;
+    billToAddress1: string;
+    billToAddress2: string;
+    billToCity: string;
+    billToState: string;
+    billToZip: string;
+    carrier: string;
+    serviceLevel: string;
+    status: Order["status"];
+    source: Order["source"];
+    cancelDate: string;
+    mustShipDate: string;
+    lines: OrderLine[];
+  }>({
+    poNumber: "",
+    customerOrderNumber: "",
+    ediRef: "—",
+    tenantId: defaultTenantId === "all" ? "acme" : defaultTenantId,
+    warehouseId: defaultWarehouseId === "all" ? "atl1" : defaultWarehouseId,
+    shipToCode: "",
+    shipToName: "",
+    shipToAddress1: "",
+    shipToAddress2: "",
+    shipToCity: "",
+    shipToState: "",
+    shipToZip: "",
+    billToCode: "",
+    billToName: "",
+    billToAddress1: "",
+    billToAddress2: "",
+    billToCity: "",
+    billToState: "",
+    billToZip: "",
+    carrier: "",
+    serviceLevel: "Standard",
+    status: "new",
+    source: "MANUAL",
+    cancelDate: "",
+    mustShipDate: "",
+    lines: [{ sku: "", description: "", qtyOrdered: 1, qtyAllocated: 0, unitPrice: 0 }],
+  });
+  const [editingLineIdx, setEditingLineIdx] = useState<number | null>(null);
+  const [lineDeleteIdx, setLineDeleteIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setForm({
+      poNumber: "",
+      customerOrderNumber: "",
+      ediRef: "—",
+      tenantId: defaultTenantId === "all" ? "acme" : defaultTenantId,
+      warehouseId: defaultWarehouseId === "all" ? "atl1" : defaultWarehouseId,
+      shipToCode: "",
+      shipToName: "",
+      shipToAddress1: "",
+      shipToAddress2: "",
+      shipToCity: "",
+      shipToState: "",
+      shipToZip: "",
+      billToCode: "",
+      billToName: "",
+      billToAddress1: "",
+      billToAddress2: "",
+      billToCity: "",
+      billToState: "",
+      billToZip: "",
+      carrier: "",
+      serviceLevel: "Standard",
+      status: "new",
+      source: "MANUAL",
+      cancelDate: "",
+      mustShipDate: "",
+      lines: [{ sku: "", description: "", qtyOrdered: 1, qtyAllocated: 0, unitPrice: 0 }],
+    });
+    setEditingLineIdx(null);
+    setLineDeleteIdx(null);
+  }, [open, defaultTenantId, defaultWarehouseId]);
+
+  const updateLine = (idx: number, patch: Partial<OrderLine>) => {
+    setForm((prev) => ({
+      ...prev,
+      lines: prev.lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
+    }));
+  };
+
+  const handleSkuChange = (idx: number, sku: string) => {
+    const item = findItem(sku);
+    if (item) {
+      updateLine(idx, {
+        sku,
+        description: item.description,
+        upc: item.upc,
+        style: item.itemStyle,
+        unitPrice: item.unitPrice,
+      });
+    } else {
+      updateLine(idx, { sku });
+    }
+  };
+
+  const addLine = () => {
+    setForm((prev) => ({
+      ...prev,
+      lines: [...prev.lines, { sku: "", description: "", qtyOrdered: 1, qtyAllocated: 0, unitPrice: 0 }],
+    }));
+    setEditingLineIdx(form.lines.length);
+  };
+
+  const requestDeleteLine = (idx: number) => {
+    setLineDeleteIdx(idx);
+  };
+
+  const confirmDeleteLine = () => {
+    if (lineDeleteIdx === null) return;
+    setForm((prev) => ({
+      ...prev,
+      lines: prev.lines.filter((_, i) => i !== lineDeleteIdx),
+    }));
+    setEditingLineIdx(null);
+    setLineDeleteIdx(null);
+  };
+
+  const handleSave = () => {
+    const lines = form.lines.filter((l) => l.sku.trim() !== "" || l.description.trim() !== "");
+    const newOrder: Order = {
+      id: nextSeq(),
+      poNumber: form.poNumber,
+      customerOrderNumber: form.customerOrderNumber,
+      ediRef: form.ediRef,
+      tenantId: form.tenantId,
+      warehouseId: form.warehouseId,
+      shipToCode: form.shipToCode,
+      shipToName: form.shipToName,
+      shipToAddress1: form.shipToAddress1,
+      shipToAddress2: form.shipToAddress2,
+      shipToCity: form.shipToCity,
+      shipToState: form.shipToState,
+      shipToZip: form.shipToZip,
+      billToCode: form.billToCode,
+      billToName: form.billToName,
+      billToAddress1: form.billToAddress1,
+      billToAddress2: form.billToAddress2,
+      billToCity: form.billToCity,
+      billToState: form.billToState,
+      billToZip: form.billToZip,
+      carrier: form.carrier,
+      serviceLevel: form.serviceLevel,
+      status: form.status,
+      source: form.source,
+      receivedAt: now,
+      entryDate: now,
+      cancelDate: form.cancelDate || now,
+      mustShipDate: form.mustShipDate || now,
+      lines,
+    };
+    onSave(newOrder);
+    onOpenChange(false);
+  };
+
+  const tenant = tenants.find((t) => t.id === form.tenantId);
+  const warehouse = warehouses.find((w) => w.id === form.warehouseId);
+  const totalUnits = form.lines.reduce((s, l) => s + l.qtyOrdered, 0);
+  const totalValue = form.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0);
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-6xl">
+        <DialogHeader>
+          <DialogTitle className="font-mono">New Order — Manual Entry</DialogTitle>
+          <DialogDescription className="text-xs">
+            Create an order manually. ID auto-generated on save.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+          <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order Header</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Order ID</Label>
+                <Input value={nextSeq()} disabled className="h-8 text-xs font-mono bg-muted" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">PO Number *</Label>
+                <Input
+                  value={form.poNumber}
+                  onChange={(e) => setForm((p) => ({ ...p, poNumber: e.target.value }))}
+                  placeholder="PO-XXXXXX"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Customer Order #</Label>
+                <Input
+                  value={form.customerOrderNumber}
+                  onChange={(e) => setForm((p) => ({ ...p, customerOrderNumber: e.target.value }))}
+                  placeholder="ORD-XXXXXX"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">EDI Ref</Label>
+                <Input
+                  value={form.ediRef}
+                  onChange={(e) => setForm((p) => ({ ...p, ediRef: e.target.value }))}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Tenant</Label>
+                <Select
+                  value={form.tenantId}
+                  onValueChange={(v) => setForm((p) => ({ ...p, tenantId: v }))}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select tenant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.filter((t) => t.id !== "all").map((t) => (
+                      <SelectItem key={t.id} value={t.id} className="text-xs">
+                        {t.code} — {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Warehouse</Label>
+                <Select
+                  value={form.warehouseId}
+                  onValueChange={(v) => setForm((p) => ({ ...p, warehouseId: v }))}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select warehouse" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {warehouses.filter((w) => w.id !== "all").map((w) => (
+                      <SelectItem key={w.id} value={w.id} className="text-xs">
+                        {w.code} — {w.city}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Status</Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(v) => setForm((p) => ({ ...p, status: v as Order["status"] }))}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="released">Released</SelectItem>
+                    <SelectItem value="picking">Picking</SelectItem>
+                    <SelectItem value="packed">Packed</SelectItem>
+                    <SelectItem value="shipped">Shipped</SelectItem>
+                    <SelectItem value="exception">Exception</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Source</Label>
+                <Select
+                  value={form.source}
+                  onValueChange={(v) => setForm((p) => ({ ...p, source: v as Order["source"] }))}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MANUAL">Manual</SelectItem>
+                    <SelectItem value="EDI-940">EDI 940</SelectItem>
+                    <SelectItem value="CSV">CSV</SelectItem>
+                    <SelectItem value="API">API</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ship To</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Code</Label>
+                  <Input
+                    value={form.shipToCode}
+                    onChange={(e) => setForm((p) => ({ ...p, shipToCode: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Name</Label>
+                  <Input
+                    value={form.shipToName}
+                    onChange={(e) => setForm((p) => ({ ...p, shipToName: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Address 1</Label>
+                  <Input
+                    value={form.shipToAddress1}
+                    onChange={(e) => setForm((p) => ({ ...p, shipToAddress1: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Address 2</Label>
+                  <Input
+                    value={form.shipToAddress2}
+                    onChange={(e) => setForm((p) => ({ ...p, shipToAddress2: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">City</Label>
+                  <Input
+                    value={form.shipToCity}
+                    onChange={(e) => setForm((p) => ({ ...p, shipToCity: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">State</Label>
+                  <Input
+                    value={form.shipToState}
+                    onChange={(e) => setForm((p) => ({ ...p, shipToState: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Zip</Label>
+                  <Input
+                    value={form.shipToZip}
+                    onChange={(e) => setForm((p) => ({ ...p, shipToZip: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Bill To</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Code</Label>
+                  <Input
+                    value={form.billToCode}
+                    onChange={(e) => setForm((p) => ({ ...p, billToCode: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Name</Label>
+                  <Input
+                    value={form.billToName}
+                    onChange={(e) => setForm((p) => ({ ...p, billToName: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Address 1</Label>
+                  <Input
+                    value={form.billToAddress1}
+                    onChange={(e) => setForm((p) => ({ ...p, billToAddress1: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Address 2</Label>
+                  <Input
+                    value={form.billToAddress2}
+                    onChange={(e) => setForm((p) => ({ ...p, billToAddress2: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">City</Label>
+                  <Input
+                    value={form.billToCity}
+                    onChange={(e) => setForm((p) => ({ ...p, billToCity: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">State</Label>
+                  <Input
+                    value={form.billToState}
+                    onChange={(e) => setForm((p) => ({ ...p, billToState: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Zip</Label>
+                  <Input
+                    value={form.billToZip}
+                    onChange={(e) => setForm((p) => ({ ...p, billToZip: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Carrier & Dates</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Carrier</Label>
+                <Input
+                  value={form.carrier}
+                  onChange={(e) => setForm((p) => ({ ...p, carrier: e.target.value }))}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Service Level</Label>
+                <Input
+                  value={form.serviceLevel}
+                  onChange={(e) => setForm((p) => ({ ...p, serviceLevel: e.target.value }))}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Entry Date</Label>
+                <Input
+                  type="date"
+                  value={now.slice(0, 10)}
+                  disabled
+                  className="h-8 text-xs bg-muted"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Cancel Date</Label>
+                <Input
+                  type="date"
+                  value={form.cancelDate}
+                  onChange={(e) => setForm((p) => ({ ...p, cancelDate: e.target.value }))}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1 col-span-2 md:col-span-4">
+                <Label className="text-[10px] uppercase text-muted-foreground">Must Ship Date</Label>
+                <Input
+                  type="date"
+                  value={form.mustShipDate}
+                  onChange={(e) => setForm((p) => ({ ...p, mustShipDate: e.target.value }))}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-border overflow-hidden">
+            <div className="bg-muted/40 px-3 py-2 flex items-center justify-between">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Lines</div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px] gap-1"
+                onClick={addLine}
+              >
+                <Plus className="h-3 w-3" /> Add line
+              </Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Description</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">UPC</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Style</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Color</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Size</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Dim</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Qty</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Unit $</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Ext $</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider w-24 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {form.lines.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={11} className="text-center text-xs text-muted-foreground py-6">
+                      No lines added. Click "Add line" to begin.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {form.lines.map((l, idx) => {
+                  const editing = editingLineIdx === idx;
+                  return (
+                    <TableRow key={idx} className="text-xs">
+                      <TableCell className="py-1.5 font-mono">
+                        <select
+                          value={l.sku}
+                          onChange={(e) => handleSkuChange(idx, e.target.value)}
+                          className="h-7 text-xs font-mono w-40 rounded-md border border-border bg-background px-2 py-1"
+                        >
+                          <option value="">Select SKU</option>
+                          {itemMaster.map((it) => (
+                            <option key={it.sku} value={it.sku}>
+                              {it.sku} — {it.description}
+                            </option>
+                          ))}
+                        </select>
+                      </TableCell>
+                      <TableCell className="py-1.5">
+                        <Input
+                          value={l.description}
+                          onChange={(e) => updateLine(idx, { description: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableCell>
+                      <TableCell className="py-1.5 text-[10px] text-muted-foreground">
+                        <Input
+                          value={l.upc || ""}
+                          onChange={(e) => updateLine(idx, { upc: e.target.value })}
+                          className="h-7 text-xs font-mono"
+                        />
+                      </TableCell>
+                      <TableCell className="py-1.5 text-[10px]">
+                        <Input
+                          value={l.style || ""}
+                          onChange={(e) => updateLine(idx, { style: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableCell>
+                      <TableCell className="py-1.5 text-[10px]">
+                        <Input
+                          value={l.color || ""}
+                          onChange={(e) => updateLine(idx, { color: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableCell>
+                      <TableCell className="py-1.5 text-[10px]">
+                        <Input
+                          value={l.size || ""}
+                          onChange={(e) => updateLine(idx, { size: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableCell>
+                      <TableCell className="py-1.5 text-[10px]">
+                        <Input
+                          value={l.dim || ""}
+                          onChange={(e) => updateLine(idx, { dim: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right tabular-nums">
+                        <Input
+                          type="number"
+                          min={0}
+                          value={l.qtyOrdered}
+                          onChange={(e) => updateLine(idx, { qtyOrdered: Number(e.target.value) || 0 })}
+                          className="h-7 text-xs text-right w-20 ml-auto"
+                        />
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right tabular-nums">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={l.unitPrice}
+                          onChange={(e) => updateLine(idx, { unitPrice: Number(e.target.value) || 0 })}
+                          className="h-7 text-xs text-right w-24 ml-auto"
+                        />
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right tabular-nums font-medium">
+                        ${(l.qtyOrdered * l.unitPrice).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => setEditingLineIdx(editing ? null : idx)}
+                          >
+                            {editing ? <Save className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={() => requestDeleteLine(idx)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">
+              {form.lines.length} line{form.lines.length === 1 ? "" : "s"} · {totalUnits.toLocaleString()} units · ${totalValue.toFixed(2)}
+            </span>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => onOpenChange(false)}>
+            <X className="h-3.5 w-3.5" /> Cancel
+          </Button>
+          <Button
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            disabled={!form.poNumber || form.lines.length === 0}
+            onClick={handleSave}
+          >
+            <Save className="h-3.5 w-3.5" /> Create Order
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <AlertDialog open={lineDeleteIdx !== null} onOpenChange={(o) => !o && setLineDeleteIdx(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove this line?</AlertDialogTitle>
+          <AlertDialogDescription className="text-xs">
+            This will remove the selected line from the new order. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setLineDeleteIdx(null)}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={confirmDeleteLine}
+          >
+            Remove
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

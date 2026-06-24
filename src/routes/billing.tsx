@@ -541,6 +541,7 @@ function ManualInvoiceDialog({
     { id: "ml1", activityType: "Service", description: "", quantity: 1, rate: 0, total: 0 },
   ]);
   const [taxRate, setTaxRate] = useState(8.75);
+  const [toDeleteLine, setToDeleteLine] = useState<string | null>(null);
 
   const update = (id: string, patch: Partial<InvoiceLine>) =>
     setLines(lines.map((l) => {
@@ -594,7 +595,7 @@ function ManualInvoiceDialog({
                 <TableCell><Input type="number" step="0.01" value={l.rate} onChange={(e) => update(l.id, { rate: parseFloat(e.target.value) || 0 })} /></TableCell>
                 <TableCell className="text-right font-medium">{fmtUSD(l.total)}</TableCell>
                 <TableCell>
-                  <Button size="icon" variant="ghost" onClick={() => setLines(lines.filter((x) => x.id !== l.id))}>
+                  <Button size="icon" variant="ghost" onClick={() => setToDeleteLine(l.id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </TableCell>
@@ -626,6 +627,20 @@ function ManualInvoiceDialog({
           Create Invoice
         </Button>
       </DialogFooter>
+      <AlertDialog open={!!toDeleteLine} onOpenChange={(o) => !o && setToDeleteLine(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete invoice line?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              This will remove the selected line from the invoice. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setToDeleteLine(null)}>Cancel</Button>
+            <Button size="sm" className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (toDeleteLine) setLines((prev) => prev.filter((x) => x.id !== toDeleteLine)); setToDeleteLine(null); }}>Delete</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DialogContent>
   );
 }
