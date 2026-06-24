@@ -749,6 +749,15 @@ function NewOrderDialog({
     }
   };
 
+  // Filter item master by tenant and warehouse
+  const filteredItemMaster = useMemo(() => {
+    return itemMaster.filter((item) => {
+      if (item.tenantId !== form.tenantId) return false;
+      // Optionally filter by warehouse if needed (itemMaster doesn't have warehouseId directly)
+      return item.active;
+    });
+  }, [form.tenantId]);
+
   const addLine = () => {
     setForm((prev) => ({
       ...prev,
@@ -825,115 +834,126 @@ function NewOrderDialog({
         </DialogHeader>
 
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
-          <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order Header</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Order ID</Label>
-                <Input value={nextSeq()} disabled className="h-8 text-xs font-mono bg-muted" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">PO Number *</Label>
-                <Input
-                  value={form.poNumber}
-                  onChange={(e) => setForm((p) => ({ ...p, poNumber: e.target.value }))}
-                  placeholder="PO-XXXXXX"
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Customer Order #</Label>
-                <Input
-                  value={form.customerOrderNumber}
-                  onChange={(e) => setForm((p) => ({ ...p, customerOrderNumber: e.target.value }))}
-                  placeholder="ORD-XXXXXX"
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">EDI Ref</Label>
-                <Input
-                  value={form.ediRef}
-                  onChange={(e) => setForm((p) => ({ ...p, ediRef: e.target.value }))}
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Tenant</Label>
-                <Select
-                  value={form.tenantId}
-                  onValueChange={(v) => setForm((p) => ({ ...p, tenantId: v }))}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select tenant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tenants.filter((t) => t.id !== "all").map((t) => (
-                      <SelectItem key={t.id} value={t.id} className="text-xs">
-                        {t.code} — {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Warehouse</Label>
-                <Select
-                  value={form.warehouseId}
-                  onValueChange={(v) => setForm((p) => ({ ...p, warehouseId: v }))}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select warehouse" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {warehouses.filter((w) => w.id !== "all").map((w) => (
-                      <SelectItem key={w.id} value={w.id} className="text-xs">
-                        {w.code} — {w.city}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm((p) => ({ ...p, status: v as Order["status"] }))}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="released">Released</SelectItem>
-                    <SelectItem value="picking">Picking</SelectItem>
-                    <SelectItem value="packed">Packed</SelectItem>
-                    <SelectItem value="shipped">Shipped</SelectItem>
-                    <SelectItem value="exception">Exception</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Source</Label>
-                <Select
-                  value={form.source}
-                  onValueChange={(v) => setForm((p) => ({ ...p, source: v as Order["source"] }))}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select source" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MANUAL">Manual</SelectItem>
-                    <SelectItem value="EDI-940">EDI 940</SelectItem>
-                    <SelectItem value="CSV">CSV</SelectItem>
-                    <SelectItem value="API">API</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
+          <Tabs defaultValue="header" className="w-full">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="header" className="text-xs">Header</TabsTrigger>
+              <TabsTrigger value="shipTo" className="text-xs">Ship To</TabsTrigger>
+              <TabsTrigger value="billTo" className="text-xs">Bill To</TabsTrigger>
+              <TabsTrigger value="carrier" className="text-xs">Carrier</TabsTrigger>
+              <TabsTrigger value="lines" className="text-xs">Lines</TabsTrigger>
+            </TabsList>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TabsContent value="header" className="space-y-4 pt-4">
+              <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order Header</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">Order ID</Label>
+                    <Input value={nextSeq()} disabled className="h-8 text-xs font-mono bg-muted" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">PO Number *</Label>
+                    <Input
+                      value={form.poNumber}
+                      onChange={(e) => setForm((p) => ({ ...p, poNumber: e.target.value }))}
+                      placeholder="PO-XXXXXX"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">Customer Order #</Label>
+                    <Input
+                      value={form.customerOrderNumber}
+                      onChange={(e) => setForm((p) => ({ ...p, customerOrderNumber: e.target.value }))}
+                      placeholder="ORD-XXXXXX"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">EDI Ref</Label>
+                    <Input
+                      value={form.ediRef}
+                      onChange={(e) => setForm((p) => ({ ...p, ediRef: e.target.value }))}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">Tenant</Label>
+                    <Select
+                      value={form.tenantId}
+                      onValueChange={(v) => setForm((p) => ({ ...p, tenantId: v }))}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select tenant" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tenants.filter((t) => t.id !== "all").map((t) => (
+                          <SelectItem key={t.id} value={t.id} className="text-xs">
+                            {t.code} — {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">Warehouse</Label>
+                    <Select
+                      value={form.warehouseId}
+                      onValueChange={(v) => setForm((p) => ({ ...p, warehouseId: v }))}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select warehouse" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {warehouses.filter((w) => w.id !== "all").map((w) => (
+                          <SelectItem key={w.id} value={w.id} className="text-xs">
+                            {w.code} — {w.city}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">Status</Label>
+                    <Select
+                      value={form.status}
+                      onValueChange={(v) => setForm((p) => ({ ...p, status: v as Order["status"] }))}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="released">Released</SelectItem>
+                        <SelectItem value="picking">Picking</SelectItem>
+                        <SelectItem value="packed">Packed</SelectItem>
+                        <SelectItem value="shipped">Shipped</SelectItem>
+                        <SelectItem value="exception">Exception</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">Source</Label>
+                    <Select
+                      value={form.source}
+                      onValueChange={(v) => setForm((p) => ({ ...p, source: v as Order["source"] }))}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select source" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MANUAL">Manual</SelectItem>
+                        <SelectItem value="EDI-940">EDI 940</SelectItem>
+                        <SelectItem value="CSV">CSV</SelectItem>
+                        <SelectItem value="API">API</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+          <TabsContent value="shipTo" className="space-y-4 pt-4">
             <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ship To</div>
               <div className="grid grid-cols-2 gap-3">
@@ -995,7 +1015,9 @@ function NewOrderDialog({
                 </div>
               </div>
             </div>
+          </TabsContent>
 
+          <TabsContent value="billTo" className="space-y-4 pt-4">
             <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Bill To</div>
               <div className="grid grid-cols-2 gap-3">
@@ -1057,58 +1079,61 @@ function NewOrderDialog({
                 </div>
               </div>
             </div>
-          </div>
+          </TabsContent>
 
-          <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Carrier & Dates</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Carrier</Label>
-                <Input
-                  value={form.carrier}
-                  onChange={(e) => setForm((p) => ({ ...p, carrier: e.target.value }))}
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Service Level</Label>
-                <Input
-                  value={form.serviceLevel}
-                  onChange={(e) => setForm((p) => ({ ...p, serviceLevel: e.target.value }))}
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Entry Date</Label>
-                <Input
-                  type="date"
-                  value={now.slice(0, 10)}
-                  disabled
-                  className="h-8 text-xs bg-muted"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Cancel Date</Label>
-                <Input
-                  type="date"
-                  value={form.cancelDate}
-                  onChange={(e) => setForm((p) => ({ ...p, cancelDate: e.target.value }))}
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1 col-span-2 md:col-span-4">
-                <Label className="text-[10px] uppercase text-muted-foreground">Must Ship Date</Label>
-                <Input
-                  type="date"
-                  value={form.mustShipDate}
-                  onChange={(e) => setForm((p) => ({ ...p, mustShipDate: e.target.value }))}
-                  className="h-8 text-xs"
-                />
+          <TabsContent value="carrier" className="space-y-4 pt-4">
+            <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Carrier & Dates</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Carrier</Label>
+                  <Input
+                    value={form.carrier}
+                    onChange={(e) => setForm((p) => ({ ...p, carrier: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Service Level</Label>
+                  <Input
+                    value={form.serviceLevel}
+                    onChange={(e) => setForm((p) => ({ ...p, serviceLevel: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Entry Date</Label>
+                  <Input
+                    type="date"
+                    value={now.slice(0, 10)}
+                    disabled
+                    className="h-8 text-xs bg-muted"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Cancel Date</Label>
+                  <Input
+                    type="date"
+                    value={form.cancelDate}
+                    onChange={(e) => setForm((p) => ({ ...p, cancelDate: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1 col-span-2 md:col-span-4">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Must Ship Date</Label>
+                  <Input
+                    type="date"
+                    value={form.mustShipDate}
+                    onChange={(e) => setForm((p) => ({ ...p, mustShipDate: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          </TabsContent>
 
-          <div className="rounded-md border border-border overflow-hidden">
+          <TabsContent value="lines" className="space-y-4 pt-4">
+            <div className="rounded-md border border-border overflow-hidden">
             <div className="bg-muted/40 px-3 py-2 flex items-center justify-between">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Lines</div>
               <Button
@@ -1149,18 +1174,22 @@ function NewOrderDialog({
                   return (
                     <TableRow key={idx} className="text-xs">
                       <TableCell className="py-1.5 font-mono">
-                        <select
+                        <Select
                           value={l.sku}
-                          onChange={(e) => handleSkuChange(idx, e.target.value)}
-                          className="h-7 text-xs font-mono w-40 rounded-md border border-border bg-background px-2 py-1"
+                          onValueChange={(v) => handleSkuChange(idx, v)}
                         >
-                          <option value="">Select SKU</option>
-                          {itemMaster.map((it) => (
-                            <option key={it.sku} value={it.sku}>
-                              {it.sku} — {it.description}
-                            </option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="h-7 text-xs font-mono w-40">
+                            <SelectValue placeholder="Select SKU" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="" disabled>Select SKU</SelectItem>
+                            {filteredItemMaster.map((it) => (
+                              <SelectItem key={it.sku} value={it.sku} className="text-xs">
+                                {it.sku} — {it.description}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell className="py-1.5">
                         <Input
@@ -1258,9 +1287,11 @@ function NewOrderDialog({
               {form.lines.length} line{form.lines.length === 1 ? "" : "s"} · {totalUnits.toLocaleString()} units · ${totalValue.toFixed(2)}
             </span>
           </div>
-        </div>
+        </TabsContent>
+      </Tabs>
+    </div>
 
-        <DialogFooter>
+    <DialogFooter>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => onOpenChange(false)}>
             <X className="h-3.5 w-3.5" /> Cancel
           </Button>
@@ -1338,6 +1369,26 @@ function OrderDetailDialog({
     l.sku ? validateLineAgainstItemMaster({ sku: l.sku, tenantId }) : null,
   );
   const hasExceptions = exceptionReasons.some(Boolean);
+
+  // Filter item master by tenant for this order
+  const filteredItemMaster = useMemo(() => {
+    return itemMaster.filter((item) => item.tenantId === tenantId && item.active);
+  }, [tenantId]);
+
+  const handleSkuChange = (idx: number, sku: string) => {
+    const item = findItem(sku);
+    if (item) {
+      updateLine(idx, {
+        sku,
+        description: item.description,
+        upc: item.upc,
+        style: item.itemStyle,
+        unitPrice: item.unitPrice,
+      });
+    } else {
+      updateLine(idx, { sku });
+    }
+  };
 
   const updateLine = (idx: number, patch: Partial<OrderLine>) => {
     setDraft((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
@@ -1594,11 +1645,22 @@ function OrderDetailDialog({
                     >
                       <TableCell className="py-1.5 font-mono">
                         {editing ? (
-                          <Input
+                          <Select
                             value={l.sku}
-                            onChange={(e) => updateLine(idx, { sku: e.target.value })}
-                            className="h-7 text-xs font-mono"
-                          />
+                            onValueChange={(v) => handleSkuChange(idx, v)}
+                          >
+                            <SelectTrigger className="h-7 text-xs font-mono w-40">
+                              <SelectValue placeholder="Select SKU" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="" disabled>Select SKU</SelectItem>
+                              {filteredItemMaster.map((it) => (
+                                <SelectItem key={it.sku} value={it.sku} className="text-xs">
+                                  {it.sku} — {it.description}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         ) : (
                           <div className="flex items-center gap-1.5">
                             <span>{l.sku || <span className="text-muted-foreground">—</span>}</span>
