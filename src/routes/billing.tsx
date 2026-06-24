@@ -30,6 +30,9 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   billingClients,
   defaultRules,
   billableEvents,
@@ -128,6 +131,7 @@ function SetupTab({
   setRules: (r: ChargeRule[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<string | null>(null);
   const clientRules = rules.filter((r) => r.clientId === activeClient);
 
   const toggle = (id: string) =>
@@ -212,7 +216,7 @@ function SetupTab({
                       <Switch checked={r.enabled} onCheckedChange={() => toggle(r.id)} />
                     </TableCell>
                     <TableCell>
-                      <Button size="icon" variant="ghost" onClick={() => remove(r.id)}>
+                      <Button size="icon" variant="ghost" onClick={() => setToDelete(r.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -223,6 +227,32 @@ function SetupTab({
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete billing rule?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              This permanently removes the selected rule. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setToDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (toDelete) remove(toDelete);
+                setToDelete(null);
+              }}
+            >
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -43,6 +43,14 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { useWorkspace } from "@/components/workspace-context";
 import { tenants, warehouses } from "@/lib/mock-data";
@@ -91,6 +99,7 @@ function PalletsPage() {
   const [confirmed, setConfirmed] = useState<Record<string, string>>({});
   /** Pallet IDs deleted in this session (non-putaway only). */
   const [deleted, setDeleted] = useState<Set<string>>(new Set());
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   /** PO# → { container, trailer } lookup sourced from inbound ASNs. */
   const poRefs = useMemo(() => {
@@ -125,11 +134,15 @@ function PalletsPage() {
     [tenantId, warehouseId, query, confirmed, poRefs, deleted],
   );
 
-  const handleDelete = (p: Pallet) => {
+  const handleDeleteConfirm = () => {
+    if (!deleteConfirmId) return;
+    const p = pallets.find((p) => p.id === deleteConfirmId);
+    if (!p) return;
     if (p.status === "putaway" || p.status === "picking" || p.status === "shipped") {
       toast.error("Cannot delete", {
         description: `Pallet ${p.id} is ${p.status}. Only building/staged pallets can be removed.`,
       });
+      setDeleteConfirmId(null);
       return;
     }
     removePallets([p.id]);
@@ -141,6 +154,17 @@ function PalletsPage() {
     toast.success("Pallet removed", {
       description: `${p.id} · ${p.units} units (${Math.ceil(p.units / Math.max(1, p.casePack))} cases @ ${p.casePack}/case) returned to inbound pool.`,
     });
+    setDeleteConfirmId(null);
+  };
+
+  const handleDeleteRequest = (p: Pallet) => {
+    if (p.status === "putaway" || p.status === "picking" || p.status === "shipped") {
+      toast.error("Cannot delete", {
+        description: `Pallet ${p.id} is ${p.status}. Only building/staged pallets can be removed.`,
+      });
+      return;
+    }
+    setDeleteConfirmId(p.id);
   };
 
   const stats = useMemo(() => {
@@ -310,7 +334,7 @@ function PalletsPage() {
                                 : "Delete pallet"
                             }
                             disabled={p.status === "putaway" || p.status === "picking" || p.status === "shipped"}
-                            onClick={() => handleDelete(p)}
+                            onClick={() => handleDeleteRequest(p)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -523,23 +547,46 @@ function PalletsPage() {
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setLabelPallet(null)}>
-              Close
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                toast.success("Label queued", { description: `Sent to ZT411-DOCK-A` });
-                setLabelPallet(null);
-              }}
-            >
-              <Printer className="h-3.5 w-3.5" /> Print label
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+      <DialogFooter>
+        <Button variant="outline" size="sm" onClick={() => setLabelPallet(null)}>
+          Close
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => {
+            toast.success("Label queued", { description: `Sent to ZT411-DOCK-A` });
+            setLabelPallet(null);
+          }}
+        >
+          <Printer className="h-3.5 w-3.5" /> Print label
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Delete pallet {deleteConfirmId}?</AlertDialogTitle>
+        <AlertDialogDescription className="text-xs">
+          This permanently removes the pallet and returns its units to the inbound pool. This action cannot be undone.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDeleteConfirmId(null)}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          onClick={handleDeleteConfirm}
+        >
+          Delete
+        </Button>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+</div>
   );
 }
 

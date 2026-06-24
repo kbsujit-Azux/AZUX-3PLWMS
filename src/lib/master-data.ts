@@ -4,14 +4,14 @@ import { orders } from "./edi-data";
 
 /** EDI 832 — Price/Sales Catalog (Item Master) */
 export type ItemMasterRecord = {
-  sku: string;          // Vendor SKU (EDI 832 LIN03)
-  upc: string;          // GTIN / UPC (EDI 832 LIN05)
-  itemStyle: string;    // Pallet build grouping
+  sku: string; // Vendor SKU (EDI 832 LIN03)
+  upc: string; // GTIN / UPC (EDI 832 LIN05)
+  itemStyle: string; // Pallet build grouping
   description: string;
   category: string;
   uom: string;
-  caseQty: number;      // EDI 832 PO4
-  unitCost: number;     // EDI 832 PRC02
+  caseQty: number; // EDI 832 PO4
+  unitCost: number; // EDI 832 PRC02
   unitPrice: number;
   weightLbs: number;
   /** Case dimensions in inches (EDI 832 MEA — LN / WD / HT) */
@@ -25,12 +25,30 @@ export type ItemMasterRecord = {
   /** NMFC commodity code (National Motor Freight Classification) */
   nmfc: string;
   /** Freight class — NMFTA standard density-based class for LTL rating */
-  freightClass: "50" | "55" | "60" | "65" | "70" | "77.5" | "85" | "92.5" | "100" | "110" | "125" | "150" | "175" | "200" | "250" | "300" | "400" | "500";
+  freightClass:
+    | "50"
+    | "55"
+    | "60"
+    | "65"
+    | "70"
+    | "77.5"
+    | "85"
+    | "92.5"
+    | "100"
+    | "110"
+    | "125"
+    | "150"
+    | "175"
+    | "200"
+    | "250"
+    | "300"
+    | "400"
+    | "500";
   tenantId: string;
   hazmat: boolean;
   active: boolean;
   source: "EDI_832" | "CSV" | "MANUAL";
-  effectiveAt: string;  // EDI 832 DTM/007
+  effectiveAt: string; // EDI 832 DTM/007
 };
 
 const ts = (d: string) => new Date(d).toISOString();
@@ -41,24 +59,30 @@ export function cbmFromInches(lengthIn: number, widthIn: number, heightIn: numbe
 }
 
 /** Default NMFC + freight class by commodity category (NMFTA reference). */
-const NMFC_BY_CATEGORY: Record<string, { nmfc: string; freightClass: ItemMasterRecord["freightClass"] }> = {
-  Camping:     { nmfc: "087700", freightClass: "150" },
-  Apparel:     { nmfc: "049880", freightClass: "125" },
-  Audio:       { nmfc: "063270", freightClass: "92.5" },
+const NMFC_BY_CATEGORY: Record<
+  string,
+  { nmfc: string; freightClass: ItemMasterRecord["freightClass"] }
+> = {
+  Camping: { nmfc: "087700", freightClass: "150" },
+  Apparel: { nmfc: "049880", freightClass: "125" },
+  Audio: { nmfc: "063270", freightClass: "92.5" },
   Electronics: { nmfc: "063270", freightClass: "92.5" },
   Accessories: { nmfc: "116030", freightClass: "85" },
   Supplements: { nmfc: "157800", freightClass: "100" },
-  Wellness:    { nmfc: "157800", freightClass: "100" },
-  Default:     { nmfc: "999999", freightClass: "100" },
+  Wellness: { nmfc: "157800", freightClass: "100" },
+  Default: { nmfc: "999999", freightClass: "100" },
 };
 
 /** Per-SKU NMFC / class overrides take precedence over the category default. */
-const NMFC_BY_SKU: Record<string, { nmfc: string; freightClass: ItemMasterRecord["freightClass"] }> = {
+const NMFC_BY_SKU: Record<
+  string,
+  { nmfc: string; freightClass: ItemMasterRecord["freightClass"] }
+> = {
   "ACM-TENT-2P-OLV": { nmfc: "087700-01", freightClass: "150" },
-  "ACM-STV-CMP-01":  { nmfc: "087860",    freightClass: "125" },
-  "ACM-SLPBG-20F":   { nmfc: "087710",    freightClass: "175" },
-  "HLE-EARB-PRO":    { nmfc: "063270-04", freightClass: "92.5" },
-  "HLE-CHRG-65W":    { nmfc: "063270-02", freightClass: "92.5" },
+  "ACM-STV-CMP-01": { nmfc: "087860", freightClass: "125" },
+  "ACM-SLPBG-20F": { nmfc: "087710", freightClass: "175" },
+  "HLE-EARB-PRO": { nmfc: "063270-04", freightClass: "92.5" },
+  "HLE-CHRG-65W": { nmfc: "063270-02", freightClass: "92.5" },
 };
 
 export function nmfcFor(sku: string, category: string) {
@@ -68,14 +92,14 @@ export function nmfcFor(sku: string, category: string) {
 /** Per-SKU case dimension + weight overrides, keyed by SKU. */
 const CASE_SPECS: Record<string, { l: number; w: number; h: number; caseLbs: number }> = {
   "ACM-TENT-2P-OLV": { l: 26, w: 10, h: 10, caseLbs: 26.4 },
-  "ACM-STV-CMP-01":  { l: 18, w: 14, h: 8,  caseLbs: 23.2 },
-  "NSA-HOOD-BLK-M":  { l: 22, w: 16, h: 14, caseLbs: 27.8 },
-  "NSA-TEE-WHT-L":   { l: 20, w: 14, h: 12, caseLbs: 20.4 },
-  "HLE-EARB-PRO":    { l: 16, w: 12, h: 8,  caseLbs: 7.2 },
-  "HLE-CHRG-65W":    { l: 14, w: 10, h: 6,  caseLbs: 13.5 },
-  "VRD-COLL-30CT":   { l: 18, w: 12, h: 10, caseLbs: 20.8 },
-  "VRD-MAG-GLY":     { l: 16, w: 12, h: 9,  caseLbs: 19.4 },
-  "ACM-SLPBG-20F":   { l: 22, w: 14, h: 14, caseLbs: 22.0 },
+  "ACM-STV-CMP-01": { l: 18, w: 14, h: 8, caseLbs: 23.2 },
+  "NSA-HOOD-BLK-M": { l: 22, w: 16, h: 14, caseLbs: 27.8 },
+  "NSA-TEE-WHT-L": { l: 20, w: 14, h: 12, caseLbs: 20.4 },
+  "HLE-EARB-PRO": { l: 16, w: 12, h: 8, caseLbs: 7.2 },
+  "HLE-CHRG-65W": { l: 14, w: 10, h: 6, caseLbs: 13.5 },
+  "VRD-COLL-30CT": { l: 18, w: 12, h: 10, caseLbs: 20.8 },
+  "VRD-MAG-GLY": { l: 16, w: 12, h: 9, caseLbs: 19.4 },
+  "ACM-SLPBG-20F": { l: 22, w: 14, h: 14, caseLbs: 22.0 },
 };
 
 function specFor(sku: string, caseQty: number, weightLbs: number) {
@@ -120,13 +144,27 @@ export const itemMaster: ItemMasterRecord[] = [
     const s = specFor("ACM-SLPBG-20F", 6, 3.4);
     const f = nmfcFor("ACM-SLPBG-20F", "Camping");
     return {
-      sku: "ACM-SLPBG-20F", upc: "081234500031", itemStyle: "SLPBG-20F",
-      description: "Mummy Sleeping Bag, 20°F", category: "Camping", uom: "EA",
-      caseQty: 6, unitCost: 38.0, unitPrice: 119, weightLbs: 3.4,
-      lengthIn: s.l, widthIn: s.w, heightIn: s.h,
-      caseWeightLbs: s.caseLbs, cbmPerCase: cbmFromInches(s.l, s.w, s.h),
-      nmfc: f.nmfc, freightClass: f.freightClass,
-      tenantId: "acme", hazmat: false, active: true, source: "EDI_832",
+      sku: "ACM-SLPBG-20F",
+      upc: "081234500031",
+      itemStyle: "SLPBG-20F",
+      description: "Mummy Sleeping Bag, 20°F",
+      category: "Camping",
+      uom: "EA",
+      caseQty: 6,
+      unitCost: 38.0,
+      unitPrice: 119,
+      weightLbs: 3.4,
+      lengthIn: s.l,
+      widthIn: s.w,
+      heightIn: s.h,
+      caseWeightLbs: s.caseLbs,
+      cbmPerCase: cbmFromInches(s.l, s.w, s.h),
+      nmfc: f.nmfc,
+      freightClass: f.freightClass,
+      tenantId: "acme",
+      hazmat: false,
+      active: true,
+      source: "EDI_832",
       effectiveAt: ts("2026-05-12T00:00:00Z"),
     } satisfies ItemMasterRecord;
   })(),
@@ -134,13 +172,27 @@ export const itemMaster: ItemMasterRecord[] = [
     const s = specFor("VRD-MAG-GLY", 36, 0.5);
     const f = nmfcFor("VRD-MAG-GLY", "Supplements");
     return {
-      sku: "VRD-MAG-GLY", upc: "076500011137", itemStyle: "MAG-GLY",
-      description: "Magnesium Glycinate 120ct", category: "Supplements", uom: "EA",
-      caseQty: 36, unitCost: 7.2, unitPrice: 24, weightLbs: 0.5,
-      lengthIn: s.l, widthIn: s.w, heightIn: s.h,
-      caseWeightLbs: s.caseLbs, cbmPerCase: cbmFromInches(s.l, s.w, s.h),
-      nmfc: f.nmfc, freightClass: f.freightClass,
-      tenantId: "verdant", hazmat: false, active: true, source: "EDI_832",
+      sku: "VRD-MAG-GLY",
+      upc: "076500011137",
+      itemStyle: "MAG-GLY",
+      description: "Magnesium Glycinate 120ct",
+      category: "Supplements",
+      uom: "EA",
+      caseQty: 36,
+      unitCost: 7.2,
+      unitPrice: 24,
+      weightLbs: 0.5,
+      lengthIn: s.l,
+      widthIn: s.w,
+      heightIn: s.h,
+      caseWeightLbs: s.caseLbs,
+      cbmPerCase: cbmFromInches(s.l, s.w, s.h),
+      nmfc: f.nmfc,
+      freightClass: f.freightClass,
+      tenantId: "verdant",
+      hazmat: false,
+      active: true,
+      source: "EDI_832",
       effectiveAt: ts("2026-05-02T00:00:00Z"),
     } satisfies ItemMasterRecord;
   })(),
@@ -166,10 +218,12 @@ export function hasInventoryForSku(sku: string, tenantId?: string): boolean {
 
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase";
- 
 
 /** Insert (or update) a record in the Item Master. */
-export async function addItemToMaster(rec: Omit<ItemMasterRecord, "cbmPerCase" | "source" | "effectiveAt" | "active" | "hazmat"> & Partial<Pick<ItemMasterRecord, "source" | "active" | "hazmat">>): Promise<ItemMasterRecord> {
+export async function addItemToMaster(
+  rec: Omit<ItemMasterRecord, "cbmPerCase" | "source" | "effectiveAt" | "active" | "hazmat"> &
+    Partial<Pick<ItemMasterRecord, "source" | "active" | "hazmat">>,
+): Promise<ItemMasterRecord> {
   const full: ItemMasterRecord = {
     ...rec,
     cbmPerCase: cbmFromInches(rec.lengthIn || 0, rec.widthIn || 0, rec.heightIn || 0),
@@ -192,7 +246,14 @@ export async function deleteItemFromMaster(sku: string): Promise<{ ok: true }> {
     throw new Error(`Cannot delete ${sku} — inventory exists for client ${rec.tenantId}.`);
   }
   await deleteDoc(doc(db, "itemMaster", sku));
+  const idx = itemMaster.findIndex((i) => i.sku === sku);
+  if (idx !== -1) itemMaster.splice(idx, 1);
   return { ok: true };
+}
+
+export function updateItemInMaster(sku: string, updates: Partial<ItemMasterRecord>) {
+  const idx = itemMaster.findIndex((i) => i.sku === sku);
+  if (idx !== -1) Object.assign(itemMaster[idx], updates);
 }
 
 /** Cross-check inbound / order lines against item master. */
@@ -220,10 +281,14 @@ export function validateLineAgainstItemMaster(args: {
 
 export function masterReasonLabel(r: MasterException["reason"]): string {
   switch (r) {
-    case "missing-sku": return "SKU not in 832 Item Master";
-    case "inactive":    return "SKU deactivated in Item Master";
-    case "tenant-mismatch": return "Tenant mismatch vs. Item Master";
-    case "upc-mismatch":    return "UPC/GTIN mismatch vs. Item Master";
+    case "missing-sku":
+      return "SKU not in 832 Item Master";
+    case "inactive":
+      return "SKU deactivated in Item Master";
+    case "tenant-mismatch":
+      return "Tenant mismatch vs. Item Master";
+    case "upc-mismatch":
+      return "UPC/GTIN mismatch vs. Item Master";
   }
 }
 
@@ -232,13 +297,29 @@ export function collectMasterExceptions(): MasterException[] {
   for (const s of inboundShipments) {
     for (const l of s.lines) {
       const r = validateLineAgainstItemMaster({ sku: l.sku, upc: l.upc, tenantId: s.tenantId });
-      if (r) out.push({ scope: "inbound", documentId: s.id, tenantId: s.tenantId, sku: l.sku, reason: r, detail: masterReasonLabel(r) });
+      if (r)
+        out.push({
+          scope: "inbound",
+          documentId: s.id,
+          tenantId: s.tenantId,
+          sku: l.sku,
+          reason: r,
+          detail: masterReasonLabel(r),
+        });
     }
   }
   for (const o of orders) {
     for (const l of o.lines) {
       const r = validateLineAgainstItemMaster({ sku: l.sku, tenantId: o.tenantId });
-      if (r) out.push({ scope: "order", documentId: o.id, tenantId: o.tenantId, sku: l.sku, reason: r, detail: masterReasonLabel(r) });
+      if (r)
+        out.push({
+          scope: "order",
+          documentId: o.id,
+          tenantId: o.tenantId,
+          sku: l.sku,
+          reason: r,
+          detail: masterReasonLabel(r),
+        });
     }
   }
   return out;
@@ -251,41 +332,245 @@ export function collectMasterExceptions(): MasterException[] {
 export type LocationType = "FLR" | "DROP" | "RACK";
 
 export type LocationRecord = {
-  id: string;             // e.g. A12-03-B
+  id: string; // e.g. A12-03-B
   warehouseId: string;
-  type: LocationType;     // FLR / DROP / RACK
-  zone: string;           // Receiving, Reserve, Forward, Hazmat…
+  tenantId?: string; // Client / tenant that owns or is assigned this location
+  type: LocationType; // FLR / DROP / RACK
+  zone: string; // Receiving, Reserve, Forward, Hazmat…
   capacityPallets: number;
   occupiedPallets: number;
-  pickable: boolean;      // If false → excluded from allocation
-  allowedItemStyles: string[] | null;  // null = any
+  pickable: boolean; // If false → excluded from allocation
+  allowedItemStyles: string[] | null; // null = any
   notes?: string;
 };
 
 export const locationMaster: LocationRecord[] = [
-  { id: "DOCK-D07",  warehouseId: "atl1", type: "DROP", zone: "Receiving Dock", capacityPallets: 6,  occupiedPallets: 2, pickable: false, allowedItemStyles: null, notes: "Inbound staging" },
-  { id: "DROP-AISLE-A",  warehouseId: "atl1", type: "DROP", zone: "Putaway Drop", capacityPallets: 12, occupiedPallets: 4, pickable: false, allowedItemStyles: null },
-  { id: "A12-03-B",  warehouseId: "atl1", type: "RACK", zone: "Reserve", capacityPallets: 1, occupiedPallets: 1, pickable: true,  allowedItemStyles: ["TENT-2P"] },
-  { id: "A12-04-A",  warehouseId: "atl1", type: "RACK", zone: "Reserve", capacityPallets: 1, occupiedPallets: 1, pickable: true,  allowedItemStyles: ["TENT-2P"] },
-  { id: "A14-01-C",  warehouseId: "atl1", type: "RACK", zone: "Reserve", capacityPallets: 1, occupiedPallets: 1, pickable: false, allowedItemStyles: null, notes: "QA hold — pending cycle count" },
-  { id: "B03-02-A",  warehouseId: "atl1", type: "RACK", zone: "Forward Pick", capacityPallets: 1, occupiedPallets: 1, pickable: true, allowedItemStyles: ["STV-CMP"] },
-  { id: "FLR-ATL1-01", warehouseId: "atl1", type: "FLR", zone: "Bulk Floor", capacityPallets: 24, occupiedPallets: 11, pickable: true, allowedItemStyles: null },
-  { id: "G01-01-A",  warehouseId: "atl1", type: "RACK", zone: "Supplements Forward", capacityPallets: 1, occupiedPallets: 1, pickable: true, allowedItemStyles: ["COLL-PWDR", "MAG-GLY"] },
+  {
+    id: "DOCK-D07",
+    warehouseId: "atl1",
+    tenantId: undefined,
+    type: "DROP",
+    zone: "Receiving Dock",
+    capacityPallets: 6,
+    occupiedPallets: 2,
+    pickable: false,
+    allowedItemStyles: null,
+    notes: "Inbound staging",
+  },
+  {
+    id: "DROP-AISLE-A",
+    warehouseId: "atl1",
+    tenantId: undefined,
+    type: "DROP",
+    zone: "Putaway Drop",
+    capacityPallets: 12,
+    occupiedPallets: 4,
+    pickable: false,
+    allowedItemStyles: null,
+  },
+  {
+    id: "A12-03-B",
+    warehouseId: "atl1",
+    tenantId: "acme",
+    type: "RACK",
+    zone: "Reserve",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: true,
+    allowedItemStyles: ["TENT-2P"],
+  },
+  {
+    id: "A12-04-A",
+    warehouseId: "atl1",
+    tenantId: "acme",
+    type: "RACK",
+    zone: "Reserve",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: true,
+    allowedItemStyles: ["TENT-2P"],
+  },
+  {
+    id: "A14-01-C",
+    warehouseId: "atl1",
+    tenantId: undefined,
+    type: "RACK",
+    zone: "Reserve",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: false,
+    allowedItemStyles: null,
+    notes: "QA hold — pending cycle count",
+  },
+  {
+    id: "B03-02-A",
+    warehouseId: "atl1",
+    tenantId: "acme",
+    type: "RACK",
+    zone: "Forward Pick",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: true,
+    allowedItemStyles: ["STV-CMP"],
+  },
+  {
+    id: "FLR-ATL1-01",
+    warehouseId: "atl1",
+    tenantId: undefined,
+    type: "FLR",
+    zone: "Bulk Floor",
+    capacityPallets: 24,
+    occupiedPallets: 11,
+    pickable: true,
+    allowedItemStyles: null,
+  },
+  {
+    id: "G01-01-A",
+    warehouseId: "atl1",
+    tenantId: "verdant",
+    type: "RACK",
+    zone: "Supplements Forward",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: true,
+    allowedItemStyles: ["COLL-PWDR", "MAG-GLY"],
+  },
 
-  { id: "DROP-ORD2-01", warehouseId: "ord2", type: "DROP", zone: "Putaway Drop", capacityPallets: 10, occupiedPallets: 3, pickable: false, allowedItemStyles: null },
-  { id: "D04-01-A",  warehouseId: "ord2", type: "RACK", zone: "Apparel Reserve", capacityPallets: 1, occupiedPallets: 1, pickable: true,  allowedItemStyles: ["HOOD-CLASSIC"] },
-  { id: "D04-02-B",  warehouseId: "ord2", type: "RACK", zone: "Apparel Reserve", capacityPallets: 1, occupiedPallets: 1, pickable: true,  allowedItemStyles: ["HOOD-CLASSIC"] },
-  { id: "E05-02-C",  warehouseId: "ord2", type: "RACK", zone: "Hold/Quarantine", capacityPallets: 1, occupiedPallets: 1, pickable: false, allowedItemStyles: null, notes: "Lot review hold" },
-  { id: "FLR-ORD2-01", warehouseId: "ord2", type: "FLR", zone: "Bulk Floor", capacityPallets: 18, occupiedPallets: 7, pickable: true, allowedItemStyles: null },
+  {
+    id: "DROP-ORD2-01",
+    warehouseId: "ord2",
+    tenantId: undefined,
+    type: "DROP",
+    zone: "Putaway Drop",
+    capacityPallets: 10,
+    occupiedPallets: 3,
+    pickable: false,
+    allowedItemStyles: null,
+  },
+  {
+    id: "D04-01-A",
+    warehouseId: "ord2",
+    tenantId: "northstar",
+    type: "RACK",
+    zone: "Apparel Reserve",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: true,
+    allowedItemStyles: ["HOOD-CLASSIC"],
+  },
+  {
+    id: "D04-02-B",
+    warehouseId: "ord2",
+    tenantId: "northstar",
+    type: "RACK",
+    zone: "Apparel Reserve",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: true,
+    allowedItemStyles: ["HOOD-CLASSIC"],
+  },
+  {
+    id: "E05-02-C",
+    warehouseId: "ord2",
+    tenantId: "verdant",
+    type: "RACK",
+    zone: "Hold/Quarantine",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: false,
+    allowedItemStyles: null,
+    notes: "Lot review hold",
+  },
+  {
+    id: "FLR-ORD2-01",
+    warehouseId: "ord2",
+    tenantId: undefined,
+    type: "FLR",
+    zone: "Bulk Floor",
+    capacityPallets: 18,
+    occupiedPallets: 7,
+    pickable: true,
+    allowedItemStyles: null,
+  },
 
-  { id: "DOCK-LAX3-08", warehouseId: "lax3", type: "DROP", zone: "Cross-Dock", capacityPallets: 8, occupiedPallets: 5, pickable: false, allowedItemStyles: null },
-  { id: "F02-05-A",  warehouseId: "lax3", type: "RACK", zone: "Apparel Reserve", capacityPallets: 1, occupiedPallets: 1, pickable: true, allowedItemStyles: ["TEE-PREMIUM"] },
-  { id: "FLR-LAX3-01", warehouseId: "lax3", type: "FLR", zone: "Bulk Floor", capacityPallets: 30, occupiedPallets: 22, pickable: true, allowedItemStyles: null },
+  {
+    id: "DOCK-LAX3-08",
+    warehouseId: "lax3",
+    tenantId: undefined,
+    type: "DROP",
+    zone: "Cross-Dock",
+    capacityPallets: 8,
+    occupiedPallets: 5,
+    pickable: false,
+    allowedItemStyles: null,
+  },
+  {
+    id: "F02-05-A",
+    warehouseId: "lax3",
+    tenantId: "northstar",
+    type: "RACK",
+    zone: "Apparel Reserve",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: true,
+    allowedItemStyles: ["TEE-PREMIUM"],
+  },
+  {
+    id: "FLR-LAX3-01",
+    warehouseId: "lax3",
+    tenantId: "northstar",
+    type: "FLR",
+    zone: "Bulk Floor",
+    capacityPallets: 30,
+    occupiedPallets: 22,
+    pickable: true,
+    allowedItemStyles: null,
+  },
 
-  { id: "DROP-EWR1-01", warehouseId: "ewr1", type: "DROP", zone: "Bonded Drop", capacityPallets: 6, occupiedPallets: 1, pickable: false, allowedItemStyles: null },
-  { id: "C08-02-B",  warehouseId: "ewr1", type: "RACK", zone: "Electronics Reserve", capacityPallets: 1, occupiedPallets: 1, pickable: true, allowedItemStyles: ["EARB-PRO"] },
-  { id: "C08-03-A",  warehouseId: "ewr1", type: "RACK", zone: "Electronics Reserve", capacityPallets: 1, occupiedPallets: 1, pickable: true, allowedItemStyles: ["EARB-PRO"] },
-  { id: "FLR-EWR1-01", warehouseId: "ewr1", type: "FLR", zone: "Bulk Floor", capacityPallets: 20, occupiedPallets: 4, pickable: true, allowedItemStyles: null },
+  {
+    id: "DROP-EWR1-01",
+    warehouseId: "ewr1",
+    tenantId: undefined,
+    type: "DROP",
+    zone: "Bonded Drop",
+    capacityPallets: 6,
+    occupiedPallets: 1,
+    pickable: false,
+    allowedItemStyles: null,
+  },
+  {
+    id: "C08-02-B",
+    warehouseId: "ewr1",
+    tenantId: "harborlite",
+    type: "RACK",
+    zone: "Electronics Reserve",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: true,
+    allowedItemStyles: ["EARB-PRO"],
+  },
+  {
+    id: "C08-03-A",
+    warehouseId: "ewr1",
+    tenantId: "harborlite",
+    type: "RACK",
+    zone: "Electronics Reserve",
+    capacityPallets: 1,
+    occupiedPallets: 1,
+    pickable: true,
+    allowedItemStyles: ["EARB-PRO"],
+  },
+  {
+    id: "FLR-EWR1-01",
+    warehouseId: "ewr1",
+    tenantId: "harborlite",
+    type: "FLR",
+    zone: "Bulk Floor",
+    capacityPallets: 20,
+    occupiedPallets: 4,
+    pickable: true,
+    allowedItemStyles: null,
+  },
 ];
 
 export function pickableLocations(warehouseId?: string): LocationRecord[] {
@@ -301,4 +586,14 @@ export function findLocation(id: string): LocationRecord | undefined {
 export function locationOccupancyPct(l: LocationRecord): number {
   if (l.capacityPallets === 0) return 0;
   return Math.min(100, Math.round((l.occupiedPallets / l.capacityPallets) * 100));
+}
+
+export function updateLocationInMaster(id: string, updates: Partial<LocationRecord>) {
+  const idx = locationMaster.findIndex((l) => l.id === id);
+  if (idx !== -1) Object.assign(locationMaster[idx], updates);
+}
+
+export function deleteLocationFromMaster(id: string) {
+  const idx = locationMaster.findIndex((l) => l.id === id);
+  if (idx !== -1) locationMaster.splice(idx, 1);
 }

@@ -63,30 +63,24 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Label
-} from "@/components/ui/label";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Separator
-} from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/orders")({
@@ -103,11 +97,11 @@ export const Route = createFileRoute("/orders")({
 });
 
 const statusStyles: Record<Order["status"], string> = {
-  new:       "bg-muted text-muted-foreground border-border",
-  released:  "bg-primary/15 text-primary border-primary/30",
-  picking:   "bg-chart-2/15 text-chart-2 border-chart-2/30",
-  packed:    "bg-chart-4/15 text-chart-4 border-chart-4/30",
-  shipped:   "bg-chart-3/15 text-chart-3 border-chart-3/30",
+  new: "bg-muted text-muted-foreground border-border",
+  released: "bg-primary/15 text-primary border-primary/30",
+  picking: "bg-chart-2/15 text-chart-2 border-chart-2/30",
+  packed: "bg-chart-4/15 text-chart-4 border-chart-4/30",
+  shipped: "bg-chart-3/15 text-chart-3 border-chart-3/30",
   exception: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
@@ -119,6 +113,18 @@ function OrdersPage() {
   const [lineOverrides, setLineOverrides] = useState<Record<string, OrderLine[]>>({});
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const handleDeleteOrder = (orderId: string) => {
+    const idx = orders.findIndex((o) => o.id === orderId);
+    if (idx !== -1) {
+      orders.splice(idx, 1);
+      setTick((t) => t + 1);
+      if (detailOrderId === orderId) setDetailOrderId(null);
+      toast.success(`Order ${orderId} deleted`);
+    }
+    setDeleteConfirmId(null);
+  };
 
   const linesFor = (o: Order): OrderLine[] => lineOverrides[o.id] ?? o.lines;
   const isLocked = (s: Order["status"]) => s === "shipped" || s === "picking";
@@ -151,7 +157,7 @@ function OrdersPage() {
     setLineOverrides((prev) => ({ ...prev, [orderId]: next }));
   };
 
-  const detailOrder = detailOrderId ? orders.find((o) => o.id === detailOrderId) ?? null : null;
+  const detailOrder = detailOrderId ? (orders.find((o) => o.id === detailOrderId) ?? null) : null;
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
@@ -188,7 +194,12 @@ function OrdersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setCsvOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setCsvOpen(true)}
+          >
             <Upload className="h-3.5 w-3.5" /> Upload CSV
           </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
@@ -201,10 +212,25 @@ function OrdersPage() {
       </div>
 
       <div className="grid grid-cols-4 divide-x divide-border rounded-md border border-border bg-card">
-        <StatCell icon={Clock}          label="New / released" value={stats.new}       tone="text-foreground" />
-        <StatCell icon={PackageSearch}  label="In progress"    value={stats.picking}   tone="text-chart-4" />
-        <StatCell icon={AlertTriangle}  label="Exceptions"     value={stats.exception} tone="text-destructive" />
-        <StatCell icon={PackageCheck}   label="Shipped today"  value={stats.shipped}   tone="text-chart-3" />
+        <StatCell icon={Clock} label="New / released" value={stats.new} tone="text-foreground" />
+        <StatCell
+          icon={PackageSearch}
+          label="In progress"
+          value={stats.picking}
+          tone="text-chart-4"
+        />
+        <StatCell
+          icon={AlertTriangle}
+          label="Exceptions"
+          value={stats.exception}
+          tone="text-destructive"
+        />
+        <StatCell
+          icon={PackageCheck}
+          label="Shipped today"
+          value={stats.shipped}
+          tone="text-chart-3"
+        />
       </div>
 
       <div className="flex items-center gap-2">
@@ -232,8 +258,12 @@ function OrdersPage() {
               <TableHead className="text-[10px] uppercase tracking-wider">WH</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Ship-to</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Carrier</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-right">Lines</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-right">Units</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                Lines
+              </TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                Units
+              </TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Source</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Status</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Master</TableHead>
@@ -270,7 +300,9 @@ function OrdersPage() {
                     <div className="text-[10px] text-muted-foreground">{o.ediRef}</div>
                   </TableCell>
                   <TableCell className="py-2">
-                    <span className="font-mono text-[10px] text-muted-foreground mr-1">{tenant?.code}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground mr-1">
+                      {tenant?.code}
+                    </span>
                     {tenant?.name.split(" ")[0]}
                   </TableCell>
                   <TableCell className="py-2 font-mono text-[11px]">{wh?.code}</TableCell>
@@ -306,7 +338,8 @@ function OrdersPage() {
                         className="inline-flex items-center gap-1 rounded-sm border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive hover:bg-destructive/15"
                         title="One or more lines reference SKUs missing from Item Master"
                       >
-                        <AlertTriangle className="h-3 w-3" /> {excCount} unknown SKU{excCount === 1 ? "" : "s"}
+                        <AlertTriangle className="h-3 w-3" /> {excCount} unknown SKU
+                        {excCount === 1 ? "" : "s"}
                       </button>
                     ) : (
                       <span className="text-[10px] text-muted-foreground">OK</span>
@@ -362,7 +395,37 @@ function OrdersPage() {
           { key: "tenantId", label: "Client", required: true },
           { key: "warehouseId", label: "WH-Warehouse", required: true },
         ]}
-        exampleHeaders={["PO#", "Order_number", "SKU", "UPC", "Style", "Color", "Size", "Dim", "Units", "Cartons", "Shipto Code", "Shipto name", "Shipto address1", "Shipto Address2", "shipto City", "shipto State", "shipto Zip", "billto Code", "billto name", "billto address1", "billto Address2", "billto City", "bill toState", "bill to Zip", "Carrier", "Cancel Date", "Must Ship date", "Client", "WH-Warehouse"]}
+        exampleHeaders={[
+          "PO#",
+          "Order_number",
+          "SKU",
+          "UPC",
+          "Style",
+          "Color",
+          "Size",
+          "Dim",
+          "Units",
+          "Cartons",
+          "Shipto Code",
+          "Shipto name",
+          "Shipto address1",
+          "Shipto Address2",
+          "shipto City",
+          "shipto State",
+          "shipto Zip",
+          "billto Code",
+          "billto name",
+          "billto address1",
+          "billto Address2",
+          "billto City",
+          "bill toState",
+          "bill to Zip",
+          "Carrier",
+          "Cancel Date",
+          "Must Ship date",
+          "Client",
+          "WH-Warehouse",
+        ]}
         onConfirm={(file) => {
           Papa.parse(file, {
             header: true,
@@ -473,9 +536,7 @@ function StatCell({
         <Icon className={`h-3 w-3 ${tone}`} />
         {label}
       </div>
-      <div className={`text-base font-semibold tabular-nums ${tone}`}>
-        {value.toLocaleString()}
-      </div>
+      <div className={`text-base font-semibold tabular-nums ${tone}`}>{value.toLocaleString()}</div>
     </div>
   );
 }
@@ -497,12 +558,14 @@ function OrderDetailDialog({
 }) {
   const [draft, setDraft] = useState<OrderLine[]>([]);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [lineDeleteIdx, setLineDeleteIdx] = useState<number | null>(null);
 
   // Re-seed draft whenever a new order is opened
   const orderKey = order?.id ?? null;
   useMemo(() => {
     setDraft(lines.map((l) => ({ ...l })));
     setEditingIdx(null);
+    setLineDeleteIdx(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderKey]);
 
@@ -524,8 +587,14 @@ function OrderDetailDialog({
       toast.error("Cannot edit lines on picking or shipped orders");
       return;
     }
-    setDraft((prev) => prev.filter((_, i) => i !== idx));
+    setLineDeleteIdx(idx);
+  };
+
+  const confirmDeleteLine = () => {
+    if (lineDeleteIdx === null) return;
+    setDraft((prev) => prev.filter((_, i) => i !== lineDeleteIdx));
     setEditingIdx(null);
+    setLineDeleteIdx(null);
   };
 
   const addLine = () => {
@@ -538,357 +607,495 @@ function OrderDetailDialog({
   };
 
   return (
-    <Dialog open={!!order} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 font-mono">
-            {order.id}
-            <span
-              className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusStyles[order.status]}`}
-            >
-              {order.status}
-            </span>
-          </DialogTitle>
-          <DialogDescription className="text-xs">
-            PO {order.poNumber} · EDI {order.ediRef} · Ship to {order.shipToName} ·{" "}
-            {order.carrier} {order.serviceLevel}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={!!order} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-mono">
+              {order.id}
+              <span
+                className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusStyles[order.status]}`}
+              >
+                {order.status}
+              </span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              PO {order.poNumber} · EDI {order.ediRef} · Ship to {order.shipToName} ·{" "}
+              {order.carrier} {order.serviceLevel}
+            </DialogDescription>
+          </DialogHeader>
 
-        {locked && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-center gap-1.5">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            This order is in <strong>{order.status}</strong> status — lines are
-            read-only. Only <em>new</em>, <em>released</em>, <em>packed</em>, or{" "}
-            <em>exception</em> orders can be edited.
-          </div>
-        )}
-
-        {hasExceptions && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-start gap-1.5">
-            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            <div>
-              One or more lines reference SKUs that are not in the client's
-              Item Master. <strong>Allocation and picking are blocked</strong> until
-              every SKU is added.
+          {locked && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              This order is in <strong>{order.status}</strong> status — lines are read-only. Only{" "}
+              <em>new</em>, <em>released</em>, <em>packed</em>, or <em>exception</em> orders can be
+              edited.
             </div>
-          </div>
-        )}
-
-        {/* Order Details Section */}
-        <div className="rounded-md border border-border bg-muted/20 p-3 mb-3 space-y-2">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order Details</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-            <div><span className="text-muted-foreground">Customer Order #:</span> <span className="font-mono ml-1">{order.customerOrderNumber || "—"}</span></div>
-            <div><span className="text-muted-foreground">Source:</span> <span className="font-mono ml-1">{order.source}</span></div>
-            <div><span className="text-muted-foreground">Entry Date:</span> <span className="font-mono ml-1">{new Date(order.entryDate).toLocaleDateString()}</span></div>
-            <div><span className="text-muted-foreground">Cancel Date:</span> <span className="font-mono ml-1">{new Date(order.cancelDate).toLocaleDateString()}</span></div>
-            <div><span className="text-muted-foreground">Must Ship By:</span> <span className="font-mono ml-1">{new Date(order.mustShipDate).toLocaleDateString()}</span></div>
-            <div><span className="text-muted-foreground">Received:</span> <span className="font-mono ml-1">{new Date(order.receivedAt).toLocaleDateString()}</span></div>
-            <div><span className="text-muted-foreground">Tenant:</span> <span className="font-mono ml-1">{order.tenantId}</span></div>
-            <div><span className="text-muted-foreground">Warehouse:</span> <span className="font-mono ml-1">{order.warehouseId}</span></div>
-          </div>
-          
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground border-t pt-2">Ship To</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-            <div><span className="text-muted-foreground">Code:</span> <span className="font-mono ml-1">{order.shipToCode}</span></div>
-            <div><span className="text-muted-foreground">Name:</span> <span className="ml-1">{order.shipToName}</span></div>
-            <div><span className="text-muted-foreground">Address 1:</span> <span className="ml-1">{order.shipToAddress1}</span></div>
-            <div><span className="text-muted-foreground">Address 2:</span> <span className="ml-1">{order.shipToAddress2 || "—"}</span></div>
-            <div><span className="text-muted-foreground">City:</span> <span className="ml-1">{order.shipToCity}</span></div>
-            <div><span className="text-muted-foreground">State:</span> <span className="font-mono ml-1">{order.shipToState}</span></div>
-            <div><span className="text-muted-foreground">Zip:</span> <span className="font-mono ml-1">{order.shipToZip}</span></div>
-          </div>
-
-          {(order.billToCode || order.billToName || order.billToAddress1) && (
-            <>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground border-t pt-2">Bill To</div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                <div><span className="text-muted-foreground">Code:</span> <span className="font-mono ml-1">{order.billToCode || "—"}</span></div>
-                <div><span className="text-muted-foreground">Name:</span> <span className="ml-1">{order.billToName || "—"}</span></div>
-                <div><span className="text-muted-foreground">Address 1:</span> <span className="ml-1">{order.billToAddress1 || "—"}</span></div>
-                <div><span className="text-muted-foreground">Address 2:</span> <span className="ml-1">{order.billToAddress2 || "—"}</span></div>
-                <div><span className="text-muted-foreground">City:</span> <span className="ml-1">{order.billToCity || "—"}</span></div>
-                <div><span className="text-muted-foreground">State:</span> <span className="font-mono ml-1">{order.billToState || "—"}</span></div>
-                <div><span className="text-muted-foreground">Zip:</span> <span className="font-mono ml-1">{order.billToZip || "—"}</span></div>
-              </div>
-            </>
           )}
 
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground border-t pt-2">Carrier</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-            <div><span className="text-muted-foreground">Carrier:</span> <span className="ml-1">{order.carrier}</span></div>
-            <div><span className="text-muted-foreground">Service Level:</span> <span className="ml-1">{order.serviceLevel}</span></div>
-          </div>
-        </div>
+          {hasExceptions && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-start gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <div>
+                One or more lines reference SKUs that are not in the client's Item Master.{" "}
+                <strong>Allocation and picking are blocked</strong> until every SKU is added.
+              </div>
+            </div>
+          )}
 
-        <div className="rounded-md border border-border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider">Description</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider">UPC</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider">Style</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider">Color</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider">Size</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider">Dim</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-right">Qty Ord</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-right">Qty Alloc</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-right">Cartons</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-right">Unit $</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-right">Ext $</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider w-24 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {draft.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={13} className="text-center text-xs text-muted-foreground py-6">
-                    No lines on this order.
-                  </TableCell>
+          {/* Order Details Section */}
+          <div className="rounded-md border border-border bg-muted/20 p-3 mb-3 space-y-2">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Order Details
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div>
+                <span className="text-muted-foreground">Customer Order #:</span>{" "}
+                <span className="font-mono ml-1">{order.customerOrderNumber || "—"}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Source:</span>{" "}
+                <span className="font-mono ml-1">{order.source}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Entry Date:</span>{" "}
+                <span className="font-mono ml-1">
+                  {new Date(order.entryDate).toLocaleDateString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Cancel Date:</span>{" "}
+                <span className="font-mono ml-1">
+                  {new Date(order.cancelDate).toLocaleDateString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Must Ship By:</span>{" "}
+                <span className="font-mono ml-1">
+                  {new Date(order.mustShipDate).toLocaleDateString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Received:</span>{" "}
+                <span className="font-mono ml-1">
+                  {new Date(order.receivedAt).toLocaleDateString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Tenant:</span>{" "}
+                <span className="font-mono ml-1">{order.tenantId}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Warehouse:</span>{" "}
+                <span className="font-mono ml-1">{order.warehouseId}</span>
+              </div>
+            </div>
+
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground border-t pt-2">
+              Ship To
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div>
+                <span className="text-muted-foreground">Code:</span>{" "}
+                <span className="font-mono ml-1">{order.shipToCode}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Name:</span>{" "}
+                <span className="ml-1">{order.shipToName}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Address 1:</span>{" "}
+                <span className="ml-1">{order.shipToAddress1}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Address 2:</span>{" "}
+                <span className="ml-1">{order.shipToAddress2 || "—"}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">City:</span>{" "}
+                <span className="ml-1">{order.shipToCity}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">State:</span>{" "}
+                <span className="font-mono ml-1">{order.shipToState}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Zip:</span>{" "}
+                <span className="font-mono ml-1">{order.shipToZip}</span>
+              </div>
+            </div>
+
+            {(order.billToCode || order.billToName || order.billToAddress1) && (
+              <>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground border-t pt-2">
+                  Bill To
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Code:</span>{" "}
+                    <span className="font-mono ml-1">{order.billToCode || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Name:</span>{" "}
+                    <span className="ml-1">{order.billToName || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Address 1:</span>{" "}
+                    <span className="ml-1">{order.billToAddress1 || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Address 2:</span>{" "}
+                    <span className="ml-1">{order.billToAddress2 || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">City:</span>{" "}
+                    <span className="ml-1">{order.billToCity || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">State:</span>{" "}
+                    <span className="font-mono ml-1">{order.billToState || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Zip:</span>{" "}
+                    <span className="font-mono ml-1">{order.billToZip || "—"}</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground border-t pt-2">
+              Carrier
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div>
+                <span className="text-muted-foreground">Carrier:</span>{" "}
+                <span className="ml-1">{order.carrier}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Service Level:</span>{" "}
+                <span className="ml-1">{order.serviceLevel}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">
+                    Description
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">UPC</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Style</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Color</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Size</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Dim</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Qty Ord
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Qty Alloc
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Cartons
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Unit $
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Ext $
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider w-24 text-right">
+                    Actions
+                  </TableHead>
                 </TableRow>
-              )}
-              {draft.map((l, idx) => {
-                const editing = editingIdx === idx;
-                const excReason = exceptionReasons[idx];
-                return (
-                  <TableRow key={idx} className={`text-xs ${excReason ? "bg-destructive/5" : ""}`}>
-                    <TableCell className="py-1.5 font-mono">
-                      {editing ? (
-                        <Input
-                          value={l.sku}
-                          onChange={(e) => updateLine(idx, { sku: e.target.value })}
-                          className="h-7 text-xs font-mono"
-                        />
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span>{l.sku || <span className="text-muted-foreground">—</span>}</span>
-                          {excReason && (
-                            <a
-                              href={`/masters?${new URLSearchParams({
-                                tab: "items",
-                                addSku: l.sku,
-                                tenantId,
-                                desc: l.description ?? "",
-                              }).toString()}`}
-                              className="inline-flex items-center gap-0.5 rounded-sm border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive hover:bg-destructive/15"
-                              title={masterReasonLabel(excReason)}
-                            >
-                              <Database className="h-2.5 w-2.5" /> Add
-                            </a>
-                          )}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-1.5">
-                      {editing ? (
-                        <Input
-                          value={l.description}
-                          onChange={(e) => updateLine(idx, { description: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      ) : (
-                        l.description || <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-1.5 font-mono text-[10px]">
-                      {editing ? (
-                        <Input
-                          value={l.upc || ""}
-                          onChange={(e) => updateLine(idx, { upc: e.target.value })}
-                          className="h-7 text-xs font-mono"
-                        />
-                      ) : (
-                        l.upc || <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-[10px]">
-                      {editing ? (
-                        <Input
-                          value={l.style || ""}
-                          onChange={(e) => updateLine(idx, { style: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      ) : (
-                        l.style || <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-[10px]">
-                      {editing ? (
-                        <Input
-                          value={l.color || ""}
-                          onChange={(e) => updateLine(idx, { color: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      ) : (
-                        l.color || <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-[10px]">
-                      {editing ? (
-                        <Input
-                          value={l.size || ""}
-                          onChange={(e) => updateLine(idx, { size: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      ) : (
-                        l.size || <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-[10px]">
-                      {editing ? (
-                        <Input
-                          value={l.dim || ""}
-                          onChange={(e) => updateLine(idx, { dim: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      ) : (
-                        l.dim || <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-right tabular-nums">
-                      {editing ? (
-                        <Input
-                          type="number"
-                          min={0}
-                          value={l.qtyOrdered}
-                          onChange={(e) =>
-                            updateLine(idx, { qtyOrdered: Number(e.target.value) || 0 })
-                          }
-                          className="h-7 text-xs text-right w-20 ml-auto"
-                        />
-                      ) : (
-                        l.qtyOrdered.toLocaleString()
-                      )}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-right tabular-nums text-muted-foreground">
-                      {l.qtyAllocated.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-right tabular-nums">
-                      {editing ? (
-                        <Input
-                          type="number"
-                          min={0}
-                          value={l.cartons || 0}
-                          onChange={(e) =>
-                            updateLine(idx, { cartons: Number(e.target.value) || 0 })
-                          }
-                          className="h-7 text-xs text-right w-20 ml-auto"
-                        />
-                      ) : (
-                        (l.cartons || 0).toLocaleString()
-                      )}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-right tabular-nums">
-                      {editing ? (
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={l.unitPrice}
-                          onChange={(e) =>
-                            updateLine(idx, { unitPrice: Number(e.target.value) || 0 })
-                          }
-                          className="h-7 text-xs text-right w-24 ml-auto"
-                        />
-                      ) : (
-                        `$${l.unitPrice.toFixed(2)}`
-                      )}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-right tabular-nums font-medium">
-                      ${(l.qtyOrdered * l.unitPrice).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="py-1.5 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {editing ? (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => setEditingIdx(null)}
-                            title="Done"
-                          >
-                            <Save className="h-3.5 w-3.5" />
-                          </Button>
-                        ) : (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            disabled={locked}
-                            onClick={() => setEditingIdx(idx)}
-                            title={locked ? "Locked" : "Edit"}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          disabled={locked}
-                          onClick={() => deleteLine(idx)}
-                          title={locked ? "Locked" : "Delete line"}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {draft.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={13}
+                      className="text-center text-xs text-muted-foreground py-6"
+                    >
+                      No lines on this order.
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                )}
+                {draft.map((l, idx) => {
+                  const editing = editingIdx === idx;
+                  const excReason = exceptionReasons[idx];
+                  return (
+                    <TableRow
+                      key={idx}
+                      className={`text-xs ${excReason ? "bg-destructive/5" : ""}`}
+                    >
+                      <TableCell className="py-1.5 font-mono">
+                        {editing ? (
+                          <Input
+                            value={l.sku}
+                            onChange={(e) => updateLine(idx, { sku: e.target.value })}
+                            className="h-7 text-xs font-mono"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <span>{l.sku || <span className="text-muted-foreground">—</span>}</span>
+                            {excReason && (
+                              <a
+                                href={`/masters?${new URLSearchParams({
+                                  tab: "items",
+                                  addSku: l.sku,
+                                  tenantId,
+                                  desc: l.description ?? "",
+                                }).toString()}`}
+                                className="inline-flex items-center gap-0.5 rounded-sm border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive hover:bg-destructive/15"
+                                title={masterReasonLabel(excReason)}
+                              >
+                                <Database className="h-2.5 w-2.5" /> Add
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5">
+                        {editing ? (
+                          <Input
+                            value={l.description}
+                            onChange={(e) => updateLine(idx, { description: e.target.value })}
+                            className="h-7 text-xs"
+                          />
+                        ) : (
+                          l.description || <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 font-mono text-[10px]">
+                        {editing ? (
+                          <Input
+                            value={l.upc || ""}
+                            onChange={(e) => updateLine(idx, { upc: e.target.value })}
+                            className="h-7 text-xs font-mono"
+                          />
+                        ) : (
+                          l.upc || <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-[10px]">
+                        {editing ? (
+                          <Input
+                            value={l.style || ""}
+                            onChange={(e) => updateLine(idx, { style: e.target.value })}
+                            className="h-7 text-xs"
+                          />
+                        ) : (
+                          l.style || <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-[10px]">
+                        {editing ? (
+                          <Input
+                            value={l.color || ""}
+                            onChange={(e) => updateLine(idx, { color: e.target.value })}
+                            className="h-7 text-xs"
+                          />
+                        ) : (
+                          l.color || <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-[10px]">
+                        {editing ? (
+                          <Input
+                            value={l.size || ""}
+                            onChange={(e) => updateLine(idx, { size: e.target.value })}
+                            className="h-7 text-xs"
+                          />
+                        ) : (
+                          l.size || <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-[10px]">
+                        {editing ? (
+                          <Input
+                            value={l.dim || ""}
+                            onChange={(e) => updateLine(idx, { dim: e.target.value })}
+                            className="h-7 text-xs"
+                          />
+                        ) : (
+                          l.dim || <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right tabular-nums">
+                        {editing ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            value={l.qtyOrdered}
+                            onChange={(e) =>
+                              updateLine(idx, { qtyOrdered: Number(e.target.value) || 0 })
+                            }
+                            className="h-7 text-xs text-right w-20 ml-auto"
+                          />
+                        ) : (
+                          l.qtyOrdered.toLocaleString()
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right tabular-nums text-muted-foreground">
+                        {l.qtyAllocated.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right tabular-nums">
+                        {editing ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            value={l.cartons || 0}
+                            onChange={(e) =>
+                              updateLine(idx, { cartons: Number(e.target.value) || 0 })
+                            }
+                            className="h-7 text-xs text-right w-20 ml-auto"
+                          />
+                        ) : (
+                          (l.cartons || 0).toLocaleString()
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right tabular-nums">
+                        {editing ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={l.unitPrice}
+                            onChange={(e) =>
+                              updateLine(idx, { unitPrice: Number(e.target.value) || 0 })
+                            }
+                            className="h-7 text-xs text-right w-24 ml-auto"
+                          />
+                        ) : (
+                          `$${l.unitPrice.toFixed(2)}`
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right tabular-nums font-medium">
+                        ${(l.qtyOrdered * l.unitPrice).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {editing ? (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => setEditingIdx(null)}
+                              title="Done"
+                            >
+                              <Save className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              disabled={locked}
+                              onClick={() => setEditingIdx(idx)}
+                              title={locked ? "Locked" : "Edit"}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            disabled={locked}
+                            onClick={() => setLineDeleteIdx(idx)}
+                            title={locked ? "Locked" : "Delete line"}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
 
-        <div className="flex items-center justify-between text-xs">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs gap-1.5"
-            disabled={locked}
-            onClick={addLine}
-          >
-            <Plus className="h-3.5 w-3.5" /> Add line
-          </Button>
-          <div className="flex gap-6 tabular-nums">
-            <div>
-              <span className="text-muted-foreground">Lines: </span>
-              <span className="font-medium">{draft.length}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Units: </span>
-              <span className="font-medium">{totalUnits.toLocaleString()}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Value: </span>
-              <span className="font-medium">${totalValue.toFixed(2)}</span>
+          <div className="flex items-center justify-between text-xs">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              disabled={locked}
+              onClick={addLine}
+            >
+              <Plus className="h-3.5 w-3.5" /> Add line
+            </Button>
+            <div className="flex gap-6 tabular-nums">
+              <div>
+                <span className="text-muted-foreground">Lines: </span>
+                <span className="font-medium">{draft.length}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Units: </span>
+                <span className="font-medium">{totalUnits.toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Value: </span>
+                <span className="font-medium">${totalValue.toFixed(2)}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={onClose}>
-            <X className="h-3.5 w-3.5" /> Cancel
-          </Button>
-          <Button
-            size="sm"
-            className="h-8 text-xs gap-1.5"
-            disabled={locked || hasExceptions}
-            onClick={() => {
-              if (hasExceptions) {
-                toast.error("Resolve Item Master exceptions before saving");
-                return;
-              }
-              onSave(draft);
-              onClose();
-            }}
-          >
-            <Save className="h-3.5 w-3.5" /> Save changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={onClose}>
+              <X className="h-3.5 w-3.5" /> Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              disabled={locked || hasExceptions}
+              onClick={() => {
+                if (hasExceptions) {
+                  toast.error("Resolve Item Master exceptions before saving");
+                  return;
+                }
+                onSave(draft);
+                onClose();
+              }}
+            >
+              <Save className="h-3.5 w-3.5" /> Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={lineDeleteIdx !== null} onOpenChange={(o) => !o && setLineDeleteIdx(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this line?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              This will permanently remove the selected line from the order. This action cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setLineDeleteIdx(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDeleteLine}
+            >
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
