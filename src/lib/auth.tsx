@@ -1,10 +1,21 @@
-import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { Warehouse, LogIn, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
@@ -28,9 +39,24 @@ export type AuthUser = {
 // Default password for every account in the demo: azux
 const DIRECTORY: AuthUser[] = [
   { name: "Jordan Avery", email: "jordan.avery@azux.com", role: "Admin", warehouseCode: "ALL" },
-  { name: "Devon Hill", email: "devon.hill@azux.com", role: "Operations Manager", warehouseCode: "ATL1" },
-  { name: "Sara Owens", email: "sara.owens@azux.com", role: "Warehouse Lead", warehouseCode: "ORD2" },
-  { name: "Marcus Reid", email: "marcus.reid@azux.com", role: "Warehouse Lead", warehouseCode: "LAX3" },
+  {
+    name: "Devon Hill",
+    email: "devon.hill@azux.com",
+    role: "Operations Manager",
+    warehouseCode: "ATL1",
+  },
+  {
+    name: "Sara Owens",
+    email: "sara.owens@azux.com",
+    role: "Warehouse Lead",
+    warehouseCode: "ORD2",
+  },
+  {
+    name: "Marcus Reid",
+    email: "marcus.reid@azux.com",
+    role: "Warehouse Lead",
+    warehouseCode: "LAX3",
+  },
   { name: "Anya Volkov", email: "anya.volkov@azux.com", role: "Receiver", warehouseCode: "EWR1" },
   { name: "Riley Park", email: "riley.park@azux.com", role: "Picker", warehouseCode: "ATL1" },
   { name: "Tomás Ruiz", email: "tomas.ruiz@azux.com", role: "Billing", warehouseCode: "ALL" },
@@ -40,11 +66,45 @@ const DEMO_PASSWORD = "azux";
 
 // Route paths each role is allowed to see/visit.
 export const ROLE_ROUTES: Record<Role, string[]> = {
-  Admin: ["/", "/inbound", "/inventory", "/orders", "/shipments", "/pallets", "/masters", "/edi", "/documents", "/billing", "/settings"],
-  "Operations Manager": ["/", "/inbound", "/inventory", "/orders", "/shipments", "/pallets", "/masters", "/edi", "/documents", "/billing"],
-  "Warehouse Lead": ["/", "/inbound", "/inventory", "/orders", "/shipments", "/pallets", "/documents"],
+  Admin: [
+    "/",
+    "/inbound",
+    "/inventory",
+    "/orders",
+    "/allocation",
+    "/shipments",
+    "/pallets",
+    "/masters",
+    "/edi",
+    "/documents",
+    "/billing",
+    "/settings",
+  ],
+  "Operations Manager": [
+    "/",
+    "/inbound",
+    "/inventory",
+    "/orders",
+    "/allocation",
+    "/shipments",
+    "/pallets",
+    "/masters",
+    "/edi",
+    "/documents",
+    "/billing",
+  ],
+  "Warehouse Lead": [
+    "/",
+    "/inbound",
+    "/inventory",
+    "/orders",
+    "/allocation",
+    "/shipments",
+    "/pallets",
+    "/documents",
+  ],
   Receiver: ["/", "/inbound", "/inventory", "/pallets"],
-  Picker: ["/", "/orders", "/shipments", "/inventory"],
+  Picker: ["/", "/orders", "/allocation", "/shipments", "/inventory"],
   Billing: ["/", "/billing", "/documents"],
   Viewer: ["/", "/inventory"],
 };
@@ -145,7 +205,9 @@ export function SignInScreen() {
           </div>
           <div className="leading-tight">
             <div className="text-sm font-semibold tracking-tight">AZUX 3PL WMS Systems</div>
-            <div className="text-[10px] uppercase tracking-wider opacity-80">Warehouse Operations Platform</div>
+            <div className="text-[10px] uppercase tracking-wider opacity-80">
+              Warehouse Operations Platform
+            </div>
           </div>
         </div>
         <div className="space-y-4 max-w-md">
@@ -179,7 +241,9 @@ export function SignInScreen() {
 
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs">Email</Label>
+              <Label htmlFor="email" className="text-xs">
+                Email
+              </Label>
               <Select value={email} onValueChange={setEmail}>
                 <SelectTrigger id="email" className="h-9 text-sm">
                   <SelectValue />
@@ -199,7 +263,9 @@ export function SignInScreen() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-xs">Password</Label>
+              <Label htmlFor="password" className="text-xs">
+                Password
+              </Label>
               <Input
                 id="password"
                 type="password"
@@ -208,7 +274,9 @@ export function SignInScreen() {
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
               />
-              <p className="text-[10px] text-muted-foreground">Demo password: <span className="font-mono">azux</span></p>
+              <p className="text-[10px] text-muted-foreground">
+                Demo password: <span className="font-mono">azux</span>
+              </p>
             </div>
           </div>
 

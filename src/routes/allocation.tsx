@@ -2,16 +2,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   Search,
-  RefreshCw,
   PackageCheck,
   PackageSearch,
   AlertTriangle,
   Truck,
   Undo2,
-  X,
   ClipboardList,
   Layers,
-  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -76,20 +73,31 @@ type Tab = "allocate" | "pick" | "history";
 
 function AllocationPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { pickTickets: livePickTickets, clientAllocationConfigs: liveConfigs } = useWmsData();
+  const {
+    orders: liveOrders,
+    pickTickets: livePickTickets,
+    clientAllocationConfigs: liveConfigs,
+  } = useWmsData();
   const [tab, setTab] = useState<Tab>("allocate");
   const [search, setSearch] = useState("");
-  const [tick, setTick] = useState(0);
 
-  const refresh = () => setTick((t) => t + 1);
+  const orders = useMemo(() => (liveOrders.length ? liveOrders : []), [liveOrders]);
+  const pickTickets = useMemo(
+    () => (livePickTickets.length ? livePickTickets : []),
+    [livePickTickets],
+  );
+  const clientAllocationConfigs = useMemo(
+    () => (liveConfigs.length ? liveConfigs : []),
+    [liveConfigs],
+  );
 
   const configMap = useMemo(() => {
     const m = new Map<string, (typeof clientAllocationConfigs)[number]>();
-    for (const c of liveConfigs.length ? liveConfigs : clientAllocationConfigs) {
+    for (const c of clientAllocationConfigs) {
       m.set(c.tenantId, c);
     }
     return m;
-  }, [liveConfigs, tick]);
+  }, [clientAllocationConfigs]);
 
   const allocatableOrders = useMemo(() => {
     return orders.filter((o) => {
@@ -103,7 +111,7 @@ function AllocationPage() {
       }
       return true;
     });
-  }, [orders, tenantId, warehouseId, search, tick]);
+  }, [orders, tenantId, warehouseId, search]);
 
   const activeOrders = useMemo(() => {
     return orders.filter((o) => {
@@ -117,14 +125,12 @@ function AllocationPage() {
       }
       return true;
     });
-  }, [orders, tenantId, warehouseId, search, tick]);
+  }, [orders, tenantId, warehouseId, search]);
 
   const activeTickets = useMemo(() => {
     const orderIds = new Set(activeOrders.map((o) => o.id));
-    return (livePickTickets.length ? livePickTickets : pickTickets).filter((pt) =>
-      orderIds.has(pt.orderId),
-    );
-  }, [activeOrders, livePickTickets, tick]);
+    return pickTickets.filter((pt) => orderIds.has(pt.orderId));
+  }, [activeOrders, pickTickets]);
 
   const [errorDialog, setErrorDialog] = useState<{ open: boolean; title: string; message: string }>(
     {
@@ -150,7 +156,6 @@ function AllocationPage() {
         toast.success(`Order ${orderId} allocated`, {
           description: `Pick Ticket #${result.pickTicketNum} · ${result.allocatedLines.length} line(s)`,
         });
-        refresh();
       } else {
         showError("Allocation Failed", result.error || "Unknown error");
       }
@@ -171,7 +176,6 @@ function AllocationPage() {
         toast.success(`Order ${orderId} deallocated`, {
           description: `${result.deallocatedLines.length} line(s) reverted to NEW`,
         });
-        refresh();
       } else {
         showError("Deallocation Failed", result.error || "Unknown error");
       }
@@ -192,7 +196,6 @@ function AllocationPage() {
         toast.success(`Order ${orderId} picked`, {
           description: `Ticket #${result.pickTicketNum} · ${result.pickedLines.length} line(s) moved to DROP001`,
         });
-        refresh();
       } else {
         showError("Pick Failed", result.error || "Unknown error");
       }
@@ -213,7 +216,6 @@ function AllocationPage() {
         toast.success(`Order ${orderId} unpicked`, {
           description: `Ticket #${result.pickTicketNum} · ${result.unpickedLines.length} line(s) returned`,
         });
-        refresh();
       } else {
         showError("Unpick Failed", result.error || "Unknown error");
       }
@@ -234,7 +236,6 @@ function AllocationPage() {
         toast.success(`Order ${orderId} shipped`, {
           description: `BOL ${result.bolNumber} · Ticket #${result.pickTicketNum} closed`,
         });
-        refresh();
       } else {
         showError("Ship Failed", result.error || "Unknown error");
       }
@@ -269,11 +270,6 @@ function AllocationPage() {
           <p className="text-xs text-muted-foreground mt-0.5">
             Allocate → Pick → Unpick → Ship · DROP001 transitional staging
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refresh}>
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
-          </Button>
         </div>
       </div>
 

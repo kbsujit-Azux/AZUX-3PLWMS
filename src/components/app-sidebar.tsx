@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Package,
   ClipboardList,
+  PackageSearch,
   Truck,
   Boxes,
   Cable,
@@ -33,6 +34,7 @@ const operations = [
   { title: "Inbound", url: "/inbound", icon: Container },
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Orders", url: "/orders", icon: ClipboardList },
+  { title: "Allocation", url: "/allocation", icon: PackageSearch },
   { title: "Shipments", url: "/shipments", icon: Truck },
   { title: "Pallets", url: "/pallets", icon: Boxes },
 ] as const;
