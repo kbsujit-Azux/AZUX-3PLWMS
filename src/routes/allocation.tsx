@@ -146,14 +146,14 @@ function AllocationPage() {
     setErrorDialog({ open: true, title, message });
   };
 
-  const handleAllocate = (orderId: string) => {
+  const handleAllocate = async (orderId: string) => {
     try {
       const order = validateOrderForAllocation(orderId);
       if (!order) {
         showError("Validation Failed", `Order ${orderId} not found or invalid.`);
         return;
       }
-      const result = allocate_order(orderId);
+      const result = await allocate_order(orderId);
       if (result.success) {
         toast.success(`Order ${orderId} allocated`, {
           description: `Pick Ticket #${result.pickTicketNum} · ${result.allocatedLines.length} line(s)`,
@@ -166,14 +166,14 @@ function AllocationPage() {
     }
   };
 
-  const handleDeallocate = (orderId: string) => {
+  const handleDeallocate = async (orderId: string) => {
     try {
       const order = validateOrderForDeallocation(orderId);
       if (!order) {
         showError("Validation Failed", `Order ${orderId} not found or not in ALLOCATED.`);
         return;
       }
-      const result = deallocate_order(orderId);
+      const result = await deallocate_order(orderId);
       if (result.success) {
         toast.success(`Order ${orderId} deallocated`, {
           description: `${result.deallocatedLines.length} line(s) reverted to NEW`,
@@ -186,14 +186,14 @@ function AllocationPage() {
     }
   };
 
-  const handlePick = (orderId: string) => {
+  const handlePick = async (orderId: string) => {
     try {
       const order = validateOrderForPick(orderId);
       if (!order) {
         showError("Validation Failed", `Order ${orderId} not found or not in ALLOCATED.`);
         return;
       }
-      const result = pick_pick_ticket(orderId);
+      const result = await pick_pick_ticket(orderId);
       if (result.success) {
         toast.success(`Order ${orderId} picked`, {
           description: `Ticket #${result.pickTicketNum} · ${result.pickedLines.length} line(s) moved to DROP001`,
@@ -206,14 +206,14 @@ function AllocationPage() {
     }
   };
 
-  const handleUnpick = (orderId: string) => {
+  const handleUnpick = async (orderId: string) => {
     try {
       const order = validateOrderForUnpick(orderId);
       if (!order) {
         showError("Validation Failed", `Order ${orderId} not found or not in PICKED.`);
         return;
       }
-      const result = unpick_order(orderId);
+      const result = await unpick_order(orderId);
       if (result.success) {
         toast.success(`Order ${orderId} unpicked`, {
           description: `Ticket #${result.pickTicketNum} · ${result.unpickedLines.length} line(s) returned`,
@@ -226,14 +226,14 @@ function AllocationPage() {
     }
   };
 
-  const handleShip = (orderId: string) => {
+  const handleShip = async (orderId: string) => {
     try {
       const order = validateOrderForShip(orderId);
       if (!order) {
         showError("Validation Failed", `Order ${orderId} not found or not in PICKED.`);
         return;
       }
-      const result = ship_order(orderId);
+      const result = await ship_order(orderId);
       if (result.success) {
         toast.success(`Order ${orderId} shipped`, {
           description: `BOL ${result.bolNumber} · Ticket #${result.pickTicketNum} closed`,
