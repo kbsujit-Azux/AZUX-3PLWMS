@@ -84,6 +84,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
+let orderSeq = 0;
+const ORDER_PREFIX = "SO#-";
+
+try {
+  const { orders: _seedOrders } = require("@/lib/edi-data");
+  for (const o of _seedOrders) {
+    const m = o.id.match(/^SO[#-]?(\d+)$/);
+    if (m) orderSeq = Math.max(orderSeq, parseInt(m[1], 10));
+  }
+} catch {
+  // ignore
+}
+
+export function nextOrderId(): string {
+  orderSeq += 1;
+  return `${ORDER_PREFIX}${orderSeq.toString().padStart(8, "0")}`;
+}
+
 export const Route = createFileRoute("/orders")({
   head: () => ({
     meta: [
@@ -500,7 +518,7 @@ function OrdersPage() {
                 if (!po) continue;
                 if (!grouped.has(po)) {
                   grouped.set(po, {
-                    id: nextSeq(),
+      id: nextOrderId(),
                     poNumber: po,
                     customerOrderNumber: row["customerOrderNumber"] || "",
                     ediRef: "—",
@@ -644,19 +662,9 @@ function NewOrderDialog({
   defaultWarehouseId: string;
 }) {
   const now = new Date().toISOString();
-  const nextSeq = (() => {
-    let maxSeq = 0;
-    for (const o of orders) {
-      const m = o.id.match(/^SO[#-]?(\d+)$/);
-      if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
-    }
-    return () => {
-      maxSeq++;
-      return `SO#-${maxSeq.toString().padStart(8, "0")}`;
-    };
-  })();
 
   const [form, setForm] = useState<{
+    id: string;
     poNumber: string;
     customerOrderNumber: string;
     ediRef: string;
@@ -683,7 +691,8 @@ function NewOrderDialog({
     cancelDate: string;
     mustShipDate: string;
     lines: OrderLine[];
-  }>({
+   }>({
+    id: "",
     poNumber: "",
     customerOrderNumber: "",
     ediRef: "—",
@@ -717,6 +726,7 @@ function NewOrderDialog({
   useEffect(() => {
     if (!open) return;
     setForm({
+      id: nextOrderId(),
       poNumber: "",
       customerOrderNumber: "",
       ediRef: "—",
@@ -807,7 +817,7 @@ function NewOrderDialog({
   const handleSave = () => {
     const lines = form.lines.filter((l) => l.sku.trim() !== "" || l.description.trim() !== "");
     const newOrder: Order = {
-      id: nextSeq(),
+      id: form.id || nextOrderId(),
       poNumber: form.poNumber,
       customerOrderNumber: form.customerOrderNumber,
       ediRef: form.ediRef,
@@ -888,7 +898,7 @@ function NewOrderDialog({
                         Order ID
                       </Label>
                       <Input
-                        value={nextSeq()}
+                        value={form.id}
                         disabled
                         className="h-8 text-xs font-mono bg-muted"
                       />
