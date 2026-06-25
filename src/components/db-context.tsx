@@ -3,14 +3,27 @@ import { collection, onSnapshot, getDocs, limit, doc, writeBatch, query } from "
 import { db } from "@/lib/firebase";
 
 // Import local seed data
-import { tenants as seedTenants, warehouses as seedWarehouses, inventoryItems as seedInventoryItems } from "@/lib/mock-data";
+import {
+  tenants as seedTenants,
+  warehouses as seedWarehouses,
+  inventoryItems as seedInventoryItems,
+  clientAllocationConfigs as seedClientAllocationConfigs,
+} from "@/lib/mock-data";
 import { pallets as seedPallets, pickWaves as seedPickWaves } from "@/lib/pallet-data";
 import { orders as seedOrders, ediLogs as seedEdiLogs } from "@/lib/edi-data";
 import { inboundShipments as seedInboundShipments } from "@/lib/inbound-data";
 import { shipments as seedCarrierDispatches } from "@/lib/shipment-data";
 import { seedBols as seedBols } from "@/lib/bol-data";
-import { itemMaster as seedItemMaster, locationMaster as seedLocationMaster } from "@/lib/master-data";
-import { billingClients as seedBillingClients, defaultRules as seedBillingRules, billableEvents as seedBillableEvents, seedInvoices } from "@/lib/billing-data";
+import {
+  itemMaster as seedItemMaster,
+  locationMaster as seedLocationMaster,
+} from "@/lib/master-data";
+import {
+  billingClients as seedBillingClients,
+  defaultRules as seedBillingRules,
+  billableEvents as seedBillableEvents,
+  seedInvoices,
+} from "@/lib/billing-data";
 
 // Import types
 import type { Tenant, Warehouse, InventoryItem } from "@/lib/mock-data";
@@ -21,15 +34,27 @@ import type { CarrierDispatch } from "@/lib/shipment-data";
 import type { Bol } from "@/lib/bol-data";
 import type { ItemMasterRecord, LocationRecord } from "@/lib/master-data";
 import type { BillingClient, ChargeRule, BillableEvent, Invoice } from "@/lib/billing-data";
+import type { ClientAllocationConfig, PickTicket } from "@/lib/mock-data";
 
 // Import mutable library array targets for background synchronization
-import { itemMaster as libItemMaster, locationMaster as libLocationMaster } from "@/lib/master-data";
+import {
+  itemMaster as libItemMaster,
+  locationMaster as libLocationMaster,
+} from "@/lib/master-data";
 import { pallets as libPallets, pickWaves as libPickWaves } from "@/lib/pallet-data";
+import {
+  clientAllocationConfigs as libClientAllocationConfigs,
+  pickTickets as libPickTickets,
+} from "@/lib/mock-data";
 import { orders as libOrders, ediLogs as libEdiLogs } from "@/lib/edi-data";
 import { inboundShipments as libInboundShipments } from "@/lib/inbound-data";
 import { shipments as libCarrierDispatches } from "@/lib/shipment-data";
 import { seedBols as libBols } from "@/lib/bol-data";
-import { defaultRules as libBillingRules, billableEvents as libBillableEvents, seedInvoices as libInvoices } from "@/lib/billing-data";
+import {
+  defaultRules as libBillingRules,
+  billableEvents as libBillableEvents,
+  seedInvoices as libInvoices,
+} from "@/lib/billing-data";
 
 type DatabaseContextType = {
   loading: boolean;
@@ -49,6 +74,8 @@ type DatabaseContextType = {
   itemMaster: ItemMasterRecord[];
   locationMaster: LocationRecord[];
   ediLogs: EdiLog[];
+  clientAllocationConfigs: ClientAllocationConfig[];
+  pickTickets: PickTicket[];
 };
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -71,6 +98,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [itemMaster, setItemMaster] = useState<ItemMasterRecord[]>([]);
   const [locationMaster, setLocationMaster] = useState<LocationRecord[]>([]);
   const [ediLogs, setEdiLogs] = useState<EdiLog[]>([]);
+  const [clientAllocationConfigs, setClientAllocationConfigs] = useState<ClientAllocationConfig[]>(
+    [],
+  );
+  const [pickTickets, setPickTickets] = useState<PickTicket[]>([]);
 
   // 1. Database Seeding
   useEffect(() => {
@@ -80,8 +111,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         const tenantsSnap = await getDocs(query(tenantsCol, limit(1)));
         if (tenantsSnap.empty) {
           console.log("Firestore database is empty. Seeding default WMS datasets...");
-          
-          const seedCollection = async (colName: string, items: any[], getId: (item: any) => string) => {
+
+          const seedCollection = async (
+            colName: string,
+            items: any[],
+            getId: (item: any) => string,
+          ) => {
             const batch = writeBatch(db);
             items.forEach((item) => {
               const docRef = doc(db, colName, getId(item));
@@ -106,6 +141,11 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           await seedCollection("itemMaster", seedItemMaster, (item) => item.sku);
           await seedCollection("locationMaster", seedLocationMaster, (item) => item.id);
           await seedCollection("ediLogs", seedEdiLogs, (item) => item.id);
+          await seedCollection(
+            "clientAllocationConfigs",
+            seedClientAllocationConfigs,
+            (item) => item.tenantId,
+          );
 
           console.log("Default WMS datasets successfully seeded to Firestore!");
         }
@@ -124,12 +164,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     const syncCollection = <T,>(
       colName: string,
       setter: React.Dispatch<React.SetStateAction<T[]>>,
-      libArrayTarget?: T[]
+      libArrayTarget?: T[],
     ) => {
       const unsub = onSnapshot(collection(db, colName), (snap) => {
         const list = snap.docs.map((d) => d.data() as T);
         setter(list);
-        
+
         // Update in-memory reference to keep non-reactive library logic in sync
         if (libArrayTarget) {
           libArrayTarget.length = 0;
@@ -143,7 +183,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     syncCollection("warehouses", setWarehouses);
     syncCollection("inventoryItems", setInventoryItems);
     syncCollection("pallets", setPallets, libPallets);
-    syncCollection("pickWaves", setPickWaves, libPickWaves);
+    syncCollection("pickWaves", setPickWaves, libPickWaves as unknown as PickWave[]);
     syncCollection("orders", setOrders, libOrders);
     syncCollection("inboundShipments", setInboundShipments, libInboundShipments);
     syncCollection("carrierDispatches", setCarrierDispatches, libCarrierDispatches);
@@ -155,6 +195,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     syncCollection("itemMaster", setItemMaster, libItemMaster);
     syncCollection("locationMaster", setLocationMaster, libLocationMaster);
     syncCollection("ediLogs", setEdiLogs, libEdiLogs);
+    syncCollection(
+      "clientAllocationConfigs",
+      setClientAllocationConfigs,
+      libClientAllocationConfigs,
+    );
+    syncCollection("pickTickets", setPickTickets, libPickTickets);
 
     // Turn off loading once initial data snaps are bound
     setLoading(false);
@@ -182,6 +228,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         itemMaster,
         locationMaster,
         ediLogs,
+        clientAllocationConfigs,
+        pickTickets,
       }}
     >
       {loading ? (
@@ -200,4 +248,3 @@ export function useWmsData() {
   if (!ctx) throw new Error("useWmsData must be used inside DatabaseProvider");
   return ctx;
 }
-

@@ -3,18 +3,18 @@ import { orders } from "./edi-data";
 
 /** 3PL shipment lifecycle — yard / dock operations layered on top of a BOL. */
 export type ShipmentStatus =
-  | "pending"      // BOL drafted, awaiting staging
-  | "staged"       // Freight staged at a dock door
-  | "loading"      // Driver checked in, loading in progress
-  | "tendered"     // BOL signed, 945 sent, awaiting departure
-  | "in-transit"   // Trailer departed yard
-  | "delivered"    // POD captured
-  | "exception";   // Hold / refused / damage
+  | "pending" // BOL drafted, awaiting staging
+  | "staged" // Freight staged at a dock door
+  | "loading" // Driver checked in, loading in progress
+  | "tendered" // BOL signed, 945 sent, awaiting departure
+  | "in-transit" // Trailer departed yard
+  | "delivered" // POD captured
+  | "exception"; // Hold / refused / damage
 
 export type Shipment = {
-  id: string;                // SHP-xxxxx
-  bolId: string;             // FK → BillOfLading.id
-  orderIds: string[];        // Underlying SO ids (1 for single BOL, N for master)
+  id: string; // SHP-xxxxx
+  bolId: string; // FK → BillOfLading.id
+  orderIds: string[]; // Underlying SO ids (1 for single BOL, N for master)
   tenantId: string;
   warehouseId: string;
   carrier: string;
@@ -24,13 +24,13 @@ export type Shipment = {
   status: ShipmentStatus;
 
   // Yard / dock ops
-  dockDoor: string;          // e.g. "D-12"
-  appointmentAt: string;     // ISO — scheduled pickup window
+  dockDoor: string; // e.g. "D-12"
+  appointmentAt: string; // ISO — scheduled pickup window
   driverName?: string;
   driverPhone?: string;
-  checkInAt?: string;        // Driver check-in timestamp
-  departedAt?: string;       // Trailer left yard
-  deliveredAt?: string;      // POD captured
+  checkInAt?: string; // Driver check-in timestamp
+  departedAt?: string; // Trailer left yard
+  deliveredAt?: string; // POD captured
   podSignedBy?: string;
 
   // Equipment
@@ -47,22 +47,32 @@ export type Shipment = {
 };
 
 const MODE_BY_CARRIER: Record<string, Shipment["mode"]> = {
-  FedEx: "Parcel", UPS: "Parcel", USPS: "Parcel",
-  "JB Hunt": "TL", "Schneider National": "TL",
+  FedEx: "Parcel",
+  UPS: "Parcel",
+  USPS: "Parcel",
+  "JB Hunt": "TL",
+  "Schneider National": "TL",
   "OTR LTL": "LTL",
-  Maersk: "Intermodal", OOCL: "Intermodal",
+  Maersk: "Intermodal",
+  OOCL: "Intermodal",
 };
 
 const DOORS = ["D-01", "D-02", "D-03", "D-05", "D-07", "D-09", "D-12", "D-14"];
 
 function statusForBol(b: BillOfLading): ShipmentStatus {
   switch (b.status) {
-    case "draft":      return "pending";
-    case "issued":     return "staged";
-    case "tendered":   return "tendered";
-    case "in-transit": return "in-transit";
-    case "delivered":  return "delivered";
-    default:           return "pending";
+    case "draft":
+      return "pending";
+    case "issued":
+      return "staged";
+    case "tendered":
+      return "tendered";
+    case "in-transit":
+      return "in-transit";
+    case "delivered":
+      return "delivered";
+    default:
+      return "pending";
   }
 }
 
@@ -76,7 +86,11 @@ function deriveShipment(b: BillOfLading): Shipment {
   const status = statusForBol(b);
 
   return {
-    id: `SHP-${b.id.replace(/^M?BOL-/, "").slice(0, 10).padEnd(5, "0").toUpperCase()}-${(seedNum % 9000 + 1000).toString()}`,
+    id: `SHP-${b.id
+      .replace(/^M?BOL-/, "")
+      .slice(0, 10)
+      .padEnd(5, "0")
+      .toUpperCase()}-${((seedNum % 9000) + 1000).toString()}`,
     bolId: b.id,
     orderIds: b.childOrderIds,
     tenantId: b.tenantId,
@@ -88,18 +102,27 @@ function deriveShipment(b: BillOfLading): Shipment {
     status,
     dockDoor: door,
     appointmentAt: appt.toISOString(),
-    driverName: status !== "pending"
-      ? ["M. Alvarez", "J. Chen", "R. O'Connell", "T. Brooks", "S. Whitfield"][seedNum % 5]
-      : undefined,
-    driverPhone: status !== "pending"
-      ? `${((seedNum % 800) + 200).toString().padStart(3, "0")}-555-${((seedNum % 9000) + 1000).toString()}`
-      : undefined,
-    checkInAt: status === "loading" || status === "tendered" || status === "in-transit" || status === "delivered"
-      ? new Date(appt.getTime() - 15 * 60_000).toISOString() : undefined,
-    departedAt: status === "in-transit" || status === "delivered"
-      ? new Date(appt.getTime() + 90 * 60_000).toISOString() : undefined,
-    deliveredAt: status === "delivered"
-      ? new Date(appt.getTime() + 26 * 3600_000).toISOString() : undefined,
+    driverName:
+      status !== "pending"
+        ? ["M. Alvarez", "J. Chen", "R. O'Connell", "T. Brooks", "S. Whitfield"][seedNum % 5]
+        : undefined,
+    driverPhone:
+      status !== "pending"
+        ? `${((seedNum % 800) + 200).toString().padStart(3, "0")}-555-${((seedNum % 9000) + 1000).toString()}`
+        : undefined,
+    checkInAt:
+      status === "loading" ||
+      status === "tendered" ||
+      status === "in-transit" ||
+      status === "delivered"
+        ? new Date(appt.getTime() - 15 * 60_000).toISOString()
+        : undefined,
+    departedAt:
+      status === "in-transit" || status === "delivered"
+        ? new Date(appt.getTime() + 90 * 60_000).toISOString()
+        : undefined,
+    deliveredAt:
+      status === "delivered" ? new Date(appt.getTime() + 26 * 3600_000).toISOString() : undefined,
     podSignedBy: status === "delivered" ? (b.consignee.contact ?? "Receiving") : undefined,
     trailerNumber: b.trailerNumber,
     sealNumber: b.sealNumber,
@@ -112,7 +135,7 @@ function deriveShipment(b: BillOfLading): Shipment {
   };
 }
 
-/* ────────── in-memory store (mock) ─────────────────────────────── */
+export type CarrierDispatch = Shipment;
 
 const _bols: BillOfLading[] = [...seedBols];
 // Backfill any order missing a BOL so every shipment ties to one.
@@ -161,14 +184,14 @@ export function transitionShipment(
   _shipments[i] = updated;
 
   // Mirror to BOL + fire 945 on tender
-  if (next === "staged")     patchBol(updated.bolId, "issued");
+  if (next === "staged") patchBol(updated.bolId, "issued");
   if (next === "tendered") {
     patchBol(updated.bolId, "tendered");
     const bol = _bols.find((b) => b.id === updated.bolId);
     if (bol) emit945ForBol(bol);
   }
   if (next === "in-transit") patchBol(updated.bolId, "in-transit");
-  if (next === "delivered")  patchBol(updated.bolId, "delivered");
+  if (next === "delivered") patchBol(updated.bolId, "delivered");
 
   return updated;
 }
@@ -178,5 +201,11 @@ export function recordPod(id: string, signedBy: string): Shipment | undefined {
 }
 
 export const SHIPMENT_STATUSES: ShipmentStatus[] = [
-  "pending", "staged", "loading", "tendered", "in-transit", "delivered", "exception",
+  "pending",
+  "staged",
+  "loading",
+  "tendered",
+  "in-transit",
+  "delivered",
+  "exception",
 ];
