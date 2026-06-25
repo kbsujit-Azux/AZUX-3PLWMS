@@ -17,6 +17,7 @@ import {
   XCircle,
   ShieldCheck,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { useWorkspace } from "@/components/workspace-context";
+import { useWmsData } from "@/components/db-context";
 import { tenants, warehouses } from "@/lib/mock-data";
 import {
   pallets,
@@ -90,6 +92,7 @@ const statusStyles: Record<PalletStatus, string> = {
 
 function PalletsPage() {
   const { tenantId, warehouseId, strategy } = useWorkspace();
+  const { refreshData } = useWmsData();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"build" | "putaway" | "pick">("build");
   const [labelPallet, setLabelPallet] = useState<Pallet | null>(null);
@@ -189,6 +192,9 @@ function PalletsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
             <ScanLine className="h-3.5 w-3.5" /> Scan pallet
           </Button>

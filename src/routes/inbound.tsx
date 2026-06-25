@@ -17,6 +17,7 @@ import {
   ScanLine,
   Layers,
   Database,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useWorkspace } from "@/components/workspace-context";
+import { useWmsData } from "@/components/db-context";
 import { tenants, warehouses } from "@/lib/mock-data";
 import {
   inboundShipments,
@@ -84,6 +86,7 @@ const lineStatusStyles: Record<InboundLine["status"], string> = {
 
 function InboundPage() {
   const { tenantId, warehouseId } = useWorkspace();
+  const { refreshData } = useWmsData();
   const [query, setQuery] = useState("");
   const [csvOpen, setCsvOpen] = useState(false);
   const [, force] = useState(0);
@@ -128,6 +131,9 @@ function InboundPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setCsvOpen(true)}>
             <Upload className="h-3.5 w-3.5" /> Upload CSV
           </Button>

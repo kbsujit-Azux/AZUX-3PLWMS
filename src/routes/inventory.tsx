@@ -7,6 +7,7 @@ import {
   ScanLine,
   Filter,
   Download,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { useWorkspace } from "@/components/workspace-context";
+import { useWmsData } from "@/components/db-context";
 import {
   inventoryItems,
   tenants,
@@ -94,6 +96,7 @@ function csvEscape(v: string | number) {
 
 function InventoryPage() {
   const { tenantId, warehouseId } = useWorkspace();
+  const { refreshData } = useWmsData();
   const [query, setQuery] = useState("");
   const [scanItem, setScanItem] = useState<InventoryItem | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
@@ -205,6 +208,9 @@ function InventoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setCsvOpen(true)}>
             <Upload className="h-3.5 w-3.5" /> Upload CSV
           </Button>

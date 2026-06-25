@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useWorkspace } from "@/components/workspace-context";
+import { useWmsData } from "@/components/db-context";
 import { tenants, warehouses } from "@/lib/mock-data";
 import {
   shipments as initialShipments,
@@ -73,6 +74,7 @@ const modeStyles: Record<Shipment["mode"], string> = {
 
 function ShipmentsPage() {
   const { tenantId, warehouseId } = useWorkspace();
+  const { refreshData } = useWmsData();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"all" | ShipmentStatus>("all");
   const [tick, setTick] = useState(0);          // force refresh after mutations
@@ -134,7 +136,7 @@ function ShipmentsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setTick((t) => t + 1)}>
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">

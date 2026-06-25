@@ -36,6 +36,7 @@ import {
   Edit2,
   Copy,
   Printer,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useWorkspace } from "@/components/workspace-context";
+import { useWmsData } from "@/components/db-context";
 import { orders, type Order, type OrderLine } from "@/lib/edi-data";
 import { tenants, warehouses } from "@/lib/mock-data";
 import { CsvUploader } from "@/components/csv-uploader";
@@ -108,6 +110,7 @@ const statusStyles: Record<Order["status"], string> = {
 
 function OrdersPage() {
   const { tenantId, warehouseId } = useWorkspace();
+  const { refreshData } = useWmsData();
   const [query, setQuery] = useState("");
   const [csvOpen, setCsvOpen] = useState(false);
   const [tick, setTick] = useState(0);
@@ -205,6 +208,9 @@ function OrdersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </Button>
           <Button
             variant="outline"
             size="sm"
