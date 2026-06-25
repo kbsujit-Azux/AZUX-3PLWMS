@@ -50,8 +50,13 @@ import {
 } from "@/components/ui/table";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
-import { orders, type Order, type OrderLine } from "@/lib/edi-data";
+import { type Order, type OrderLine } from "@/lib/edi-data";
 import { tenants, warehouses } from "@/lib/mock-data";
+import {
+  createOrder,
+  deleteOrder,
+  updateOrder,
+} from "@/lib/firestore-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
 import { itemMaster, findItem } from "@/lib/master-data";
@@ -128,7 +133,7 @@ const statusStyles: Record<Order["status"], string> = {
 
 function OrdersPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { refreshData } = useWmsData();
+  const { refreshData, orders } = useWmsData();
   const [query, setQuery] = useState("");
   const [csvOpen, setCsvOpen] = useState(false);
   const [tick, setTick] = useState(0);
@@ -137,13 +142,13 @@ function OrdersPage() {
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const handleDeleteOrder = (orderId: string) => {
-    const idx = orders.findIndex((o) => o.id === orderId);
-    if (idx !== -1) {
-      orders.splice(idx, 1);
-      setTick((t) => t + 1);
+  const handleDeleteOrder = async (orderId: string) => {
+    try {
+      await deleteOrder(orderId);
       if (detailOrderId === orderId) setDetailOrderId(null);
       toast.success(`Order ${orderId} deleted`);
+    } catch (e) {
+      toast.error(`Failed to delete order: ${(e as Error).message}`);
     }
     setDeleteConfirmId(null);
   };
@@ -151,12 +156,24 @@ function OrdersPage() {
   const linesFor = (o: Order): OrderLine[] => lineOverrides[o.id] ?? o.lines;
   const isLocked = (s: Order["status"]) => s === "shipped" || s === "picking";
 
-  const handleNewOrderSave = (newOrder: Order) => {
-    orders.push(newOrder);
-    setTick((t) => t + 1);
-    setNewOrderOpen(false);
-    setDetailOrderId(newOrder.id);
-    toast.success(`Order ${newOrder.id} created`);
+  const handleNewOrderSave = async (newOrder: Order) => {
+    try {
+      await createOrder(newOrder);
+      setNewOrderOpen(false);
+      setDetailOrderId(newOrder.id);
+      toast.success(`Order ${newOrder.id} created`);
+    } catch (e) {
+      toast.error(`Failed to create order: ${(e as Error).message}`);
+    }
+  };
+
+  const saveOrderPatch = async (orderId: string, patch: Partial<Order>) => {
+    try {
+      await updateOrder(orderId, patch);
+      toast.success(`Order ${orderId} updated`);
+    } catch (e) {
+      toast.error(`Failed to update order: ${(e as Error).message}`);
+    }
   };
 
   // Generate next sequence ID
@@ -192,7 +209,7 @@ function OrdersPage() {
       }
       return true;
     });
-  }, [tenantId, warehouseId, query, tick]);
+  }, [tenantId, warehouseId, query]);
 
   const stats = useMemo(() => {
     const t = {
@@ -214,7 +231,7 @@ function OrdersPage() {
       t.totalLines += linesFor(o).length;
     }
     return t;
-  }, [filtered, lineOverrides, tick]);
+  }, [filtered, lineOverrides]);
 
   return (
     <div className="px-6 py-6 space-y-4">
@@ -499,7 +516,7 @@ function OrdersPage() {
           Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
-            complete: (results) => {
+            complete: async (results) => {
               const parsed = results.data as Record<string, string>[];
               let maxSeq = 0;
               for (const o of orders) {
@@ -518,7 +535,7 @@ function OrdersPage() {
                 if (!po) continue;
                 if (!grouped.has(po)) {
                   grouped.set(po, {
-      id: nextOrderId(),
+                    id: nextOrderId(),
                     poNumber: po,
                     customerOrderNumber: row["customerOrderNumber"] || "",
                     ediRef: "—",
@@ -565,8 +582,10 @@ function OrdersPage() {
                 });
               }
               const newOrders = Array.from(grouped.values());
-              orders.push(...newOrders);
-              setTick((t) => t + 1);
+              for (const o of newOrders) {
+                await createOrder(o);
+              }
+              refreshData();
             },
           });
         }}

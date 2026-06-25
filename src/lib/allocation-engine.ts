@@ -18,6 +18,16 @@ import {
   type OrderStatus as LibOrderStatus,
 } from "./mock-data";
 import { buildBolFromOrder, emit945ForBol } from "./bol-data";
+import {
+  createOrder,
+  updateOrder,
+  deleteOrder,
+  upsertInventoryItem,
+  writePickTicket,
+  batchWritePickTickets,
+  deletePickTicketsByOrder,
+  updatePickTicket,
+} from "./firestore-data";
 
 const now = () => new Date().toISOString();
 
@@ -107,7 +117,7 @@ export interface AllocationResult {
   error?: string;
 }
 
-export function allocate_order(orderId: string): AllocationResult {
+export async function allocate_order(orderId: string): Promise<AllocationResult> {
   const order = validateOrderForAllocation(orderId);
   if (!order) {
     return { success: false, allocatedLines: [], error: `Order ${orderId} not found.` };
@@ -200,6 +210,7 @@ export function allocate_order(orderId: string): AllocationResult {
 
   if (allocatedLines.length > 0) {
     const ticketNum = nextPickTicketSeq();
+    const tickets: PickTicket[] = [];
     for (const line of allocatedLines) {
       const pt: PickTicket = {
         pickTicketNum: ticketNum,
@@ -212,9 +223,36 @@ export function allocate_order(orderId: string): AllocationResult {
         createdAt: now(),
       };
       pickTickets.push(pt);
+      tickets.push(pt);
     }
     pickTicketNum = ticketNum;
     order.status = "ALLOCATED";
+
+    try {
+      await Promise.all([
+        updateOrder(order.id, { status: "ALLOCATED" }),
+        batchWritePickTickets(tickets),
+        ...allocatedLines.map((l) => {
+          const item = inventoryItems.find((i) => i.sku === l.sku);
+          const batch = item?.batches.find((b) => b.palletId === l.palletId && b.location === l.location);
+          if (batch) {
+            return upsertInventoryItem({
+              ...item!,
+              batches: item!.batches.map((b) =>
+                b.batchId === batch.batchId ? { ...b, qtyAllocated: b.qtyAllocated } : b,
+              ),
+            } as any);
+          }
+          return Promise.resolve();
+        }),
+      ]);
+    } catch (e) {
+      return {
+        success: false,
+        allocatedLines,
+        error: `Firestore write failed: ${(e as Error).message}`,
+      };
+    }
   }
 
   return {
@@ -239,7 +277,7 @@ export interface DeallocationResult {
   error?: string;
 }
 
-export function deallocate_order(orderId: string): DeallocationResult {
+export async function deallocate_order(orderId: string): Promise<DeallocationResult> {
   const order = validateOrderForDeallocation(orderId);
   if (!order) {
     return { success: false, deallocatedLines: [], error: `Order ${orderId} not found.` };
@@ -282,6 +320,32 @@ export function deallocate_order(orderId: string): DeallocationResult {
 
   order.status = "new";
 
+  try {
+    await Promise.all([
+      updateOrder(order.id, { status: "new" }),
+      deletePickTicketsByOrder(orderId),
+      ...deallocatedLines.map((l) => {
+        const item = inventoryItems.find((i) => i.sku === l.sku);
+        const batch = item?.batches.find((b) => b.palletId === l.palletId && b.location === l.location);
+        if (batch) {
+          return upsertInventoryItem({
+            ...item!,
+            batches: item!.batches.map((b) =>
+              b.batchId === batch.batchId ? { ...b, qtyAllocated: b.qtyAllocated } : b,
+            ),
+          } as any);
+        }
+        return Promise.resolve();
+      }),
+    ]);
+  } catch (e) {
+    return {
+      success: false,
+      deallocatedLines,
+      error: `Firestore write failed: ${(e as Error).message}`,
+    };
+  }
+
   return {
     success: true,
     deallocatedLines,
@@ -305,7 +369,7 @@ export interface PickResult {
   error?: string;
 }
 
-export function pick_pick_ticket(orderId: string): PickResult {
+export async function pick_pick_ticket(orderId: string): Promise<PickResult> {
   const order = validateOrderForPick(orderId);
   if (!order) {
     return {
@@ -328,6 +392,7 @@ export function pick_pick_ticket(orderId: string): PickResult {
 
   const pickedLines: PickResult["pickedLines"] = [];
   const firstTicketNum = tickets[0].pickTicketNum;
+  const updates: Array<Promise<any>> = [];
 
   for (const pt of tickets) {
     if (pt.status !== "GENERATED") {
@@ -411,9 +476,31 @@ export function pick_pick_ticket(orderId: string): PickResult {
       toLocation: DROP001_LOCATION,
       qtyPicked: pt.quantityToPick,
     });
+
+    updates.push(updatePickTicket(pt.pickTicketNum, { status: "PICKED", pickedAt: pt.pickedAt }));
+    updates.push(
+      upsertInventoryItem({
+        ...item,
+        batches: item.batches.map((b) =>
+          b.batchId === originalBatch.batchId ? { ...b, qty: b.qty, qtyAllocated: b.qtyAllocated } : b,
+        ),
+      } as any),
+    );
   }
 
   order.status = "PICKED";
+  updates.push(updateOrder(order.id, { status: "PICKED" }));
+
+  try {
+    await Promise.all(updates);
+  } catch (e) {
+    return {
+      success: false,
+      pickTicketNum: firstTicketNum,
+      pickedLines: [],
+      error: `Firestore write failed: ${(e as Error).message}`,
+    };
+  }
 
   return {
     success: true,
@@ -439,7 +526,7 @@ export interface UnpickResult {
   error?: string;
 }
 
-export function unpick_order(orderId: string): UnpickResult {
+export async function unpick_order(orderId: string): Promise<UnpickResult> {
   const order = validateOrderForUnpick(orderId);
   if (!order) {
     return {
@@ -462,6 +549,7 @@ export function unpick_order(orderId: string): UnpickResult {
 
   const unpickedLines: UnpickResult["unpickedLines"] = [];
   const firstTicketNum = tickets[0].pickTicketNum;
+  const updates: Array<Promise<any>> = [];
 
   for (const pt of tickets) {
     if (pt.status !== "PICKED") {
@@ -530,9 +618,23 @@ export function unpick_order(orderId: string): UnpickResult {
       toLocation: pt.fromLocation,
       qtyUnpicked: dropBatch.qty,
     });
+
+    updates.push(updatePickTicket(pt.pickTicketNum, { status: "GENERATED" }));
   }
 
   order.status = "ALLOCATED";
+  updates.push(updateOrder(order.id, { status: "ALLOCATED" }));
+
+  try {
+    await Promise.all(updates);
+  } catch (e) {
+    return {
+      success: false,
+      pickTicketNum: firstTicketNum,
+      unpickedLines,
+      error: `Firestore write failed: ${(e as Error).message}`,
+    };
+  }
 
   return {
     success: true,
@@ -558,7 +660,7 @@ export interface ShipResult {
   error?: string;
 }
 
-export function ship_order(orderId: string): ShipResult {
+export async function ship_order(orderId: string): Promise<ShipResult> {
   const order = validateOrderForShip(orderId);
   if (!order) {
     return {
@@ -583,6 +685,7 @@ export function ship_order(orderId: string): ShipResult {
 
   const shippedLines: ShipResult["shippedLines"] = [];
   const firstTicketNum = tickets[0].pickTicketNum;
+  const updates: Array<Promise<any>> = [];
 
   for (const pt of tickets) {
     if (pt.status !== "PICKED") {
@@ -617,6 +720,7 @@ export function ship_order(orderId: string): ShipResult {
 
     pt.status = "CLOSED";
     pt.closedAt = now();
+    updates.push(updatePickTicket(pt.pickTicketNum, { status: "CLOSED", closedAt: pt.closedAt }));
   }
 
   const bol = buildBolFromOrder(order);
@@ -626,6 +730,19 @@ export function ship_order(orderId: string): ShipResult {
   emit945ForBol(bol);
 
   order.status = "shipped";
+  updates.push(updateOrder(order.id, { status: "shipped" }));
+
+  try {
+    await Promise.all(updates);
+  } catch (e) {
+    return {
+      success: false,
+      bolNumber: bol.bolNumber,
+      pickTicketNum: firstTicketNum,
+      shippedLines,
+      error: `Firestore write failed: ${(e as Error).message}`,
+    };
+  }
 
   return {
     success: true,

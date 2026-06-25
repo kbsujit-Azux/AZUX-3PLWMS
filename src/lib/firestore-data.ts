@@ -256,6 +256,37 @@ export async function updateOrder(orderId: string, updates: Partial<Order>) {
   await updateDoc(doc(db, "orders", orderId), updates);
 }
 
+export async function createOrder(order: Order) {
+  await setDoc(doc(db, "orders", order.id), order);
+}
+
+export async function deleteOrder(orderId: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "orders", orderId));
+  return { ok: true };
+}
+
+export async function upsertInventoryItem(item: InventoryItem) {
+  await setDoc(doc(db, "inventoryItems", item.sku), item, { merge: true });
+}
+
+export async function updateInventoryBatch(sku: string, batchId: string, updates: any) {
+  await updateDoc(doc(db, "inventoryItems", sku), {
+    [`batches.${batchId}`]: updates,
+  });
+}
+
+export async function writePickTicket(ticket: PickTicket) {
+  await setDoc(doc(db, "pickTickets", ticket.pickTicketNum.toString()), ticket);
+}
+
+export async function batchWritePickTickets(tickets: PickTicket[]) {
+  const batch = writeBatch(db);
+  for (const t of tickets) {
+    batch.set(doc(db, "pickTickets", t.pickTicketNum.toString()), t);
+  }
+  await batch.commit();
+}
+
 // ============================================================
 // EDI Logs
 // ============================================================
