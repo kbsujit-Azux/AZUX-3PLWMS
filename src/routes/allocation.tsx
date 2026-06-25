@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   Search,
+  RefreshCw,
   PackageCheck,
   PackageSearch,
   AlertTriangle,
@@ -77,6 +78,7 @@ function AllocationPage() {
     orders: liveOrders,
     pickTickets: livePickTickets,
     clientAllocationConfigs: liveConfigs,
+    refreshData,
   } = useWmsData();
   const [tab, setTab] = useState<Tab>("allocate");
   const [search, setSearch] = useState("");
@@ -270,6 +272,11 @@ function AllocationPage() {
           <p className="text-xs text-muted-foreground mt-0.5">
             Allocate → Pick → Unpick → Ship · DROP001 transitional staging
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </Button>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { collection, onSnapshot, getDocs, limit, doc, writeBatch, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -58,6 +58,7 @@ import {
 
 type DatabaseContextType = {
   loading: boolean;
+  refreshData: () => void;
   tenants: Tenant[];
   warehouses: Warehouse[];
   inventoryItems: InventoryItem[];
@@ -102,8 +103,14 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     [],
   );
   const [pickTickets, setPickTickets] = useState<PickTicket[]>([]);
+  const [dataVersion, setDataVersion] = useState(0);
 
-  // 1. Database Seeding
+  const refreshData = useCallback(() => {
+    setLoading(true);
+    setDataVersion((v) => v + 1);
+  }, []);
+
+  // 1. Database Seeding + 2. Listener setup (re-run on manual refresh)
   useEffect(() => {
     async function initializeAndSeed() {
       try {
@@ -206,12 +213,13 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
 
     return () => unsubscribers.forEach((unsub) => unsub());
-  }, []);
+  }, [dataVersion]);
 
   return (
     <DatabaseContext.Provider
       value={{
         loading,
+        refreshData,
         tenants,
         warehouses,
         inventoryItems,
