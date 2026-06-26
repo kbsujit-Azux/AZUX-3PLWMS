@@ -123,14 +123,7 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
     return { success: false, allocatedLines: [], error: `Order ${orderId} not found.` };
   }
 
-  const config = getClientAllocationConfig(order.tenantId);
-  if (!config) {
-    return {
-      success: false,
-      allocatedLines: [],
-      error: `Allocation config not found for tenant ${order.tenantId}.`,
-    };
-  }
+  const config = getClientAllocationConfig(order.tenantId) ?? { tenantId: order.tenantId, strategy: "LIFO" as const };
 
   const allocatedLines: AllocationResult["allocatedLines"] = [];
   let pickTicketNum: number | undefined;

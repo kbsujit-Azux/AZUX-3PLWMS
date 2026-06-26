@@ -359,11 +359,11 @@ function AllocationPage() {
                     <TableCell className="text-xs">{o.carrier}</TableCell>
                     <TableCell className="text-xs text-right">{o.lines.length}</TableCell>
                     <TableCell className="text-xs text-right">{totalUnits}</TableCell>
-                    <TableCell className="text-[11px]">
-                      {config
-                        ? `${config.strategy}${config.locationPrefix ? ` · prefix ${config.locationPrefix}` : ""}`
-                        : "—"}
-                    </TableCell>
+<TableCell className="text-[11px]">
+                       {config
+                         ? `${config.strategy}${config.locationPrefix ? ` · prefix ${config.locationPrefix}` : ""}`
+                         : "LIFO (default)"}
+                     </TableCell>
                     <TableCell>{statusBadge(o.status)}</TableCell>
                     <TableCell className="text-right">
                       <Button

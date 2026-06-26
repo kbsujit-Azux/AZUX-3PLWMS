@@ -53,6 +53,12 @@ import { useWmsData } from "@/components/db-context";
 import { type Order, type OrderLine } from "@/lib/edi-data";
 import { tenants, warehouses } from "@/lib/mock-data";
 import {
+  carrierServices,
+  getActiveCarriers,
+  getServiceCodesByCarrier,
+  type CarrierServiceRecord,
+} from "@/lib/carrier-services";
+import {
   createOrder,
   deleteOrder,
   updateOrder,
@@ -599,18 +605,31 @@ function OrdersPage() {
         defaultWarehouseId={warehouseId}
       />
 
-      <OrderDetailDialog
-        order={detailOrder}
-        lines={detailOrder ? linesFor(detailOrder) : []}
-        locked={detailOrder ? isLocked(detailOrder.status) : false}
-        tenantId={detailOrder?.tenantId ?? ""}
-        onClose={() => setDetailOrderId(null)}
-        onSave={(next) => {
-          if (!detailOrder) return;
-          updateLines(detailOrder.id, next);
-          toast.success(`Order ${detailOrder.id} updated`);
-        }}
-      />
+<OrderDetailDialog
+          order={detailOrder}
+          lines={detailOrder ? linesFor(detailOrder) : []}
+          locked={detailOrder ? isLocked(detailOrder.status) : false}
+          tenantId={detailOrder?.tenantId ?? ""}
+          carrierServices={carrierServices}
+          onClose={() => setDetailOrderId(null)}
+          onSave={async (updates: Partial<Order> & { lines?: OrderLine[] }) => {
+            if (!detailOrder) return;
+            const patch: Partial<Order> = { ...updates };
+            delete (patch as any).id;
+            if (updates.lines) {
+              patch.lines = updates.lines;
+            }
+            await saveOrderPatch(detailOrder.id, patch);
+            if (updates.lines) {
+              setLineOverrides((prev) => {
+                const next = { ...prev };
+                delete next[detailOrder.id];
+                return next;
+              });
+            }
+            refreshData();
+          }}
+        />
 
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
         <AlertDialogContent>
@@ -1180,30 +1199,51 @@ function NewOrderDialog({
                 </div>
               </TabsContent>
 
-              <TabsContent value="carrier" className="space-y-4 pt-4">
-                <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Carrier & Dates
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-[10px] uppercase text-muted-foreground">Carrier</Label>
-                      <Input
-                        value={form.carrier}
-                        onChange={(e) => setForm((p) => ({ ...p, carrier: e.target.value }))}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] uppercase text-muted-foreground">
-                        Service Level
-                      </Label>
-                      <Input
-                        value={form.serviceLevel}
-                        onChange={(e) => setForm((p) => ({ ...p, serviceLevel: e.target.value }))}
-                        className="h-8 text-xs"
-                      />
-                    </div>
+<TabsContent value="carrier" className="space-y-4 pt-4">
+                 <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+                   <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                     Carrier & Dates
+                   </div>
+                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                     <div className="space-y-1">
+                       <Label className="text-[10px] uppercase text-muted-foreground">Carrier</Label>
+                       <Select
+                         value={form.carrier}
+                         onValueChange={(v) => setForm((p) => ({ ...p, carrier: v, serviceLevel: "" }))}
+                       >
+                         <SelectTrigger className="h-8 text-xs">
+                           <SelectValue placeholder="Select carrier" />
+                         </SelectTrigger>
+                         <SelectContent>
+                           {getActiveCarriers().map((c) => (
+                             <SelectItem key={c} value={c} className="text-xs">
+                               {c}
+                             </SelectItem>
+                           ))}
+                         </SelectContent>
+                       </Select>
+                     </div>
+                     <div className="space-y-1">
+                       <Label className="text-[10px] uppercase text-muted-foreground">
+                         Service Level
+                       </Label>
+                       <Select
+                         value={form.serviceLevel}
+                         onValueChange={(v) => setForm((p) => ({ ...p, serviceLevel: v }))}
+                         disabled={!form.carrier}
+                       >
+                         <SelectTrigger className="h-8 text-xs">
+                           <SelectValue placeholder="Select service" />
+                         </SelectTrigger>
+                         <SelectContent>
+                           {getServiceCodesByCarrier(form.carrier).map((s) => (
+                             <SelectItem key={s.serviceCode} value={s.serviceCode} className="text-xs">
+                               {s.serviceDescription}
+                             </SelectItem>
+                           ))}
+                         </SelectContent>
+                       </Select>
+                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase text-muted-foreground">
                         Entry Date
