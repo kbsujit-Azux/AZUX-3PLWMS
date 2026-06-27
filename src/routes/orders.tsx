@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import Papa from "papaparse";
 import {
@@ -58,11 +58,7 @@ import {
   getServiceCodesByCarrier,
   type CarrierServiceRecord,
 } from "@/lib/carrier-services";
-import {
-  createOrder,
-  deleteOrder,
-  updateOrder,
-} from "@/lib/firestore-data";
+import { createOrder, deleteOrder, updateOrder } from "@/lib/firestore-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
 import { itemMaster, findItem } from "@/lib/master-data";
@@ -116,7 +112,7 @@ export function nextOrderId(): string {
 export const Route = createFileRoute("/orders")({
   head: () => ({
     meta: [
-      { title: "Orders — AZUX 3PL WMS Systems" },
+      { title: "Orders â€” AZUX 3PL WMS Systems" },
       {
         name: "description",
         content: "Outbound order pool driven by EDI 940 with CSV fallback ingestion.",
@@ -245,7 +241,7 @@ function OrdersPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Outbound Orders</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            EDI 940 pool · CSV fallback ingestion · 945 confirmations on ship
+            EDI 940 pool Â· CSV fallback ingestion Â· 945 confirmations on ship
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -297,7 +293,7 @@ function OrdersPage() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search order #, PO, EDI ref, ship-to…"
+            placeholder="Search order #, PO, EDI ref, ship-toâ€¦"
             className="h-8 pl-8 text-xs"
           />
         </div>
@@ -372,7 +368,7 @@ function OrdersPage() {
                     <div className="flex items-center gap-1">
                       <Truck className="h-3 w-3 text-muted-foreground" />
                       <span>{o.carrier}</span>
-                      <span className="text-[10px] text-muted-foreground">· {o.serviceLevel}</span>
+                      <span className="text-[10px] text-muted-foreground">Â· {o.serviceLevel}</span>
                     </div>
                   </TableCell>
                   <TableCell className="py-2 text-right tabular-nums">{lines.length}</TableCell>
@@ -544,7 +540,7 @@ function OrdersPage() {
                     id: nextOrderId(),
                     poNumber: po,
                     customerOrderNumber: row["customerOrderNumber"] || "",
-                    ediRef: "—",
+                    ediRef: "â€”",
                     tenantId: row["tenantId"] || tenantId || "acme",
                     warehouseId: row["warehouseId"] || warehouseId || "atl1",
                     shipToCode: row["shipToCode"] || "",
@@ -605,31 +601,31 @@ function OrdersPage() {
         defaultWarehouseId={warehouseId}
       />
 
-<OrderDetailDialog
-          order={detailOrder}
-          lines={detailOrder ? linesFor(detailOrder) : []}
-          locked={detailOrder ? isLocked(detailOrder.status) : false}
-          tenantId={detailOrder?.tenantId ?? ""}
-          carrierServices={carrierServices}
-          onClose={() => setDetailOrderId(null)}
-          onSave={async (updates: Partial<Order> & { lines?: OrderLine[] }) => {
-            if (!detailOrder) return;
-            const patch: Partial<Order> = { ...updates };
-            delete (patch as any).id;
-            if (updates.lines) {
-              patch.lines = updates.lines;
-            }
-            await saveOrderPatch(detailOrder.id, patch);
-            if (updates.lines) {
-              setLineOverrides((prev) => {
-                const next = { ...prev };
-                delete next[detailOrder.id];
-                return next;
-              });
-            }
-            refreshData();
-          }}
-        />
+      <OrderDetailDialog
+        order={detailOrder}
+        lines={detailOrder ? linesFor(detailOrder) : []}
+        locked={detailOrder ? isLocked(detailOrder.status) : false}
+        tenantId={detailOrder?.tenantId ?? ""}
+        carrierServices={carrierServices}
+        onClose={() => setDetailOrderId(null)}
+        onSave={async (updates: Partial<Order> & { lines?: OrderLine[] }) => {
+          if (!detailOrder) return;
+          const patch: Partial<Order> = { ...updates };
+          delete (patch as any).id;
+          if (updates.lines) {
+            patch.lines = updates.lines;
+          }
+          await saveOrderPatch(detailOrder.id, patch);
+          if (updates.lines) {
+            setLineOverrides((prev) => {
+              const next = { ...prev };
+              delete next[detailOrder.id];
+              return next;
+            });
+          }
+          refreshData();
+        }}
+      />
 
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
         <AlertDialogContent>
@@ -729,11 +725,11 @@ function NewOrderDialog({
     cancelDate: string;
     mustShipDate: string;
     lines: OrderLine[];
-   }>({
+  }>({
     id: "",
     poNumber: "",
     customerOrderNumber: "",
-    ediRef: "—",
+    ediRef: "â€”",
     tenantId: defaultTenantId === "all" ? "acme" : defaultTenantId,
     warehouseId: defaultWarehouseId === "all" ? "atl1" : defaultWarehouseId,
     shipToCode: "",
@@ -767,7 +763,7 @@ function NewOrderDialog({
       id: nextOrderId(),
       poNumber: "",
       customerOrderNumber: "",
-      ediRef: "—",
+      ediRef: "â€”",
       tenantId: defaultTenantId === "all" ? "acme" : defaultTenantId,
       warehouseId: defaultWarehouseId === "all" ? "atl1" : defaultWarehouseId,
       shipToCode: "",
@@ -899,7 +895,7 @@ function NewOrderDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-6xl">
           <DialogHeader>
-            <DialogTitle className="font-mono">New Order — Manual Entry</DialogTitle>
+            <DialogTitle className="font-mono">New Order â€” Manual Entry</DialogTitle>
             <DialogDescription className="text-xs">
               Create an order manually. ID auto-generated on save.
             </DialogDescription>
@@ -935,11 +931,7 @@ function NewOrderDialog({
                       <Label className="text-[10px] uppercase text-muted-foreground">
                         Order ID
                       </Label>
-                      <Input
-                        value={form.id}
-                        disabled
-                        className="h-8 text-xs font-mono bg-muted"
-                      />
+                      <Input value={form.id} disabled className="h-8 text-xs font-mono bg-muted" />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase text-muted-foreground">
@@ -987,7 +979,7 @@ function NewOrderDialog({
                             .filter((t) => t.id !== "all")
                             .map((t) => (
                               <SelectItem key={t.id} value={t.id} className="text-xs">
-                                {t.code} — {t.name}
+                                {t.code} â€” {t.name}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -1009,7 +1001,7 @@ function NewOrderDialog({
                             .filter((w) => w.id !== "all")
                             .map((w) => (
                               <SelectItem key={w.id} value={w.id} className="text-xs">
-                                {w.code} — {w.city}
+                                {w.code} â€” {w.city}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -1199,51 +1191,57 @@ function NewOrderDialog({
                 </div>
               </TabsContent>
 
-<TabsContent value="carrier" className="space-y-4 pt-4">
-                 <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
-                   <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                     Carrier & Dates
-                   </div>
-                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                     <div className="space-y-1">
-                       <Label className="text-[10px] uppercase text-muted-foreground">Carrier</Label>
-                       <Select
-                         value={form.carrier}
-                         onValueChange={(v) => setForm((p) => ({ ...p, carrier: v, serviceLevel: "" }))}
-                       >
-                         <SelectTrigger className="h-8 text-xs">
-                           <SelectValue placeholder="Select carrier" />
-                         </SelectTrigger>
-                         <SelectContent>
-                           {getActiveCarriers().map((c) => (
-                             <SelectItem key={c} value={c} className="text-xs">
-                               {c}
-                             </SelectItem>
-                           ))}
-                         </SelectContent>
-                       </Select>
-                     </div>
-                     <div className="space-y-1">
-                       <Label className="text-[10px] uppercase text-muted-foreground">
-                         Service Level
-                       </Label>
-                       <Select
-                         value={form.serviceLevel}
-                         onValueChange={(v) => setForm((p) => ({ ...p, serviceLevel: v }))}
-                         disabled={!form.carrier}
-                       >
-                         <SelectTrigger className="h-8 text-xs">
-                           <SelectValue placeholder="Select service" />
-                         </SelectTrigger>
-                         <SelectContent>
-                           {getServiceCodesByCarrier(form.carrier).map((s) => (
-                             <SelectItem key={s.serviceCode} value={s.serviceCode} className="text-xs">
-                               {s.serviceDescription}
-                             </SelectItem>
-                           ))}
-                         </SelectContent>
-                       </Select>
-                     </div>
+              <TabsContent value="carrier" className="space-y-4 pt-4">
+                <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Carrier & Dates
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Carrier</Label>
+                      <Select
+                        value={form.carrier}
+                        onValueChange={(v) =>
+                          setForm((p) => ({ ...p, carrier: v, serviceLevel: "" }))
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select carrier" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getActiveCarriers().map((c) => (
+                            <SelectItem key={c} value={c} className="text-xs">
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">
+                        Service Level
+                      </Label>
+                      <Select
+                        value={form.serviceLevel}
+                        onValueChange={(v) => setForm((p) => ({ ...p, serviceLevel: v }))}
+                        disabled={!form.carrier}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select service" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getServiceCodesByCarrier(form.carrier).map((s) => (
+                            <SelectItem
+                              key={s.serviceCode}
+                              value={s.serviceCode}
+                              className="text-xs"
+                            >
+                              {s.serviceDescription}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase text-muted-foreground">
                         Entry Date
@@ -1349,7 +1347,7 @@ function NewOrderDialog({
                                 <SelectContent>
                                   {filteredItemMaster.map((it) => (
                                     <SelectItem key={it.sku} value={it.sku} className="text-xs">
-                                      {it.sku} — {it.description}
+                                      {it.sku} â€” {it.description}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -1456,8 +1454,8 @@ function NewOrderDialog({
 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">
-                    {form.lines.length} line{form.lines.length === 1 ? "" : "s"} ·{" "}
-                    {totalUnits.toLocaleString()} units · ${totalValue.toFixed(2)}
+                    {form.lines.length} line{form.lines.length === 1 ? "" : "s"} Â·{" "}
+                    {totalUnits.toLocaleString()} units Â· ${totalValue.toFixed(2)}
                   </span>
                 </div>
               </TabsContent>
@@ -1543,10 +1541,10 @@ function OrderDetailDialog({
   // Re-seed draft whenever a new order is opened
   const orderKey = order?.id ?? null;
   useEffect(() => {
-    setDraft(lines.map((l) => ({ ...l })));
+    setDraft((order?.lines ?? []).map((l) => ({ ...l })));
     setEditingIdx(null);
     setLineDeleteIdx(null);
-  }, [orderKey, lines]);
+  }, [orderKey, order?.lines]);
 
   if (!order) return null;
 
@@ -1614,7 +1612,7 @@ function OrderDetailDialog({
               </span>
             </DialogTitle>
             <DialogDescription className="text-xs">
-              PO {order.poNumber} · EDI {order.ediRef} · Ship to {order.shipToName} ·{" "}
+              PO {order.poNumber} Â· EDI {order.ediRef} Â· Ship to {order.shipToName} Â·{" "}
               {order.carrier} {order.serviceLevel}
             </DialogDescription>
           </DialogHeader>
@@ -1622,7 +1620,7 @@ function OrderDetailDialog({
           {locked && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
-              This order is in <strong>{order.status}</strong> status — lines are read-only. Only{" "}
+              This order is in <strong>{order.status}</strong> status â€” lines are read-only. Only{" "}
               <em>new</em>, <em>released</em>, <em>packed</em>, or <em>exception</em> orders can be
               edited.
             </div>
@@ -1646,7 +1644,7 @@ function OrderDetailDialog({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
               <div>
                 <span className="text-muted-foreground">Customer Order #:</span>{" "}
-                <span className="font-mono ml-1">{order.customerOrderNumber || "—"}</span>
+                <span className="font-mono ml-1">{order.customerOrderNumber || "â€”"}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">Source:</span>{" "}
@@ -1704,7 +1702,7 @@ function OrderDetailDialog({
               </div>
               <div>
                 <span className="text-muted-foreground">Address 2:</span>{" "}
-                <span className="ml-1">{order.shipToAddress2 || "—"}</span>
+                <span className="ml-1">{order.shipToAddress2 || "â€”"}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">City:</span>{" "}
@@ -1728,31 +1726,31 @@ function OrderDetailDialog({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                   <div>
                     <span className="text-muted-foreground">Code:</span>{" "}
-                    <span className="font-mono ml-1">{order.billToCode || "—"}</span>
+                    <span className="font-mono ml-1">{order.billToCode || "â€”"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Name:</span>{" "}
-                    <span className="ml-1">{order.billToName || "—"}</span>
+                    <span className="ml-1">{order.billToName || "â€”"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Address 1:</span>{" "}
-                    <span className="ml-1">{order.billToAddress1 || "—"}</span>
+                    <span className="ml-1">{order.billToAddress1 || "â€”"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Address 2:</span>{" "}
-                    <span className="ml-1">{order.billToAddress2 || "—"}</span>
+                    <span className="ml-1">{order.billToAddress2 || "â€”"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">City:</span>{" "}
-                    <span className="ml-1">{order.billToCity || "—"}</span>
+                    <span className="ml-1">{order.billToCity || "â€”"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">State:</span>{" "}
-                    <span className="font-mono ml-1">{order.billToState || "—"}</span>
+                    <span className="font-mono ml-1">{order.billToState || "â€”"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Zip:</span>{" "}
-                    <span className="font-mono ml-1">{order.billToZip || "—"}</span>
+                    <span className="font-mono ml-1">{order.billToZip || "â€”"}</span>
                   </div>
                 </div>
               </>
@@ -1834,14 +1832,16 @@ function OrderDetailDialog({
                             <SelectContent>
                               {filteredItemMaster.map((it) => (
                                 <SelectItem key={it.sku} value={it.sku} className="text-xs">
-                                  {it.sku} — {it.description}
+                                  {it.sku} â€” {it.description}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         ) : (
                           <div className="flex items-center gap-1.5">
-                            <span>{l.sku || <span className="text-muted-foreground">—</span>}</span>
+                            <span>
+                              {l.sku || <span className="text-muted-foreground">â€”</span>}
+                            </span>
                             {excReason && (
                               <a
                                 href={`/masters?${new URLSearchParams({
@@ -1867,7 +1867,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs"
                           />
                         ) : (
-                          l.description || <span className="text-muted-foreground">—</span>
+                          l.description || <span className="text-muted-foreground">â€”</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 font-mono text-[10px]">
@@ -1878,7 +1878,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs font-mono"
                           />
                         ) : (
-                          l.upc || <span className="text-muted-foreground">—</span>
+                          l.upc || <span className="text-muted-foreground">â€”</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 text-[10px]">
@@ -1889,7 +1889,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs"
                           />
                         ) : (
-                          l.style || <span className="text-muted-foreground">—</span>
+                          l.style || <span className="text-muted-foreground">â€”</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 text-[10px]">
@@ -1900,7 +1900,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs"
                           />
                         ) : (
-                          l.color || <span className="text-muted-foreground">—</span>
+                          l.color || <span className="text-muted-foreground">â€”</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 text-[10px]">
@@ -1911,7 +1911,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs"
                           />
                         ) : (
-                          l.size || <span className="text-muted-foreground">—</span>
+                          l.size || <span className="text-muted-foreground">â€”</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 text-[10px]">
@@ -1922,7 +1922,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs"
                           />
                         ) : (
-                          l.dim || <span className="text-muted-foreground">—</span>
+                          l.dim || <span className="text-muted-foreground">â€”</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 text-right tabular-nums">
@@ -2059,7 +2059,7 @@ function OrderDetailDialog({
                   toast.error("Resolve Item Master exceptions before saving");
                   return;
                 }
-                onSave(draft);
+                await onSave({ lines: draft });
                 onClose();
               }}
             >
