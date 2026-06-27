@@ -16,6 +16,8 @@ import {
   Timestamp,
   QuerySnapshot,
   Query,
+  serverTimestamp,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "./firestore";
 import type {
@@ -25,6 +27,7 @@ import type {
   ClientAllocationConfig,
   PickTicket,
 } from "./mock-data";
+import { DROP001_LOCATION } from "./mock-data";
 import type { Pallet } from "./pallet-data";
 import type { ItemMasterRecord, LocationRecord } from "./master-data";
 import type { InboundShipment, InboundLine } from "./inbound-data";
@@ -428,4 +431,229 @@ export async function deletePickTicketsByOrder(orderId: string): Promise<{ ok: t
   snap.docs.forEach((d) => batch.delete(d.ref));
   await batch.commit();
   return { ok: true };
+}
+
+// ============================================================
+// Transaction History
+// ============================================================
+export type InventoryTransaction = {
+  id: string;
+  sku: string;
+  palletId: string;
+  location: string;
+  orderId?: string;
+  pickTicketNum?: number;
+  type: "RECEIVE" | "ALLOCATE" | "PICK" | "REALLOCATE" | "SHIP" | "ADJUST";
+  qtyChange: number;
+  qtyBefore: number;
+  qtyAfter: number;
+  cartons?: number;
+  user: string;
+  timestamp: string;
+  notes?: string;
+};
+
+export async function logInventoryTransaction(
+  txn: Omit<InventoryTransaction, "id" | "timestamp">,
+): Promise<InventoryTransaction> {
+  const id = `TX-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const record = {
+    ...txn,
+    id,
+    timestamp: new Date().toISOString(),
+  };
+  await setDoc(doc(db, "inventoryTransactions", id), {
+    ...record,
+    timestamp: serverTimestamp(),
+  });
+  return record;
+}
+
+export async function fetchTransactionHistory(
+  sku?: string,
+  palletId?: string,
+): Promise<InventoryTransaction[]> {
+  let q: Query = collection(db, "inventoryTransactions");
+  const conditions: any[] = [];
+  if (sku) conditions.push(where("sku", "==", sku));
+  if (palletId) conditions.push(where("palletId", "==", palletId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("timestamp", "desc"));
+  else q = query(q, orderBy("timestamp", "desc"));
+
+  const snap = await getDocs(q);
+  return snap.docs.map(
+    (d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as InventoryTransaction,
+  );
+}
+
+export function subscribeTransactionHistory(
+  callback: (txns: InventoryTransaction[]) => void,
+  sku?: string,
+  palletId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "inventoryTransactions");
+  const conditions: any[] = [];
+  if (sku) conditions.push(where("sku", "==", sku));
+  if (palletId) conditions.push(where("palletId", "==", palletId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("timestamp", "desc"));
+  else q = query(q, orderBy("timestamp", "desc"));
+
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(
+      snap.docs.map(
+        (d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as InventoryTransaction,
+      ),
+    );
+  });
+}
+
+// ============================================================
+// Directed Pick with Transaction Management
+// ============================================================
+export async function executeDirectedPick(
+  pickTicketNum: number,
+  qtyPicked: number,
+  palletId: string,
+  location: string,
+  user: string = "picker",
+): Promise<{ success: boolean; message?: string }> {
+  if (qtyPicked <= 0) {
+    throw new Error("Pick quantity must be greater than 0");
+  }
+
+  return await runTransaction(db, async (transaction) => {
+    const ptRef = doc(db, "pickTickets", pickTicketNum.toString());
+    const ptSnap = await transaction.get(ptRef);
+    if (!ptSnap.exists()) {
+      throw new Error(`Pick ticket ${pickTicketNum} not found`);
+    }
+    const pt = ptSnap.data() as PickTicket;
+
+    const invRef = doc(db, "inventoryItems", pt.sku);
+    const invSnap = await transaction.get(invRef);
+    if (!invSnap.exists()) {
+      throw new Error(`SKU ${pt.sku} not found in inventory`);
+    }
+
+    const item = invSnap.data() as InventoryItem;
+    const batchIndex = item.batches?.findIndex(
+      (b) => b.palletId === pt.palletId && b.location === pt.fromLocation,
+    );
+    if (batchIndex === undefined || batchIndex < 0) {
+      throw new Error(
+        `Batch not found at ${pt.fromLocation} for pallet ${pt.palletId}`,
+      );
+    }
+
+    const batch = item.batches![batchIndex];
+    const qtyBefore = batch.qty;
+    const qtyAfter = qtyBefore - qtyPicked;
+
+    if (qtyAfter < 0) {
+      throw new Error(
+        `Insufficient quantity. Available: ${qtyBefore}, Requested: ${qtyPicked}`,
+      );
+    }
+
+    transaction.update(invRef, {
+      [`batches.${batchIndex}.qty`]: qtyAfter,
+      [`batches.${batchIndex}.qtyAllocated`]: Math.max(0, batch.qtyAllocated - qtyPicked),
+    });
+
+    transaction.update(ptRef, {
+      status: "PICKED",
+      pickedAt: new Date().toISOString(),
+      qtyPicked: qtyPicked,
+    });
+
+    // Log the transaction
+    const txnId = `TX-${Date.now()}-PICK`;
+    transaction.set(doc(db, "inventoryTransactions", txnId), {
+      sku: pt.sku,
+      palletId: pt.palletId,
+      location: pt.fromLocation,
+      orderId: pt.orderId,
+      pickTicketNum: pt.pickTicketNum,
+      type: "PICK",
+      qtyChange: -qtyPicked,
+      qtyBefore,
+      qtyAfter,
+      user,
+      notes: `Pulled ${qtyPicked} units for PT-${pickTicketNum}`,
+      timestamp: serverTimestamp(),
+    });
+
+    return { success: true };
+  });
+}
+
+// ============================================================
+// Real-time Reallocate Pick
+// ============================================================
+export async function reallocatePickTicket(
+  pickTicketNum: number,
+  user: string = "system",
+): Promise<{ palletId: string; location: string; qty: number } | null> {
+  return await runTransaction(db, async (transaction) => {
+    const ptRef = doc(db, "pickTickets", pickTicketNum.toString());
+    const ptSnap = await transaction.get(ptRef);
+    if (!ptSnap.exists()) {
+      throw new Error(`Pick ticket ${pickTicketNum} not found`);
+    }
+    const pt = ptSnap.data() as PickTicket;
+
+    const invRef = doc(db, "inventoryItems", pt.sku);
+    const invSnap = await transaction.get(invRef);
+    if (!invSnap.exists()) {
+      throw new Error(`SKU ${pt.sku} not found in inventory`);
+    }
+
+    const item = invSnap.data() as InventoryItem;
+    const nonAllocatable = DROP001_LOCATION;
+    const availableBatch = item.batches
+      ?.filter(
+        (b) =>
+          b.location !== nonAllocatable &&
+          b.qty - (b.qtyAllocated || 0) > 0,
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
+      )[0];
+
+    if (!availableBatch) {
+      return null;
+    }
+
+    // Update pick ticket with new location/pallet
+    transaction.update(ptRef, {
+      palletId: availableBatch.palletId,
+      fromLocation: availableBatch.location,
+      reallocatedAt: new Date().toISOString(),
+      reallocated: true,
+    });
+
+    // Log reallocation transaction
+    const txnId = `TX-${Date.now()}-REAL`;
+    transaction.set(doc(db, "inventoryTransactions", txnId), {
+      sku: pt.sku,
+      palletId: availableBatch.palletId,
+      location: availableBatch.location,
+      orderId: pt.orderId,
+      pickTicketNum: pt.pickTicketNum,
+      type: "REALLOCATE",
+      qtyChange: 0,
+      qtyBefore: pt.quantityToPick,
+      qtyAfter: pt.quantityToPick,
+      user,
+      notes: `Reallocated from ${pt.palletId}/${pt.fromLocation} to ${availableBatch.palletId}/${availableBatch.location}`,
+      timestamp: serverTimestamp(),
+    });
+
+    return {
+      palletId: availableBatch.palletId,
+      location: availableBatch.location,
+      qty: pt.quantityToPick,
+    };
+  });
 }

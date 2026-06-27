@@ -2054,7 +2054,7 @@ function OrderDetailDialog({
               size="sm"
               className="h-8 text-xs gap-1.5"
               disabled={locked || hasExceptions}
-              onClick={() => {
+              onClick={async () => {
                 if (hasExceptions) {
                   toast.error("Resolve Item Master exceptions before saving");
                   return;

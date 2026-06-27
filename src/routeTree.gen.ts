@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ShipmentsRouteImport } from './routes/shipments'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as PicksRouteImport } from './routes/picks'
 import { Route as PalletsRouteImport } from './routes/pallets'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as MastersRouteImport } from './routes/masters'
@@ -30,6 +31,11 @@ const ShipmentsRoute = ShipmentsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PicksRoute = PicksRouteImport.update({
+  id: '/picks',
+  path: '/picks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PalletsRoute = PalletsRouteImport.update({
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/masters': typeof MastersRoute
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
+  '/picks': typeof PicksRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
 }
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/masters': typeof MastersRoute
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
+  '/picks': typeof PicksRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
 }
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/masters': typeof MastersRoute
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
+  '/picks': typeof PicksRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
 }
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/masters'
     | '/orders'
     | '/pallets'
+    | '/picks'
     | '/settings'
     | '/shipments'
   fileRoutesByTo: FileRoutesByTo
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
     | '/masters'
     | '/orders'
     | '/pallets'
+    | '/picks'
     | '/settings'
     | '/shipments'
   id:
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
     | '/masters'
     | '/orders'
     | '/pallets'
+    | '/picks'
     | '/settings'
     | '/shipments'
   fileRoutesById: FileRoutesById
@@ -182,6 +194,7 @@ export interface RootRouteChildren {
   MastersRoute: typeof MastersRoute
   OrdersRoute: typeof OrdersRoute
   PalletsRoute: typeof PalletsRoute
+  PicksRoute: typeof PicksRoute
   SettingsRoute: typeof SettingsRoute
   ShipmentsRoute: typeof ShipmentsRoute
 }
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/picks': {
+      id: '/picks'
+      path: '/picks'
+      fullPath: '/picks'
+      preLoaderRoute: typeof PicksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pallets': {
@@ -286,6 +306,7 @@ const rootRouteChildren: RootRouteChildren = {
   MastersRoute: MastersRoute,
   OrdersRoute: OrdersRoute,
   PalletsRoute: PalletsRoute,
+  PicksRoute: PicksRoute,
   SettingsRoute: SettingsRoute,
   ShipmentsRoute: ShipmentsRoute,
 }

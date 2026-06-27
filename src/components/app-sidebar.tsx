@@ -13,6 +13,7 @@ import {
   Container,
   Database,
   Receipt,
+  PackageCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,6 +36,7 @@ const operations = [
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Orders", url: "/orders", icon: ClipboardList },
   { title: "Allocation", url: "/allocation", icon: PackageSearch },
+  { title: "Picks", url: "/picks", icon: PackageCheck },
   { title: "Shipments", url: "/shipments", icon: Truck },
   { title: "Pallets", url: "/pallets", icon: Boxes },
 ] as const;

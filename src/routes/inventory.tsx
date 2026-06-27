@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import {
   Search,
   Upload,
@@ -8,6 +8,7 @@ import {
   Filter,
   Download,
   RefreshCw,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
 } from "@/lib/mock-data";
 import { inboundShipments } from "@/lib/inbound-data";
 import { fmtDateTime } from "@/lib/utils";
+import { fetchTransactionHistory, subscribeTransactionHistory, InventoryTransaction } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({
@@ -81,6 +83,8 @@ type Row = {
   trailer: string;
   poNumber: string;
   units: number;
+  allocatedUnits: number;
+  availableUnits: number;
   casePack: number;
   cartons: number;
   putawayAt: string;
@@ -100,6 +104,11 @@ function InventoryPage() {
   const [query, setQuery] = useState("");
   const [scanItem, setScanItem] = useState<InventoryItem | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historySku, setHistorySku] = useState<string>("");
+  const [historyPalletId, setHistoryPalletId] = useState<string>("");
+  const [historyLocation, setHistoryLocation] = useState<string>("");
+  const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const poRefs = useMemo(buildPoRefs, []);
@@ -122,6 +131,8 @@ function InventoryPage() {
           trailer: ref.trailer,
           poNumber: b.poNumber,
           units: b.qty,
+          allocatedUnits: b.qtyAllocated || 0,
+          availableUnits: b.qty - (b.qtyAllocated || 0),
           casePack,
           cartons: Math.ceil(b.qty / casePack),
           putawayAt: b.receivedAt,
@@ -150,8 +161,10 @@ function InventoryPage() {
   const totals = useMemo(() => {
     const skus = new Set(filtered.map((r) => r.sku));
     const units = filtered.reduce((s, r) => s + r.units, 0);
+    const allocatedUnits = filtered.reduce((s, r) => s + r.allocatedUnits, 0);
+    const availableUnits = filtered.reduce((s, r) => s + r.availableUnits, 0);
     const cartons = filtered.reduce((s, r) => s + r.cartons, 0);
-    return { skus: skus.size, units, cartons, lines: filtered.length };
+    return { skus: skus.size, units, allocatedUnits, availableUnits, cartons, lines: filtered.length };
   }, [filtered]);
 
   const exportCsv = () => {
@@ -197,6 +210,19 @@ function InventoryPage() {
     setCsvOpen(false);
   };
 
+  const showHistory = async (sku: string, palletId: string, location: string) => {
+    setHistorySku(sku);
+    setHistoryPalletId(palletId);
+    setHistoryLocation(location);
+    setHistoryOpen(true);
+    try {
+      const txns = await fetchTransactionHistory(sku, palletId);
+      setTransactions(txns);
+    } catch (e: any) {
+      toast.error(`Failed to load history: ${e.message}`);
+    }
+  };
+
   return (
     <div className="px-6 py-6 space-y-4">
       {/* Header */}
@@ -224,11 +250,12 @@ function InventoryPage() {
       </div>
 
       {/* Stat strip */}
-      <div className="grid grid-cols-4 divide-x divide-border rounded-md border border-border bg-card">
+      <div className="grid grid-cols-5 divide-x divide-border rounded-md border border-border bg-card">
         <Stat label="Lines"   value={totals.lines} />
         <Stat label="SKUs"    value={totals.skus} />
-        <Stat label="Cartons" value={totals.cartons} />
-        <Stat label="Units"   value={totals.units} />
+        <Stat label="Units"   value={totals.units} tone="text-foreground" />
+        <Stat label="Allocated" value={totals.allocatedUnits} tone="text-chart-1" />
+        <Stat label="Available" value={totals.availableUnits} tone="text-chart-3" />
       </div>
 
       {/* Toolbar */}
@@ -258,17 +285,19 @@ function InventoryPage() {
               <TableHead className="text-[10px] uppercase tracking-wider">Pallet · Location</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right">Cartons</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right">Units</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">Allocated</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">Available</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right">Case Pack</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Putaway</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Last Edit</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">User ID</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider w-8" />
+              <TableHead className="text-[10px] uppercase tracking-wider w-20" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11} className="text-center text-xs text-muted-foreground py-10">
+                <TableCell colSpan={13} className="text-center text-xs text-muted-foreground py-10">
                   No inventory matches the current filter.
                 </TableCell>
               </TableRow>
@@ -295,6 +324,12 @@ function InventoryPage() {
                   <TableCell className="py-2 text-right tabular-nums font-medium">
                     {r.units.toLocaleString()}
                   </TableCell>
+                  <TableCell className="py-2 text-right tabular-nums text-chart-1">
+                    {r.allocatedUnits.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="py-2 text-right tabular-nums text-chart-3">
+                    {r.availableUnits.toLocaleString()}
+                  </TableCell>
                   <TableCell className="py-2 text-right tabular-nums text-muted-foreground">
                     {r.casePack}
                   </TableCell>
@@ -304,13 +339,22 @@ function InventoryPage() {
                   </TableCell>
                   <TableCell className="py-2 font-mono text-[11px]">{r.userId}</TableCell>
                   <TableCell className="py-2 text-right">
-                    <Button
-                      variant="ghost" size="icon" className="h-7 w-7"
-                      onClick={() => setScanItem(item)}
-                      title="Scan barcode / QR"
-                    >
-                      <ScanLine className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost" size="icon" className="h-7 w-7"
+                        onClick={() => setScanItem(item)}
+                        title="Scan barcode / QR"
+                      >
+                        <ScanLine className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon" className="h-7 w-7"
+                        onClick={() => showHistory(r.sku, r.palletId, r.location)}
+                        title="View history"
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -386,15 +430,46 @@ function InventoryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* History dialog */}
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">History: {historySku}</DialogTitle>
+            <DialogDescription className="text-xs">
+              Pallet ID: {historyPalletId} · Location: {historyLocation}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {transactions.length === 0 && (
+              <div className="text-center text-xs text-muted-foreground py-4">
+                No transactions found.
+              </div>
+            )}
+            {transactions.map((t) => (
+              <div key={t.id} className="flex items-center justify-between text-xs border-b border-border pb-2">
+                <span className="text-muted-foreground">{fmtDateTime(t.timestamp)}</span>
+                <span className="font-mono">{t.type}</span>
+                <span className="text-right">{t.qtyChange > 0 ? "+" : ""}{t.qtyChange} units</span>
+                <span className="text-right text-[10px]">{t.palletId} @ {t.location}</span>
+                <span className="text-[10px] text-muted-foreground">{t.user}</span>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
   return (
     <div className="px-4 py-2.5">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="text-base font-semibold tabular-nums">{value.toLocaleString()}</div>
+      <div className={`text-base font-semibold tabular-nums ${tone ?? ""}`}>{value.toLocaleString()}</div>
     </div>
   );
 }
