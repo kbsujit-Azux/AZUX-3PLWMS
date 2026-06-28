@@ -17,6 +17,8 @@ import {
   upsertInventoryItem,
   logInventoryTransaction,
   getNextOrderSeq,
+  allocateOrderTransactional,
+  deallocateOrderTransactional,
 } from "./firestore-data";
 import {
   DROP001_LOCATION,
@@ -32,6 +34,7 @@ import {
   type ClientAllocationConfig,
 } from "./mock-data";
 import { orders, type Order, type OrderLine } from "./edi-data";
+import { getNextPickTicketSeq } from "./firestore-data";
 import { buildBolFromOrder, emit945ForBol } from "./bol-data";
 
 const now = () => new Date().toISOString();
@@ -206,8 +209,8 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
     }
   }
 
-  if (allocatedLines.length > 0) {
-    const ticketNum = nextPickTicketSeq();
+if (allocatedLines.length > 0) {
+    const ticketNum = await getNextPickTicketSeq();
     const tickets: PickTicket[] = [];
     for (const line of allocatedLines) {
       const pt: PickTicket = {
@@ -226,31 +229,22 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
     pickTicketNum = ticketNum;
     order.status = "ALLOCATED";
 
-    try {
-      await Promise.all([
-        updateOrder(order.id, { status: "ALLOCATED" }),
-        batchWritePickTickets(tickets),
-        ...allocatedLines.map((l) => {
-          const item = inventoryItems.find((i) => i.sku === l.sku);
-          const batch = item?.batches.find((b) => b.palletId === l.palletId && b.location === l.location);
-          if (batch) {
-            return upsertInventoryItem({
-              ...item!,
-              batches: item!.batches.map((b) =>
-                b.batchId === batch.batchId ? { ...b, qtyAllocated: b.qtyAllocated } : b,
-              ),
-            } as any);
-          }
-          return Promise.resolve();
-        }),
-      ]);
-    } catch (e) {
+    // Update local arrays first for immediate state
+    const orderIdx = orders.findIndex((o) => o.id === order.id);
+    if (orderIdx >= 0) orders[orderIdx] = { ...order };
+
+    // Use transactional allocation for Firestore
+    const result = await allocateOrderTransactional(order.id, allocatedLines, ticketNum);
+    if (!result.success) {
       return {
         success: false,
         allocatedLines,
-        error: `Firestore write failed: ${(e as Error).message}`,
+        error: result.error || "Allocation failed",
       };
     }
+
+    // Update local arrays
+    batchWritePickTickets(tickets);
   }
 
   return {
@@ -292,55 +286,32 @@ export async function deallocate_order(orderId: string): Promise<DeallocationRes
 
   const deallocatedLines: DeallocationResult["deallocatedLines"] = [];
 
+  // Build lines array for transactional deallocation
   for (const pt of existingTickets) {
-    const item = inventoryItems.find((i) => i.sku === pt.sku);
-    if (item) {
-      const batch = item.batches.find(
-        (b) => b.palletId === pt.palletId && b.location === pt.fromLocation,
-      );
-      if (batch) {
-        batch.qtyAllocated = Math.max(0, batch.qtyAllocated - pt.quantityToPick);
-        deallocatedLines.push({
-          sku: pt.sku,
-          palletId: pt.palletId,
-          location: pt.fromLocation,
-          qtyDeallocated: pt.quantityToPick,
-        });
-      }
-    }
+    deallocatedLines.push({
+      sku: pt.sku,
+      palletId: pt.palletId,
+      location: pt.fromLocation,
+      qtyDeallocated: pt.quantityToPick,
+    });
   }
 
+  // Clean up local arrays first
   for (let i = pickTickets.length - 1; i >= 0; i--) {
     if (pickTickets[i].orderId === orderId) {
       pickTickets.splice(i, 1);
     }
   }
-
   order.status = "new";
 
-  try {
-    await Promise.all([
-      updateOrder(order.id, { status: "new" }),
-      deletePickTicketsByOrder(orderId),
-      ...deallocatedLines.map((l) => {
-        const item = inventoryItems.find((i) => i.sku === l.sku);
-        const batch = item?.batches.find((b) => b.palletId === l.palletId && b.location === l.location);
-        if (batch) {
-          return upsertInventoryItem({
-            ...item!,
-            batches: item!.batches.map((b) =>
-              b.batchId === batch.batchId ? { ...b, qtyAllocated: b.qtyAllocated } : b,
-            ),
-          } as any);
-        }
-        return Promise.resolve();
-      }),
-    ]);
-  } catch (e) {
+  // Use transactional deallocation for Firestore
+  const result = await deallocateOrderTransactional(orderId, deallocatedLines.map(l => ({ ...l, qty: l.qtyDeallocated })));
+
+  if (!result.success) {
     return {
       success: false,
       deallocatedLines,
-      error: `Firestore write failed: ${(e as Error).message}`,
+      error: result.error || "Deallocation failed",
     };
   }
 

@@ -45,6 +45,7 @@ import { pallets as libPallets, pickWaves as libPickWaves } from "@/lib/pallet-d
 import {
   clientAllocationConfigs as libClientAllocationConfigs,
   pickTickets as libPickTickets,
+  inventoryItems as libInventoryItems,
 } from "@/lib/mock-data";
 import { orders as libOrders, ediLogs as libEdiLogs } from "@/lib/edi-data";
 import { inboundShipments as libInboundShipments } from "@/lib/inbound-data";
@@ -188,7 +189,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
     syncCollection("tenants", setTenants);
     syncCollection("warehouses", setWarehouses);
-    syncCollection("inventoryItems", setInventoryItems);
+    syncCollection("inventoryItems", setInventoryItems, libInventoryItems);
     syncCollection("pallets", setPallets, libPallets);
     syncCollection("pickWaves", setPickWaves, libPickWaves as unknown as PickWave[]);
     syncCollection("orders", setOrders, libOrders);

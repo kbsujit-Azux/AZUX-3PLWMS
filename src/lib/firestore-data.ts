@@ -556,23 +556,30 @@ export async function executeDirectedPick(
       );
     }
 
-    transaction.update(invRef, {
-      [`batches.${batchIndex}.qty`]: qtyAfter,
-      [`batches.${batchIndex}.qtyAllocated`]: Math.max(0, batch.qtyAllocated - qtyPicked),
-    });
+    // Create updated batches array with modified source batch and new DROP001 batch
+    const updatedBatches = [...(item.batches || [])];
+    updatedBatches[batchIndex] = {
+      ...batch,
+      qty: qtyAfter,
+      qtyAllocated: Math.max(0, batch.qtyAllocated - qtyPicked),
+    };
 
     // Create DROP001 batch entry in inventory
     const dropBatch = {
+      batchId: `DROP-${Date.now()}-${pt.pickTicketNum}`,
       palletId: `DROP-${pt.pickTicketNum.toString().padStart(8, "0")}`,
       location: DROP001_LOCATION,
       qty: qtyPicked,
       qtyAllocated: 0,
       receivedAt: new Date().toISOString(),
       pickTicketNum: pt.pickTicketNum,
+      poNumber: "",
+      ediSource: "MANUAL" as const,
     };
-    const existingBatches = item.batches || [];
+    updatedBatches.push(dropBatch);
+
     transaction.update(invRef, {
-      batches: [...existingBatches, dropBatch],
+      batches: updatedBatches,
     });
 
     transaction.update(ptRef, {
@@ -867,4 +874,105 @@ export function subscribeBillsOfLading(callback: (bols: BillOfLading[]) => void,
 export async function createBol(bol: BillOfLading): Promise<void> {
   const bolRef = doc(db, "billsOfLading", bol.bolNumber);
   await setDoc(bolRef, bol);
+}
+
+// ============================================================
+// Transactional Allocation (for multi-line orders)
+// ============================================================
+export async function allocateOrderTransactional(
+  orderId: string,
+  allocatedLines: Array<{ sku: string; palletId: string; location: string; qtyAllocated: number }>,
+  pickTicketNum: number,
+): Promise<{ success: boolean; error?: string }> {
+  const orderRef = doc(db, "orders", orderId);
+  const updates: Promise<any>[] = [];
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      // Update order status
+      transaction.update(orderRef, { status: "ALLOCATED" });
+
+      // Update each affected inventory item
+      for (const line of allocatedLines) {
+        const invRef = doc(db, "inventoryItems", line.sku);
+        const invSnap = await transaction.get(invRef);
+        if (invSnap.exists()) {
+          const item = invSnap.data() as InventoryItem;
+          const batch = item.batches?.find(
+            (b) => b.palletId === line.palletId && b.location === line.location,
+          );
+          if (batch) {
+            const batchIndex = item.batches!.indexOf(batch);
+            const currentAllocated = batch.qtyAllocated || 0;
+            const newAllocated = currentAllocated + line.qtyAllocated;
+            transaction.update(invRef, {
+              [`batches.${batchIndex}.qtyAllocated`]: newAllocated,
+            });
+          }
+        }
+      }
+    });
+
+    // Write pick tickets
+    await batchWritePickTickets(
+      allocatedLines.map((line) => ({
+        pickTicketNum,
+        orderId,
+        sku: line.sku,
+        palletId: line.palletId,
+        fromLocation: line.location,
+        quantityToPick: line.qtyAllocated,
+        status: "GENERATED" as const,
+        createdAt: new Date().toISOString(),
+      })),
+    );
+
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ============================================================
+// Transactional Deallocation (for multi-line orders)
+// ============================================================
+export async function deallocateOrderTransactional(
+  orderId: string,
+  lines: Array<{ sku: string; palletId: string; location: string; qty: number }>,
+): Promise<{ success: boolean; error?: string }> {
+  const orderRef = doc(db, "orders", orderId);
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      // Update order status
+      transaction.update(orderRef, { status: "new" });
+
+      // Update each affected inventory item - ADD back allocated qty
+      for (const line of lines) {
+        const invRef = doc(db, "inventoryItems", line.sku);
+        const invSnap = await transaction.get(invRef);
+        if (invSnap.exists()) {
+          const item = invSnap.data() as InventoryItem;
+          const batch = item.batches?.find(
+            (b) => b.palletId === line.palletId && b.location === line.location,
+          );
+          if (batch) {
+            const batchIndex = item.batches!.indexOf(batch);
+            const currentAllocated = batch.qtyAllocated || 0;
+            const newAllocated = Math.max(0, currentAllocated + line.qty);
+            transaction.update(invRef, {
+              [`batches.${batchIndex}.qtyAllocated`]: newAllocated,
+            });
+          }
+        }
+      }
+    });
+
+    // Delete pick tickets for this order
+    await deletePickTicketsByOrder(orderId);
+
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }

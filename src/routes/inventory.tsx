@@ -100,7 +100,7 @@ function csvEscape(v: string | number) {
 
 function InventoryPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { refreshData } = useWmsData();
+  const { refreshData, inventoryItems: liveInventory } = useWmsData();
   const [query, setQuery] = useState("");
   const [scanItem, setScanItem] = useState<InventoryItem | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
@@ -115,10 +115,11 @@ function InventoryPage() {
 
   const rows: Row[] = useMemo(() => {
     const out: Row[] = [];
-    for (const item of inventoryItems) {
+    for (const item of liveInventory) {
       for (const b of item.batches) {
         const ref = poRefs.get(b.poNumber) ?? { container: "", trailer: "" };
         const casePack = item.caseQty || 1;
+        const isDropLocation = b.location === "DROP001";
         out.push({
           sku: item.sku,
           description: item.description,
@@ -131,8 +132,8 @@ function InventoryPage() {
           trailer: ref.trailer,
           poNumber: b.poNumber,
           units: b.qty,
-          allocatedUnits: b.qtyAllocated || 0,
-          availableUnits: b.qty - (b.qtyAllocated || 0),
+          allocatedUnits: isDropLocation ? 0 : (b.qtyAllocated || 0),
+          availableUnits: isDropLocation ? 0 : (b.qty - (b.qtyAllocated || 0)),
           casePack,
           cartons: Math.ceil(b.qty / casePack),
           putawayAt: b.receivedAt,
@@ -143,9 +144,9 @@ function InventoryPage() {
       }
     }
     return out.sort((a, b) => +new Date(b.putawayAt) - +new Date(a.putawayAt));
-  }, [poRefs]);
+  }, [poRefs, liveInventory]);
 
-  const filtered = useMemo(() => {
+const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (tenantId !== "all" && r.tenantId !== tenantId) return false;
       if (warehouseId !== "all" && r.warehouseId !== warehouseId) return false;
@@ -159,13 +160,18 @@ function InventoryPage() {
   }, [rows, tenantId, warehouseId, query]);
 
   const totals = useMemo(() => {
-    const skus = new Set(filtered.map((r) => r.sku));
-    const units = filtered.reduce((s, r) => s + r.units, 0);
+    const skus = new Set(filtered.filter((r) => r.location !== "DROP001").map((r) => r.sku));
+    const units = filtered.filter((r) => r.location !== "DROP001").reduce((s, r) => s + r.units, 0);
     const allocatedUnits = filtered.reduce((s, r) => s + r.allocatedUnits, 0);
-    const availableUnits = filtered.reduce((s, r) => s + r.availableUnits, 0);
-    const cartons = filtered.reduce((s, r) => s + r.cartons, 0);
+    const availableUnits = filtered.filter((r) => r.location !== "DROP001").reduce((s, r) => s + r.availableUnits, 0);
+    const cartons = filtered.filter((r) => r.location !== "DROP001").reduce((s, r) => s + r.cartons, 0);
     return { skus: skus.size, units, allocatedUnits, availableUnits, cartons, lines: filtered.length };
   }, [filtered]);
+
+  // Helper to calculate total on hand for scan dialog
+  const totalOnHand = (item: InventoryItem) => {
+    return item.batches.reduce((sum, b) => sum + b.qty, 0);
+  };
 
   const exportCsv = () => {
     const headers = [
@@ -302,9 +308,9 @@ function InventoryPage() {
                 </TableCell>
               </TableRow>
             )}
-            {filtered.map((r) => {
-              const item = inventoryItems.find((i) => i.sku === r.sku)!;
-              return (
+{filtered.map((r) => {
+               const item = liveInventory.find((i) => i.sku === r.sku);
+               return (
                 <TableRow key={`${r.batchId}-${r.palletId}`} className="text-xs hover:bg-muted/30">
                   <TableCell className="py-2 font-mono">
                     <div className="font-medium">{r.sku}</div>

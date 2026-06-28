@@ -10,6 +10,7 @@ import {
   Undo2,
   ClipboardList,
   Layers,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,15 +37,15 @@ import { useWmsData } from "@/components/db-context";
 import {
   allocate_order,
   deallocate_order,
-  pick_pick_ticket,
   unpick_order,
   ship_order,
   validateOrderForAllocation,
   validateOrderForDeallocation,
   validateOrderForPick,
   validateOrderForUnpick,
-  validateOrderForShip,
 } from "@/lib/allocation-engine";
+import { executeDirectedPick, updateOrder } from "@/lib/firestore-data";
+import type { PickTicket } from "@/lib/mock-data";
 import { fmtDateTime } from "@/lib/utils";
 
 export const Route = createFileRoute("/allocation")({
@@ -125,13 +126,16 @@ function AllocationPage() {
     return pickTickets.filter((pt) => orderIds.has(pt.orderId));
   }, [activeOrders, pickTickets]);
 
-  const [errorDialog, setErrorDialog] = useState<{ open: boolean; title: string; message: string }>(
-    {
-      open: false,
-      title: "",
-      message: "",
-    },
-  );
+  const [detailDialog, setDetailDialog] = useState<{ open: boolean; orderId: string | null }>({
+    open: false,
+    orderId: null,
+  });
+
+  const [errorDialog, setErrorDialog] = useState<{ open: boolean; title: string; message: string }>({
+    open: false,
+    title: "",
+    message: "",
+  });
 
   const showError = (title: string, message: string) => {
     setErrorDialog({ open: true, title, message });
@@ -184,16 +188,29 @@ function AllocationPage() {
         showError("Validation Failed", `Order ${orderId} not found or not in ALLOCATED.`);
         return;
       }
-      const result = await pick_pick_ticket(orderId);
-      if (result.success) {
+      // Find all GENERATED pick tickets for this order and execute directed pick
+      const pts = pickTickets.filter((pt) => pt.orderId === orderId && pt.status === "GENERATED");
+      if (pts.length === 0) {
+        showError("Validation Failed", `No GENERATED pick tickets found for order ${orderId}.`);
+        return;
+      }
+      
+      // Execute directed pick for each ticket
+      const results = await Promise.all(
+        pts.map((pt) => executeDirectedPick(pt.pickTicketNum, pt.quantityToPick, pt.palletId, pt.fromLocation, "allocation-ui"))
+      );
+      
+      if (results.every(r => r.success)) {
+        // Update order status to PICKED
+        await updateOrder(orderId, { status: "PICKED" });
         toast.success(`Order ${orderId} picked`, {
-          description: `Ticket #${result.pickTicketNum} · ${result.pickedLines.length} line(s) moved to DROP001`,
+          description: `${pts.length} ticket(s) moved to DROP001`,
         });
       } else {
-        showError("Pick Failed", result.error || "Unknown error");
+        showError("Pick Failed", results.find(r => !r.success)?.message || "Unknown error");
       }
-    } catch (e) {
-      showError("Pick Error", (e as Error).message);
+    } catch (e: any) {
+      showError("Pick Error", e.message);
     }
   };
 
@@ -212,8 +229,8 @@ function AllocationPage() {
       } else {
         showError("Unpick Failed", result.error || "Unknown error");
       }
-    } catch (e) {
-      showError("Unpick Error", (e as Error).message);
+    } catch (e: any) {
+      showError("Unpick Error", e.message);
     }
   };
 
@@ -409,48 +426,56 @@ function AllocationPage() {
                     <TableCell className="text-xs">{o.carrier}</TableCell>
                     <TableCell className="text-xs">{orderTickets.length}</TableCell>
                     <TableCell>{statusBadge(o.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {o.status === "ALLOCATED" && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-[11px] gap-1"
-                              onClick={() => handleDeallocate(o.id)}
-                            >
-                              <Undo2 className="h-3 w-3" /> Deallocate
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="h-7 text-[11px] gap-1"
-                              onClick={() => handlePick(o.id)}
-                            >
-                              <PackageSearch className="h-3 w-3" /> Pick
-                            </Button>
-                          </>
-                        )}
-                        {o.status === "PICKED" && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-[11px] gap-1"
-                              onClick={() => handleUnpick(o.id)}
-                            >
-                              <Undo2 className="h-3 w-3" /> Unpick
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="h-7 text-[11px] gap-1"
-                              onClick={() => handleShip(o.id)}
-                            >
-                              <Truck className="h-3 w-3" /> Ship
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
+<TableCell className="text-right">
+                       <div className="flex items-center justify-end gap-1.5">
+                         <Button
+                           size="sm"
+                           variant="ghost"
+                           className="h-7 text-[11px] gap-1"
+                           onClick={() => setDetailDialog({ open: true, orderId: o.id })}
+                         >
+                           <Eye className="h-3 w-3" /> Details
+                         </Button>
+                         {o.status === "ALLOCATED" && (
+                           <>
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               className="h-7 text-[11px] gap-1"
+                               onClick={() => handleDeallocate(o.id)}
+                             >
+                               <Undo2 className="h-3 w-3" /> Deallocate
+                             </Button>
+                             <Button
+                               size="sm"
+                               className="h-7 text-[11px] gap-1"
+                               onClick={() => handlePick(o.id)}
+                             >
+                               <PackageSearch className="h-3 w-3" /> Pick
+                             </Button>
+                           </>
+                         )}
+                         {o.status === "PICKED" && (
+                           <>
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               className="h-7 text-[11px] gap-1"
+                               onClick={() => handleUnpick(o.id)}
+                             >
+                               <Undo2 className="h-3 w-3" /> Unpick
+                             </Button>
+                             <Button
+                               size="sm"
+                               className="h-7 text-[11px] gap-1"
+                               onClick={() => handleShip(o.id)}
+                             >
+                               <Truck className="h-3 w-3" /> Ship
+                             </Button>
+                           </>
+                         )}
+                       </div>
+                     </TableCell>
                   </TableRow>
                 );
               })}
@@ -522,10 +547,57 @@ function AllocationPage() {
                   </TableRow>
                 ))}
             </TableBody>
-          </Table>
+</Table>
         </div>
       )}
 
+      {/* Pick Ticket Detail Dialog */}
+      <Dialog open={detailDialog.open} onOpenChange={(open) => setDetailDialog((d) => ({ ...d, open }))}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-mono">Pick Tickets for {detailDialog.orderId}</DialogTitle>
+            <DialogDescription className="text-xs">
+              Detailed view of all pick ticket lines for this order
+            </DialogDescription>
+          </DialogHeader>
+          {detailDialog.orderId && (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {activeTickets
+                .filter((pt) => pt.orderId === detailDialog.orderId)
+                .sort((a, b) => a.pickTicketNum - b.pickTicketNum)
+                .map((pt) => (
+                  <div key={pt.pickTicketNum} className="border border-border rounded-md p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-mono text-sm font-medium">PT-{pt.pickTicketNum}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded ${
+                        pt.status === "GENERATED" ? "bg-muted text-muted-foreground" :
+                        pt.status === "PICKED" ? "bg-chart-4/15 text-chart-4" :
+                        "bg-chart-3/15 text-chart-3"
+                      }`}>
+                        {pt.status}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div><span className="text-muted-foreground">SKU:</span> {pt.sku}</div>
+                      <div><span className="text-muted-foreground">Pallet:</span> {pt.palletId}</div>
+                      <div><span className="text-muted-foreground">Location:</span> {pt.fromLocation}</div>
+                      <div><span className="text-muted-foreground">Qty:</span> {pt.quantityToPick} units</div>
+                      <div><span className="text-muted-foreground">Created:</span> {fmtDateTime(pt.createdAt)}</div>
+                      <div><span className="text-muted-foreground">Picked:</span> {pt.pickedAt ? fmtDateTime(pt.pickedAt) : "—"}</div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDetailDialog({ open: false, orderId: null })}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Error Dialog */}
       <Dialog
         open={errorDialog.open}
         onOpenChange={(open) => setErrorDialog((d) => ({ ...d, open }))}
