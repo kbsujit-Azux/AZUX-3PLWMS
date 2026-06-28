@@ -17,8 +17,7 @@ import {
   upsertInventoryItem,
   logInventoryTransaction,
   getNextOrderSeq,
-  allocateOrderTransactional,
-  deallocateOrderTransactional,
+  createOrder,
 } from "./firestore-data";
 import {
   DROP001_LOCATION,
@@ -229,22 +228,24 @@ if (allocatedLines.length > 0) {
     pickTicketNum = ticketNum;
     order.status = "ALLOCATED";
 
-    // Update local arrays first for immediate state
-    const orderIdx = orders.findIndex((o) => o.id === order.id);
-    if (orderIdx >= 0) orders[orderIdx] = { ...order };
+    // Prepare all writes
+    const skusToUpdate = new Set(allocatedLines.map((l) => l.sku));
+    const inventoryUpdates = Array.from(skusToUpdate).map((sku) => {
+      const item = inventoryItems.find((i) => i.sku === sku);
+      if (item) {
+        return upsertInventoryItem({ ...item });
+      }
+      return Promise.resolve();
+    });
 
-    // Use transactional allocation for Firestore
-    const result = await allocateOrderTransactional(order.id, allocatedLines, ticketNum);
-    if (!result.success) {
-      return {
-        success: false,
-        allocatedLines,
-        error: result.error || "Allocation failed",
-      };
-    }
+    // Write to Firestore - order first, then inventory, then tickets
+    await createOrder(order);
+    await Promise.all(inventoryUpdates);
+    await batchWritePickTickets(tickets);
 
     // Update local arrays
-    batchWritePickTickets(tickets);
+    const orderIdx = orders.findIndex((o) => o.id === order.id);
+    if (orderIdx >= 0) orders[orderIdx] = { ...order };
   }
 
   return {
@@ -286,17 +287,26 @@ export async function deallocate_order(orderId: string): Promise<DeallocationRes
 
   const deallocatedLines: DeallocationResult["deallocatedLines"] = [];
 
-  // Build lines array for transactional deallocation
+  // Build lines array and update local inventory
   for (const pt of existingTickets) {
-    deallocatedLines.push({
-      sku: pt.sku,
-      palletId: pt.palletId,
-      location: pt.fromLocation,
-      qtyDeallocated: pt.quantityToPick,
-    });
+    const item = inventoryItems.find((i) => i.sku === pt.sku);
+    if (item) {
+      const batch = item.batches.find(
+        (b) => b.palletId === pt.palletId && b.location === pt.fromLocation,
+      );
+      if (batch) {
+        batch.qtyAllocated = Math.max(0, batch.qtyAllocated + pt.quantityToPick);
+        deallocatedLines.push({
+          sku: pt.sku,
+          palletId: pt.palletId,
+          location: pt.fromLocation,
+          qtyDeallocated: pt.quantityToPick,
+        });
+      }
+    }
   }
 
-  // Clean up local arrays first
+  // Clean up local arrays
   for (let i = pickTickets.length - 1; i >= 0; i--) {
     if (pickTickets[i].orderId === orderId) {
       pickTickets.splice(i, 1);
@@ -304,16 +314,20 @@ export async function deallocate_order(orderId: string): Promise<DeallocationRes
   }
   order.status = "new";
 
-  // Use transactional deallocation for Firestore
-  const result = await deallocateOrderTransactional(orderId, deallocatedLines.map(l => ({ ...l, qty: l.qtyDeallocated })));
+  // Update unique SKUs to Firestore
+  const skusToUpdate = new Set(deallocatedLines.map((l) => l.sku));
+  const inventoryUpdates = Array.from(skusToUpdate).map((sku) => {
+    const item = inventoryItems.find((i) => i.sku === sku);
+    if (item) return upsertInventoryItem({ ...item });
+    return Promise.resolve();
+  });
 
-  if (!result.success) {
-    return {
-      success: false,
-      deallocatedLines,
-      error: result.error || "Deallocation failed",
-    };
-  }
+  // Write to Firestore
+  await Promise.all([
+    updateOrder(order.id, { status: "new" }),
+    deletePickTicketsByOrder(orderId),
+    ...inventoryUpdates,
+  ]);
 
   return {
     success: true,

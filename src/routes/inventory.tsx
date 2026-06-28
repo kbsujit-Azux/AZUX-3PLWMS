@@ -9,6 +9,7 @@ import {
   Download,
   RefreshCw,
   History,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,15 +23,13 @@ import {
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import {
-  inventoryItems,
   tenants,
   warehouses,
-  totalOnHand,
   type InventoryItem,
 } from "@/lib/mock-data";
 import { inboundShipments } from "@/lib/inbound-data";
 import { fmtDateTime } from "@/lib/utils";
-import { fetchTransactionHistory, subscribeTransactionHistory, InventoryTransaction } from "@/lib/firestore-data";
+import { fetchTransactionHistory, subscribeTransactionHistory, InventoryTransaction, upsertInventoryItem, updateInventoryBatch } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({
@@ -109,6 +108,8 @@ function InventoryPage() {
   const [historyPalletId, setHistoryPalletId] = useState<string>("");
   const [historyLocation, setHistoryLocation] = useState<string>("");
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
+  const [editItem, setEditItem] = useState<InventoryItem | null>(null);
+  const [editBatch, setEditBatch] = useState<InventoryItem["batches"][0] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const poRefs = useMemo(buildPoRefs, []);
@@ -222,8 +223,10 @@ const filtered = useMemo(() => {
     setHistoryLocation(location);
     setHistoryOpen(true);
     try {
-      const txns = await fetchTransactionHistory(sku, palletId);
-      setTransactions(txns);
+      // Query without filters to avoid index requirement
+      const txns = await fetchTransactionHistory();
+      const filtered = txns.filter(t => t.sku === sku && t.palletId === palletId);
+      setTransactions(filtered);
     } catch (e: any) {
       toast.error(`Failed to load history: ${e.message}`);
     }
@@ -344,24 +347,36 @@ const filtered = useMemo(() => {
                     {fmtDateTime(r.lastEditAt)}
                   </TableCell>
                   <TableCell className="py-2 font-mono text-[11px]">{r.userId}</TableCell>
-                  <TableCell className="py-2 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost" size="icon" className="h-7 w-7"
-                        onClick={() => setScanItem(item)}
-                        title="Scan barcode / QR"
-                      >
-                        <ScanLine className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost" size="icon" className="h-7 w-7"
-                        onClick={() => showHistory(r.sku, r.palletId, r.location)}
-                        title="View history"
-                      >
-                        <History className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+<TableCell className="py-2 text-right">
+                     <div className="flex items-center justify-end gap-1">
+                       <Button
+                         variant="ghost" size="icon" className="h-7 w-7"
+                         onClick={() => setScanItem(item)}
+                         title="Scan barcode / QR"
+                       >
+                         <ScanLine className="h-4 w-4" />
+                       </Button>
+                       {item && (
+                         <Button
+                           variant="ghost" size="icon" className="h-7 w-7"
+                           onClick={() => {
+                             setEditItem(item);
+                             setEditBatch(item.batches.find(b => b.palletId === r.palletId && b.location === r.location) || null);
+                           }}
+                           title="Edit batch"
+                         >
+                           <Pencil className="h-4 w-4" />
+                         </Button>
+                       )}
+                       <Button
+                         variant="ghost" size="icon" className="h-7 w-7"
+                         onClick={() => showHistory(r.sku, r.palletId, r.location)}
+                         title="View history"
+                       >
+                         <History className="h-4 w-4" />
+                       </Button>
+                     </div>
+                   </TableCell>
                 </TableRow>
               );
             })}
@@ -467,6 +482,105 @@ const filtered = useMemo(() => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Batch Dialog */}
+      <Dialog open={!!editItem} onOpenChange={(open) => !open && setEditItem(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base">Edit Batch: {editBatch?.palletId}</DialogTitle>
+            <DialogDescription className="text-xs">
+              SKU: {editItem?.sku} · Location: {editBatch?.location}
+            </DialogDescription>
+          </DialogHeader>
+          {editItem && editBatch && (
+            <EditBatchForm
+              item={editItem}
+              batch={editBatch}
+              onSave={async (updates) => {
+                try {
+                  await upsertInventoryItem({
+                    ...editItem,
+                    batches: editItem.batches.map((b) =>
+                      b.batchId === editBatch.batchId ? { ...b, ...updates } : b,
+                    ),
+                  });
+                  toast.success("Batch updated");
+                  setEditItem(null);
+                } catch (e: any) {
+                  toast.error(`Update failed: ${e.message}`);
+                }
+              }}
+              onCancel={() => setEditItem(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function EditBatchForm({
+  item,
+  batch,
+  onSave,
+  onCancel,
+}: {
+  item: InventoryItem;
+  batch: InventoryItem["batches"][0];
+  onSave: (updates: Partial<InventoryItem["batches"][0]>) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [formData, setFormData] = useState({
+    qty: batch.qty,
+    qtyAllocated: batch.qtyAllocated || 0,
+    location: batch.location,
+    poNumber: batch.poNumber,
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Qty</label>
+          <Input
+            type="number"
+            value={formData.qty}
+            onChange={(e) => setFormData({ ...formData, qty: parseInt(e.target.value) || 0 })}
+            className="h-8 text-xs font-mono"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Allocated</label>
+          <Input
+            type="number"
+            value={formData.qtyAllocated}
+            onChange={(e) => setFormData({ ...formData, qtyAllocated: parseInt(e.target.value) || 0 })}
+            className="h-8 text-xs font-mono"
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Location</label>
+          <Input
+            value={formData.location}
+            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+            className="h-8 text-xs font-mono"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">PO Number</label>
+          <Input
+            value={formData.poNumber}
+            onChange={(e) => setFormData({ ...formData, poNumber: e.target.value })}
+            className="h-8 text-xs font-mono"
+          />
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
+        <Button size="sm" onClick={() => onSave(formData)}>Save</Button>
+      </DialogFooter>
     </div>
   );
 }
