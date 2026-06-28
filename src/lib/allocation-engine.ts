@@ -295,7 +295,7 @@ export async function deallocate_order(orderId: string): Promise<DeallocationRes
         (b) => b.palletId === pt.palletId && b.location === pt.fromLocation,
       );
       if (batch) {
-        batch.qtyAllocated = Math.max(0, batch.qtyAllocated + pt.quantityToPick);
+        batch.qtyAllocated = Math.max(0, batch.qtyAllocated - pt.quantityToPick);
         deallocatedLines.push({
           sku: pt.sku,
           palletId: pt.palletId,

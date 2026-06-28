@@ -945,25 +945,25 @@ export async function deallocateOrderTransactional(
         transaction.update(orderRef, { status: "new" });
       }
 
-      // Update each affected inventory item - ADD back allocated qty
-      for (const line of lines) {
-        const invRef = doc(db, "inventoryItems", line.sku);
-        const invSnap = await transaction.get(invRef);
-        if (invSnap.exists()) {
-          const item = invSnap.data() as InventoryItem;
-          const batch = item.batches?.find(
-            (b) => b.palletId === line.palletId && b.location === line.location,
-          );
-          if (batch) {
-            const batchIndex = item.batches!.indexOf(batch);
-            const currentAllocated = batch.qtyAllocated || 0;
-            const newAllocated = Math.max(0, currentAllocated + line.qty);
-            transaction.update(invRef, {
-              [`batches.${batchIndex}.qtyAllocated`]: newAllocated,
-            });
-          }
-        }
-      }
+// Update each affected inventory item - SUBTRACT allocated qty on deallocate
+       for (const line of lines) {
+         const invRef = doc(db, "inventoryItems", line.sku);
+         const invSnap = await transaction.get(invRef);
+         if (invSnap.exists()) {
+           const item = invSnap.data() as InventoryItem;
+           const batch = item.batches?.find(
+             (b) => b.palletId === line.palletId && b.location === line.location,
+           );
+           if (batch) {
+             const batchIndex = item.batches!.indexOf(batch);
+             const currentAllocated = batch.qtyAllocated || 0;
+             const newAllocated = Math.max(0, currentAllocated - line.qty);
+             transaction.update(invRef, {
+               [`batches.${batchIndex}.qtyAllocated`]: newAllocated,
+             });
+           }
+         }
+       }
     });
 
     // Delete pick tickets for this order
