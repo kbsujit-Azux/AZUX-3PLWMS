@@ -347,7 +347,7 @@ export type InventoryAllocation = {
 
 /** Pick Ticket record */
 export type PickTicket = {
-  pickTicketNum: number; // Auto-incremented sequence number
+  pickTicketNum: number;
   orderId: string;
   sku: string;
   palletId: string;
@@ -357,6 +357,8 @@ export type PickTicket = {
   createdAt: string;
   pickedAt?: string;
   closedAt?: string;
+  reallocated?: boolean;
+  reallocatedAt?: string;
 };
 
 /** Order status lifecycle */

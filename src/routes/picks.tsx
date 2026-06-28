@@ -88,7 +88,7 @@ function PicksPage() {
   const [pickCartons, setPickCartons] = useState(0);
   const [pickHistoryOpen, setPickHistoryOpen] = useState(false);
   const [activePickTicket, setActivePickTicket] = useState<number | null>(null);
-  const [pickTickets, setPickTickets] = useState<PickRow[]>([]);
+  const [pickTickets, setPickTickets] = useState<PickTicket[]>([]);
   const [inventory, setInventory] = useState<Map<string, any>>(new Map());
   const [ordersMap, setOrdersMap] = useState<Map<string, Order>>(new Map());
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
@@ -97,7 +97,7 @@ function PicksPage() {
   useEffect(() => {
     const unsubPick = subscribePickTickets(
       (pts) => {
-        setPickTickets(pts.map(pt => ({ ...pt, caseQty: 0 })));
+        setPickTickets(pts);
       },
     );
     const unsubInv = subscribeInventoryItems((items) => {

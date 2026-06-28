@@ -1,33 +1,38 @@
-import { orders, type Order, type OrderStatus, type OrderLine } from "./edi-data";
 import {
-  inventoryItems,
-  clientAllocationConfigs,
-  pickTickets,
-  getClientAllocationConfig,
-  sortedBatches,
-  findPickTicketsByOrder,
-  findPickTicketByNum,
-  nextPickTicketSeq,
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  runTransaction,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "./firestore";
+import {
+  updateOrder,
+  writePickTicket,
+  batchWritePickTickets,
+  updatePickTicket,
+  deletePickTicketsByOrder,
+  upsertInventoryItem,
+  logInventoryTransaction,
+  getNextOrderSeq,
+} from "./firestore-data";
+import {
   DROP001_LOCATION,
   NON_ALLOCATABLE_LOCATIONS,
   type InventoryItem,
-  type InventoryBatch,
-  type ClientAllocationConfig,
   type PickTicket,
-  type PickTicketStatus,
-  type OrderStatus as LibOrderStatus,
+  nextPickTicketSeq,
+  inventoryItems,
+  pickTickets,
+  clientAllocationConfigs,
+  getClientAllocationConfig,
+  findPickTicketsByOrder,
+  type ClientAllocationConfig,
 } from "./mock-data";
+import { orders, type Order, type OrderLine } from "./edi-data";
 import { buildBolFromOrder, emit945ForBol } from "./bol-data";
-import {
-  createOrder,
-  updateOrder,
-  deleteOrder,
-  upsertInventoryItem,
-  writePickTicket,
-  batchWritePickTickets,
-  deletePickTicketsByOrder,
-  updatePickTicket,
-} from "./firestore-data";
 
 const now = () => new Date().toISOString();
 
@@ -123,7 +128,7 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
     return { success: false, allocatedLines: [], error: `Order ${orderId} not found.` };
   }
 
-  const config = getClientAllocationConfig(order.tenantId) ?? { tenantId: order.tenantId, strategy: "LIFO" as const };
+  const config: ClientAllocationConfig = getClientAllocationConfig(order.tenantId) ?? { tenantId: order.tenantId, strategy: "LIFO" as const };
 
   const allocatedLines: AllocationResult["allocatedLines"] = [];
   let pickTicketNum: number | undefined;
@@ -769,7 +774,7 @@ export function canShip(order: Order): boolean {
   return order.status === "PICKED";
 }
 
-export function getOrderStatusLabel(status: OrderStatus | LibOrderStatus): string {
+export function getOrderStatusLabel(status: string): string {
   const map: Record<string, string> = {
     new: "NEW",
     allocated: "ALLOCATED",

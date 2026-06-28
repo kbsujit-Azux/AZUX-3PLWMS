@@ -35,8 +35,15 @@ import {
   emit945ForBol,
   type BillOfLading,
 } from "@/lib/bol-data";
+import {
+  fetchBillsOfLading,
+  subscribeBillsOfLading,
+  createBol,
+} from "@/lib/firestore-data";
 import { BolDocument } from "@/components/bol/bol-document";
+import { PackingSlip } from "@/components/bol/packing-slip";
 import { fmtDateTime } from "@/lib/utils";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/documents")({
   head: () => ({
@@ -63,10 +70,18 @@ const statusStyles: Record<BillOfLading["status"], string> = {
 
 function DocumentsPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const [bols, setBols] = useState<BillOfLading[]>(seedBols);
+  const [bols, setBols] = useState<BillOfLading[]>([]);
   const [query, setQuery] = useState("");
   const [previewing, setPreviewing] = useState<BillOfLading | null>(null);
   const [consolidateOpen, setConsolidateOpen] = useState(false);
+
+  // Load BOLs from Firestore
+  useEffect(() => {
+    const unsub = subscribeBillsOfLading((items) => {
+      setBols(items);
+    }, tenantId !== "all" ? tenantId : undefined, warehouseId !== "all" ? warehouseId : undefined);
+    return () => unsub();
+  }, [tenantId, warehouseId]);
 
   const filtered = useMemo(() => {
     return bols.filter((b) => {
@@ -100,7 +115,7 @@ function DocumentsPage() {
     return t;
   }, [filtered]);
 
-  const handleGenerateForOrder = (orderId: string) => {
+  const handleGenerateForOrder = async (orderId: string) => {
     const o = orders.find((x) => x.id === orderId);
     if (!o) return;
     if (bols.some((b) => b.childOrderIds.length === 1 && b.childOrderIds[0] === orderId && b.type === "single")) {
@@ -108,17 +123,19 @@ function DocumentsPage() {
       return;
     }
     const bol = buildBolFromOrder(o);
+    await createBol(bol);
     setBols((prev) => [bol, ...prev]);
     setPreviewing(bol);
     toast.success(`BOL ${bol.bolNumber} generated`, { description: `PRO ${bol.proNumber}` });
   };
 
-  const handleCreateMaster = (orderIds: string[]) => {
+  const handleCreateMaster = async (orderIds: string[]) => {
     if (orderIds.length < 2) {
       toast.error("Select at least 2 orders to consolidate");
       return;
     }
     const mbol = buildMasterBol(orderIds);
+    await createBol(mbol);
     setBols((prev) => [mbol, ...prev]);
     setConsolidateOpen(false);
     setPreviewing(mbol);
@@ -489,15 +506,21 @@ function BolPreviewDialog({
   return (
     <Dialog open={!!bol} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl p-0 gap-0 overflow-hidden">
-        <DialogHeader className="px-4 py-2.5 border-b border-border flex flex-row items-center justify-between space-y-0">
-          <div>
-            <DialogTitle className="text-sm font-semibold">
-              {bol.type === "master" ? "Master BOL" : "Bill of Lading"} · {bol.bolNumber}
-            </DialogTitle>
-            <DialogDescription className="text-[11px]">
-              VICS v3.1 · PRO {bol.proNumber} · {bol.carrier} {bol.scac}
-            </DialogDescription>
-          </div>
+        <DialogHeader className="px-4 py-2.5 border-b border-border">
+          <DialogTitle className="text-sm font-semibold">
+            {bol.type === "master" ? "Master BOL" : "Bill of Lading"} · {bol.bolNumber}
+          </DialogTitle>
+          <DialogDescription className="text-[11px]">
+            VICS v3.1 · PRO {bol.proNumber} · {bol.carrier} {bol.scac}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="px-4 py-2 border-b border-border flex items-center justify-between">
+          <Tabs defaultValue="vics" className="w-full">
+            <TabsList className="h-7">
+              <TabsTrigger value="vics" className="text-[10px]">VICS BOL</TabsTrigger>
+              <TabsTrigger value="packing" className="text-[10px]">Packing Slip</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5" onClick={() => window.print()}>
               <Printer className="h-3 w-3" /> Print
@@ -528,12 +551,23 @@ function BolPreviewDialog({
               <Download className="h-3 w-3" /> JSON
             </Button>
           </div>
-        </DialogHeader>
-        <div className="max-h-[80vh] overflow-y-auto bg-muted/40 p-6">
-          <div className="mx-auto max-w-[8.5in] shadow-lg">
-            <BolDocument bol={bol} />
-          </div>
         </div>
+        <Tabs defaultValue="vics" className="w-full">
+          <TabsContent value="vics" className="m-0">
+            <div className="max-h-[80vh] overflow-y-auto bg-muted/40 p-6">
+              <div className="mx-auto max-w-[8.5in] shadow-lg">
+                <BolDocument bol={bol} />
+              </div>
+            </div>
+          </TabsContent>
+          <TabsContent value="packing" className="m-0">
+            <div className="max-h-[80vh] overflow-y-auto bg-muted/40 p-6">
+              <div className="mx-auto max-w-[8.5in] shadow-lg">
+                <PackingSlip bol={bol} />
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

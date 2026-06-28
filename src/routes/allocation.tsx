@@ -46,15 +46,6 @@ import {
   validateOrderForShip,
 } from "@/lib/allocation-engine";
 import { fmtDateTime } from "@/lib/utils";
-import { orders, type Order } from "@/lib/edi-data";
-import {
-  inventoryItems,
-  clientAllocationConfigs,
-  pickTickets,
-  getClientAllocationConfig,
-  DROP001_LOCATION,
-  type PickTicket,
-} from "@/lib/mock-data";
 
 export const Route = createFileRoute("/allocation")({
   head: () => ({

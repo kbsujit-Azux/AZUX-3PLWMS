@@ -26,5 +26,15 @@ service cloud.firestore {
     match /orders/{document} {
       allow read, write: if true;
     }
+
+    // Counters collection (for sequence numbers)
+    match /counters/{document} {
+      allow read, write: if true;
+    }
+
+    // Bills of Lading collection
+    match /billsOfLading/{document} {
+      allow read, write: if true;
+    }
   }
 }

@@ -58,7 +58,7 @@ import {
   getServiceCodesByCarrier,
   type CarrierServiceRecord,
 } from "@/lib/carrier-services";
-import { createOrder, deleteOrder, updateOrder } from "@/lib/firestore-data";
+import { createOrder, deleteOrder, updateOrder, getNextOrderSeq, shipOrder } from "@/lib/firestore-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
 import { itemMaster, findItem } from "@/lib/master-data";
@@ -156,7 +156,7 @@ function OrdersPage() {
   };
 
   const linesFor = (o: Order): OrderLine[] => lineOverrides[o.id] ?? o.lines;
-  const isLocked = (s: Order["status"]) => s === "shipped" || s === "picking";
+  const isLocked = (s: Order["status"]) => s === "shipped" || s === "PICKED" || s === "picking";
 
   const handleNewOrderSave = async (newOrder: Order) => {
     try {
@@ -178,15 +178,28 @@ function OrdersPage() {
     }
   };
 
-  // Generate next sequence ID
-  const generateNextSeq = () => {
-    let maxSeq = 0;
-    for (const o of orders) {
-      const m = o.id.match(/^SO[#-]?(\d+)$/);
-      if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+  // Generate next sequence ID (used by NewOrderDialog)
+  const generateNextSeq = async () => {
+    try {
+      return await getNextOrderSeq();
+    } catch {
+      let maxSeq = 0;
+      for (const o of orders) {
+        const m = o.id.match(/^SO[#-]?(\d+)$/);
+        if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+      }
+      maxSeq++;
+      return `SO#-${maxSeq.toString().padStart(8, "0")}`;
     }
-    maxSeq++;
-    return `SO#-${maxSeq.toString().padStart(8, "0")}`;
+  };
+
+  // Generate next order ID for dialog
+  const getNextOrderId = async () => {
+    try {
+      return await getNextOrderSeq();
+    } catch {
+      return `SO#-${Math.floor(Math.random() * 1000000).toString().padStart(8, "0")}`;
+    }
   };
 
   const exceptionsFor = (o: Order): OrderLine[] =>
@@ -599,6 +612,7 @@ function OrdersPage() {
         onSave={handleNewOrderSave}
         defaultTenantId={tenantId}
         defaultWarehouseId={warehouseId}
+        getNextOrderId={generateNextSeq}
       />
 
       <OrderDetailDialog
@@ -624,6 +638,14 @@ function OrdersPage() {
             });
           }
           refreshData();
+        }}
+        onShip={async (orderId: string) => {
+          const result = await shipOrder(orderId);
+          if (result.success) {
+            toast.success(`BOL ${result.bolNumber} created`);
+          } else {
+            toast.error(result.error || "Ship failed");
+          }
         }}
       />
 
@@ -688,12 +710,14 @@ function NewOrderDialog({
   onSave,
   defaultTenantId,
   defaultWarehouseId,
+  getNextOrderId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSave: (order: Order) => void;
   defaultTenantId: string;
   defaultWarehouseId: string;
+  getNextOrderId: () => Promise<string>;
 }) {
   const now = new Date().toISOString();
 
@@ -753,41 +777,45 @@ function NewOrderDialog({
     cancelDate: "",
     mustShipDate: "",
     lines: [{ sku: "", description: "", qtyOrdered: 1, qtyAllocated: 0, unitPrice: 0 }],
-  });
+});
   const [editingLineIdx, setEditingLineIdx] = useState<number | null>(null);
   const [lineDeleteIdx, setLineDeleteIdx] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setForm({
-      id: nextOrderId(),
-      poNumber: "",
-      customerOrderNumber: "",
-      ediRef: "â€”",
-      tenantId: defaultTenantId === "all" ? "acme" : defaultTenantId,
-      warehouseId: defaultWarehouseId === "all" ? "atl1" : defaultWarehouseId,
-      shipToCode: "",
-      shipToName: "",
-      shipToAddress1: "",
-      shipToAddress2: "",
-      shipToCity: "",
-      shipToState: "",
-      shipToZip: "",
-      billToCode: "",
-      billToName: "",
-      billToAddress1: "",
-      billToAddress2: "",
-      billToCity: "",
-      billToState: "",
-      billToZip: "",
-      carrier: "",
-      serviceLevel: "Standard",
-      status: "new",
-      source: "MANUAL",
-      cancelDate: "",
-      mustShipDate: "",
-      lines: [{ sku: "", description: "", qtyOrdered: 1, qtyAllocated: 0, unitPrice: 0 }],
-    });
+    const initForm = async () => {
+      const newId = await getNextOrderId();
+      setForm({
+        id: newId,
+        poNumber: "",
+        customerOrderNumber: "",
+        ediRef: "—",
+        tenantId: defaultTenantId === "all" ? "acme" : defaultTenantId,
+        warehouseId: defaultWarehouseId === "all" ? "atl1" : defaultWarehouseId,
+        shipToCode: "",
+        shipToName: "",
+        shipToAddress1: "",
+        shipToAddress2: "",
+        shipToCity: "",
+        shipToState: "",
+        shipToZip: "",
+        billToCode: "",
+        billToName: "",
+        billToAddress1: "",
+        billToAddress2: "",
+        billToCity: "",
+        billToState: "",
+        billToZip: "",
+        carrier: "",
+        serviceLevel: "Standard",
+        status: "new",
+        source: "MANUAL",
+        cancelDate: "",
+        mustShipDate: "",
+        lines: [{ sku: "", description: "", qtyOrdered: 1, qtyAllocated: 0, unitPrice: 0 }],
+      });
+    };
+    initForm();
     setEditingLineIdx(null);
     setLineDeleteIdx(null);
   }, [open, defaultTenantId, defaultWarehouseId]);
@@ -1519,15 +1547,19 @@ function OrderDetailDialog({
   lines,
   locked,
   tenantId,
+  carrierServices,
   onClose,
   onSave,
+  onShip,
 }: {
   order: Order | null;
   lines: OrderLine[];
   locked: boolean;
   tenantId: string;
+  carrierServices: CarrierServiceRecord[];
   onClose: () => void;
-  onSave: (next: OrderLine[]) => void;
+  onSave: (updates: Partial<Order> & { lines?: OrderLine[] }) => void;
+  onShip?: (orderId: string) => void;
 }) {
   const [draft, setDraft] = useState<OrderLine[]>([]);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -2050,6 +2082,25 @@ function OrderDetailDialog({
             <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={onClose}>
               <X className="h-3.5 w-3.5" /> Cancel
             </Button>
+            {order?.status === "PICKED" && onShip && (
+              <Button
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={async () => {
+                  if (order) {
+                    const result = await shipOrder(order.id);
+                    if (result.success) {
+                      toast.success(`BOL ${result.bolNumber} created`);
+                      onShip(order.id);
+                    } else {
+                      toast.error(result.error || "Ship failed");
+                    }
+                  }
+                }}
+              >
+                <Truck className="h-3.5 w-3.5" /> Ship & Create BOL
+              </Button>
+            )}
             <Button
               size="sm"
               className="h-8 text-xs gap-1.5"

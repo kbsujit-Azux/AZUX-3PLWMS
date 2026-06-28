@@ -69,6 +69,36 @@ service cloud.firestore {
         request.auth.token.tenantId == resource.data.tenantId;
     }
     
+    // Pick Tickets
+    match /pickTickets/{ticketId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Bills of Lading
+    match /billsOfLading/{bolId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Inventory Transactions
+    match /inventoryTransactions/{txnId} {
+      allow read, write: if true;
+    }
+    
+    // Counters (for sequence numbers)
+    match /counters/{counterId} {
+      allow read, write: if true;
+    }
+    
     // Locations (master data, shared across tenants)
     match /locations/{locationId} {
       allow read: if request.auth != null;

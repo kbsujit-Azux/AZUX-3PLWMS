@@ -27,6 +27,7 @@ import type {
   ClientAllocationConfig,
   PickTicket,
 } from "./mock-data";
+import type { BillOfLading } from "./bol-data";
 import { DROP001_LOCATION } from "./mock-data";
 import type { Pallet } from "./pallet-data";
 import type { ItemMasterRecord, LocationRecord } from "./master-data";
@@ -560,6 +561,20 @@ export async function executeDirectedPick(
       [`batches.${batchIndex}.qtyAllocated`]: Math.max(0, batch.qtyAllocated - qtyPicked),
     });
 
+    // Create DROP001 batch entry in inventory
+    const dropBatch = {
+      palletId: `DROP-${pt.pickTicketNum.toString().padStart(8, "0")}`,
+      location: DROP001_LOCATION,
+      qty: qtyPicked,
+      qtyAllocated: 0,
+      receivedAt: new Date().toISOString(),
+      pickTicketNum: pt.pickTicketNum,
+    };
+    const existingBatches = item.batches || [];
+    transaction.update(invRef, {
+      batches: [...existingBatches, dropBatch],
+    });
+
     transaction.update(ptRef, {
       status: "PICKED",
       pickedAt: new Date().toISOString(),
@@ -656,4 +671,200 @@ export async function reallocatePickTicket(
       qty: pt.quantityToPick,
     };
   });
+}
+
+// ============================================================
+// Sequence Number Management (transactional)
+// ============================================================
+export async function getNextOrderSeq(): Promise<string> {
+  const counterRef = doc(db, "counters", "orders");
+  const counterSnap = await getDocs(query(collection(db, "counters")));
+  if ((counterSnap.docs as any).find((d: any) => d.id === "orders") === undefined) {
+    await setDoc(counterRef, { seq: 1 }, { merge: true });
+  }
+  return await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(counterRef);
+    if (!snap.exists()) {
+      transaction.set(counterRef, { seq: 1 });
+      return "SO#-00000001";
+    }
+    const currentSeq = snap.data().seq as number;
+    const nextSeq = currentSeq + 1;
+    transaction.update(counterRef, { seq: nextSeq });
+    return `SO#-0${nextSeq.toString().padStart(8, "0")}`;
+  });
+}
+
+export async function getNextPickTicketSeq(): Promise<number> {
+  const counterRef = doc(db, "counters", "pickTickets");
+  return await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(counterRef);
+    const currentSeq = snap.exists() ? (snap.data().seq as number) : 1000;
+    const nextSeq = currentSeq + 1;
+    transaction.update(counterRef, { seq: nextSeq });
+    return nextSeq;
+  });
+}
+
+export async function getNextBolNumber(): Promise<string> {
+  const counterRef = doc(db, "counters", "bol");
+  return await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(counterRef);
+    const currentSeq = snap.exists() ? (snap.data().seq as number) : 1;
+    const nextSeq = currentSeq + 1;
+    transaction.update(counterRef, { seq: nextSeq });
+    return `MBOL-${nextSeq.toString().padStart(9, "0")}`;
+  });
+}
+
+// ============================================================
+// Ship Order - Create BOL and Process Shipment
+// ============================================================
+export type ShipResult = {
+  success: boolean;
+  bolNumber: string;
+  shippedLines: Array<{
+    sku: string;
+    palletId: string;
+    location: string;
+    qtyShipped: number;
+  }>;
+  error?: string;
+};
+
+export async function shipOrder(orderId: string): Promise<ShipResult> {
+  try {
+    // Get order first
+    const ordersSnap = await getDocs(collection(db, "orders"));
+    const order = ordersSnap.docs.map(d => ({ id: d.id, ...(d.data() ?? {}) }) as Order).find(o => o.id === orderId);
+    if (!order) {
+      return { success: false, bolNumber: "", shippedLines: [], error: `Order ${orderId} not found` };
+    }
+
+    // Check pick tickets
+    const ptSnap = await getDocs(query(collection(db, "pickTickets"), where("orderId", "==", orderId)));
+    const pts = ptSnap.docs.map((d) => ({ ...(d.data() ?? {}), id: d.id, pickTicketNum: d.id }) as unknown as PickTicket);
+    const unpicked = pts.filter((pt) => pt.status !== "PICKED");
+    if (unpicked.length > 0) {
+      return { success: false, bolNumber: "", shippedLines: [], error: `Order has ${unpicked.length} unpicked pick tickets` };
+    }
+
+    // Get the orderRef for transaction use
+    const orderRef = doc(db, "orders", orderId);
+
+    return await runTransaction(db, async (transaction) => {
+      // Get inventory for shipped items
+      const shippedLines: ShipResult["shippedLines"] = [];
+      for (const pt of pts) {
+        const invRef = doc(db, "inventoryItems", pt.sku);
+        const invSnap = await transaction.get(invRef);
+        if (invSnap.exists()) {
+          const item = invSnap.data() as InventoryItem;
+          const dropBatch = item.batches?.find(
+            (b) =>
+              b.palletId === pt.palletId &&
+              b.location === DROP001_LOCATION &&
+              b.pickTicketNum === pt.pickTicketNum,
+          );
+          if (dropBatch) {
+            shippedLines.push({
+              sku: pt.sku,
+              palletId: pt.palletId,
+              location: DROP001_LOCATION,
+              qtyShipped: dropBatch.qty,
+            });
+          }
+        }
+      }
+
+      // Generate BOL number
+      const bolNumber = await getNextBolNumber();
+
+      // Create BOL document
+      const bolRef = doc(db, "billsOfLading", bolNumber);
+      transaction.set(bolRef, {
+        bolNumber,
+        orderId,
+        status: "issued",
+        createdAt: serverTimestamp(),
+        shippedLines,
+        carrier: order.carrier,
+        tenantId: order.tenantId,
+        warehouseId: order.warehouseId,
+      });
+
+      // Update order status
+      transaction.update(orderRef, { status: "shipped" });
+
+      // Update pick tickets to CLOSED
+      pts.forEach((pt) => {
+        transaction.update(doc(db, "pickTickets", pt.pickTicketNum.toString()), {
+          status: "CLOSED",
+          closedAt: serverTimestamp(),
+        });
+      });
+
+      // Remove DROP001 batches from inventory
+      for (const pt of pts) {
+        const invRef = doc(db, "inventoryItems", pt.sku);
+        const invSnap = await transaction.get(invRef);
+        if (invSnap.exists()) {
+          const item = invSnap.data() as InventoryItem;
+          const newBatches = item.batches?.filter(
+            (b) => !(b.palletId === pt.palletId && b.location === DROP001_LOCATION && b.pickTicketNum === pt.pickTicketNum),
+          ) || [];
+          transaction.update(invRef, { batches: newBatches });
+        }
+      }
+
+      // Log ship transaction
+      const txnRef = doc(db, "inventoryTransactions", `TX-SHIP-${Date.now()}`);
+      transaction.set(txnRef, {
+        type: "SHIP",
+        orderId,
+        qtyChange: -shippedLines.reduce((a, l) => a + l.qtyShipped, 0),
+        user: "system",
+        timestamp: serverTimestamp(),
+      });
+
+      return { success: true, bolNumber, shippedLines };
+    });
+  } catch (e: any) {
+    return { success: false, bolNumber: "", shippedLines: [], error: e.message };
+  }
+}
+
+// ============================================================
+// Bills of Lading
+// ============================================================
+export async function fetchBillsOfLading(tenantId?: string, warehouseId?: string): Promise<BillOfLading[]> {
+  let q: Query = collection(db, "billsOfLading");
+  if (tenantId && tenantId !== "all") {
+    q = query(q, where("tenantId", "==", tenantId));
+  }
+  if (warehouseId && warehouseId !== "all") {
+    q = query(q, where("warehouseId", "==", warehouseId));
+  }
+  q = query(q, orderBy("createdAt", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as BillOfLading);
+}
+
+export function subscribeBillsOfLading(callback: (bols: BillOfLading[]) => void, tenantId?: string, warehouseId?: string): Unsubscribe {
+  let q: Query = collection(db, "billsOfLading");
+  if (tenantId && tenantId !== "all") {
+    q = query(q, where("tenantId", "==", tenantId));
+  }
+  if (warehouseId && warehouseId !== "all") {
+    q = query(q, where("warehouseId", "==", warehouseId));
+  }
+  q = query(q, orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as BillOfLading));
+  });
+}
+
+export async function createBol(bol: BillOfLading): Promise<void> {
+  const bolRef = doc(db, "billsOfLading", bol.bolNumber);
+  await setDoc(bolRef, bol);
 }
