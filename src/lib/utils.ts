@@ -20,7 +20,18 @@ const tf = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC",
 });
 
-export const fmtDateTime = (iso: string) => dtf.format(new Date(iso));
-export const fmtDate = (iso: string) => df.format(new Date(iso));
-export const fmtDateYear = (iso: string) => dfYear.format(new Date(iso));
-export const fmtTime = (iso: string) => tf.format(new Date(iso));
+const toDate = (v: string | { toDate?: () => Date; seconds?: number; nanoseconds?: number }) => {
+  if (typeof v === "string") return new Date(v);
+  if (typeof v.toDate === "function") return v.toDate();
+  if (typeof v.seconds === "number") return new Date(v.seconds * 1000 + (v.nanoseconds || 0) / 1e6);
+  return new Date(v as string);
+};
+
+export const fmtDateTime = (iso: string | { toDate?: () => Date; seconds?: number }) =>
+  dtf.format(toDate(iso));
+export const fmtDate = (iso: string | { toDate?: () => Date; seconds?: number }) =>
+  df.format(toDate(iso));
+export const fmtDateYear = (iso: string | { toDate?: () => Date; seconds?: number }) =>
+  dfYear.format(toDate(iso));
+export const fmtTime = (iso: string | { toDate?: () => Date; seconds?: number }) =>
+  tf.format(toDate(iso));
