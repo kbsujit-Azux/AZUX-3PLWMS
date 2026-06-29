@@ -306,8 +306,8 @@ function AllocationPage() {
               description: `PT-${newTicketNum} → ${realloc.palletId}/${realloc.location}`,
             });
           } else {
-            toast.warning(`Remaining ${remaining} units need manual allocation`, {
-              description: `PT-${newTicketNum} created with no available inventory`,
+            toast.error(`No other location found in the warehouse to fulfill order`, {
+              description: `Please cycle count and manual pick remaining ${remaining} units for PT-${newTicketNum}`,
             });
           }
         }
@@ -530,20 +530,32 @@ function AllocationPage() {
                 <TableHead className="text-[11px]">Ship To</TableHead>
                 <TableHead className="text-[11px]">Carrier</TableHead>
                 <TableHead className="text-[11px]">Tickets</TableHead>
-                <TableHead className="text-[11px]">Status</TableHead>
+                <TableHead className="text-[11px]">Pick Status</TableHead>
+                <TableHead className="text-[11px] text-right">Allocated</TableHead>
+                <TableHead className="text-[11px] text-right">Picked</TableHead>
+                <TableHead className="text-[11px] text-right">Short</TableHead>
+                <TableHead className="text-[11px]">Order Status</TableHead>
                 <TableHead className="text-[11px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {activeOrders.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-24 text-center text-xs text-muted-foreground">
+                  <TableCell
+                    colSpan={13}
+                    className="h-24 text-center text-xs text-muted-foreground"
+                  >
                     No ALLOCATED or PICKED orders.
                   </TableCell>
                 </TableRow>
               )}
               {activeOrders.map((o) => {
                 const orderTickets = activeTickets.filter((pt) => pt.orderId === o.id);
+                const allocatedUnits = orderTickets.reduce((s, pt) => s + pt.quantityToPick, 0);
+                const pickedUnits = orderTickets
+                  .filter((pt) => pt.status === "PICKED")
+                  .reduce((s, pt) => s + pt.quantityToPick, 0);
+                const shortUnits = allocatedUnits - pickedUnits;
                 return (
                   <TableRow key={o.id}>
                     <TableCell className="text-xs font-mono">{o.id}</TableCell>
@@ -553,6 +565,24 @@ function AllocationPage() {
                     <TableCell className="text-xs">{o.shipToName}</TableCell>
                     <TableCell className="text-xs">{o.carrier}</TableCell>
                     <TableCell className="text-xs">{orderTickets.length}</TableCell>
+                    <TableCell className="text-[11px]">
+                      {shortUnits > 0 ? (
+                        <span className="text-destructive font-medium">SHORT</span>
+                      ) : allocatedUnits > 0 && shortUnits === 0 ? (
+                        <span className="text-green-600 font-medium">FULLY PICKED</span>
+                      ) : (
+                        <span className="text-yellow-600 font-medium">WIP</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[11px] text-right tabular-nums">
+                      {allocatedUnits}
+                    </TableCell>
+                    <TableCell className="text-[11px] text-right tabular-nums">
+                      {pickedUnits}
+                    </TableCell>
+                    <TableCell className="text-[11px] text-right tabular-nums">
+                      {shortUnits}
+                    </TableCell>
                     <TableCell>{statusBadge(o.status)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
@@ -622,7 +652,9 @@ function AllocationPage() {
                 <TableHead className="text-[11px]">SKU</TableHead>
                 <TableHead className="text-[11px]">Pallet ID</TableHead>
                 <TableHead className="text-[11px]">From Location</TableHead>
-                <TableHead className="text-[11px] text-right">Qty</TableHead>
+                <TableHead className="text-[11px] text-right">Allocated</TableHead>
+                <TableHead className="text-[11px] text-right">Picked</TableHead>
+                <TableHead className="text-[11px] text-right">Non-picked</TableHead>
                 <TableHead className="text-[11px]">Status</TableHead>
                 <TableHead className="text-[11px]">Created</TableHead>
                 <TableHead className="text-[11px]">Picked</TableHead>
@@ -634,7 +666,7 @@ function AllocationPage() {
               {(livePickTickets.length ? livePickTickets : pickTickets).length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={11}
+                    colSpan={13}
                     className="h-24 text-center text-xs text-muted-foreground"
                   >
                     No pick tickets generated yet.
@@ -644,57 +676,63 @@ function AllocationPage() {
               {(livePickTickets.length ? livePickTickets : pickTickets)
                 .slice()
                 .sort((a, b) => b.pickTicketNum - a.pickTicketNum)
-                .map((pt) => (
-                  <TableRow key={`${pt.pickTicketNum}-${pt.sku}`}>
-                    <TableCell className="text-xs font-mono">#{pt.pickTicketNum}</TableCell>
-                    <TableCell className="text-xs font-mono">{pt.orderId}</TableCell>
-                    <TableCell className="text-xs">{pt.sku}</TableCell>
-                    <TableCell className="text-xs">{pt.palletId}</TableCell>
-                    <TableCell className="text-xs">{pt.fromLocation}</TableCell>
-                    <TableCell className="text-xs text-right">{pt.quantityToPick}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={`text-[11px] ${
-                          pt.status === "GENERATED"
-                            ? "bg-muted text-muted-foreground border-border"
-                            : pt.status === "PICKED"
-                              ? "bg-chart-4/15 text-chart-4 border-chart-4/30"
-                              : "bg-chart-3/15 text-chart-3 border-chart-3/30"
-                        }`}
-                      >
-                        {pt.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-[11px]">{fmtDateTime(pt.createdAt)}</TableCell>
-                    <TableCell className="text-[11px]">
-                      {pt.pickedAt ? fmtDateTime(pt.pickedAt) : "—"}
-                    </TableCell>
-                    <TableCell className="text-[11px]">
-                      {pt.closedAt ? fmtDateTime(pt.closedAt) : "—"}
-                    </TableCell>
-                    <TableCell className="text-[11px]">
-                      {pt.status === "GENERATED" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 text-[10px] gap-1"
-                          onClick={() =>
-                            handlePickSingleTicket(
-                              pt.pickTicketNum,
-                              pt.quantityToPick,
-                              pt.palletId,
-                              pt.fromLocation,
-                              pt.sku,
-                            )
-                          }
+                .map((pt) => {
+                  const picked = pt.qtyPicked ?? (pt.status === "PICKED" ? pt.quantityToPick : 0);
+                  const nonPicked = pt.quantityToPick - picked;
+                  return (
+                    <TableRow key={`${pt.pickTicketNum}-${pt.sku}`}>
+                      <TableCell className="text-xs font-mono">#{pt.pickTicketNum}</TableCell>
+                      <TableCell className="text-xs font-mono">{pt.orderId}</TableCell>
+                      <TableCell className="text-xs">{pt.sku}</TableCell>
+                      <TableCell className="text-xs">{pt.palletId}</TableCell>
+                      <TableCell className="text-xs">{pt.fromLocation}</TableCell>
+                      <TableCell className="text-xs text-right">{pt.quantityToPick}</TableCell>
+                      <TableCell className="text-xs text-right">{picked}</TableCell>
+                      <TableCell className="text-xs text-right">{nonPicked}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={`text-[11px] ${
+                            pt.status === "GENERATED"
+                              ? "bg-muted text-muted-foreground border-border"
+                              : pt.status === "PICKED"
+                                ? "bg-chart-4/15 text-chart-4 border-chart-4/30"
+                                : "bg-chart-3/15 text-chart-3 border-chart-3/30"
+                          }`}
                         >
-                          Pick
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                          {pt.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-[11px]">{fmtDateTime(pt.createdAt)}</TableCell>
+                      <TableCell className="text-[11px]">
+                        {pt.pickedAt ? fmtDateTime(pt.pickedAt) : "—"}
+                      </TableCell>
+                      <TableCell className="text-[11px]">
+                        {pt.closedAt ? fmtDateTime(pt.closedAt) : "—"}
+                      </TableCell>
+                      <TableCell className="text-[11px]">
+                        {pt.status === "GENERATED" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-[10px] gap-1"
+                            onClick={() =>
+                              handlePickSingleTicket(
+                                pt.pickTicketNum,
+                                pt.quantityToPick,
+                                pt.palletId,
+                                pt.fromLocation,
+                                pt.sku,
+                              )
+                            }
+                          >
+                            Pick
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
             </TableBody>
           </Table>
         </div>
@@ -738,7 +776,7 @@ function AllocationPage() {
                         {pt.status}
                       </span>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="grid grid-cols-4 gap-2 text-xs">
                       <div>
                         <span className="text-muted-foreground">SKU:</span> {pt.sku}
                       </div>
@@ -749,7 +787,20 @@ function AllocationPage() {
                         <span className="text-muted-foreground">Location:</span> {pt.fromLocation}
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Qty:</span> {pt.quantityToPick}{" "}
+                        <span className="text-muted-foreground">Status:</span> {pt.status}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Allocated:</span>{" "}
+                        {pt.quantityToPick} units
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Picked:</span>{" "}
+                        {pt.qtyPicked ?? (pt.status === "PICKED" ? pt.quantityToPick : 0)} units
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Non-picked:</span>{" "}
+                        {pt.quantityToPick -
+                          (pt.qtyPicked ?? (pt.status === "PICKED" ? pt.quantityToPick : 0))}{" "}
                         units
                       </div>
                       <div>
@@ -757,8 +808,12 @@ function AllocationPage() {
                         {fmtDateTime(pt.createdAt)}
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Picked:</span>{" "}
+                        <span className="text-muted-foreground">Picked at:</span>{" "}
                         {pt.pickedAt ? fmtDateTime(pt.pickedAt) : "—"}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Closed at:</span>{" "}
+                        {pt.closedAt ? fmtDateTime(pt.closedAt) : "—"}
                       </div>
                     </div>
                     {pt.status === "GENERATED" && (

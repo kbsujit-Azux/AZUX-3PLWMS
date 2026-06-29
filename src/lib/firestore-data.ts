@@ -473,25 +473,34 @@ export async function logInventoryTransaction(
 export async function fetchTransactionHistory(
   sku?: string,
   palletId?: string,
+  location?: string,
 ): Promise<InventoryTransaction[]> {
-  // Query all transactions and filter client-side (no index required)
   const snap = await getDocs(collection(db, "inventoryTransactions"));
   return snap.docs
     .map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as InventoryTransaction)
-    .filter((t) => (!sku || t.sku === sku) && (!palletId || t.palletId === palletId));
+    .filter(
+      (t) =>
+        (!sku || t.sku === sku) &&
+        (!palletId || t.palletId === palletId) &&
+        (!location || t.location === location),
+    );
 }
 
 export function subscribeTransactionHistory(
   callback: (txns: InventoryTransaction[]) => void,
   sku?: string,
   palletId?: string,
+  location?: string,
 ): Unsubscribe {
   return onSnapshot(collection(db, "inventoryTransactions"), (snap: QuerySnapshot) => {
     const all = snap.docs.map(
       (d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as InventoryTransaction,
     );
     const filtered = all.filter(
-      (t) => (!sku || t.sku === sku) && (!palletId || t.palletId === palletId),
+      (t) =>
+        (!sku || t.sku === sku) &&
+        (!palletId || t.palletId === palletId) &&
+        (!location || t.location === location),
     );
     callback(filtered);
   });

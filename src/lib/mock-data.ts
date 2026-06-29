@@ -359,6 +359,7 @@ export type PickTicket = {
   closedAt?: string;
   reallocated?: boolean;
   reallocatedAt?: string;
+  qtyPicked?: number;
 };
 
 /** Order status lifecycle */

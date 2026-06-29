@@ -277,11 +277,11 @@ function InventoryPage() {
     setHistoryLocation(location);
     setHistoryOpen(true);
     try {
-      const txns = await fetchTransactionHistory();
-      const filtered = txns.filter(
-        (t) => t.sku === sku && t.palletId === palletId && t.location === location,
-      );
-      setTransactions(filtered);
+      let txns = await fetchTransactionHistory(sku, palletId, location);
+      if (txns.length === 0 && location === "DROP001") {
+        txns = await fetchTransactionHistory(sku);
+      }
+      setTransactions(txns);
     } catch (e: any) {
       toast.error(`Failed to load history: ${e.message}`);
     }
