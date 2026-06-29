@@ -51,14 +51,20 @@ import {
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { type Order, type OrderLine } from "@/lib/edi-data";
-import { tenants, warehouses } from "@/lib/mock-data";
+import { tenants, warehouses, type PickTicket } from "@/lib/mock-data";
 import {
   carrierServices,
   getActiveCarriers,
   getServiceCodesByCarrier,
   type CarrierServiceRecord,
 } from "@/lib/carrier-services";
-import { createOrder, deleteOrder, updateOrder, getNextOrderSeq, shipOrder } from "@/lib/firestore-data";
+import {
+  createOrder,
+  deleteOrder,
+  updateOrder,
+  getNextOrderSeq,
+  shipOrder,
+} from "@/lib/firestore-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
 import { itemMaster, findItem } from "@/lib/master-data";
@@ -135,7 +141,7 @@ const statusStyles: Record<Order["status"], string> = {
 
 function OrdersPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { refreshData, orders } = useWmsData();
+  const { refreshData, orders, pickTickets } = useWmsData();
   const [query, setQuery] = useState("");
   const [csvOpen, setCsvOpen] = useState(false);
   const [tick, setTick] = useState(0);
@@ -198,7 +204,9 @@ function OrdersPage() {
     try {
       return await getNextOrderSeq();
     } catch {
-      return `SO#-${Math.floor(Math.random() * 1000000).toString().padStart(8, "0")}`;
+      return `SO#-${Math.floor(Math.random() * 1000000)
+        .toString()
+        .padStart(8, "0")}`;
     }
   };
 
@@ -619,6 +627,7 @@ function OrdersPage() {
         order={detailOrder}
         lines={detailOrder ? linesFor(detailOrder) : []}
         locked={detailOrder ? isLocked(detailOrder.status) : false}
+        pickTickets={pickTickets}
         tenantId={detailOrder?.tenantId ?? ""}
         carrierServices={carrierServices}
         onClose={() => setDetailOrderId(null)}
@@ -777,7 +786,7 @@ function NewOrderDialog({
     cancelDate: "",
     mustShipDate: "",
     lines: [{ sku: "", description: "", qtyOrdered: 1, qtyAllocated: 0, unitPrice: 0 }],
-});
+  });
   const [editingLineIdx, setEditingLineIdx] = useState<number | null>(null);
   const [lineDeleteIdx, setLineDeleteIdx] = useState<number | null>(null);
 
@@ -1546,6 +1555,7 @@ function OrderDetailDialog({
   order,
   lines,
   locked,
+  pickTickets: allPickTickets,
   tenantId,
   carrierServices,
   onClose,
@@ -1555,6 +1565,7 @@ function OrderDetailDialog({
   order: Order | null;
   lines: OrderLine[];
   locked: boolean;
+  pickTickets: PickTicket[];
   tenantId: string;
   carrierServices: CarrierServiceRecord[];
   onClose: () => void;
@@ -1586,6 +1597,8 @@ function OrderDetailDialog({
     l.sku ? validateLineAgainstItemMaster({ sku: l.sku, tenantId }) : null,
   );
   const hasExceptions = exceptionReasons.some(Boolean);
+  const orderPickTickets = allPickTickets.filter((pt) => pt.orderId === order.id);
+  const linesLocked = order.status === "new" && orderPickTickets.length === 0;
 
   const handleSkuChange = (idx: number, sku: string) => {
     const item = findItem(sku);
@@ -1611,6 +1624,10 @@ function OrderDetailDialog({
       toast.error("Cannot edit lines on picking or shipped orders");
       return;
     }
+    if (linesLocked) {
+      toast.error("Allocate or pick this order before editing lines");
+      return;
+    }
     setLineDeleteIdx(idx);
   };
 
@@ -1622,7 +1639,7 @@ function OrderDetailDialog({
   };
 
   const addLine = () => {
-    if (locked) return;
+    if (locked || linesLocked) return;
     setDraft((prev) => [
       ...prev,
       { sku: "", description: "", qtyOrdered: 0, qtyAllocated: 0, unitPrice: 0 },
@@ -1652,9 +1669,15 @@ function OrderDetailDialog({
           {locked && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
-              This order is in <strong>{order.status}</strong> status â€” lines are read-only. Only{" "}
+              This order is in <strong>{order.status}</strong> status — lines are read-only. Only{" "}
               <em>new</em>, <em>released</em>, <em>packed</em>, or <em>exception</em> orders can be
               edited.
+            </div>
+          )}
+          {linesLocked && !locked && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Lines are locked until this order is allocated or picked.
             </div>
           )}
 
@@ -1823,6 +1846,12 @@ function OrderDetailDialog({
                     Qty Alloc
                   </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Picked
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Non-picked
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
                     Cartons
                   </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider text-right">
@@ -1840,7 +1869,7 @@ function OrderDetailDialog({
                 {draft.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={13}
+                      colSpan={15}
                       className="text-center text-xs text-muted-foreground py-6"
                     >
                       No lines on this order.
@@ -1850,6 +1879,15 @@ function OrderDetailDialog({
                 {draft.map((l, idx) => {
                   const editing = editingIdx === idx;
                   const excReason = exceptionReasons[idx];
+                  const linePts = allPickTickets.filter(
+                    (pt) => pt.orderId === order.id && pt.sku === l.sku,
+                  );
+                  const linePicked = linePts.reduce(
+                    (s, pt) =>
+                      s + (pt.qtyPicked ?? (pt.status === "PICKED" ? pt.quantityToPick : 0)),
+                    0,
+                  );
+                  const lineNonPicked = l.qtyOrdered - linePicked;
                   return (
                     <TableRow
                       key={idx}
@@ -1980,6 +2018,38 @@ function OrderDetailDialog({
                           <Input
                             type="number"
                             min={0}
+                            value={linePicked}
+                            disabled
+                            className="h-7 text-xs text-right w-20 ml-auto bg-muted"
+                          />
+                        ) : (
+                          <span className="text-chart-4">{linePicked.toLocaleString()}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right tabular-nums">
+                        {editing ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            value={lineNonPicked}
+                            disabled
+                            className="h-7 text-xs text-right w-20 ml-auto bg-muted"
+                          />
+                        ) : (
+                          <span
+                            className={
+                              lineNonPicked > 0 ? "text-destructive" : "text-muted-foreground"
+                            }
+                          >
+                            {lineNonPicked.toLocaleString()}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right tabular-nums">
+                        {editing ? (
+                          <Input
+                            type="number"
+                            min={0}
                             value={l.cartons || 0}
                             onChange={(e) =>
                               updateLine(idx, { cartons: Number(e.target.value) || 0 })
@@ -2026,9 +2096,9 @@ function OrderDetailDialog({
                               size="icon"
                               variant="ghost"
                               className="h-7 w-7"
-                              disabled={locked}
+                              disabled={locked || linesLocked}
                               onClick={() => setEditingIdx(idx)}
-                              title={locked ? "Locked" : "Edit"}
+                              title={locked || linesLocked ? "Locked" : "Edit"}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -2037,9 +2107,9 @@ function OrderDetailDialog({
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7 text-destructive hover:text-destructive"
-                            disabled={locked}
+                            disabled={locked || linesLocked}
                             onClick={() => setLineDeleteIdx(idx)}
-                            title={locked ? "Locked" : "Delete line"}
+                            title={locked || linesLocked ? "Locked" : "Delete line"}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -2057,7 +2127,7 @@ function OrderDetailDialog({
               variant="outline"
               size="sm"
               className="h-8 text-xs gap-1.5"
-              disabled={locked}
+              disabled={locked || linesLocked}
               onClick={addLine}
             >
               <Plus className="h-3.5 w-3.5" /> Add line

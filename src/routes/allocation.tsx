@@ -43,10 +43,13 @@ import {
   validateOrderForDeallocation,
   validateOrderForPick,
   validateOrderForUnpick,
+  validateOrderForShip,
 } from "@/lib/allocation-engine";
 import {
   executeDirectedPick,
+  executeManualPick,
   updateOrder,
+  syncOrderStatusFromPickTickets,
   getNextPickTicketSeq,
   reallocatePickTicket,
   doc,
@@ -165,6 +168,28 @@ function AllocationPage() {
     },
   );
 
+  const [manualPickDialog, setManualPickDialog] = useState<{
+    open: boolean;
+    pickTicketNum: number;
+    sku: string;
+    palletId: string;
+    fromLocation: string;
+    qtyAllocated: number;
+    qtyPicked: number;
+    qtyToPick: number;
+    orderId: string;
+  }>({
+    open: false,
+    pickTicketNum: 0,
+    sku: "",
+    palletId: "",
+    fromLocation: "",
+    qtyAllocated: 0,
+    qtyPicked: 0,
+    qtyToPick: 0,
+    orderId: "",
+  });
+
   const showError = (title: string, message: string) => {
     setErrorDialog({ open: true, title, message });
   };
@@ -237,8 +262,7 @@ function AllocationPage() {
       );
 
       if (results.every((r) => r.success)) {
-        // Update order status to PICKED
-        await updateOrder(orderId, { status: "PICKED" });
+        await syncOrderStatusFromPickTickets(orderId);
         toast.success(`Order ${orderId} picked`, {
           description: `${pts.length} ticket(s) moved to DROP001`,
         });
@@ -313,14 +337,17 @@ function AllocationPage() {
         }
         const orderId = pickTickets.find((pt) => pt.pickTicketNum === pickTicketNum)?.orderId;
         if (orderId) {
-          const allPicked = pickTickets.every(
-            (pt) => pt.orderId !== orderId || pt.status === "PICKED",
-          );
-          if (allPicked && qtyToPick >= pickDialog.qtyAllocated) {
-            await updateOrder(orderId, { status: "PICKED" });
-            toast.success(`Order ${orderId} fully picked`, {
-              description: "All items moved to staging",
-            });
+          await syncOrderStatusFromPickTickets(orderId);
+          const refreshedOrder = pickTickets.find((pt) => pt.pickTicketNum === pickTicketNum);
+          if (refreshedOrder && refreshedOrder.orderId) {
+            const allPickedForOrder = pickTickets.every(
+              (pt) => pt.orderId !== refreshedOrder.orderId || pt.status === "PICKED",
+            );
+            if (allPickedForOrder) {
+              toast.success(`Order ${refreshedOrder.orderId} fully picked`, {
+                description: "All items moved to staging",
+              });
+            }
           }
         }
         refreshData();
@@ -354,6 +381,7 @@ function AllocationPage() {
         toast.success(`Order ${orderId} unpicked`, {
           description: `Ticket #${result.pickTicketNum} · ${result.unpickedLines.length} line(s) returned`,
         });
+        await syncOrderStatusFromPickTickets(orderId);
       } else {
         showError("Unpick Failed", result.error || "Unknown error");
       }
@@ -374,11 +402,68 @@ function AllocationPage() {
         toast.success(`Order ${orderId} shipped`, {
           description: `BOL ${result.bolNumber} · Ticket #${result.pickTicketNum} closed`,
         });
+        await syncOrderStatusFromPickTickets(orderId);
       } else {
         showError("Ship Failed", result.error || "Unknown error");
       }
     } catch (e) {
       showError("Ship Error", (e as Error).message);
+    }
+  };
+
+  const handleOpenManualPick = (pt: PickTicket) => {
+    const picked = pt.qtyPicked ?? (pt.status === "PICKED" ? pt.quantityToPick : 0);
+    setManualPickDialog({
+      open: true,
+      pickTicketNum: pt.pickTicketNum,
+      sku: pt.sku,
+      palletId: pt.palletId,
+      fromLocation: pt.fromLocation,
+      qtyAllocated: pt.quantityToPick,
+      qtyPicked: picked,
+      qtyToPick: pt.quantityToPick - picked,
+      orderId: pt.orderId,
+    });
+  };
+
+  const handleConfirmManualPick = async () => {
+    const { sku, palletId, fromLocation, qtyAllocated, qtyPicked, qtyToPick, orderId } =
+      manualPickDialog;
+    const remaining = qtyAllocated - qtyPicked;
+    if (qtyToPick <= 0 || qtyToPick > remaining) {
+      showError("Invalid Quantity", `Pick quantity must be between 1 and ${remaining}.`);
+      return;
+    }
+    try {
+      const result = await executeManualPick({
+        orderId,
+        sku,
+        palletId,
+        location: fromLocation,
+        qtyPicked: qtyToPick,
+        user: "allocation-ui",
+      });
+      if (result.success) {
+        toast.success(`Manual pick PT-${result.pickTicketNum} created`, {
+          description: `${qtyToPick} units moved to DROP001`,
+        });
+        await syncOrderStatusFromPickTickets(orderId);
+        refreshData();
+      }
+    } catch (e) {
+      showError("Manual Pick Error", e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setManualPickDialog({
+        open: false,
+        pickTicketNum: 0,
+        sku: "",
+        palletId: "",
+        fromLocation: "",
+        qtyAllocated: 0,
+        qtyPicked: 0,
+        qtyToPick: 0,
+        orderId: "",
+      });
     }
   };
 
@@ -729,6 +814,16 @@ function AllocationPage() {
                             Pick
                           </Button>
                         )}
+                        {pt.status === "GENERATED" && nonPicked > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-[10px] gap-1 text-destructive"
+                            onClick={() => handleOpenManualPick(pt)}
+                          >
+                            Manual Pick
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -817,7 +912,7 @@ function AllocationPage() {
                       </div>
                     </div>
                     {pt.status === "GENERATED" && (
-                      <div className="mt-2 pt-2 border-t border-border">
+                      <div className="mt-2 pt-2 border-t border-border flex items-center gap-2">
                         <Button
                           size="sm"
                           className="h-7 text-xs gap-1"
@@ -833,6 +928,16 @@ function AllocationPage() {
                         >
                           Pick
                         </Button>
+                        {pt.quantityToPick - (pt.qtyPicked ?? 0) > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1 text-destructive"
+                            onClick={() => handleOpenManualPick(pt)}
+                          >
+                            Manual Pick
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -941,6 +1046,107 @@ function AllocationPage() {
               onClick={() => setErrorDialog((d) => ({ ...d, open: false }))}
             >
               Dismiss
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Pick Dialog */}
+      <Dialog
+        open={manualPickDialog.open}
+        onOpenChange={(open) =>
+          !open &&
+          setManualPickDialog({
+            open: false,
+            pickTicketNum: 0,
+            sku: "",
+            palletId: "",
+            fromLocation: "",
+            qtyAllocated: 0,
+            qtyPicked: 0,
+            qtyToPick: 0,
+            orderId: "",
+          })
+        }
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Manual Pick</DialogTitle>
+            <DialogDescription className="text-xs">
+              PT-{manualPickDialog.pickTicketNum} · SKU: {manualPickDialog.sku}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] uppercase text-muted-foreground">Pallet ID</label>
+                <Input
+                  value={manualPickDialog.palletId}
+                  onChange={(e) => setManualPickDialog((d) => ({ ...d, palletId: e.target.value }))}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase text-muted-foreground">Location</label>
+                <Input
+                  value={manualPickDialog.fromLocation}
+                  onChange={(e) =>
+                    setManualPickDialog((d) => ({ ...d, fromLocation: e.target.value }))
+                  }
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Remaining to pick:{" "}
+              <span className="font-medium text-foreground">
+                {manualPickDialog.qtyAllocated - manualPickDialog.qtyPicked} units
+              </span>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase text-muted-foreground">
+                Qty to Pick (max {manualPickDialog.qtyAllocated - manualPickDialog.qtyPicked})
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={manualPickDialog.qtyAllocated - manualPickDialog.qtyPicked}
+                value={manualPickDialog.qtyToPick}
+                onChange={(e) =>
+                  setManualPickDialog((d) => ({
+                    ...d,
+                    qtyToPick: Math.min(
+                      parseInt(e.target.value) || 0,
+                      d.qtyAllocated - d.qtyPicked,
+                    ),
+                  }))
+                }
+                className="h-8 text-xs font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setManualPickDialog({
+                  open: false,
+                  pickTicketNum: 0,
+                  sku: "",
+                  palletId: "",
+                  fromLocation: "",
+                  qtyAllocated: 0,
+                  qtyPicked: 0,
+                  qtyToPick: 0,
+                  orderId: "",
+                })
+              }
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleConfirmManualPick}>
+              Confirm Manual Pick
             </Button>
           </DialogFooter>
         </DialogContent>

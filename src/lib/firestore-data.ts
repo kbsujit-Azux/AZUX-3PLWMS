@@ -260,6 +260,30 @@ export async function updateOrder(orderId: string, updates: Partial<Order>) {
   await setDoc(doc(db, "orders", orderId), updates, { merge: true });
 }
 
+export async function syncOrderStatusFromPickTickets(orderId: string): Promise<void> {
+  const ptSnap = await getDocs(
+    query(collection(db, "pickTickets"), where("orderId", "==", orderId)),
+  );
+  const pts = ptSnap.docs.map(
+    (d) => ({ ...(d.data() ?? {}), id: d.id, pickTicketNum: d.id }) as unknown as PickTicket,
+  );
+  if (pts.length === 0) return;
+
+  const allPicked = pts.every((pt) => pt.status === "PICKED" || pt.status === "CLOSED");
+  const anyPicked = pts.some((pt) => pt.status === "PICKED" || pt.status === "CLOSED");
+  const allClosed = pts.every((pt) => pt.status === "CLOSED");
+
+  if (allClosed) {
+    await updateOrder(orderId, { status: "shipped" });
+  } else if (allPicked) {
+    await updateOrder(orderId, { status: "PICKED" });
+  } else if (anyPicked) {
+    await updateOrder(orderId, { status: "picking" });
+  } else {
+    await updateOrder(orderId, { status: "ALLOCATED" });
+  }
+}
+
 export async function createOrder(order: Order) {
   await setDoc(doc(db, "orders", order.id), order);
 }
@@ -619,6 +643,117 @@ export async function executeDirectedPick(
     });
 
     return { success: true };
+  });
+}
+
+export async function executeManualPick(params: {
+  orderId: string;
+  sku: string;
+  palletId: string;
+  location: string;
+  qtyPicked: number;
+  user?: string;
+}): Promise<{ success: boolean; pickTicketNum: number; message?: string }> {
+  const { orderId, sku, palletId, location, qtyPicked, user = "picker" } = params;
+  if (qtyPicked <= 0) {
+    throw new Error("Pick quantity must be greater than 0");
+  }
+
+  return await runTransaction(db, async (transaction) => {
+    const invRef = doc(db, "inventoryItems", sku);
+    const invSnap = await transaction.get(invRef);
+    if (!invSnap.exists()) {
+      throw new Error(`SKU ${sku} not found in inventory`);
+    }
+
+    const item = invSnap.data() as InventoryItem;
+    const batchIndex = item.batches?.findIndex(
+      (b) => b.palletId === palletId && b.location === location,
+    );
+    if (batchIndex === undefined || batchIndex < 0) {
+      throw new Error(`Batch not found at ${location} for pallet ${palletId}`);
+    }
+
+    const batch = item.batches![batchIndex];
+    const qtyBefore = batch.qty;
+    const qtyAfter = qtyBefore - qtyPicked;
+
+    if (qtyAfter < 0) {
+      throw new Error(`Insufficient quantity. Available: ${qtyBefore}, Requested: ${qtyPicked}`);
+    }
+
+    const updatedBatches = [...(item.batches || [])];
+    updatedBatches[batchIndex] = {
+      ...batch,
+      qty: qtyAfter,
+      qtyAllocated: Math.max(0, batch.qtyAllocated - qtyPicked),
+    };
+
+    const pickTicketNum = await getNextPickTicketSeq();
+    const dropBatch = {
+      batchId: `DROP-${Date.now()}-${pickTicketNum}`,
+      palletId,
+      location: DROP001_LOCATION,
+      qty: qtyPicked,
+      qtyAllocated: 0,
+      receivedAt: new Date().toISOString(),
+      pickTicketNum,
+      poNumber: "",
+      ediSource: "MANUAL" as const,
+    };
+    updatedBatches.push(dropBatch);
+
+    transaction.update(invRef, {
+      batches: updatedBatches,
+    });
+
+    const ptRef = doc(db, "pickTickets", pickTicketNum.toString());
+    transaction.set(ptRef, {
+      pickTicketNum,
+      orderId,
+      sku,
+      palletId,
+      fromLocation: location,
+      quantityToPick: qtyPicked,
+      status: "PICKED",
+      createdAt: new Date().toISOString(),
+      pickedAt: new Date().toISOString(),
+      qtyPicked,
+    });
+
+    const outTxnId = `TX-${Date.now()}-PICK`;
+    transaction.set(doc(db, "inventoryTransactions", outTxnId), {
+      sku,
+      palletId,
+      location,
+      orderId,
+      pickTicketNum,
+      type: "PICK",
+      qtyChange: -qtyPicked,
+      qtyBefore,
+      qtyAfter,
+      user,
+      notes: `Manual pick ${qtyPicked} units for PT-${pickTicketNum}`,
+      timestamp: serverTimestamp(),
+    });
+
+    const inTxnId = `TX-${Date.now()}-DROP`;
+    transaction.set(doc(db, "inventoryTransactions", inTxnId), {
+      sku,
+      palletId,
+      location: DROP001_LOCATION,
+      orderId,
+      pickTicketNum,
+      type: "RECEIVE",
+      qtyChange: qtyPicked,
+      qtyBefore: 0,
+      qtyAfter: qtyPicked,
+      user,
+      notes: `PT-${pickTicketNum} staged at DROP001`,
+      timestamp: serverTimestamp(),
+    });
+
+    return { success: true, pickTicketNum };
   });
 }
 
