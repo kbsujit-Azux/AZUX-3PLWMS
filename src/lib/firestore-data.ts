@@ -490,10 +490,14 @@ export function subscribeTransactionHistory(
     const all = snap.docs.map(
       (d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as InventoryTransaction,
     );
-    const filtered = all.filter((t) => (!sku || t.sku === sku) && (!palletId || t.palletId === palletId));
+    const filtered = all.filter(
+      (t) => (!sku || t.sku === sku) && (!palletId || t.palletId === palletId),
+    );
     callback(filtered);
   });
 }
+
+export { doc, setDoc } from "firebase/firestore";
 
 // ============================================================
 // Directed Pick with Transaction Management
@@ -528,9 +532,7 @@ export async function executeDirectedPick(
       (b) => b.palletId === pt.palletId && b.location === pt.fromLocation,
     );
     if (batchIndex === undefined || batchIndex < 0) {
-      throw new Error(
-        `Batch not found at ${pt.fromLocation} for pallet ${pt.palletId}`,
-      );
+      throw new Error(`Batch not found at ${pt.fromLocation} for pallet ${pt.palletId}`);
     }
 
     const batch = item.batches![batchIndex];
@@ -538,9 +540,7 @@ export async function executeDirectedPick(
     const qtyAfter = qtyBefore - qtyPicked;
 
     if (qtyAfter < 0) {
-      throw new Error(
-        `Insufficient quantity. Available: ${qtyBefore}, Requested: ${qtyPicked}`,
-      );
+      throw new Error(`Insufficient quantity. Available: ${qtyBefore}, Requested: ${qtyPicked}`);
     }
 
     // Create updated batches array with modified source batch and new DROP001 batch
@@ -554,7 +554,7 @@ export async function executeDirectedPick(
     // Create DROP001 batch entry in inventory
     const dropBatch = {
       batchId: `DROP-${Date.now()}-${pt.pickTicketNum}`,
-      palletId: `DROP-${pt.pickTicketNum.toString().padStart(8, "0")}`,
+      palletId: pt.palletId,
       location: DROP001_LOCATION,
       qty: qtyPicked,
       qtyAllocated: 0,
@@ -575,9 +575,9 @@ export async function executeDirectedPick(
       qtyPicked: qtyPicked,
     });
 
-    // Log the transaction
-    const txnId = `TX-${Date.now()}-PICK`;
-    transaction.set(doc(db, "inventoryTransactions", txnId), {
+    // Log outbound transaction (original location)
+    const outTxnId = `TX-${Date.now()}-PICK`;
+    transaction.set(doc(db, "inventoryTransactions", outTxnId), {
       sku: pt.sku,
       palletId: pt.palletId,
       location: pt.fromLocation,
@@ -589,6 +589,23 @@ export async function executeDirectedPick(
       qtyAfter,
       user,
       notes: `Pulled ${qtyPicked} units for PT-${pickTicketNum}`,
+      timestamp: serverTimestamp(),
+    });
+
+    // Log inbound transaction (DROP001 receipt)
+    const inTxnId = `TX-${Date.now()}-DROP`;
+    transaction.set(doc(db, "inventoryTransactions", inTxnId), {
+      sku: pt.sku,
+      palletId: pt.palletId,
+      location: DROP001_LOCATION,
+      orderId: pt.orderId,
+      pickTicketNum: pt.pickTicketNum,
+      type: "RECEIVE",
+      qtyChange: qtyPicked,
+      qtyBefore: 0,
+      qtyAfter: qtyPicked,
+      user,
+      notes: `PT-${pickTicketNum} staged at DROP001`,
       timestamp: serverTimestamp(),
     });
 
@@ -620,15 +637,8 @@ export async function reallocatePickTicket(
     const item = invSnap.data() as InventoryItem;
     const nonAllocatable = DROP001_LOCATION;
     const availableBatch = item.batches
-      ?.filter(
-        (b) =>
-          b.location !== nonAllocatable &&
-          b.qty - (b.qtyAllocated || 0) > 0,
-      )
-      .sort(
-        (a, b) =>
-          new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
-      )[0];
+      ?.filter((b) => b.location !== nonAllocatable && b.qty - (b.qtyAllocated || 0) > 0)
+      .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())[0];
 
     if (!availableBatch) {
       return null;
@@ -730,17 +740,33 @@ export async function shipOrder(orderId: string): Promise<ShipResult> {
   try {
     // Get order first
     const ordersSnap = await getDocs(collection(db, "orders"));
-    const order = ordersSnap.docs.map(d => ({ id: d.id, ...(d.data() ?? {}) }) as Order).find(o => o.id === orderId);
+    const order = ordersSnap.docs
+      .map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as Order)
+      .find((o) => o.id === orderId);
     if (!order) {
-      return { success: false, bolNumber: "", shippedLines: [], error: `Order ${orderId} not found` };
+      return {
+        success: false,
+        bolNumber: "",
+        shippedLines: [],
+        error: `Order ${orderId} not found`,
+      };
     }
 
     // Check pick tickets
-    const ptSnap = await getDocs(query(collection(db, "pickTickets"), where("orderId", "==", orderId)));
-    const pts = ptSnap.docs.map((d) => ({ ...(d.data() ?? {}), id: d.id, pickTicketNum: d.id }) as unknown as PickTicket);
+    const ptSnap = await getDocs(
+      query(collection(db, "pickTickets"), where("orderId", "==", orderId)),
+    );
+    const pts = ptSnap.docs.map(
+      (d) => ({ ...(d.data() ?? {}), id: d.id, pickTicketNum: d.id }) as unknown as PickTicket,
+    );
     const unpicked = pts.filter((pt) => pt.status !== "PICKED");
     if (unpicked.length > 0) {
-      return { success: false, bolNumber: "", shippedLines: [], error: `Order has ${unpicked.length} unpicked pick tickets` };
+      return {
+        success: false,
+        bolNumber: "",
+        shippedLines: [],
+        error: `Order has ${unpicked.length} unpicked pick tickets`,
+      };
     }
 
     // Get the orderRef for transaction use
@@ -804,22 +830,38 @@ export async function shipOrder(orderId: string): Promise<ShipResult> {
         const invSnap = await transaction.get(invRef);
         if (invSnap.exists()) {
           const item = invSnap.data() as InventoryItem;
-          const newBatches = item.batches?.filter(
-            (b) => !(b.palletId === pt.palletId && b.location === DROP001_LOCATION && b.pickTicketNum === pt.pickTicketNum),
-          ) || [];
+          const newBatches =
+            item.batches?.filter(
+              (b) =>
+                !(
+                  b.palletId === pt.palletId &&
+                  b.location === DROP001_LOCATION &&
+                  b.pickTicketNum === pt.pickTicketNum
+                ),
+            ) || [];
           transaction.update(invRef, { batches: newBatches });
         }
       }
 
-      // Log ship transaction
-      const txnRef = doc(db, "inventoryTransactions", `TX-SHIP-${Date.now()}`);
-      transaction.set(txnRef, {
-        type: "SHIP",
-        orderId,
-        qtyChange: -shippedLines.reduce((a, l) => a + l.qtyShipped, 0),
-        user: "system",
-        timestamp: serverTimestamp(),
-      });
+      // Log ship transactions (one per shipped line for accurate history)
+      for (const line of shippedLines) {
+        const shipTxnId = `TX-SHIP-${Date.now()}-${line.palletId}`;
+        transaction.set(doc(db, "inventoryTransactions", shipTxnId), {
+          sku: line.sku,
+          palletId: line.palletId,
+          location: line.location,
+          orderId,
+          pickTicketNum: pts.find((pt) => pt.sku === line.sku && pt.palletId === line.palletId)
+            ?.pickTicketNum,
+          type: "SHIP",
+          qtyChange: -line.qtyShipped,
+          qtyBefore: line.qtyShipped,
+          qtyAfter: 0,
+          user: "system",
+          notes: `Shipped ${line.qtyShipped} units via BOL ${bolNumber}`,
+          timestamp: serverTimestamp(),
+        });
+      }
 
       return { success: true, bolNumber, shippedLines };
     });
@@ -831,7 +873,10 @@ export async function shipOrder(orderId: string): Promise<ShipResult> {
 // ============================================================
 // Bills of Lading
 // ============================================================
-export async function fetchBillsOfLading(tenantId?: string, warehouseId?: string): Promise<BillOfLading[]> {
+export async function fetchBillsOfLading(
+  tenantId?: string,
+  warehouseId?: string,
+): Promise<BillOfLading[]> {
   let q: Query = collection(db, "billsOfLading");
   if (tenantId && tenantId !== "all") {
     q = query(q, where("tenantId", "==", tenantId));
@@ -844,7 +889,11 @@ export async function fetchBillsOfLading(tenantId?: string, warehouseId?: string
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as BillOfLading);
 }
 
-export function subscribeBillsOfLading(callback: (bols: BillOfLading[]) => void, tenantId?: string, warehouseId?: string): Unsubscribe {
+export function subscribeBillsOfLading(
+  callback: (bols: BillOfLading[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
   let q: Query = collection(db, "billsOfLading");
   if (tenantId && tenantId !== "all") {
     q = query(q, where("tenantId", "==", tenantId));
@@ -945,25 +994,25 @@ export async function deallocateOrderTransactional(
         transaction.update(orderRef, { status: "new" });
       }
 
-// Update each affected inventory item - SUBTRACT allocated qty on deallocate
-       for (const line of lines) {
-         const invRef = doc(db, "inventoryItems", line.sku);
-         const invSnap = await transaction.get(invRef);
-         if (invSnap.exists()) {
-           const item = invSnap.data() as InventoryItem;
-           const batch = item.batches?.find(
-             (b) => b.palletId === line.palletId && b.location === line.location,
-           );
-           if (batch) {
-             const batchIndex = item.batches!.indexOf(batch);
-             const currentAllocated = batch.qtyAllocated || 0;
-             const newAllocated = Math.max(0, currentAllocated - line.qty);
-             transaction.update(invRef, {
-               [`batches.${batchIndex}.qtyAllocated`]: newAllocated,
-             });
-           }
-         }
-       }
+      // Update each affected inventory item - SUBTRACT allocated qty on deallocate
+      for (const line of lines) {
+        const invRef = doc(db, "inventoryItems", line.sku);
+        const invSnap = await transaction.get(invRef);
+        if (invSnap.exists()) {
+          const item = invSnap.data() as InventoryItem;
+          const batch = item.batches?.find(
+            (b) => b.palletId === line.palletId && b.location === line.location,
+          );
+          if (batch) {
+            const batchIndex = item.batches!.indexOf(batch);
+            const currentAllocated = batch.qtyAllocated || 0;
+            const newAllocated = Math.max(0, currentAllocated - line.qty);
+            transaction.update(invRef, {
+              [`batches.${batchIndex}.qtyAllocated`]: newAllocated,
+            });
+          }
+        }
+      }
     });
 
     // Delete pick tickets for this order

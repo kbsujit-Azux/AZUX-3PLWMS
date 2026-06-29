@@ -44,7 +44,15 @@ import {
   validateOrderForPick,
   validateOrderForUnpick,
 } from "@/lib/allocation-engine";
-import { executeDirectedPick, updateOrder } from "@/lib/firestore-data";
+import {
+  executeDirectedPick,
+  updateOrder,
+  getNextPickTicketSeq,
+  reallocatePickTicket,
+  doc,
+  setDoc,
+} from "@/lib/firestore-data";
+import { db } from "@/lib/firestore";
 import type { PickTicket } from "@/lib/mock-data";
 import { fmtDateTime } from "@/lib/utils";
 
@@ -131,11 +139,31 @@ function AllocationPage() {
     orderId: null,
   });
 
-  const [errorDialog, setErrorDialog] = useState<{ open: boolean; title: string; message: string }>({
+  const [pickDialog, setPickDialog] = useState<{
+    open: boolean;
+    pickTicketNum: number;
+    sku: string;
+    palletId: string;
+    fromLocation: string;
+    qtyAllocated: number;
+    qtyToPick: number;
+  }>({
     open: false,
-    title: "",
-    message: "",
+    pickTicketNum: 0,
+    sku: "",
+    palletId: "",
+    fromLocation: "",
+    qtyAllocated: 0,
+    qtyToPick: 0,
   });
+
+  const [errorDialog, setErrorDialog] = useState<{ open: boolean; title: string; message: string }>(
+    {
+      open: false,
+      title: "",
+      message: "",
+    },
+  );
 
   const showError = (title: string, message: string) => {
     setErrorDialog({ open: true, title, message });
@@ -194,52 +222,125 @@ function AllocationPage() {
         showError("Validation Failed", `No GENERATED pick tickets found for order ${orderId}.`);
         return;
       }
-      
+
       // Execute directed pick for each ticket
       const results = await Promise.all(
-        pts.map((pt) => executeDirectedPick(pt.pickTicketNum, pt.quantityToPick, pt.palletId, pt.fromLocation, "allocation-ui"))
+        pts.map((pt) =>
+          executeDirectedPick(
+            pt.pickTicketNum,
+            pt.quantityToPick,
+            pt.palletId,
+            pt.fromLocation,
+            "allocation-ui",
+          ),
+        ),
       );
-      
-      if (results.every(r => r.success)) {
+
+      if (results.every((r) => r.success)) {
         // Update order status to PICKED
         await updateOrder(orderId, { status: "PICKED" });
         toast.success(`Order ${orderId} picked`, {
           description: `${pts.length} ticket(s) moved to DROP001`,
         });
       } else {
-        showError("Pick Failed", results.find(r => !r.success)?.message || "Unknown error");
+        showError("Pick Failed", results.find((r) => !r.success)?.message || "Unknown error");
       }
-} catch (e: any) {
-       showError("Pick Error", e.message);
-     }
-   };
+    } catch (e) {
+      showError("Pick Error", e instanceof Error ? e.message : "Unknown error");
+    }
+  };
 
-  const handlePickSingleTicket = async (pickTicketNum: number, qty: number, palletId: string, location: string) => {
+  const handlePickSingleTicket = async (
+    pickTicketNum: number,
+    qty: number,
+    palletId: string,
+    location: string,
+    sku: string,
+  ) => {
+    setPickDialog({
+      open: true,
+      pickTicketNum,
+      qtyAllocated: qty,
+      palletId,
+      fromLocation: location,
+      qtyToPick: qty,
+      sku,
+    });
+  };
+
+  const handleConfirmPick = async () => {
+    const { pickTicketNum, qtyToPick, palletId, fromLocation } = pickDialog;
+    if (qtyToPick <= 0 || qtyToPick > pickDialog.qtyAllocated) {
+      showError("Invalid Quantity", "Pick quantity must be between 1 and allocated amount.");
+      return;
+    }
     try {
-      const result = await executeDirectedPick(pickTicketNum, qty, palletId, location, "allocation-ui");
+      const result = await executeDirectedPick(
+        pickTicketNum,
+        qtyToPick,
+        palletId,
+        fromLocation,
+        "allocation-ui",
+      );
       if (result.success) {
         toast.success(`Pick ticket #${pickTicketNum} executed`, {
-          description: `${qty} units moved to DROP001`,
+          description: `${qtyToPick} units moved to DROP001`,
         });
-        // Check if all tickets for this order are now PICKED
+        if (qtyToPick < pickDialog.qtyAllocated) {
+          const remaining = pickDialog.qtyAllocated - qtyToPick;
+          const newTicketNum = await getNextPickTicketSeq();
+          const ptRef = doc(db, "pickTickets", newTicketNum.toString());
+          await setDoc(ptRef, {
+            pickTicketNum: newTicketNum,
+            orderId: pickTickets.find((pt) => pt.pickTicketNum === pickTicketNum)?.orderId,
+            sku: pickDialog.sku,
+            palletId: "",
+            fromLocation: "",
+            quantityToPick: remaining,
+            status: "GENERATED",
+            createdAt: new Date().toISOString(),
+          });
+          const realloc = await reallocatePickTicket(newTicketNum, "allocation-ui");
+          if (realloc) {
+            toast.info(`Remaining ${remaining} units reallocated`, {
+              description: `PT-${newTicketNum} → ${realloc.palletId}/${realloc.location}`,
+            });
+          } else {
+            toast.warning(`Remaining ${remaining} units need manual allocation`, {
+              description: `PT-${newTicketNum} created with no available inventory`,
+            });
+          }
+        }
         const orderId = pickTickets.find((pt) => pt.pickTicketNum === pickTicketNum)?.orderId;
         if (orderId) {
-          const allPicked = pickTickets.every((pt) => 
-            pt.orderId !== orderId || pt.status === "PICKED"
+          const allPicked = pickTickets.every(
+            (pt) => pt.orderId !== orderId || pt.status === "PICKED",
           );
-          if (allPicked) {
+          if (allPicked && qtyToPick >= pickDialog.qtyAllocated) {
             await updateOrder(orderId, { status: "PICKED" });
-            toast.success(`Order ${orderId} fully picked`, { description: "All items moved to staging" });
+            toast.success(`Order ${orderId} fully picked`, {
+              description: "All items moved to staging",
+            });
           }
         }
         refreshData();
       } else {
         showError("Pick Failed", result.message || "Unknown error");
       }
-    } catch (e: any) {
-      showError("Pick Error", e.message);
+    } catch (e) {
+      showError("Pick Error", e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setPickDialog({
+        open: false,
+        pickTicketNum: 0,
+        sku: "",
+        palletId: "",
+        fromLocation: "",
+        qtyAllocated: 0,
+        qtyToPick: 0,
+      });
     }
-   };
+  };
 
   const handleUnpick = async (orderId: string) => {
     try {
@@ -256,8 +357,8 @@ function AllocationPage() {
       } else {
         showError("Unpick Failed", result.error || "Unknown error");
       }
-    } catch (e: any) {
-      showError("Unpick Error", e.message);
+    } catch (e) {
+      showError("Unpick Error", e instanceof Error ? e.message : "Unknown error");
     }
   };
 
@@ -394,11 +495,11 @@ function AllocationPage() {
                     <TableCell className="text-xs">{o.carrier}</TableCell>
                     <TableCell className="text-xs text-right">{o.lines.length}</TableCell>
                     <TableCell className="text-xs text-right">{totalUnits}</TableCell>
-<TableCell className="text-[11px]">
-                       {config
-                         ? `${config.strategy}${config.locationPrefix ? ` · prefix ${config.locationPrefix}` : ""}`
-                         : "LIFO (default)"}
-                     </TableCell>
+                    <TableCell className="text-[11px]">
+                      {config
+                        ? `${config.strategy}${config.locationPrefix ? ` · prefix ${config.locationPrefix}` : ""}`
+                        : "LIFO (default)"}
+                    </TableCell>
                     <TableCell>{statusBadge(o.status)}</TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -453,56 +554,56 @@ function AllocationPage() {
                     <TableCell className="text-xs">{o.carrier}</TableCell>
                     <TableCell className="text-xs">{orderTickets.length}</TableCell>
                     <TableCell>{statusBadge(o.status)}</TableCell>
-<TableCell className="text-right">
-                       <div className="flex items-center justify-end gap-1.5">
-                         <Button
-                           size="sm"
-                           variant="ghost"
-                           className="h-7 text-[11px] gap-1"
-                           onClick={() => setDetailDialog({ open: true, orderId: o.id })}
-                         >
-                           <Eye className="h-3 w-3" /> Details
-                         </Button>
-                         {o.status === "ALLOCATED" && (
-                           <>
-                             <Button
-                               size="sm"
-                               variant="outline"
-                               className="h-7 text-[11px] gap-1"
-                               onClick={() => handleDeallocate(o.id)}
-                             >
-                               <Undo2 className="h-3 w-3" /> Deallocate
-                             </Button>
-                             <Button
-                               size="sm"
-                               className="h-7 text-[11px] gap-1"
-                               onClick={() => handlePick(o.id)}
-                             >
-                               <PackageSearch className="h-3 w-3" /> Pick
-                             </Button>
-                           </>
-                         )}
-                         {o.status === "PICKED" && (
-                           <>
-                             <Button
-                               size="sm"
-                               variant="outline"
-                               className="h-7 text-[11px] gap-1"
-                               onClick={() => handleUnpick(o.id)}
-                             >
-                               <Undo2 className="h-3 w-3" /> Unpick
-                             </Button>
-                             <Button
-                               size="sm"
-                               className="h-7 text-[11px] gap-1"
-                               onClick={() => handleShip(o.id)}
-                             >
-                               <Truck className="h-3 w-3" /> Ship
-                             </Button>
-                           </>
-                         )}
-                       </div>
-                     </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-[11px] gap-1"
+                          onClick={() => setDetailDialog({ open: true, orderId: o.id })}
+                        >
+                          <Eye className="h-3 w-3" /> Details
+                        </Button>
+                        {o.status === "ALLOCATED" && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px] gap-1"
+                              onClick={() => handleDeallocate(o.id)}
+                            >
+                              <Undo2 className="h-3 w-3" /> Deallocate
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-7 text-[11px] gap-1"
+                              onClick={() => handlePick(o.id)}
+                            >
+                              <PackageSearch className="h-3 w-3" /> Pick
+                            </Button>
+                          </>
+                        )}
+                        {o.status === "PICKED" && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px] gap-1"
+                              onClick={() => handleUnpick(o.id)}
+                            >
+                              <Undo2 className="h-3 w-3" /> Unpick
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-7 text-[11px] gap-1"
+                              onClick={() => handleShip(o.id)}
+                            >
+                              <Truck className="h-3 w-3" /> Ship
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -578,7 +679,15 @@ function AllocationPage() {
                           size="sm"
                           variant="ghost"
                           className="h-6 text-[10px] gap-1"
-                          onClick={() => handlePickSingleTicket(pt.pickTicketNum, pt.quantityToPick, pt.palletId, pt.fromLocation)}
+                          onClick={() =>
+                            handlePickSingleTicket(
+                              pt.pickTicketNum,
+                              pt.quantityToPick,
+                              pt.palletId,
+                              pt.fromLocation,
+                              pt.sku,
+                            )
+                          }
                         >
                           Pick
                         </Button>
@@ -587,15 +696,20 @@ function AllocationPage() {
                   </TableRow>
                 ))}
             </TableBody>
-</Table>
+          </Table>
         </div>
       )}
 
       {/* Pick Ticket Detail Dialog */}
-      <Dialog open={detailDialog.open} onOpenChange={(open) => setDetailDialog((d) => ({ ...d, open }))}>
+      <Dialog
+        open={detailDialog.open}
+        onOpenChange={(open) => setDetailDialog((d) => ({ ...d, open }))}
+      >
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-mono">Pick Tickets for {detailDialog.orderId}</DialogTitle>
+            <DialogTitle className="text-base font-mono">
+              Pick Tickets for {detailDialog.orderId}
+            </DialogTitle>
             <DialogDescription className="text-xs">
               Detailed view of all pick ticket lines for this order
             </DialogDescription>
@@ -606,28 +720,62 @@ function AllocationPage() {
                 .filter((pt) => pt.orderId === detailDialog.orderId)
                 .sort((a, b) => a.pickTicketNum - b.pickTicketNum)
                 .map((pt) => (
-                  <div key={`${pt.pickTicketNum}-${pt.sku}`} className="border border-border rounded-md p-3">
+                  <div
+                    key={`${pt.pickTicketNum}-${pt.sku}`}
+                    className="border border-border rounded-md p-3"
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-mono text-sm font-medium">PT-{pt.pickTicketNum}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded ${
-                        pt.status === "GENERATED" ? "bg-muted text-muted-foreground" :
-                        pt.status === "PICKED" ? "bg-chart-4/15 text-chart-4" :
-                        "bg-chart-3/15 text-chart-3"
-                      }`}>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded ${
+                          pt.status === "GENERATED"
+                            ? "bg-muted text-muted-foreground"
+                            : pt.status === "PICKED"
+                              ? "bg-chart-4/15 text-chart-4"
+                              : "bg-chart-3/15 text-chart-3"
+                        }`}
+                      >
                         {pt.status}
                       </span>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div><span className="text-muted-foreground">SKU:</span> {pt.sku}</div>
-                      <div><span className="text-muted-foreground">Pallet:</span> {pt.palletId}</div>
-                      <div><span className="text-muted-foreground">Location:</span> {pt.fromLocation}</div>
-                      <div><span className="text-muted-foreground">Qty:</span> {pt.quantityToPick} units</div>
-                      <div><span className="text-muted-foreground">Created:</span> {fmtDateTime(pt.createdAt)}</div>
-                      <div><span className="text-muted-foreground">Picked:</span> {pt.pickedAt ? fmtDateTime(pt.pickedAt) : "—"}</div>
+                      <div>
+                        <span className="text-muted-foreground">SKU:</span> {pt.sku}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Pallet:</span> {pt.palletId}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Location:</span> {pt.fromLocation}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Qty:</span> {pt.quantityToPick}{" "}
+                        units
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Created:</span>{" "}
+                        {fmtDateTime(pt.createdAt)}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Picked:</span>{" "}
+                        {pt.pickedAt ? fmtDateTime(pt.pickedAt) : "—"}
+                      </div>
                     </div>
                     {pt.status === "GENERATED" && (
                       <div className="mt-2 pt-2 border-t border-border">
-                        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handlePickSingleTicket(pt.pickTicketNum, pt.quantityToPick, pt.palletId, pt.fromLocation)}>
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          onClick={() =>
+                            handlePickSingleTicket(
+                              pt.pickTicketNum,
+                              pt.quantityToPick,
+                              pt.palletId,
+                              pt.fromLocation,
+                              pt.sku,
+                            )
+                          }
+                        >
                           Pick
                         </Button>
                       </div>
@@ -637,8 +785,80 @@ function AllocationPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setDetailDialog({ open: false, orderId: null })}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDetailDialog({ open: false, orderId: null })}
+            >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pick Confirmation Dialog */}
+      <Dialog
+        open={pickDialog.open}
+        onOpenChange={(open) =>
+          !open &&
+          setPickDialog({
+            open: false,
+            pickTicketNum: 0,
+            sku: "",
+            palletId: "",
+            fromLocation: "",
+            qtyAllocated: 0,
+            qtyToPick: 0,
+          })
+        }
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm">
+              Confirm Pick: PT-{pickDialog.pickTicketNum}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              SKU: {pickDialog.sku} · From: {pickDialog.fromLocation} · Pallet:{" "}
+              {pickDialog.palletId}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[10px] uppercase text-muted-foreground">
+                Qty to Pick (max {pickDialog.qtyAllocated})
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={pickDialog.qtyAllocated}
+                value={pickDialog.qtyToPick}
+                onChange={(e) =>
+                  setPickDialog((d) => ({ ...d, qtyToPick: parseInt(e.target.value) || 0 }))
+                }
+                className="h-8 text-xs font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setPickDialog({
+                  open: false,
+                  pickTicketNum: 0,
+                  sku: "",
+                  palletId: "",
+                  fromLocation: "",
+                  qtyAllocated: 0,
+                  qtyToPick: 0,
+                })
+              }
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleConfirmPick}>
+              Confirm Pick
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -15,21 +15,33 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
-import {
-  tenants,
-  warehouses,
-  type InventoryItem,
-} from "@/lib/mock-data";
+import { tenants, warehouses, type InventoryItem } from "@/lib/mock-data";
 import { inboundShipments } from "@/lib/inbound-data";
 import { fmtDateTime } from "@/lib/utils";
-import { fetchTransactionHistory, subscribeTransactionHistory, InventoryTransaction, upsertInventoryItem, updateInventoryBatch } from "@/lib/firestore-data";
+import {
+  fetchTransactionHistory,
+  subscribeTransactionHistory,
+  InventoryTransaction,
+  upsertInventoryItem,
+  updateInventoryBatch,
+} from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({
@@ -51,7 +63,7 @@ function buildPoRefs() {
   for (const s of inboundShipments) {
     m.set(s.poNumber, {
       container: s.containerNumber && s.containerNumber !== "—" ? s.containerNumber : "",
-      trailer:   s.trailerNumber   && s.trailerNumber   !== "—" ? s.trailerNumber   : "",
+      trailer: s.trailerNumber && s.trailerNumber !== "—" ? s.trailerNumber : "",
     });
   }
   return m;
@@ -90,6 +102,7 @@ type Row = {
   lastEditAt: string;
   userId: string;
   status: InventoryItem["status"];
+  pickTicketNum?: number;
 };
 
 function csvEscape(v: string | number) {
@@ -133,27 +146,29 @@ function InventoryPage() {
           trailer: ref.trailer,
           poNumber: b.poNumber,
           units: b.qty,
-          allocatedUnits: isDropLocation ? 0 : (b.qtyAllocated || 0),
-          availableUnits: isDropLocation ? 0 : (b.qty - (b.qtyAllocated || 0)),
+          allocatedUnits: isDropLocation ? 0 : b.qtyAllocated || 0,
+          availableUnits: isDropLocation ? 0 : b.qty - (b.qtyAllocated || 0),
           casePack,
           cartons: Math.ceil(b.qty / casePack),
           putawayAt: b.receivedAt,
           lastEditAt: lastEditFor(b.receivedAt, b.batchId),
           userId: userFor(b.batchId),
           status: item.status,
+          pickTicketNum: b.pickTicketNum,
         });
       }
     }
     return out.sort((a, b) => +new Date(b.putawayAt) - +new Date(a.putawayAt));
   }, [poRefs, liveInventory]);
 
-const filtered = useMemo(() => {
+  const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (tenantId !== "all" && r.tenantId !== tenantId) return false;
       if (warehouseId !== "all" && r.warehouseId !== warehouseId) return false;
       if (query) {
         const q = query.toLowerCase();
-        const blob = `${r.sku} ${r.description} ${r.palletId} ${r.batchId} ${r.location} ${r.container} ${r.trailer} ${r.poNumber} ${r.userId}`.toLowerCase();
+        const blob =
+          `${r.sku} ${r.description} ${r.palletId} ${r.batchId} ${r.location} ${r.container} ${r.trailer} ${r.poNumber} ${r.userId}`.toLowerCase();
         if (!blob.includes(q)) return false;
       }
       return true;
@@ -164,9 +179,20 @@ const filtered = useMemo(() => {
     const skus = new Set(filtered.filter((r) => r.location !== "DROP001").map((r) => r.sku));
     const units = filtered.filter((r) => r.location !== "DROP001").reduce((s, r) => s + r.units, 0);
     const allocatedUnits = filtered.reduce((s, r) => s + r.allocatedUnits, 0);
-    const availableUnits = filtered.filter((r) => r.location !== "DROP001").reduce((s, r) => s + r.availableUnits, 0);
-    const cartons = filtered.filter((r) => r.location !== "DROP001").reduce((s, r) => s + r.cartons, 0);
-    return { skus: skus.size, units, allocatedUnits, availableUnits, cartons, lines: filtered.length };
+    const availableUnits = filtered
+      .filter((r) => r.location !== "DROP001")
+      .reduce((s, r) => s + r.availableUnits, 0);
+    const cartons = filtered
+      .filter((r) => r.location !== "DROP001")
+      .reduce((s, r) => s + r.cartons, 0);
+    return {
+      skus: skus.size,
+      units,
+      allocatedUnits,
+      availableUnits,
+      cartons,
+      lines: filtered.length,
+    };
   }, [filtered]);
 
   // Helper to calculate total on hand for scan dialog
@@ -176,23 +202,51 @@ const filtered = useMemo(() => {
 
   const exportCsv = () => {
     const headers = [
-      "SKU", "Description", "Container", "Trailer", "PO#",
-      "Pallet ID", "Batch", "Location",
-      "Cartons", "Units", "Case Pack",
-      "Putaway Date", "Last Edit", "User ID",
-      "Client Code", "Warehouse", "Status",
+      "SKU",
+      "Description",
+      "Container",
+      "Trailer",
+      "PO#",
+      "Pallet ID",
+      "Batch",
+      "Location",
+      "Cartons",
+      "Units",
+      "Case Pack",
+      "Putaway Date",
+      "Last Edit",
+      "User ID",
+      "Client Code",
+      "Warehouse",
+      "Status",
     ];
     const lines = [headers.map(csvEscape).join(",")];
     for (const r of filtered) {
       const tenant = tenants.find((t) => t.id === r.tenantId);
       const wh = warehouses.find((w) => w.id === r.warehouseId);
-      lines.push([
-        r.sku, r.description, r.container || "", r.trailer || "", r.poNumber,
-        r.palletId, r.batchId, r.location,
-        r.cartons, r.units, r.casePack,
-        r.putawayAt, r.lastEditAt, r.userId,
-        tenant?.code ?? "", wh?.code ?? "", r.status,
-      ].map(csvEscape).join(","));
+      lines.push(
+        [
+          r.sku,
+          r.description,
+          r.container || "",
+          r.trailer || "",
+          r.poNumber,
+          r.palletId,
+          r.batchId,
+          r.location,
+          r.cartons,
+          r.units,
+          r.casePack,
+          r.putawayAt,
+          r.lastEditAt,
+          r.userId,
+          tenant?.code ?? "",
+          wh?.code ?? "",
+          r.status,
+        ]
+          .map(csvEscape)
+          .join(","),
+      );
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -224,7 +278,9 @@ const filtered = useMemo(() => {
     setHistoryOpen(true);
     try {
       const txns = await fetchTransactionHistory();
-      const filtered = txns.filter(t => t.sku === sku && t.palletId === palletId && t.location === location);
+      const filtered = txns.filter(
+        (t) => t.sku === sku && t.palletId === palletId && t.location === location,
+      );
       setTransactions(filtered);
     } catch (e: any) {
       toast.error(`Failed to load history: ${e.message}`);
@@ -238,14 +294,20 @@ const filtered = useMemo(() => {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Inventory</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Batch-level view · container / trailer · PO · cartons / units · case pack · putaway audit
+            Batch-level view · container / trailer · PO · cartons / units · case pack · putaway
+            audit
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setCsvOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setCsvOpen(true)}
+          >
             <Upload className="h-3.5 w-3.5" /> Upload CSV
           </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={exportCsv}>
@@ -259,9 +321,9 @@ const filtered = useMemo(() => {
 
       {/* Stat strip */}
       <div className="grid grid-cols-5 divide-x divide-border rounded-md border border-border bg-card">
-        <Stat label="Lines"   value={totals.lines} />
-        <Stat label="SKUs"    value={totals.skus} />
-        <Stat label="Units"   value={totals.units} tone="text-foreground" />
+        <Stat label="Lines" value={totals.lines} />
+        <Stat label="SKUs" value={totals.skus} />
+        <Stat label="Units" value={totals.units} tone="text-foreground" />
         <Stat label="Allocated" value={totals.allocatedUnits} tone="text-chart-1" />
         <Stat label="Available" value={totals.availableUnits} tone="text-chart-3" />
       </div>
@@ -288,14 +350,29 @@ const filtered = useMemo(() => {
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
               <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider">Container / Trailer</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider">
+                Container / Trailer
+              </TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">PO #</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider">Pallet · Location</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-right">Cartons</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-right">Units</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-right">Allocated</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-right">Available</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-right">Case Pack</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider">
+                Pallet · Location
+              </TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                Cartons
+              </TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                Units
+              </TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                Allocated
+              </TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                Available
+              </TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider">Pick Ticket</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                Case Pack
+              </TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Putaway</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Last Edit</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">User ID</TableHead>
@@ -305,22 +382,34 @@ const filtered = useMemo(() => {
           <TableBody>
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={13} className="text-center text-xs text-muted-foreground py-10">
+                <TableCell colSpan={14} className="text-center text-xs text-muted-foreground py-10">
                   No inventory matches the current filter.
                 </TableCell>
               </TableRow>
             )}
-{filtered.map((r) => {
-               const item = liveInventory.find((i) => i.sku === r.sku);
-               return (
+            {filtered.map((r) => {
+              const item = liveInventory.find((i) => i.sku === r.sku);
+              return (
                 <TableRow key={`${r.batchId}-${r.palletId}`} className="text-xs hover:bg-muted/30">
                   <TableCell className="py-2 font-mono">
                     <div className="font-medium">{r.sku}</div>
-                    <div className="text-[10px] text-muted-foreground font-sans">{r.description}</div>
+                    <div className="text-[10px] text-muted-foreground font-sans">
+                      {r.description}
+                    </div>
                   </TableCell>
                   <TableCell className="py-2 font-mono text-[11px]">
-                    {r.container && <div><span className="text-muted-foreground mr-1">CNT</span>{r.container}</div>}
-                    {r.trailer   && <div><span className="text-muted-foreground mr-1">TRL</span>{r.trailer}</div>}
+                    {r.container && (
+                      <div>
+                        <span className="text-muted-foreground mr-1">CNT</span>
+                        {r.container}
+                      </div>
+                    )}
+                    {r.trailer && (
+                      <div>
+                        <span className="text-muted-foreground mr-1">TRL</span>
+                        {r.trailer}
+                      </div>
+                    )}
                     {!r.container && !r.trailer && <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell className="py-2 font-mono text-[11px]">{r.poNumber}</TableCell>
@@ -328,7 +417,9 @@ const filtered = useMemo(() => {
                     <div>{r.palletId}</div>
                     <div className="text-[10px] text-muted-foreground">{r.location}</div>
                   </TableCell>
-                  <TableCell className="py-2 text-right tabular-nums">{r.cartons.toLocaleString()}</TableCell>
+                  <TableCell className="py-2 text-right tabular-nums">
+                    {r.cartons.toLocaleString()}
+                  </TableCell>
                   <TableCell className="py-2 text-right tabular-nums font-medium">
                     {r.units.toLocaleString()}
                   </TableCell>
@@ -338,44 +429,63 @@ const filtered = useMemo(() => {
                   <TableCell className="py-2 text-right tabular-nums text-chart-3">
                     {r.availableUnits.toLocaleString()}
                   </TableCell>
+                  <TableCell className="py-2 text-right tabular-nums">
+                    {r.pickTicketNum ? (
+                      `PT-${r.pickTicketNum}`
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="py-2 text-right tabular-nums text-muted-foreground">
                     {r.casePack}
                   </TableCell>
-                  <TableCell className="py-2 text-[11px] tabular-nums">{fmtDateTime(r.putawayAt)}</TableCell>
+                  <TableCell className="py-2 text-[11px] tabular-nums">
+                    {fmtDateTime(r.putawayAt)}
+                  </TableCell>
                   <TableCell className="py-2 text-[11px] tabular-nums text-muted-foreground">
                     {fmtDateTime(r.lastEditAt)}
                   </TableCell>
                   <TableCell className="py-2 font-mono text-[11px]">{r.userId}</TableCell>
-<TableCell className="py-2 text-right">
-                     <div className="flex items-center justify-end gap-1">
-                       <Button
-                         variant="ghost" size="icon" className="h-7 w-7"
-                         onClick={() => setScanItem(item)}
-                         title="Scan barcode / QR"
-                       >
-                         <ScanLine className="h-4 w-4" />
-                       </Button>
-                       {item && (
-                         <Button
-                           variant="ghost" size="icon" className="h-7 w-7"
-                           onClick={() => {
-                             setEditItem(item);
-                             setEditBatch(item.batches.find(b => b.palletId === r.palletId && b.location === r.location) || null);
-                           }}
-                           title="Edit batch"
-                         >
-                           <Pencil className="h-4 w-4" />
-                         </Button>
-                       )}
-                       <Button
-                         variant="ghost" size="icon" className="h-7 w-7"
-                         onClick={() => showHistory(r.sku, r.palletId, r.location)}
-                         title="View history"
-                       >
-                         <History className="h-4 w-4" />
-                       </Button>
-                     </div>
-                   </TableCell>
+                  <TableCell className="py-2 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setScanItem(item)}
+                        title="Scan barcode / QR"
+                      >
+                        <ScanLine className="h-4 w-4" />
+                      </Button>
+                      {item && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            setEditItem(item);
+                            setEditBatch(
+                              item.batches.find(
+                                (b) => b.palletId === r.palletId && b.location === r.location,
+                              ) || null,
+                            );
+                          }}
+                          title="Edit batch"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => showHistory(r.sku, r.palletId, r.location)}
+                        title="View history"
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               );
             })}
@@ -412,8 +522,16 @@ const filtered = useMemo(() => {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setScanItem(null)}>Close</Button>
-            <Button size="sm" onClick={() => { toast.success("Scan confirmed", { description: scanItem?.sku }); setScanItem(null); }}>
+            <Button variant="outline" size="sm" onClick={() => setScanItem(null)}>
+              Close
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                toast.success("Scan confirmed", { description: scanItem?.sku });
+                setScanItem(null);
+              }}
+            >
               Confirm scan
             </Button>
           </DialogFooter>
@@ -433,7 +551,10 @@ const filtered = useMemo(() => {
             className="rounded-md border-2 border-dashed border-border p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
             onClick={() => fileRef.current?.click()}
             onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); onCsvFile(e.dataTransfer.files?.[0]); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              onCsvFile(e.dataTransfer.files?.[0]);
+            }}
           >
             <Upload className="h-6 w-6 mx-auto text-muted-foreground" />
             <div className="mt-2 text-xs font-medium">Drop CSV here or click to browse</div>
@@ -441,12 +562,17 @@ const filtered = useMemo(() => {
               Expected columns: SKU, UPC, Description, ItemStyle, UoM, UnitCost, CaseQty…
             </div>
             <input
-              ref={fileRef} type="file" accept=".csv,text/csv" className="hidden"
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
               onChange={(e) => onCsvFile(e.target.files?.[0] ?? undefined)}
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setCsvOpen(false)}>Close</Button>
+            <Button variant="outline" size="sm" onClick={() => setCsvOpen(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -467,20 +593,38 @@ const filtered = useMemo(() => {
               </div>
             )}
             {transactions.map((t) => (
-<div key={t.id} className="flex items-center justify-between text-xs border-b border-border pb-2">
-                 <span className="text-muted-foreground">{fmtDateTime(t.timestamp)}</span>
-                 <span className="font-mono">{t.type}</span>
-                 <span className="text-right">{t.qtyChange > 0 ? "+" : ""}{t.qtyChange} units</span>
-                 <span className="text-right text-[10px]">{t.qtyBefore} → {t.qtyAfter}</span>
-                 <span className="text-[10px] text-muted-foreground">{t.user}</span>
-                 {t.orderId && <span className="text-[10px] font-mono ml-2">Order: {t.orderId}</span>}
-                 {t.pickTicketNum && <span className="text-[10px] font-mono ml-2">PT: {t.pickTicketNum}</span>}
-                 {t.notes && <span className="text-[10px] text-muted-foreground ml-2 truncate max-w-48">{t.notes}</span>}
-               </div>
+              <div
+                key={t.id}
+                className="flex items-center justify-between text-xs border-b border-border pb-2"
+              >
+                <span className="text-muted-foreground">{fmtDateTime(t.timestamp)}</span>
+                <span className="font-mono">{t.type}</span>
+                <span className="text-right">
+                  {t.qtyChange > 0 ? "+" : ""}
+                  {t.qtyChange} units
+                </span>
+                <span className="text-right text-[10px]">
+                  {t.qtyBefore} → {t.qtyAfter}
+                </span>
+                <span className="text-[10px] text-muted-foreground">{t.user}</span>
+                {t.orderId && (
+                  <span className="text-[10px] font-mono ml-2">Order: {t.orderId}</span>
+                )}
+                {t.pickTicketNum && (
+                  <span className="text-[10px] font-mono ml-2">PT: {t.pickTicketNum}</span>
+                )}
+                {t.notes && (
+                  <span className="text-[10px] text-muted-foreground ml-2 truncate max-w-48">
+                    {t.notes}
+                  </span>
+                )}
+              </div>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>Close</Button>
+            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -552,18 +696,24 @@ function EditBatchForm({
           />
         </div>
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Allocated</label>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Allocated
+          </label>
           <Input
             type="number"
             value={formData.qtyAllocated}
-            onChange={(e) => setFormData({ ...formData, qtyAllocated: parseInt(e.target.value) || 0 })}
+            onChange={(e) =>
+              setFormData({ ...formData, qtyAllocated: parseInt(e.target.value) || 0 })
+            }
             className="h-8 text-xs font-mono"
           />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Location</label>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Location
+          </label>
           <Input
             value={formData.location}
             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
@@ -571,7 +721,9 @@ function EditBatchForm({
           />
         </div>
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">PO Number</label>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            PO Number
+          </label>
           <Input
             value={formData.poNumber}
             onChange={(e) => setFormData({ ...formData, poNumber: e.target.value })}
@@ -580,8 +732,12 @@ function EditBatchForm({
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
-        <Button size="sm" onClick={() => onSave(formData)}>Save</Button>
+        <Button variant="outline" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={() => onSave(formData)}>
+          Save
+        </Button>
       </DialogFooter>
     </div>
   );
@@ -591,7 +747,9 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: str
   return (
     <div className="px-4 py-2.5">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`text-base font-semibold tabular-nums ${tone ?? ""}`}>{value.toLocaleString()}</div>
+      <div className={`text-base font-semibold tabular-nums ${tone ?? ""}`}>
+        {value.toLocaleString()}
+      </div>
     </div>
   );
 }
