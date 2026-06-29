@@ -209,10 +209,37 @@ function AllocationPage() {
       } else {
         showError("Pick Failed", results.find(r => !r.success)?.message || "Unknown error");
       }
+} catch (e: any) {
+       showError("Pick Error", e.message);
+     }
+   };
+
+  const handlePickSingleTicket = async (pickTicketNum: number, qty: number, palletId: string, location: string) => {
+    try {
+      const result = await executeDirectedPick(pickTicketNum, qty, palletId, location, "allocation-ui");
+      if (result.success) {
+        toast.success(`Pick ticket #${pickTicketNum} executed`, {
+          description: `${qty} units moved to DROP001`,
+        });
+        // Check if all tickets for this order are now PICKED
+        const orderId = pickTickets.find((pt) => pt.pickTicketNum === pickTicketNum)?.orderId;
+        if (orderId) {
+          const allPicked = pickTickets.every((pt) => 
+            pt.orderId !== orderId || pt.status === "PICKED"
+          );
+          if (allPicked) {
+            await updateOrder(orderId, { status: "PICKED" });
+            toast.success(`Order ${orderId} fully picked`, { description: "All items moved to staging" });
+          }
+        }
+        refreshData();
+      } else {
+        showError("Pick Failed", result.message || "Unknown error");
+      }
     } catch (e: any) {
       showError("Pick Error", e.message);
     }
-  };
+   };
 
   const handleUnpick = async (orderId: string) => {
     try {
@@ -499,13 +526,14 @@ function AllocationPage() {
                 <TableHead className="text-[11px]">Created</TableHead>
                 <TableHead className="text-[11px]">Picked</TableHead>
                 <TableHead className="text-[11px]">Closed</TableHead>
+                <TableHead className="text-[11px]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(livePickTickets.length ? livePickTickets : pickTickets).length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={10}
+                    colSpan={11}
                     className="h-24 text-center text-xs text-muted-foreground"
                   >
                     No pick tickets generated yet.
@@ -544,6 +572,18 @@ function AllocationPage() {
                     <TableCell className="text-[11px]">
                       {pt.closedAt ? fmtDateTime(pt.closedAt) : "—"}
                     </TableCell>
+                    <TableCell className="text-[11px]">
+                      {pt.status === "GENERATED" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-[10px] gap-1"
+                          onClick={() => handlePickSingleTicket(pt.pickTicketNum, pt.quantityToPick, pt.palletId, pt.fromLocation)}
+                        >
+                          Pick
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
             </TableBody>
@@ -566,7 +606,7 @@ function AllocationPage() {
                 .filter((pt) => pt.orderId === detailDialog.orderId)
                 .sort((a, b) => a.pickTicketNum - b.pickTicketNum)
                 .map((pt) => (
-                  <div key={pt.pickTicketNum} className="border border-border rounded-md p-3">
+                  <div key={`${pt.pickTicketNum}-${pt.sku}`} className="border border-border rounded-md p-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-mono text-sm font-medium">PT-{pt.pickTicketNum}</span>
                       <span className={`text-[10px] px-2 py-0.5 rounded ${
@@ -585,6 +625,13 @@ function AllocationPage() {
                       <div><span className="text-muted-foreground">Created:</span> {fmtDateTime(pt.createdAt)}</div>
                       <div><span className="text-muted-foreground">Picked:</span> {pt.pickedAt ? fmtDateTime(pt.pickedAt) : "—"}</div>
                     </div>
+                    {pt.status === "GENERATED" && (
+                      <div className="mt-2 pt-2 border-t border-border">
+                        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handlePickSingleTicket(pt.pickTicketNum, pt.quantityToPick, pt.palletId, pt.fromLocation)}>
+                          Pick
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
             </div>

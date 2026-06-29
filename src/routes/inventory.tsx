@@ -223,9 +223,8 @@ const filtered = useMemo(() => {
     setHistoryLocation(location);
     setHistoryOpen(true);
     try {
-      // Query without filters to avoid index requirement
       const txns = await fetchTransactionHistory();
-      const filtered = txns.filter(t => t.sku === sku && t.palletId === palletId);
+      const filtered = txns.filter(t => t.sku === sku && t.palletId === palletId && t.location === location);
       setTransactions(filtered);
     } catch (e: any) {
       toast.error(`Failed to load history: ${e.message}`);
@@ -468,13 +467,16 @@ const filtered = useMemo(() => {
               </div>
             )}
             {transactions.map((t) => (
-              <div key={t.id} className="flex items-center justify-between text-xs border-b border-border pb-2">
-                <span className="text-muted-foreground">{fmtDateTime(t.timestamp)}</span>
-                <span className="font-mono">{t.type}</span>
-                <span className="text-right">{t.qtyChange > 0 ? "+" : ""}{t.qtyChange} units</span>
-                <span className="text-right text-[10px]">{t.palletId} @ {t.location}</span>
-                <span className="text-[10px] text-muted-foreground">{t.user}</span>
-              </div>
+<div key={t.id} className="flex items-center justify-between text-xs border-b border-border pb-2">
+                 <span className="text-muted-foreground">{fmtDateTime(t.timestamp)}</span>
+                 <span className="font-mono">{t.type}</span>
+                 <span className="text-right">{t.qtyChange > 0 ? "+" : ""}{t.qtyChange} units</span>
+                 <span className="text-right text-[10px]">{t.qtyBefore} → {t.qtyAfter}</span>
+                 <span className="text-[10px] text-muted-foreground">{t.user}</span>
+                 {t.orderId && <span className="text-[10px] font-mono ml-2">Order: {t.orderId}</span>}
+                 {t.pickTicketNum && <span className="text-[10px] font-mono ml-2">PT: {t.pickTicketNum}</span>}
+                 {t.notes && <span className="text-[10px] text-muted-foreground ml-2 truncate max-w-48">{t.notes}</span>}
+               </div>
             ))}
           </div>
           <DialogFooter>

@@ -209,9 +209,11 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
   }
 
 if (allocatedLines.length > 0) {
-    const ticketNum = await getNextPickTicketSeq();
+    // Generate unique pick tickets - one per allocated line
     const tickets: PickTicket[] = [];
+    const allocateTxns: Promise<any>[] = [];
     for (const line of allocatedLines) {
+      const ticketNum = await getNextPickTicketSeq();
       const pt: PickTicket = {
         pickTicketNum: ticketNum,
         orderId: order.id,
@@ -224,8 +226,24 @@ if (allocatedLines.length > 0) {
       };
       pickTickets.push(pt);
       tickets.push(pt);
+      // Log allocation transaction
+      allocateTxns.push(
+        logInventoryTransaction({
+          sku: line.sku,
+          palletId: line.palletId,
+          location: line.location,
+          orderId: order.id,
+          type: "ALLOCATE",
+          qtyChange: line.qtyAllocated,
+          qtyBefore: line.qtyAllocated,
+          qtyAfter: line.qtyAllocated,
+          user: "allocation-ui",
+          notes: `Allocated ${line.qtyAllocated} units for ${order.id}`,
+        })
+      );
     }
-    pickTicketNum = ticketNum;
+    const firstTicketNum = tickets.length > 0 ? tickets[0].pickTicketNum : undefined;
+    pickTicketNum = firstTicketNum;
     order.status = "ALLOCATED";
 
     // Prepare all writes
@@ -238,9 +256,9 @@ if (allocatedLines.length > 0) {
       return Promise.resolve();
     });
 
-    // Write to Firestore - order first, then inventory, then tickets
+    // Write to Firestore - order first, then inventory, then tickets, then transactions
     await createOrder(order);
-    await Promise.all(inventoryUpdates);
+    await Promise.all([...inventoryUpdates, ...allocateTxns]);
     await batchWritePickTickets(tickets);
 
     // Update local arrays
@@ -286,6 +304,7 @@ export async function deallocate_order(orderId: string): Promise<DeallocationRes
   }
 
   const deallocatedLines: DeallocationResult["deallocatedLines"] = [];
+  const deallocateTxns: Promise<any>[] = [];
 
   // Build lines array and update local inventory
   for (const pt of existingTickets) {
@@ -295,13 +314,29 @@ export async function deallocate_order(orderId: string): Promise<DeallocationRes
         (b) => b.palletId === pt.palletId && b.location === pt.fromLocation,
       );
       if (batch) {
-        batch.qtyAllocated = Math.max(0, batch.qtyAllocated - pt.quantityToPick);
+        const beforeQty = batch.qtyAllocated || 0;
+        batch.qtyAllocated = Math.max(0, beforeQty - pt.quantityToPick);
         deallocatedLines.push({
           sku: pt.sku,
           palletId: pt.palletId,
           location: pt.fromLocation,
           qtyDeallocated: pt.quantityToPick,
         });
+        // Log deallocation transaction
+        deallocateTxns.push(
+          logInventoryTransaction({
+            sku: pt.sku,
+            palletId: pt.palletId,
+            location: pt.fromLocation,
+            orderId: order.id,
+            type: "ALLOCATE",
+            qtyChange: -pt.quantityToPick,
+            qtyBefore: beforeQty,
+            qtyAfter: batch.qtyAllocated,
+            user: "deallocation-ui",
+            notes: `Deallocated ${pt.quantityToPick} units for ${order.id}`,
+          })
+        );
       }
     }
   }
@@ -327,6 +362,7 @@ export async function deallocate_order(orderId: string): Promise<DeallocationRes
     updateOrder(order.id, { status: "new" }),
     deletePickTicketsByOrder(orderId),
     ...inventoryUpdates,
+    ...deallocateTxns,
   ]);
 
   return {
