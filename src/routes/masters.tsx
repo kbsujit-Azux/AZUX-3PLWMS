@@ -12,6 +12,8 @@ import {
   Plus,
   Trash2,
   Pencil,
+  ShieldCheck,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +66,11 @@ import {
   type LocationType,
 } from "@/lib/master-data";
 import { fmtDateYear } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
+import {
+  deleteInventoryBatch,
+  rebuildLocationMasterFromInventory,
+} from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/masters")({
   head: () => ({
@@ -101,6 +108,17 @@ function MastersPage() {
   const [editLoc, setEditLoc] = useState<LocationRecord | null>(null);
   const [toDeleteItem, setToDeleteItem] = useState<ItemMasterRecord | null>(null);
   const [toDeleteLoc, setToDeleteLoc] = useState<LocationRecord | null>(null);
+
+  // Admin cleanup state
+  const { user } = useAuth();
+  const isAdmin = user?.role === "Admin";
+  const [adminSku, setAdminSku] = useState("");
+  const [adminPalletId, setAdminPalletId] = useState("");
+  const [adminLocation, setAdminLocation] = useState("");
+  const [adminDeleteResult, setAdminDeleteResult] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRebuilding, setIsRebuilding] = useState(false);
+  const [rebuildResult, setRebuildResult] = useState<string | null>(null);
 
   // Deep-link: /masters?tab=items&addSku=...&tenantId=...&upc=...&desc=...&style=...
   useEffect(() => {
@@ -217,6 +235,11 @@ function MastersPage() {
               </span>
             )}
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="admin">
+              <ShieldCheck className="h-3.5 w-3.5 mr-1.5" /> Admin Tools
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ITEM MASTER ----------------------------------------- */}
@@ -594,6 +617,149 @@ function MastersPage() {
             </div>
           )}
         </TabsContent>
+
+        {/* ADMIN TOOLS ------------------------------------------- */}
+        {isAdmin && (
+          <TabsContent value="admin" className="space-y-4">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-destructive" />
+                  Admin Inventory Cleanup
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Permanently delete a specific inventory batch. Use when the system fails to clear
+                  DROP or staging inventory automatically.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    SKU
+                  </Label>
+                  <Input
+                    value={adminSku}
+                    onChange={(e) => setAdminSku(e.target.value.trim())}
+                    placeholder="e.g. ACM-TENT-2P-OLV"
+                    className="h-8 text-xs font-mono mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Pallet ID (optional)
+                  </Label>
+                  <Input
+                    value={adminPalletId}
+                    onChange={(e) => setAdminPalletId(e.target.value.trim())}
+                    placeholder="e.g. PLT-ATL1-00871"
+                    className="h-8 text-xs font-mono mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Location (optional)
+                  </Label>
+                  <Input
+                    value={adminLocation}
+                    onChange={(e) => setAdminLocation(e.target.value.trim())}
+                    placeholder="e.g. DROP001 or A12-03-B"
+                    className="h-8 text-xs font-mono mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-8 text-xs gap-1.5"
+                  disabled={isDeleting || !adminSku}
+                  onClick={async () => {
+                    setIsDeleting(true);
+                    setAdminDeleteResult(null);
+                    try {
+                      const res = await deleteInventoryBatch({
+                        sku: adminSku,
+                        palletId: adminPalletId || undefined,
+                        location: adminLocation || undefined,
+                      });
+                      if (res.success) {
+                        setAdminDeleteResult(
+                          `Deleted ${res.deletedCount} batch(es) from SKU ${adminSku}`,
+                        );
+                        setAdminSku("");
+                        setAdminPalletId("");
+                        setAdminLocation("");
+                        toast.success("Inventory batch deleted");
+                      } else {
+                        setAdminDeleteResult(`Error: ${res.error}`);
+                        toast.error(res.error ?? "Delete failed");
+                      }
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {isDeleting ? "Deleting..." : "Delete Batch"}
+                </Button>
+                {adminDeleteResult && (
+                  <span className="text-[11px] text-muted-foreground">{adminDeleteResult}</span>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-md border border-border bg-card p-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Database className="h-4 w-4 text-primary" />
+                  Rebuild Location Master from Inventory
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Scans all inventory records and rebuilds the Location Master from actual
+                  locations in use. Removes stale locations that no longer exist in inventory and
+                  updates tenant/warehouse assignments.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-8 text-xs gap-1.5"
+                  disabled={isRebuilding}
+                  onClick={async () => {
+                    setIsRebuilding(true);
+                    setRebuildResult(null);
+                    try {
+                      const res = await rebuildLocationMasterFromInventory();
+                      if (res.success) {
+                        setRebuildResult(
+                          `Created ${res.created}, updated ${res.updated}, removed ${res.removed} locations`,
+                        );
+                        toast.success("Location Master rebuilt from inventory", {
+                          description: `+${res.created} created · ${res.updated} updated · ${res.removed} stale removed`,
+                        });
+                      } else {
+                        setRebuildResult(`Error: ${res.error}`);
+                        toast.error(res.error ?? "Rebuild failed");
+                      }
+                    } finally {
+                      setIsRebuilding(false);
+                    }
+                  }}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {isRebuilding ? "Rebuilding..." : "Rebuild Location Master"}
+                </Button>
+                {rebuildResult && (
+                  <span className="text-[11px] text-muted-foreground">{rebuildResult}</span>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       <CsvUploader

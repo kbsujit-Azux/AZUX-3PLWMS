@@ -452,7 +452,7 @@ function InventoryPage() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7"
-                        onClick={() => setScanItem(item)}
+                        onClick={() => setScanItem(item ?? null)}
                         title="Scan barcode / QR"
                       >
                         <ScanLine className="h-4 w-4" />

@@ -1,26 +1,31 @@
-export type ClientId = "APEX" | "GLOBAL" | "NORTHSTAR";
+export type ClientId = string;
 
 export type BillingClient = {
   id: ClientId;
   name: string;
+  code: string;
   accountNumber: string;
   billToAddress: string[];
   email: string;
+  tenantId: string;
 };
 
-export type RateUnit = "carton" | "pallet" | "container" | "bol";
+export type RateUnit = "carton" | "pallet" | "container" | "bol" | "location" | "warehouse";
 export type StorageFrequency = "daily" | "weekly" | "monthly" | "custom";
 
 export type ChargeRule = {
   id: string;
   clientId: ClientId;
+  tenantId: string;
+  warehouseId?: string;
+  locationId?: string;
   category: "Inbound" | "Outbound" | "Storage" | "Custom";
   description: string;
   unit: RateUnit | "flat";
   rate: number;
   frequency?: StorageFrequency;
   customCycleDays?: number;
-  trigger?: string; // for Custom rules
+  trigger?: string;
   enabled: boolean;
 };
 
@@ -29,9 +34,12 @@ export type ActivityType = "Inbound" | "Outbound" | "Storage" | "Custom";
 export type BillableEvent = {
   id: string;
   clientId: ClientId;
-  date: string; // ISO
+  tenantId: string;
+  warehouseId?: string;
+  locationId?: string;
+  date: string;
   type: ActivityType;
-  reference: string; // e.g. PO# / BOL# / Container#
+  reference: string;
   description: string;
   quantity: number;
   unit: RateUnit | "flat";
@@ -51,54 +59,217 @@ export type Invoice = {
   id: string;
   number: string;
   clientId: ClientId;
+  tenantId: string;
   issueDate: string;
   dueDate: string;
   status: "Draft" | "Sent" | "Paid";
   lines: InvoiceLine[];
-  taxRate: number; // e.g. 0.0875
+  taxRate: number;
   notes?: string;
   source: "Automated" | "Manual";
 };
 
 export const billingClients: BillingClient[] = [
   {
-    id: "APEX",
-    name: "Apex Retail",
-    accountNumber: "AR-10231",
-    billToAddress: ["Apex Retail, Inc.", "455 Market Street, Suite 900", "San Francisco, CA 94105"],
-    email: "ap@apexretail.com",
+    id: "acme",
+    name: "Acme Outdoor Co.",
+    code: "ACME",
+    accountNumber: "AC-10001",
+    billToAddress: ["Acme Outdoor Co.", "4500 Paces Ferry Rd", "Atlanta, GA 30339"],
+    email: "billing@acmeoutdoor.com",
+    tenantId: "acme",
   },
   {
-    id: "GLOBAL",
-    name: "Global Logistics",
-    accountNumber: "GL-44087",
-    billToAddress: ["Global Logistics Co.", "2200 Harbor Blvd", "Long Beach, CA 90802"],
-    email: "billing@globallog.com",
+    id: "northstar",
+    name: "Northstar Apparel",
+    code: "NSAP",
+    accountNumber: "NS-20002",
+    billToAddress: ["Northstar Apparel", "2200 N Irving Rd", "Chicago, IL 60618"],
+    email: "billing@northstarapparel.com",
+    tenantId: "northstar",
   },
   {
-    id: "NORTHSTAR",
-    name: "Northstar Goods",
-    accountNumber: "NS-90012",
-    billToAddress: ["Northstar Goods LLC", "18 Industrial Park Dr", "Edison, NJ 08820"],
-    email: "ap@northstargoods.com",
+    id: "harborlite",
+    name: "Harborlite Electronics",
+    code: "HLE",
+    accountNumber: "HL-30003",
+    billToAddress: ["Harborlite Electronics", "1 Harbor Dr", "Newark, NJ 07102"],
+    email: "billing@harborlite.com",
+    tenantId: "harborlite",
+  },
+  {
+    id: "verdant",
+    name: "Verdant Wellness",
+    code: "VRDN",
+    accountNumber: "VD-40004",
+    billToAddress: ["Verdant Wellness", "8800 Melrose Ave", "Los Angeles, CA 90069"],
+    email: "billing@verdantwellness.com",
+    tenantId: "verdant",
   },
 ];
 
 export const defaultRules: ChargeRule[] = [
-  // Apex Retail
-  { id: "r1", clientId: "APEX", category: "Inbound", description: "Inbound handling per pallet", unit: "pallet", rate: 8.5, enabled: true },
-  { id: "r2", clientId: "APEX", category: "Inbound", description: "Container unload (flat)", unit: "container", rate: 325, enabled: true },
-  { id: "r3", clientId: "APEX", category: "Outbound", description: "Pick & pack per carton", unit: "carton", rate: 1.75, enabled: true },
-  { id: "r4", clientId: "APEX", category: "Outbound", description: "BOL generation fee", unit: "bol", rate: 15, enabled: true },
-  { id: "r5", clientId: "APEX", category: "Storage", description: "Pallet storage", unit: "pallet", rate: 0.65, frequency: "daily", enabled: true },
-  { id: "r6", clientId: "APEX", category: "Custom", description: "Container received + putaway bonus charge", unit: "flat", rate: 75, trigger: "Container Inbounded AND Putaway", enabled: true },
+  {
+    id: "r1",
+    clientId: "acme",
+    tenantId: "acme",
+    category: "Inbound",
+    description: "Inbound handling per pallet",
+    unit: "pallet",
+    rate: 8.5,
+    enabled: true,
+  },
+  {
+    id: "r2",
+    clientId: "acme",
+    tenantId: "acme",
+    category: "Inbound",
+    description: "Inbound handling — carton receive",
+    unit: "carton",
+    rate: 0.35,
+    enabled: true,
+  },
+  {
+    id: "r3",
+    clientId: "acme",
+    tenantId: "acme",
+    warehouseId: "atl1",
+    category: "Outbound",
+    description: "Pick & pack per carton (ATL1)",
+    unit: "carton",
+    rate: 1.75,
+    enabled: true,
+  },
+  {
+    id: "r4",
+    clientId: "acme",
+    tenantId: "acme",
+    category: "Outbound",
+    description: "BOL generation fee",
+    unit: "bol",
+    rate: 15,
+    enabled: true,
+  },
+  {
+    id: "r5",
+    clientId: "acme",
+    tenantId: "acme",
+    category: "Storage",
+    description: "Pallet storage — daily",
+    unit: "pallet",
+    rate: 0.65,
+    frequency: "daily",
+    enabled: true,
+  },
 
-  // Global Logistics
-  { id: "r7", clientId: "GLOBAL", category: "Inbound", description: "Carton receive fee", unit: "carton", rate: 0.45, enabled: true },
-  { id: "r8", clientId: "GLOBAL", category: "Outbound", description: "Pallet ship-out", unit: "pallet", rate: 12, enabled: true },
-  { id: "r9", clientId: "GLOBAL", category: "Storage", description: "Pallet storage", unit: "pallet", rate: 18, frequency: "monthly", enabled: true },
+  {
+    id: "r6",
+    clientId: "northstar",
+    tenantId: "northstar",
+    category: "Inbound",
+    description: "Carton receive fee",
+    unit: "carton",
+    rate: 0.45,
+    enabled: true,
+  },
+  {
+    id: "r7",
+    clientId: "northstar",
+    tenantId: "northstar",
+    warehouseId: "lax3",
+    category: "Outbound",
+    description: "Apparel pick & pack (LAX3)",
+    unit: "carton",
+    rate: 2.1,
+    enabled: true,
+  },
+  {
+    id: "r8",
+    clientId: "northstar",
+    tenantId: "northstar",
+    warehouseId: "ord2",
+    category: "Outbound",
+    description: "Apparel pallet ship-out (ORD2)",
+    unit: "pallet",
+    rate: 12,
+    enabled: true,
+  },
+  {
+    id: "r9",
+    clientId: "northstar",
+    tenantId: "northstar",
+    category: "Storage",
+    description: "Pallet storage — monthly",
+    unit: "pallet",
+    rate: 18,
+    frequency: "monthly",
+    enabled: true,
+  },
 
-  // Northstar Goods — no rules (will fall back to manual)
+  {
+    id: "r10",
+    clientId: "harborlite",
+    tenantId: "harborlite",
+    category: "Inbound",
+    description: "Electronics inbound per pallet (EWR1)",
+    unit: "pallet",
+    rate: 9.75,
+    enabled: true,
+  },
+  {
+    id: "r11",
+    clientId: "harborlite",
+    tenantId: "harborlite",
+    category: "Outbound",
+    description: "BOL generation fee",
+    unit: "bol",
+    rate: 18,
+    enabled: true,
+  },
+  {
+    id: "r12",
+    clientId: "harborlite",
+    tenantId: "harborlite",
+    category: "Storage",
+    description: "Pallet storage — monthly",
+    unit: "pallet",
+    rate: 22,
+    frequency: "monthly",
+    enabled: true,
+  },
+
+  {
+    id: "r13",
+    clientId: "verdant",
+    tenantId: "verdant",
+    category: "Inbound",
+    description: "Supplement inbound per pallet",
+    unit: "pallet",
+    rate: 7.25,
+    enabled: true,
+  },
+  {
+    id: "r14",
+    clientId: "verdant",
+    tenantId: "verdant",
+    warehouseId: "atl1",
+    category: "Outbound",
+    description: "Pick & pack per carton (ATL1)",
+    unit: "carton",
+    rate: 1.95,
+    enabled: true,
+  },
+  {
+    id: "r15",
+    clientId: "verdant",
+    tenantId: "verdant",
+    category: "Storage",
+    description: "Pallet storage — daily",
+    unit: "pallet",
+    rate: 0.55,
+    frequency: "daily",
+    enabled: true,
+  },
 ];
 
 const today = new Date();
@@ -109,25 +280,27 @@ const iso = (offsetDays: number) => {
 };
 
 export const billableEvents: BillableEvent[] = [
-  { id: "e1", clientId: "APEX", date: iso(-12), type: "Inbound", reference: "PO-88210", description: "Container MSCU7723441 received", quantity: 1, unit: "container", billed: false },
-  { id: "e2", clientId: "APEX", date: iso(-12), type: "Inbound", reference: "PO-88210", description: "Pallets received and putaway", quantity: 22, unit: "pallet", billed: false },
-  { id: "e3", clientId: "APEX", date: iso(-12), type: "Custom", reference: "PO-88210", description: "Container Inbounded + Putaway trigger fired", quantity: 1, unit: "flat", billed: false },
-  { id: "e4", clientId: "APEX", date: iso(-8),  type: "Outbound", reference: "SO-55012", description: "Pick & pack cartons for Apex.com FC-LAX", quantity: 184, unit: "carton", billed: false },
-  { id: "e5", clientId: "APEX", date: iso(-8),  type: "Outbound", reference: "BOL-AX-2210", description: "BOL generated for outbound shipment", quantity: 1, unit: "bol", billed: false },
-  { id: "e6", clientId: "APEX", date: iso(-1),  type: "Storage", reference: "SNAP-04", description: "Daily storage snapshot", quantity: 138, unit: "pallet", billed: false },
+  { id: "e1", clientId: "acme", tenantId: "acme", warehouseId: "atl1", date: iso(-12), type: "Inbound", reference: "PO-88210", description: "Container MSCU7723441 received", quantity: 1, unit: "container", billed: false },
+  { id: "e2", clientId: "acme", tenantId: "acme", warehouseId: "atl1", date: iso(-12), type: "Inbound", reference: "PO-88210", description: "Pallets received and putaway", quantity: 22, unit: "pallet", billed: false },
+  { id: "e3", clientId: "acme", tenantId: "acme", warehouseId: "atl1", date: iso(-12), type: "Custom", reference: "PO-88210", description: "Container Inbounded + Putaway trigger fired", quantity: 1, unit: "flat", billed: false },
+  { id: "e4", clientId: "acme", tenantId: "acme", warehouseId: "atl1", date: iso(-8),  type: "Outbound", reference: "SO-55012", description: "Pick & pack cartons for Apex.com FC-LAX", quantity: 184, unit: "carton", billed: false },
+  { id: "e5", clientId: "acme", tenantId: "acme", warehouseId: "atl1", date: iso(-8),  type: "Outbound", reference: "BOL-AX-2210", description: "BOL generated for outbound shipment", quantity: 1, unit: "bol", billed: false },
+  { id: "e6", clientId: "acme", tenantId: "acme", warehouseId: "atl1", date: iso(-1),  type: "Storage", reference: "SNAP-04", description: "Daily storage snapshot", quantity: 138, unit: "pallet", billed: false },
 
-  { id: "e7", clientId: "GLOBAL", date: iso(-15), type: "Inbound", reference: "PO-77004", description: "Cartons received from CMA-CGM", quantity: 412, unit: "carton", billed: false },
-  { id: "e8", clientId: "GLOBAL", date: iso(-6),  type: "Outbound", reference: "SO-77910", description: "Pallets shipped to retail DC", quantity: 14, unit: "pallet", billed: false },
-  { id: "e9", clientId: "GLOBAL", date: iso(-1),  type: "Storage", reference: "SNAP-MO", description: "Monthly storage snapshot", quantity: 86, unit: "pallet", billed: false },
+  { id: "e7", clientId: "northstar", tenantId: "northstar", warehouseId: "lax3", date: iso(-15), type: "Inbound", reference: "PO-77004", description: "Cartons received from CMA-CGM", quantity: 412, unit: "carton", billed: false },
+  { id: "e8", clientId: "northstar", tenantId: "northstar", warehouseId: "ord2", date: iso(-6),  type: "Outbound", reference: "SO-77910", description: "Pallets shipped to retail DC", quantity: 14, unit: "pallet", billed: false },
+  { id: "e9", clientId: "northstar", tenantId: "northstar", warehouseId: "ord2", date: iso(-1),  type: "Storage", reference: "SNAP-MO", description: "Monthly storage snapshot", quantity: 86, unit: "pallet", billed: false },
 
-  { id: "e10", clientId: "NORTHSTAR", date: iso(-4), type: "Inbound", reference: "PO-30021", description: "LTL inbound — 6 pallets", quantity: 6, unit: "pallet", billed: false },
+  { id: "e10", clientId: "harborlite", tenantId: "harborlite", warehouseId: "ewr1", date: iso(-4), type: "Inbound", reference: "PO-30021", description: "LTL inbound — 6 pallets", quantity: 6, unit: "pallet", billed: false },
+  { id: "e11", clientId: "verdant", tenantId: "verdant", warehouseId: "atl1", date: iso(-3), type: "Inbound", reference: "PO-40015", description: "Supplement inbound — 48 cartons", quantity: 48, unit: "carton", billed: false },
 ];
 
 export const seedInvoices: Invoice[] = [
   {
     id: "inv-seed-1",
     number: "AZ-2026-0044",
-    clientId: "GLOBAL",
+    clientId: "northstar",
+    tenantId: "northstar",
     issueDate: iso(-30),
     dueDate: iso(0),
     status: "Sent",
@@ -139,6 +312,22 @@ export const seedInvoices: Invoice[] = [
       { id: "l3", activityType: "Outbound", description: "Pallet ship-out", quantity: 42, rate: 12, total: 504 },
     ],
   },
+  {
+    id: "inv-seed-2",
+    number: "AZ-2026-0045",
+    clientId: "acme",
+    tenantId: "acme",
+    issueDate: iso(-15),
+    dueDate: iso(15),
+    status: "Draft",
+    taxRate: 0.0875,
+    source: "Automated",
+    lines: [
+      { id: "l4", activityType: "Inbound", description: "Inbound handling per pallet", quantity: 35, rate: 8.5, total: 297.5 },
+      { id: "l5", activityType: "Outbound", description: "Pick & pack per carton", quantity: 210, rate: 1.75, total: 367.5 },
+      { id: "l6", activityType: "Storage", description: "Daily pallet storage", quantity: 28, rate: 0.65, total: 18.2 },
+    ],
+  },
 ];
 
 export function unitLabel(u: RateUnit | "flat"): string {
@@ -147,6 +336,8 @@ export function unitLabel(u: RateUnit | "flat"): string {
     case "pallet": return "per pallet";
     case "container": return "per container";
     case "bol": return "per BOL";
+    case "location": return "per location";
+    case "warehouse": return "per warehouse";
     case "flat": return "flat";
   }
 }

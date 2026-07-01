@@ -137,6 +137,7 @@ const statusStyles: Record<Order["status"], string> = {
   packed: "bg-chart-4/15 text-chart-4 border-chart-4/30",
   shipped: "bg-chart-3/15 text-chart-3 border-chart-3/30",
   exception: "bg-destructive/15 text-destructive border-destructive/30",
+  OUTBOUND_PALLETIZED: "bg-chart-5/15 text-chart-5 border-chart-5/30",
 };
 
 function OrdersPage() {
@@ -162,7 +163,7 @@ function OrdersPage() {
   };
 
   const linesFor = (o: Order): OrderLine[] => lineOverrides[o.id] ?? o.lines;
-  const isLocked = (s: Order["status"]) => s === "shipped" || s === "PICKED" || s === "picking";
+  const isLocked = (s: Order["status"]) => s === "shipped" || s === "delivered" || s === "exception";
 
   const handleNewOrderSave = async (newOrder: Order) => {
     try {

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Receipt,
@@ -11,6 +11,9 @@ import {
   FileText,
   Settings2,
   Zap,
+  MapPin,
+  Warehouse,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,10 +36,6 @@ import {
   AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  billingClients,
-  defaultRules,
-  billableEvents,
-  seedInvoices,
   fmtUSD,
   unitLabel,
   type BillingClient,
@@ -47,6 +46,26 @@ import {
   type RateUnit,
   type StorageFrequency,
 } from "@/lib/billing-data";
+import { tenants, warehouses } from "@/lib/mock-data";
+import { locationMaster } from "@/lib/master-data";
+import {
+  subscribeBillingClients,
+  subscribeChargeRules,
+  subscribeBillableEvents,
+  subscribeInvoices,
+  createBillingClient,
+  updateBillingClient,
+  deleteBillingClient,
+  createChargeRule,
+  updateChargeRule,
+  deleteChargeRule,
+  createBillableEvent,
+  updateBillableEvent,
+  createInvoice,
+  seedBillingData,
+  getDocs,
+  collection,
+} from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/billing")({
   head: () => ({
@@ -59,11 +78,101 @@ export const Route = createFileRoute("/billing")({
 });
 
 function BillingPage() {
-  const [rules, setRules] = useState<ChargeRule[]>(defaultRules);
-  const [events, setEvents] = useState(billableEvents);
-  const [invoices, setInvoices] = useState<Invoice[]>(seedInvoices);
-  const [activeClient, setActiveClient] = useState<ClientId>("APEX");
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(seedInvoices[0]?.id ?? null);
+  const [rules, setRules] = useState<ChargeRule[]>([]);
+  const [events, setEvents] = useState<BillableEvent[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [clients, setClients] = useState<BillingClient[]>([]);
+  const [activeClientId, setActiveClientId] = useState<ClientId | null>(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [seeded, setSeeded] = useState(false);
+
+  useEffect(() => {
+    let unsubClients: (() => void) | undefined;
+    let unsubRules: (() => void) | undefined;
+    let unsubEvents: (() => void) | undefined;
+    let unsubInvoices: (() => void) | undefined;
+
+    async function load() {
+      setLoading(true);
+      try {
+        const [clientsSnap, rulesSnap, eventsSnap, invoicesSnap] = await Promise.all([
+          getDocs(collection(db, "billingClients")),
+          getDocs(collection(db, "chargeRules")),
+          getDocs(collection(db, "billableEvents")),
+          getDocs(collection(db, "invoices")),
+        ]);
+
+        const initialClients = clientsSnap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillingClient[];
+        const initialRules = rulesSnap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as ChargeRule[];
+        const initialEvents = eventsSnap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillableEvent[];
+        const initialInvoices = invoicesSnap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as Invoice[];
+
+        setClients(initialClients);
+        setRules(initialRules);
+        setEvents(initialEvents);
+        setInvoices(initialInvoices);
+
+        if (initialClients.length > 0 && !activeClientId) {
+          setActiveClientId(initialClients[0].id);
+        }
+
+        if (initialClients.length === 0 && !seeded) {
+          const res = await seedBillingData();
+          if (res.success) {
+            setSeeded(true);
+            const refreshed = await getDocs(collection(db, "billingClients"));
+            const refreshedClients = refreshed.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillingClient[];
+            setClients(refreshedClients);
+            if (refreshedClients.length > 0 && !activeClientId) {
+              setActiveClientId(refreshedClients[0].id);
+            }
+          }
+        }
+
+        unsubClients = subscribeBillingClients(setClients);
+        unsubRules = subscribeChargeRules(setRules);
+        unsubEvents = subscribeBillableEvents(setEvents);
+        unsubInvoices = subscribeInvoices(setInvoices);
+      } catch (e) {
+        console.error("Failed to load billing data", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+
+    return () => {
+      unsubClients?.();
+      unsubRules?.();
+      unsubEvents?.();
+      unsubInvoices?.();
+    };
+  }, []);
+
+  const activeClient = useMemo(
+    () => clients.find((c) => c.id === activeClientId) ?? clients[0] ?? null,
+    [clients, activeClientId],
+  );
+
+  const clientRules = useMemo(
+    () => rules.filter((r) => r.clientId === activeClientId),
+    [rules, activeClientId],
+  );
+
+  const unbilledCount = useMemo(
+    () => events.filter((e) => !e.billed).length,
+    [events],
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -78,9 +187,30 @@ function BillingPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1"><Sparkles className="h-3 w-3" /> {rules.filter(r=>r.enabled).length} active rules</Badge>
-          <Badge variant="outline">{events.filter(e=>!e.billed).length} unbilled events</Badge>
+          <Badge variant="outline" className="gap-1"><Sparkles className="h-3 w-3" /> {rules.filter(r => r.enabled).length} active rules</Badge>
+          <Badge variant="outline">{events.filter(e => !e.billed).length} unbilled events</Badge>
           <Badge variant="outline">{invoices.length} invoices</Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={async () => {
+              const res = await seedBillingData();
+              if (res.success) {
+                toast.success("Billing data reset to defaults");
+                const refreshed = await getDocs(collection(db, "billingClients"));
+                const refreshedClients = refreshed.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillingClient[];
+                setClients(refreshedClients);
+                if (refreshedClients.length > 0 && !activeClientId) {
+                  setActiveClientId(refreshedClients[0].id);
+                }
+              } else {
+                toast.error("Reset failed: " + res.error);
+              }
+            }}
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Reset Data
+          </Button>
         </div>
       </header>
 
@@ -94,7 +224,8 @@ function BillingPage() {
         <TabsContent value="setup">
           <SetupTab
             activeClient={activeClient}
-            onClientChange={setActiveClient}
+            onClientChange={setActiveClientId}
+            clients={clients}
             rules={rules}
             setRules={setRules}
           />
@@ -109,11 +240,12 @@ function BillingPage() {
             setInvoices={setInvoices}
             selectedInvoiceId={selectedInvoiceId}
             setSelectedInvoiceId={setSelectedInvoiceId}
+            clients={clients}
           />
         </TabsContent>
 
         <TabsContent value="log">
-          <TransactionsTab events={events} />
+          <TransactionsTab events={events} clients={clients} />
         </TabsContent>
       </Tabs>
     </div>
@@ -123,16 +255,17 @@ function BillingPage() {
 /* ---------------- Setup Tab ---------------- */
 
 function SetupTab({
-  activeClient, onClientChange, rules, setRules,
+  activeClient, onClientChange, clients, rules, setRules,
 }: {
-  activeClient: ClientId;
+  activeClient: BillingClient | null;
   onClientChange: (id: ClientId) => void;
+  clients: BillingClient[];
   rules: ChargeRule[];
   setRules: (r: ChargeRule[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [toDelete, setToDelete] = useState<string | null>(null);
-  const clientRules = rules.filter((r) => r.clientId === activeClient);
+  const clientRules = rules.filter((r) => r.clientId === activeClient?.id);
 
   const toggle = (id: string) =>
     setRules(rules.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)));
@@ -146,17 +279,20 @@ function SetupTab({
           <CardDescription className="text-xs">Select a client to edit rules</CardDescription>
         </CardHeader>
         <CardContent className="p-2">
-          {billingClients.map((c) => (
+          {clients.length === 0 && (
+            <div className="p-3 text-xs text-muted-foreground text-center">No billing clients configured.</div>
+          )}
+          {clients.map((c) => (
             <button
               key={c.id}
               onClick={() => onClientChange(c.id)}
               className={`w-full text-left rounded-md px-3 py-2 text-sm transition ${
-                activeClient === c.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                activeClient?.id === c.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"
               }`}
             >
               <div className="font-medium">{c.name}</div>
-              <div className={`text-[11px] ${activeClient === c.id ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                {c.accountNumber} · {rules.filter(r=>r.clientId===c.id).length} rules
+              <div className={`text-[11px] ${activeClient?.id === c.id ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                {c.code} · {rules.filter(r => r.clientId === c.id).length} rules
               </div>
             </button>
           ))}
@@ -168,18 +304,21 @@ function SetupTab({
           <div>
             <CardTitle className="text-base">Master List of Charges</CardTitle>
             <CardDescription>
-              {billingClients.find(c=>c.id===activeClient)?.name} — toggle, edit or add rules.
+              {activeClient ? `${activeClient.name} — toggle, edit or add rules.` : "Select a client to manage rules."}
             </CardDescription>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm"><Plus className="h-4 w-4" /> Add Rule</Button>
-            </DialogTrigger>
-            <RuleDialog
-              clientId={activeClient}
-              onSave={(rule) => { setRules([...rules, rule]); setOpen(false); toast.success("Rule added"); }}
-            />
-          </Dialog>
+          {activeClient && (
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm"><Plus className="h-4 w-4" /> Add Rule</Button>
+              </DialogTrigger>
+              <RuleDialog
+                clientId={activeClient.id}
+                tenantId={activeClient.tenantId}
+                onSave={(rule) => { setRules([...rules, rule]); setOpen(false); toast.success("Rule added"); }}
+              />
+            </Dialog>
+          )}
         </CardHeader>
         <CardContent>
           {clientRules.length === 0 ? (
@@ -192,9 +331,10 @@ function SetupTab({
                 <TableRow>
                   <TableHead>Category</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Warehouse</TableHead>
+                  <TableHead>Location</TableHead>
                   <TableHead>Rate</TableHead>
                   <TableHead>Unit / Frequency</TableHead>
-                  <TableHead>Trigger</TableHead>
                   <TableHead className="text-right">Enabled</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -204,13 +344,16 @@ function SetupTab({
                   <TableRow key={r.id}>
                     <TableCell><CategoryBadge cat={r.category} /></TableCell>
                     <TableCell className="font-medium">{r.description}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {r.warehouseId ? warehouses.find(w => w.id === r.warehouseId)?.code ?? r.warehouseId : "ALL"}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground font-mono">
+                      {r.locationId ?? "—"}
+                    </TableCell>
                     <TableCell>{fmtUSD(r.rate)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {unitLabel(r.unit)}
                       {r.frequency ? ` · ${r.frequency}${r.customCycleDays ? ` (${r.customCycleDays}d)` : ""}` : ""}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[220px] truncate">
-                      {r.trigger ?? "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <Switch checked={r.enabled} onCheckedChange={() => toggle(r.id)} />
@@ -266,20 +409,34 @@ function CategoryBadge({ cat }: { cat: ChargeRule["category"] }) {
   return <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${cls}`}>{cat}</span>;
 }
 
-function RuleDialog({ clientId, onSave }: { clientId: ClientId; onSave: (r: ChargeRule) => void }) {
+function RuleDialog({ clientId, tenantId, onSave }: { clientId: ClientId; tenantId: string; onSave: (r: ChargeRule) => void }) {
   const [category, setCategory] = useState<ChargeRule["category"]>("Inbound");
   const [description, setDescription] = useState("");
+  const [warehouseId, setWarehouseId] = useState<string>("");
+  const [locationId, setLocationId] = useState<string>("");
   const [unit, setUnit] = useState<RateUnit | "flat">("pallet");
   const [rate, setRate] = useState<number>(0);
   const [frequency, setFrequency] = useState<StorageFrequency>("daily");
   const [customCycleDays, setCustomCycleDays] = useState<number>(7);
   const [trigger, setTrigger] = useState("");
 
+  const availableLocations = useMemo(() => {
+    if (!warehouseId) return locationMaster;
+    return locationMaster.filter((l) => l.warehouseId === warehouseId);
+  }, [warehouseId]);
+
   const save = () => {
     if (!description || !rate) { toast.error("Description and rate are required"); return; }
     onSave({
       id: `r${Date.now()}`,
-      clientId, category, description, unit, rate,
+      clientId,
+      tenantId,
+      warehouseId: warehouseId || undefined,
+      locationId: locationId || undefined,
+      category,
+      description,
+      unit,
+      rate,
       frequency: category === "Storage" ? frequency : undefined,
       customCycleDays: category === "Storage" && frequency === "custom" ? customCycleDays : undefined,
       trigger: category === "Custom" ? trigger || undefined : undefined,
@@ -291,7 +448,7 @@ function RuleDialog({ clientId, onSave }: { clientId: ClientId; onSave: (r: Char
     <DialogContent className="max-w-lg">
       <DialogHeader>
         <DialogTitle>New Billing Rule</DialogTitle>
-        <DialogDescription>Configure a charge for this client.</DialogDescription>
+        <DialogDescription>Configure a charge for this client. Warehouse and location scoping is optional.</DialogDescription>
       </DialogHeader>
       <div className="grid gap-3">
         <Field label="Category">
@@ -309,6 +466,30 @@ function RuleDialog({ clientId, onSave }: { clientId: ClientId; onSave: (r: Char
           <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Pick & pack per carton" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
+          <Field label="Warehouse (optional)">
+            <Select value={warehouseId} onValueChange={(v) => { setWarehouseId(v); setLocationId(""); }}>
+              <SelectTrigger><SelectValue placeholder="All warehouses" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">ALL Warehouses</SelectItem>
+                {warehouses.filter(w => w.id !== "all").map((w) => (
+                  <SelectItem key={w.id} value={w.id}>{w.code} — {w.city}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Location (optional)">
+            <Select value={locationId} onValueChange={(v) => setLocationId(v)} disabled={!!warehouseId && availableLocations.length === 0}>
+              <SelectTrigger><SelectValue placeholder="Any location" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">ALL Locations</SelectItem>
+                {availableLocations.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>{l.id} · {l.zone}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Rate (USD)">
             <Input type="number" step="0.01" value={rate} onChange={(e) => setRate(parseFloat(e.target.value) || 0)} />
           </Field>
@@ -320,6 +501,8 @@ function RuleDialog({ clientId, onSave }: { clientId: ClientId; onSave: (r: Char
                 <SelectItem value="pallet">per pallet</SelectItem>
                 <SelectItem value="container">per container</SelectItem>
                 <SelectItem value="bol">per BOL</SelectItem>
+                <SelectItem value="location">per location</SelectItem>
+                <SelectItem value="warehouse">per warehouse</SelectItem>
                 <SelectItem value="flat">flat charge</SelectItem>
               </SelectContent>
             </Select>
@@ -370,7 +553,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 /* ---------------- Invoices Tab ---------------- */
 
 function InvoicesTab({
-  rules, events, setEvents, invoices, setInvoices, selectedInvoiceId, setSelectedInvoiceId,
+  rules, events, setEvents, invoices, setInvoices, selectedInvoiceId, setSelectedInvoiceId, clients,
 }: {
   rules: ChargeRule[];
   events: typeof billableEvents;
@@ -379,12 +562,14 @@ function InvoicesTab({
   setInvoices: (i: Invoice[]) => void;
   selectedInvoiceId: string | null;
   setSelectedInvoiceId: (id: string | null) => void;
+  clients: BillingClient[];
 }) {
-  const [genClient, setGenClient] = useState<ClientId>("APEX");
+  const [genClient, setGenClient] = useState<ClientId | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const selected = invoices.find((i) => i.id === selectedInvoiceId) ?? null;
 
   const runAutomated = () => {
+    if (!genClient) { toast.error("Select a client"); return; }
     const clientRules = rules.filter((r) => r.clientId === genClient && r.enabled);
     const clientEvents = events.filter((e) => e.clientId === genClient && !e.billed);
     if (clientRules.length === 0) {
@@ -433,23 +618,24 @@ function InvoicesTab({
           </CardHeader>
           <CardContent className="space-y-3">
             <Field label="Client">
-              <Select value={genClient} onValueChange={(v) => setGenClient(v as ClientId)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select value={genClient ?? ""} onValueChange={(v) => setGenClient(v as ClientId)}>
+                <SelectTrigger><SelectValue placeholder="Select client…" /></SelectTrigger>
                 <SelectContent>
-                  {billingClients.map((c) => (
+                  {clients.map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
             <div className="flex flex-col gap-2">
-              <Button onClick={runAutomated}><Sparkles className="h-4 w-4" /> Run Automated Billing</Button>
+              <Button onClick={runAutomated} disabled={!genClient}><Sparkles className="h-4 w-4" /> Run Automated Billing</Button>
               <Dialog open={manualOpen} onOpenChange={setManualOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline"><Plus className="h-4 w-4" /> Create Manual Bill</Button>
                 </DialogTrigger>
                 <ManualInvoiceDialog
-                  clientId={genClient}
+                  clientId={genClient ?? clients[0]?.id ?? "acme"}
+                  clients={clients}
                   onSave={(inv) => {
                     setInvoices([inv, ...invoices]);
                     setSelectedInvoiceId(inv.id);
@@ -472,7 +658,7 @@ function InvoicesTab({
               <div className="p-4 text-sm text-muted-foreground">No invoices yet.</div>
             )}
             {invoices.map((inv) => {
-              const c = billingClients.find((b) => b.id === inv.clientId)!;
+              const c = clients.find((b) => b.id === inv.clientId)!;
               const total = lineTotal(inv);
               return (
                 <button
@@ -499,7 +685,7 @@ function InvoicesTab({
 
       <div>
         {selected ? (
-          <InvoicePreview invoice={selected} />
+          <InvoicePreview invoice={selected} clients={clients} />
         ) : (
           <Card className="h-full">
             <CardContent className="flex h-[400px] items-center justify-center text-sm text-muted-foreground">
@@ -534,8 +720,8 @@ function lineTotal(inv: Invoice): number {
 }
 
 function ManualInvoiceDialog({
-  clientId, onSave, nextSeq,
-}: { clientId: ClientId; onSave: (i: Invoice) => void; nextSeq: number }) {
+  clientId, clients, onSave, nextSeq,
+}: { clientId: ClientId; clients: BillingClient[]; onSave: (i: Invoice) => void; nextSeq: number }) {
   const [client, setClient] = useState<ClientId>(clientId);
   const [lines, setLines] = useState<InvoiceLine[]>([
     { id: "ml1", activityType: "Service", description: "", quantity: 1, rate: 0, total: 0 },
@@ -566,7 +752,7 @@ function ManualInvoiceDialog({
             <Select value={client} onValueChange={(v) => setClient(v as ClientId)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {billingClients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
@@ -647,14 +833,24 @@ function ManualInvoiceDialog({
 
 /* ---------------- Invoice Preview ---------------- */
 
-function InvoicePreview({ invoice }: { invoice: Invoice }) {
-  const client = billingClients.find((c) => c.id === invoice.clientId) as BillingClient;
+function InvoicePreview({ invoice, clients }: { invoice: Invoice; clients: BillingClient[] }) {
+  const client = clients.find((c) => c.id === invoice.clientId) as BillingClient | undefined;
   const sub = invoice.lines.reduce((s, l) => s + l.total, 0);
   const tax = +(sub * invoice.taxRate).toFixed(2);
   const total = +(sub + tax).toFixed(2);
 
   const print = () => window.print();
-  const email = () => toast.success(`Invoice successfully emailed to ${client.email}`);
+  const email = () => toast.success(`Invoice successfully emailed to ${client?.email ?? "client"}`);
+
+  if (!client) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-sm text-muted-foreground text-center">
+          Client record not found for this invoice.
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -748,7 +944,7 @@ function InvoicePreview({ invoice }: { invoice: Invoice }) {
 
 /* ---------------- Transactions Tab ---------------- */
 
-function TransactionsTab({ events }: { events: typeof billableEvents }) {
+function TransactionsTab({ events, clients }: { events: typeof billableEvents; clients: BillingClient[] }) {
   const [filter, setFilter] = useState<"ALL" | ClientId>("ALL");
   const filtered = useMemo(
     () => events.filter((e) => filter === "ALL" || e.clientId === filter),
@@ -766,7 +962,7 @@ function TransactionsTab({ events }: { events: typeof billableEvents }) {
           <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All clients</SelectItem>
-            {billingClients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </CardHeader>
@@ -786,7 +982,7 @@ function TransactionsTab({ events }: { events: typeof billableEvents }) {
           </TableHeader>
           <TableBody>
             {filtered.map((e) => {
-              const c = billingClients.find((b) => b.id === e.clientId)!;
+              const c = clients.find((b) => b.id === e.clientId)!;
               return (
                 <TableRow key={e.id}>
                   <TableCell className="text-xs text-muted-foreground">{e.date}</TableCell>

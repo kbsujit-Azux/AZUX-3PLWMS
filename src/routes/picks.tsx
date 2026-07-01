@@ -8,10 +8,16 @@ import {
   History,
   Save,
   X,
+  Package,
+  Printer,
+  Barcode,
+  CheckCircle2,
+  ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -45,10 +51,22 @@ import {
   fetchOrders,
   subscribeOrders,
   InventoryTransaction,
+  createOutboundPallets,
+  updateOutboundPallet,
+  createShipmentRecord,
 } from "@/lib/firestore-data";
+import {
+  createOutboundPalletFromInput,
+  buildUcc128Label,
+  type OutboundPallet,
+  type OutboundPalletLine,
+  type OutboundPalletCreateInput,
+} from "@/lib/outbound-pallet-data";
 import type { PickTicket } from "@/lib/mock-data";
 import { fmtDateTime } from "@/lib/utils";
 import type { Order } from "@/lib/edi-data";
+import { orders } from "@/lib/edi-data";
+import { tenants, warehouses } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/picks")({
   head: () => ({
@@ -92,6 +110,13 @@ function PicksPage() {
   const [inventory, setInventory] = useState<Map<string, any>>(new Map());
   const [ordersMap, setOrdersMap] = useState<Map<string, Order>>(new Map());
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
+
+  // Palletize state
+  const [palletizeOrderOpen, setPalletizeOrderOpen] = useState<Order | null>(null);
+  const [palletizePalletsCount, setPalletizePalletsCount] = useState(1);
+  const [palletizeConfirmOpen, setPalletizeConfirmOpen] = useState(false);
+  const [pendingOutboundPallets, setPendingOutboundPallets] = useState<OutboundPallet[]>([]);
+  const [isPalletizing, setIsPalletizing] = useState(false);
 
   // Load initial data and subscribe to updates
   useEffect(() => {
@@ -261,13 +286,165 @@ function PicksPage() {
     }
   };
 
+  const fullyPickedOrders = useMemo(() => {
+    const orderPickMap = new Map<string, PickTicket[]>();
+    for (const pt of pickTickets) {
+      const existing = orderPickMap.get(pt.orderId) || [];
+      existing.push(pt);
+      orderPickMap.set(pt.orderId, existing);
+    }
+
+    const result: { order: Order; pickTickets: PickTicket[] }[] = [];
+    for (const [orderId, pts] of orderPickMap) {
+      const order = ordersMap.get(orderId);
+      if (!order) continue;
+      if (order.status === "OUTBOUND_PALLETIZED" || order.status === "shipped") continue;
+      const allPicked = pts.every(
+        (pt) => pt.status === "PICKED" || pt.status === "CLOSED",
+      );
+      if (allPicked && pts.length > 0) {
+        result.push({ order, pickTickets: pts });
+      }
+    }
+    return result;
+  }, [pickTickets, ordersMap]);
+
+  const openPalletizeDialog = (order: Order) => {
+    setPalletizeOrderOpen(order);
+    setPalletizePalletsCount(1);
+    setPalletizeConfirmOpen(false);
+    setPendingOutboundPallets([]);
+  };
+
+  const prepareOutboundPallets = () => {
+    if (!palletizeOrderOpen) return;
+    const order = palletizeOrderOpen;
+    const orderPicks = pickTickets.filter((pt) => pt.orderId === order.id);
+    const lines: OutboundPalletLine[] = orderPicks.map((pt) => {
+      const item = inventory.get(pt.sku);
+      return {
+        sku: pt.sku,
+        description: item?.description || pt.sku,
+        unitsPicked: pt.qtyPicked || pt.quantityToPick,
+        caseQty: item?.caseQty || 1,
+        weightLbs: ((pt.qtyPicked || pt.quantityToPick) * (item?.weightLbs || 1)),
+        pickTicketNum: pt.pickTicketNum,
+      };
+    });
+
+    const totalUnits = lines.reduce((sum, l) => sum + l.unitsPicked, 0);
+    const preferredPallets = Math.max(1, Math.ceil(totalUnits / 480));
+    const palletsCount = Math.max(1, Math.min(preferredPallets, palletizePalletsCount));
+
+    const input: OutboundPalletCreateInput = {
+      orderId: order.id,
+      tenantId: order.tenantId,
+      warehouseId: order.warehouseId,
+      totalPallets: palletsCount,
+      lines,
+    };
+
+    const pallets: OutboundPallet[] = [];
+    for (let i = 1; i <= palletsCount; i++) {
+      pallets.push(createOutboundPalletFromInput(input, i));
+    }
+    setPendingOutboundPallets(pallets);
+    setPalletizeConfirmOpen(true);
+  };
+
+  const confirmPalletization = async () => {
+    if (!palletizeOrderOpen || pendingOutboundPallets.length === 0) return;
+    setIsPalletizing(true);
+    try {
+      await createOutboundPallets(pendingOutboundPallets);
+
+      for (const pallet of pendingOutboundPallets) {
+        const pickTicketsForPallet = pickTickets.filter(
+          (pt) => pt.orderId === palletizeOrderOpen!.id,
+        );
+        for (const pt of pickTicketsForPallet) {
+          await updatePickTicket(pt.pickTicketNum, {
+            status: "CLOSED",
+            closedAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      const firstPallet = pendingOutboundPallets[0];
+      const shipmentId = `SHP-${firstPallet.sscc18.slice(-8)}`;
+      const totalPallets = pendingOutboundPallets.length;
+      const totalUnits = pendingOutboundPallets.reduce(
+        (s, p) => s + p.lines.reduce((ls, l) => ls + l.unitsPicked, 0),
+        0,
+      );
+      const totalWeightLbs = pendingOutboundPallets.reduce(
+        (s, p) => s + p.lines.reduce((ls, l) => ls + l.weightLbs, 0),
+        0,
+      );
+      const totalCartons = pendingOutboundPallets.reduce(
+        (s, p) => s + p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0),
+        0,
+      );
+
+      await createShipmentRecord({
+        id: shipmentId,
+        bolId: "",
+        orderIds: [palletizeOrderOpen.id],
+        tenantId: firstPallet.tenantId,
+        warehouseId: firstPallet.warehouseId,
+        carrier: palletizeOrderOpen.carrier,
+        scac: "",
+        serviceLevel: palletizeOrderOpen.serviceLevel,
+        mode: "LTL",
+        status: "staged",
+        dockDoor: "D-00",
+        appointmentAt: new Date().toISOString(),
+        trailerNumber: "",
+        sealNumber: "",
+        proNumber: "",
+        shipTo: palletizeOrderOpen.shipToName,
+        pallets: totalPallets,
+        cartons: totalCartons,
+        weightLbs: Math.round(totalWeightLbs * 10) / 10,
+        declaredValue: palletizeOrderOpen.lines.reduce(
+          (s, l) => s + l.qtyOrdered * l.unitPrice,
+          0,
+        ),
+      });
+
+      for (const pallet of pendingOutboundPallets) {
+        await updateOutboundPallet(pallet.id, {
+          status: "staged",
+          shipmentId,
+        });
+      }
+
+      await updateOrder(palletizeOrderOpen.id, { status: "OUTBOUND_PALLETIZED" });
+
+      toast.success(
+        `${pendingOutboundPallets.length} outbound pallet(s) created for ${palletizeOrderOpen.id}`,
+        {
+          description: `Shipment ${shipmentId} staged · UCC128 labels ready`,
+        },
+      );
+
+      setPalletizeOrderOpen(null);
+      setPalletizeConfirmOpen(false);
+      setPendingOutboundPallets([]);
+    } catch (e: any) {
+      toast.error(`Palletization failed: ${e.message}`);
+    } finally {
+      setIsPalletizing(false);
+    }
+  };
+
   return (
-    <div className="px-6 py-6 space-y-4">
+    <div className="px-6 py-6 space-y-6">
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Pick Tickets</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Directed picking · enter quantities · reallocate on shortage · view history
+            Directed picking · enter quantities · reallocate on shortage · palletize when fully picked
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -277,12 +454,70 @@ function PicksPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 divide-x divide-border rounded-md border border-border bg-card">
+      <div className="grid grid-cols-5 divide-x divide-border rounded-md border border-border bg-card">
         <Stat label="Generated" value={stats.generated} tone="text-foreground" />
         <Stat label="Picked" value={stats.picked} tone="text-chart-1" />
         <Stat label="Closed" value={stats.closed} tone="text-chart-3" />
         <Stat label="Total" value={stats.total} />
+        <Stat label="Fully Picked Orders" value={fullyPickedOrders.length} tone="text-chart-4" />
       </div>
+
+      {/* Fully Picked Orders - Palletize Section */}
+      {fullyPickedOrders.length > 0 && (
+        <div className="rounded-md border border-chart-4/30 bg-chart-4/5 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-chart-4" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-chart-4">
+                Ready for Palletization
+              </span>
+            </div>
+            <span className="text-[10px] text-muted-foreground">
+              {fullyPickedOrders.length} order(s) fully picked
+            </span>
+          </div>
+          <div className="rounded-md border border-border bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="text-[10px] uppercase tracking-wider">Order #</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">PO #</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Ship-to</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Carrier</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Units</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">SKUs</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider w-40" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fullyPickedOrders.map(({ order }) => {
+                  const tenant = ordersMap.get(order.id);
+                  const totalUnits = order.lines.reduce((s, l) => s + l.qtyOrdered, 0);
+                  return (
+                    <TableRow key={order.id} className="text-xs hover:bg-muted/30">
+                      <TableCell className="py-2 font-mono font-medium">{order.id}</TableCell>
+                      <TableCell className="py-2 font-mono text-[11px]">{order.poNumber}</TableCell>
+                      <TableCell className="py-2">{order.shipToName}</TableCell>
+                      <TableCell className="py-2">{order.carrier}</TableCell>
+                      <TableCell className="py-2 text-right tabular-nums">{totalUnits}</TableCell>
+                      <TableCell className="py-2 text-right tabular-nums">{order.lines.length}</TableCell>
+                      <TableCell className="py-2 text-right">
+                        <Button
+                          size="sm"
+                          className="h-7 text-[11px] gap-1.5 bg-chart-4 hover:bg-chart-4/90"
+                          onClick={() => openPalletizeDialog(order)}
+                        >
+                          <Package className="h-3 w-3" /> Palletize
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
 
       <div className="relative flex-1 max-w-md">
         <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -479,6 +714,196 @@ function PicksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Palletize Order Dialog */}
+      <Dialog open={!!palletizeOrderOpen && !palletizeConfirmOpen} onOpenChange={(o) => !o && setPalletizeOrderOpen(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-mono flex items-center gap-2">
+              <Package className="h-4 w-4 text-chart-4" />
+              Palletize Order
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Create outbound pallets with UCC128 labels for shipment
+            </DialogDescription>
+          </DialogHeader>
+          {palletizeOrderOpen && (
+            <div className="space-y-4">
+              {/* Order Header */}
+              <div className="rounded-md border border-border bg-muted/20 p-3 grid grid-cols-4 gap-3 text-xs">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order #</div>
+                  <div className="font-mono font-medium">{palletizeOrderOpen.id}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">PO #</div>
+                  <div className="font-mono">{palletizeOrderOpen.poNumber}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ship-to</div>
+                  <div>{palletizeOrderOpen.shipToName}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Carrier</div>
+                  <div>{palletizeOrderOpen.carrier} · {palletizeOrderOpen.serviceLevel}</div>
+                </div>
+              </div>
+
+              {/* SKU Lines */}
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Picked Items</div>
+                <div className="rounded-md border border-border bg-card overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
+                        <TableHead className="text-[10px] uppercase tracking-wider">Description</TableHead>
+                        <TableHead className="text-[10px] uppercase tracking-wider text-right">Units Picked</TableHead>
+                        <TableHead className="text-[10px] uppercase tracking-wider text-right">Case Pack</TableHead>
+                        <TableHead className="text-[10px] uppercase tracking-wider text-right">Weight (lb)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(() => {
+                        const orderPicks = pickTickets.filter((pt) => pt.orderId === palletizeOrderOpen!.id);
+                        return orderPicks.map((pt) => {
+                          const item = inventory.get(pt.sku);
+                          const units = pt.qtyPicked || pt.quantityToPick;
+                          return (
+                            <TableRow key={pt.pickTicketNum} className="text-xs">
+                              <TableCell className="py-2 font-mono font-medium">{pt.sku}</TableCell>
+                              <TableCell className="py-2 text-[11px]">{item?.description || pt.sku}</TableCell>
+                              <TableCell className="py-2 text-right tabular-nums">{units}</TableCell>
+                              <TableCell className="py-2 text-right tabular-nums">{item?.caseQty || 1}</TableCell>
+                              <TableCell className="py-2 text-right tabular-nums">
+                                {(units * (item?.weightLbs || 1)).toFixed(1)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        });
+                      })()}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {/* Pallet Count Input */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Number of Outbound Pallets
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={palletizePalletsCount}
+                    onChange={(e) => setPalletizePalletsCount(parseInt(e.target.value) || 1)}
+                    className="h-8 text-xs font-mono mt-1"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <div className="text-[10px] text-muted-foreground">
+                    Recommended: {Math.max(1, Math.ceil(pickTickets.filter(pt => pt.orderId === palletizeOrderOpen!.id).reduce((s, pt) => s + (pt.qtyPicked || pt.quantityToPick), 0) / 480))} pallets based on 480 units/pallet capacity
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setPalletizeOrderOpen(null)}>Cancel</Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => prepareOutboundPallets()}
+            >
+              <ClipboardList className="h-3.5 w-3.5" /> Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Palletize Confirmation Dialog */}
+      <Dialog open={palletizeConfirmOpen} onOpenChange={setPalletizeConfirmOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-mono flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-chart-3" />
+              Confirm Outbound Pallet Creation
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Review the outbound pallets that will be created with UCC128 labels
+            </DialogDescription>
+          </DialogHeader>
+          {pendingOutboundPallets.length > 0 && (
+            <div className="space-y-3">
+              {/* Summary */}
+              <div className="rounded-md border border-border bg-muted/20 p-3 grid grid-cols-3 gap-3 text-xs">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order</div>
+                  <div className="font-mono font-medium">{pendingOutboundPallets[0].orderId}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Pallets</div>
+                  <div className="font-mono font-medium">{pendingOutboundPallets.length}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total SKU Lines</div>
+                  <div className="font-mono font-medium">{pendingOutboundPallets.reduce((s, p) => s + p.lines.length, 0)}</div>
+                </div>
+              </div>
+
+              {/* Pallet List */}
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {pendingOutboundPallets.map((pallet) => (
+                  <div key={pallet.id} className="rounded-md border border-border bg-card p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="font-mono font-medium text-xs">{pallet.id}</div>
+                      <div className="text-[10px] font-mono text-muted-foreground">UCC128: {pallet.ucc128Data}</div>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2 text-[10px]">
+                      {pallet.lines.map((line, idx) => (
+                        <div key={idx} className="truncate">
+                          <span className="font-mono text-muted-foreground">{line.sku}</span>
+                          <span className="text-foreground ml-1">{line.unitsPicked} units</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-border">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-muted-foreground">SSCC-18</span>
+                        <span className="font-mono">{pallet.sscc18}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setPalletizeConfirmOpen(false)} disabled={isPalletizing}>
+              Back
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={confirmPalletization}
+              disabled={isPalletizing || pendingOutboundPallets.length === 0}
+            >
+              {isPalletizing ? (
+                <>Processing...</>
+              ) : (
+                <>
+                  <Printer className="h-3.5 w-3.5" /> Approve & Create Pallets
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* UCC128 Label Preview Dialog */}
+      <Ucc128LabelDialog pallets={pendingOutboundPallets} onClose={() => setPendingOutboundPallets([])} />
     </div>
   );
 }
@@ -489,5 +914,107 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: str
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`text-base font-semibold tabular-nums ${tone ?? ""}`}>{value.toLocaleString()}</div>
     </div>
+  );
+}
+
+function Ucc128LabelDialog({
+  pallets,
+  onClose,
+}: {
+  pallets: OutboundPallet[];
+  onClose: () => void;
+}) {
+  const [printQueue, setPrintQueue] = useState<OutboundPallet[]>([]);
+
+  useEffect(() => {
+    if (pallets.length > 0) {
+      setPrintQueue(pallets);
+    }
+  }, [pallets]);
+
+  if (!printQueue.length) return null;
+
+  return (
+    <Dialog open={!!printQueue.length} onOpenChange={(o) => !o && (onClose(), setPrintQueue([]))}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base flex items-center gap-2">
+            <Barcode className="h-4 w-4 text-primary" />
+            UCC128 Pallet Labels
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Print UCC128 GS1-128 standard pallet labels to attach to outbound pallets
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+          {printQueue.map((pallet) => (
+            <div key={pallet.id} className="rounded-md border-2 border-foreground/80 bg-white p-4 font-mono text-xs text-black">
+              <div className="flex items-center justify-between border-b-2 border-black/80 pb-2">
+                <span className="text-[10px] uppercase tracking-wider">AZUX 3PL WMS · Outbound Pallet</span>
+                <span className="text-[10px] uppercase tracking-wider">UCC128</span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-[8px] uppercase tracking-wider text-black/60">Pallet ID</div>
+                  <div className="text-sm font-bold">{pallet.id}</div>
+                </div>
+                <div>
+                  <div className="text-[8px] uppercase tracking-wider text-black/60">Order</div>
+                  <div className="text-sm font-bold">{pallet.orderId}</div>
+                </div>
+                <div>
+                  <div className="text-[8px] uppercase tracking-wider text-black/60">PO #</div>
+                  <div className="text-xs">
+                    {(() => {
+                      const order = orders.find(o => o.id === pallet.orderId);
+                      return order?.poNumber || "—";
+                    })()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[8px] uppercase tracking-wider text-black/60">SSCC-18</div>
+                  <div className="text-xs">{pallet.sscc18}</div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-[8px] uppercase tracking-wider text-black/60">UCC128 Barcode</div>
+                  <div className="text-xs font-mono break-all bg-black/5 p-1 rounded">{pallet.ucc128Data}</div>
+                </div>
+              </div>
+              {/* Mock barcode */}
+              <div className="mt-3 flex h-16 items-end gap-px overflow-hidden rounded-sm bg-foreground/95 p-1.5">
+                {Array.from({ length: 60 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="bg-background"
+                    style={{
+                      width: ((i * 17 + pallet.id.charCodeAt(i % pallet.id.length)) % 4) + 1,
+                      height: "100%",
+                    }}
+                  />
+                ))}
+              </div>
+              <div className="mt-1 text-center text-[10px] tracking-[0.2em]">
+                {pallet.sscc18}
+              </div>
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => { onClose(); setPrintQueue([]); }}>
+            Close
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              toast.success("Labels queued", { description: `Sent to ZT411-DOCK-B · ${printQueue.length} labels` });
+              setPrintQueue([]);
+              onClose();
+            }}
+          >
+            <Printer className="h-3.5 w-3.5" /> Print All Labels
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

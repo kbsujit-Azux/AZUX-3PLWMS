@@ -291,7 +291,8 @@ export type OrderStatus =
   | "shipped"
   | "exception"
   | "ALLOCATED"
-  | "PICKED";
+  | "PICKED"
+  | "OUTBOUND_PALLETIZED";
 
 export type Order = {
   id: string; // Internal order number
@@ -327,7 +328,8 @@ export type Order = {
     | "shipped"
     | "exception"
     | "ALLOCATED"
-    | "PICKED";
+    | "PICKED"
+    | "OUTBOUND_PALLETIZED";
   source: "EDI-940" | "CSV" | "API" | "MANUAL";
   receivedAt: string;
   entryDate: string;

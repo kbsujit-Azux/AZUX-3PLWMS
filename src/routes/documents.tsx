@@ -514,60 +514,60 @@ function BolPreviewDialog({
             VICS v3.1 · PRO {bol.proNumber} · {bol.carrier} {bol.scac}
           </DialogDescription>
         </DialogHeader>
-        <div className="px-4 py-2 border-b border-border flex items-center justify-between">
+        <div className="px-4 py-2 border-b border-border">
           <Tabs defaultValue="vics" className="w-full">
-            <TabsList className="h-7">
-              <TabsTrigger value="vics" className="text-[10px]">VICS BOL</TabsTrigger>
-              <TabsTrigger value="packing" className="text-[10px]">Packing Slip</TabsTrigger>
-            </TabsList>
+            <div className="flex items-center justify-between">
+              <TabsList className="h-7">
+                <TabsTrigger value="vics" className="text-[10px]">VICS BOL</TabsTrigger>
+                <TabsTrigger value="packing" className="text-[10px]">Packing Slip</TabsTrigger>
+              </TabsList>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5" onClick={() => window.print()}>
+                  <Printer className="h-3 w-3" /> Print
+                </Button>
+                {onShip && (bol.status === "draft" || bol.status === "issued" || bol.status === "tendered") && (
+                  <Button
+                    size="sm"
+                    className="h-7 text-[11px] gap-1.5"
+                    onClick={() => onShip(bol)}
+                  >
+                    <Send className="h-3 w-3" /> Ship & EDI 945
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px] gap-1.5"
+                  onClick={() => {
+                    const blob = new Blob([JSON.stringify(bol, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${bol.bolNumber}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Download className="h-3 w-3" /> JSON
+                </Button>
+              </div>
+            </div>
+            <TabsContent value="vics" className="m-0">
+              <div className="max-h-[80vh] overflow-y-auto bg-muted/40 p-6">
+                <div className="mx-auto max-w-[8.5in] shadow-lg">
+                  <BolDocument bol={bol} />
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="packing" className="m-0">
+              <div className="max-h-[80vh] overflow-y-auto bg-muted/40 p-6">
+                <div className="mx-auto max-w-[8.5in] shadow-lg">
+                  <PackingSlip bol={bol} />
+                </div>
+              </div>
+            </TabsContent>
           </Tabs>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5" onClick={() => window.print()}>
-              <Printer className="h-3 w-3" /> Print
-            </Button>
-            {onShip && (bol.status === "draft" || bol.status === "issued" || bol.status === "tendered") && (
-              <Button
-                size="sm"
-                className="h-7 text-[11px] gap-1.5"
-                onClick={() => onShip(bol)}
-              >
-                <Send className="h-3 w-3" /> Ship & EDI 945
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-[11px] gap-1.5"
-              onClick={() => {
-                const blob = new Blob([JSON.stringify(bol, null, 2)], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `${bol.bolNumber}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-            >
-              <Download className="h-3 w-3" /> JSON
-            </Button>
-          </div>
         </div>
-        <Tabs defaultValue="vics" className="w-full">
-          <TabsContent value="vics" className="m-0">
-            <div className="max-h-[80vh] overflow-y-auto bg-muted/40 p-6">
-              <div className="mx-auto max-w-[8.5in] shadow-lg">
-                <BolDocument bol={bol} />
-              </div>
-            </div>
-          </TabsContent>
-          <TabsContent value="packing" className="m-0">
-            <div className="max-h-[80vh] overflow-y-auto bg-muted/40 p-6">
-              <div className="mx-auto max-w-[8.5in] shadow-lg">
-                <PackingSlip bol={bol} />
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
       </DialogContent>
     </Dialog>
   );

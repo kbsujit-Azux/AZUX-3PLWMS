@@ -36,5 +36,15 @@ service cloud.firestore {
     match /billsOfLading/{document} {
       allow read, write: if true;
     }
+
+    // Outbound Pallets collection
+    match /outboundPallets/{document} {
+      allow read, write: if true;
+    }
+
+    // Shipments collection
+    match /shipments/{document} {
+      allow read, write: if true;
+    }
   }
 }

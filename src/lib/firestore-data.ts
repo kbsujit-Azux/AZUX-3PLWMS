@@ -33,6 +33,8 @@ import type { Pallet } from "./pallet-data";
 import type { ItemMasterRecord, LocationRecord } from "./master-data";
 import type { InboundShipment, InboundLine } from "./inbound-data";
 import type { Order, EdiLog } from "./edi-data";
+import type { OutboundPallet } from "./outbound-pallet-data";
+import type { BillingClient, ChargeRule, BillableEvent, Invoice } from "./billing-data";
 
 // ============================================================
 // Tenants
@@ -222,6 +224,149 @@ export async function createPallets(pallets: Pallet[]) {
 
 export async function updatePallet(palletId: string, updates: Partial<Pallet>) {
   await updateDoc(doc(db, "pallets", palletId), updates);
+}
+
+// ============================================================
+// Outbound Pallets
+// ============================================================
+export async function fetchOutboundPallets(
+  tenantId?: string,
+  warehouseId?: string,
+): Promise<OutboundPallet[]> {
+  let q: Query = collection(db, "outboundPallets");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions);
+
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as OutboundPallet);
+}
+
+export function subscribeOutboundPallets(
+  callback: (pallets: OutboundPallet[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "outboundPallets");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions);
+
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as OutboundPallet));
+  });
+}
+
+export async function fetchOutboundPalletsByOrder(orderId: string): Promise<OutboundPallet[]> {
+  const q = query(collection(db, "outboundPallets"), where("orderId", "==", orderId));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as OutboundPallet);
+}
+
+export async function createOutboundPallet(pallet: OutboundPallet) {
+  await setDoc(doc(db, "outboundPallets", pallet.id), pallet);
+}
+
+export async function createOutboundPallets(pallets: OutboundPallet[]) {
+  const batch = writeBatch(db);
+  pallets.forEach((p) => {
+    batch.set(doc(db, "outboundPallets", p.id), p);
+  });
+  await batch.commit();
+}
+
+export async function updateOutboundPallet(palletId: string, updates: Partial<OutboundPallet>) {
+  await updateDoc(doc(db, "outboundPallets", palletId), updates);
+}
+
+export async function getNextOutboundPalletSeq(): Promise<string> {
+  const counterRef = doc(db, "counters", "outboundPallets");
+  return await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(counterRef);
+    const currentSeq = snap.exists() ? (snap.data().seq as number) : 1;
+    const nextSeq = currentSeq + 1;
+    transaction.update(counterRef, { seq: nextSeq });
+    return `OBP-${nextSeq.toString().padStart(8, "0")}`;
+  });
+}
+
+export async function clearDropBatchesForOrder(orderId: string): Promise<void> {
+  const ptSnap = await getDocs(
+    query(collection(db, "pickTickets"), where("orderId", "==", orderId)),
+  );
+  const pts = ptSnap.docs.map(
+    (d) => ({ ...(d.data() ?? {}), id: d.id, pickTicketNum: d.id }) as unknown as PickTicket,
+  );
+
+  for (const pt of pts) {
+    const invRef = doc(db, "inventoryItems", pt.sku);
+    const invSnap = await getDocs(invRef);
+    if (!invSnap.exists()) continue;
+
+    const item = invSnap.data() as InventoryItem;
+    const ptPickNum = pt.pickTicketNum;
+    const ptPallet = pt.palletId;
+    const newBatches =
+      item.batches?.filter(
+        (b) =>
+          !(
+            b.palletId === ptPallet &&
+            b.location === DROP001_LOCATION &&
+            (b.pickTicketNum == ptPickNum || String(b.pickTicketNum ?? "") === String(ptPickNum))
+          ),
+      ) || [];
+    await updateDoc(invRef, { batches: newBatches });
+  }
+}
+
+export async function createShipmentRecord(shipment: {
+  id: string;
+  bolId: string;
+  orderIds: string[];
+  tenantId: string;
+  warehouseId: string;
+  carrier: string;
+  scac: string;
+  serviceLevel: string;
+  mode: string;
+  status: string;
+  dockDoor: string;
+  appointmentAt: string;
+  trailerNumber: string;
+  sealNumber: string;
+  proNumber: string;
+  shipTo: string;
+  pallets: number;
+  cartons: number;
+  weightLbs: number;
+  declaredValue: number;
+}) {
+  await setDoc(doc(db, "shipments", shipment.id), shipment);
+}
+
+export async function updateShipmentRecord(shipmentId: string, updates: any) {
+  await updateDoc(doc(db, "shipments", shipmentId), updates);
+}
+
+export function subscribeShipmentRecords(
+  callback: (shipments: any[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "shipments");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions);
+
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })));
+  });
 }
 
 // ============================================================
@@ -530,7 +675,7 @@ export function subscribeTransactionHistory(
   });
 }
 
-export { doc, setDoc } from "firebase/firestore";
+export { collection, doc, setDoc, updateDoc, getDocs } from "firebase/firestore";
 
 // ============================================================
 // Directed Pick with Transaction Management
@@ -861,7 +1006,7 @@ export async function getNextBolNumber(): Promise<string> {
     const currentSeq = snap.exists() ? (snap.data().seq as number) : 1;
     const nextSeq = currentSeq + 1;
     transaction.update(counterRef, { seq: nextSeq });
-    return `MBOL-${nextSeq.toString().padStart(9, "0")}`;
+    return `MBOL-${nextSeq.toString().padStart(12, "0")}`;
   });
 }
 
@@ -1113,12 +1258,135 @@ export async function allocateOrderTransactional(
       })),
     );
 
-    return { success: true };
+  return { success: true };
+} catch (e: any) {
+  return { success: false, error: e.message };
+}
+}
+
+// ============================================================
+// Admin Inventory Cleanup
+// ============================================================
+export async function deleteInventoryBatch(params: {
+  sku: string;
+  palletId?: string;
+  location?: string;
+}): Promise<{ success: boolean; deletedCount: number; error?: string }> {
+  const { sku, palletId, location } = params;
+  const invRef = doc(db, "inventoryItems", sku);
+  try {
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(invRef);
+      if (!snap.exists()) {
+        throw new Error(`SKU ${sku} not found in inventory`);
+      }
+      const item = snap.data() as InventoryItem;
+      const before = item.batches?.length ?? 0;
+      const filtered = item.batches?.filter((b) => {
+        if (palletId && b.palletId !== palletId) return true;
+        if (location && b.location !== location) return true;
+        return false;
+      }) ?? [];
+      transaction.update(invRef, { batches: filtered });
+      return filtered.length;
+    });
+    return { success: true, deletedCount: 0 };
   } catch (e: any) {
-    return { success: false, error: e.message };
+    return { success: false, deletedCount: 0, error: e.message };
   }
 }
 
+export async function rebuildLocationMasterFromInventory(): Promise<{
+  success: boolean;
+  created: number;
+  updated: number;
+  removed: number;
+  error?: string;
+}> {
+  try {
+    const invSnap = await getDocs(collection(db, "inventoryItems"));
+    const locSnap = await getDocs(collection(db, "locationMaster"));
+
+    const locMap = new Map<string, LocationRecord>();
+    for (const d of locSnap.docs) {
+      const data = d.data() as LocationRecord;
+      locMap.set(data.id, { ...data });
+    }
+
+    const seen = new Set<string>();
+    let created = 0;
+    let updated = 0;
+
+    for (const invDoc of invSnap.docs) {
+      const item = invDoc.data() as InventoryItem;
+      for (const batch of item.batches ?? []) {
+        const locId = batch.location;
+        if (!locId || seen.has(locId)) continue;
+        seen.add(locId);
+
+        const existing = locMap.get(locId);
+        const isDrop = locId.toUpperCase().includes("DROP") || locId.toUpperCase().includes("DOCK");
+        const isFloor = locId.toUpperCase().includes("FLR");
+        const type: LocationType = isDrop ? "DROP" : isFloor ? "FLR" : "RACK";
+        const pickable = type !== "DROP";
+
+        if (existing) {
+          const changed =
+            existing.warehouseId !== item.warehouseId ||
+            existing.tenantId !== item.tenantId ||
+            existing.type !== type ||
+            existing.pickable !== pickable;
+          if (changed) {
+            locMap.set(locId, {
+              ...existing,
+              warehouseId: item.warehouseId,
+              tenantId: item.tenantId ?? existing.tenantId,
+              type,
+              pickable,
+            });
+            updated++;
+          }
+        } else {
+          locMap.set(locId, {
+            id: locId,
+            warehouseId: item.warehouseId,
+            tenantId: item.tenantId,
+            type,
+            zone: isDrop ? "Staging/Drop" : isFloor ? "Bulk Floor" : "Reserve",
+            capacityPallets: 1,
+            occupiedPallets: 0,
+            pickable,
+            allowedItemStyles: null,
+          });
+          created++;
+        }
+      }
+    }
+
+    const removed = locMap.size - seen.size;
+    const stale = [...locMap.keys()].filter((id) => !seen.has(id));
+    for (const id of stale) {
+      locMap.delete(id);
+    }
+
+    const batch = writeBatch(db);
+    for (const loc of locMap.values()) {
+      const ref = doc(db, "locationMaster", loc.id);
+      batch.set(ref, loc);
+    }
+    for (const id of stale) {
+      batch.delete(doc(db, "locationMaster", id));
+    }
+    await batch.commit();
+
+    return { success: true, created, updated, removed };
+  } catch (e: any) {
+    return { success: false, created: 0, updated: 0, removed: 0, error: e.message };
+  }
+}
+
+// ============================================================
+// Outbound Pallets
 // ============================================================
 // Transactional Deallocation (for multi-line orders)
 // ============================================================
@@ -1167,3 +1435,96 @@ export async function deallocateOrderTransactional(
     return { success: false, error: e.message };
   }
 }
+
+// ============================================================
+// Billing — Firestore CRUD
+// ============================================================
+export function subscribeBillingClients(callback: (clients: BillingClient[]) => void): Unsubscribe {
+  return onSnapshot(collection(db, "billingClients"), (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as BillingClient));
+  });
+}
+
+export async function createBillingClient(client: BillingClient) {
+  await setDoc(doc(db, "billingClients", client.id), client);
+}
+
+export async function updateBillingClient(clientId: string, updates: Partial<BillingClient>) {
+  await updateDoc(doc(db, "billingClients", clientId), updates);
+}
+
+export async function deleteBillingClient(clientId: string) {
+  await deleteDoc(doc(db, "billingClients", clientId));
+}
+
+export function subscribeChargeRules(callback: (rules: ChargeRule[]) => void): Unsubscribe {
+  return onSnapshot(collection(db, "chargeRules"), (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as ChargeRule));
+  });
+}
+
+export async function createChargeRule(rule: ChargeRule) {
+  await setDoc(doc(db, "chargeRules", rule.id), rule);
+}
+
+export async function updateChargeRule(ruleId: string, updates: Partial<ChargeRule>) {
+  await updateDoc(doc(db, "chargeRules", ruleId), updates);
+}
+
+export async function deleteChargeRule(ruleId: string) {
+  await deleteDoc(doc(db, "chargeRules", ruleId));
+}
+
+export function subscribeBillableEvents(callback: (events: BillableEvent[]) => void): Unsubscribe {
+  return onSnapshot(collection(db, "billableEvents"), (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as BillableEvent));
+  });
+}
+
+export async function createBillableEvent(evt: BillableEvent) {
+  await setDoc(doc(db, "billableEvents", evt.id), evt);
+}
+
+export async function updateBillableEvent(eventId: string, updates: Partial<BillableEvent>) {
+  await updateDoc(doc(db, "billableEvents", eventId), updates);
+}
+
+export function subscribeInvoices(callback: (invoices: Invoice[]) => void): Unsubscribe {
+  return onSnapshot(collection(db, "invoices"), (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as Invoice));
+  });
+}
+
+export async function createInvoice(invoice: Invoice) {
+  await setDoc(doc(db, "invoices", invoice.id), invoice);
+}
+
+export async function updateInvoice(invoiceId: string, updates: Partial<Invoice>) {
+  await updateDoc(doc(db, "invoices", invoiceId), updates);
+}
+
+export async function seedBillingData(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { billingClients: clients, defaultRules: rules, billableEvents: events, seedInvoices: invoices } = await import("@/lib/billing-data");
+    const batch = writeBatch(db);
+
+    for (const c of clients) {
+      batch.set(doc(db, "billingClients", c.id), c);
+    }
+    for (const r of rules) {
+      batch.set(doc(db, "chargeRules", r.id), r);
+    }
+    for (const e of events) {
+      batch.set(doc(db, "billableEvents", e.id), e);
+    }
+    for (const inv of invoices) {
+      batch.set(doc(db, "invoices", inv.id), inv);
+    }
+
+    await batch.commit();
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+

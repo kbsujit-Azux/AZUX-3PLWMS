@@ -274,7 +274,7 @@ function totalsOf(lines: BolFreightLine[]) {
 function bolNumberFor(seed: string, type: BolType): string {
   const hash = seed.split("").reduce((h, c) => (h * 33 + c.charCodeAt(0)) >>> 0, 5381);
   const prefix = type === "master" ? "MBOL" : "BOL";
-  return `${prefix}-${hash.toString().slice(-9).padStart(9, "0")}`;
+  return `${prefix}-${hash.toString().slice(-12).padStart(12, "0")}`;
 }
 
 function proFor(scac: string, seed: string): string {

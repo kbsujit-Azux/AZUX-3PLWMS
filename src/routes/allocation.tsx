@@ -11,6 +11,8 @@ import {
   ClipboardList,
   Layers,
   Eye,
+  Package,
+  Boxes,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -52,10 +54,19 @@ import {
   syncOrderStatusFromPickTickets,
   getNextPickTicketSeq,
   reallocatePickTicket,
+  createOutboundPallets,
+  updateOutboundPallet,
+  createShipmentRecord,
   doc,
   setDoc,
+  updateDoc,
 } from "@/lib/firestore-data";
 import { db } from "@/lib/firestore";
+import {
+  createOutboundPalletFromInput,
+  type OutboundPallet,
+  type OutboundPalletCreateInput,
+} from "@/lib/outbound-pallet-data";
 import type { PickTicket } from "@/lib/mock-data";
 import { fmtDateTime } from "@/lib/utils";
 
@@ -120,7 +131,7 @@ function AllocationPage() {
 
   const activeOrders = useMemo(() => {
     return orders.filter((o) => {
-      if (!["ALLOCATED", "PICKED"].includes(o.status)) return false;
+      if (!["ALLOCATED", "PICKED", "OUTBOUND_PALLETIZED"].includes(o.status)) return false;
       if (tenantId !== "all" && o.tenantId !== tenantId) return false;
       if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
       if (search) {
@@ -189,6 +200,14 @@ function AllocationPage() {
     qtyToPick: 0,
     orderId: "",
   });
+
+  // Palletize dialog state
+  const [palletizeOpen, setPalletizeOpen] = useState<{ open: boolean; orderId: string | null }>({
+    open: false,
+    orderId: null,
+  });
+  const [palletCount, setPalletCount] = useState(1);
+  const [isPalletizing, setIsPalletizing] = useState(false);
 
   const showError = (title: string, message: string) => {
     setErrorDialog({ open: true, title, message });
@@ -407,7 +426,114 @@ function AllocationPage() {
         showError("Ship Failed", result.error || "Unknown error");
       }
     } catch (e) {
-      showError("Ship Error", (e as Error).message);
+      showError("Ship Error", e instanceof Error ? e.message : "Unknown error");
+    }
+  };
+
+  const handlePalletize = async (orderId: string) => {
+    setPalletizeOpen({ open: true, orderId });
+    setPalletCount(1);
+  };
+
+  const confirmPalletize = async () => {
+    if (!palletizeOpen.orderId) return;
+    setIsPalletizing(true);
+    try {
+      const order = orders.find((o) => o.id === palletizeOpen.orderId);
+      if (!order) {
+        showError("Error", "Order not found");
+        return;
+      }
+
+      const orderTickets = pickTickets.filter((pt) => pt.orderId === order.id);
+      const lines: OutboundPalletCreateInput["lines"] = orderTickets.map((pt) => ({
+        sku: pt.sku,
+        description: pt.sku,
+        unitsPicked: pt.qtyPicked || pt.quantityToPick,
+        caseQty: 1,
+        weightLbs: 0,
+        pickTicketNum: pt.pickTicketNum,
+      }));
+
+      const totalUnits = lines.reduce((s, l) => s + l.unitsPicked, 0);
+      const recommendedPallets = Math.max(1, Math.ceil(totalUnits / 480));
+      const finalPalletCount = Math.max(1, Math.min(recommendedPallets, palletCount));
+
+      const input: OutboundPalletCreateInput = {
+        orderId: order.id,
+        tenantId: order.tenantId,
+        warehouseId: order.warehouseId,
+        totalPallets: finalPalletCount,
+        lines,
+      };
+
+      const outboundPallets: OutboundPallet[] = [];
+      for (let i = 1; i <= finalPalletCount; i++) {
+        outboundPallets.push(createOutboundPalletFromInput(input, i));
+      }
+
+      await createOutboundPallets(outboundPallets);
+
+      for (const pt of orderTickets) {
+        await updateDoc(doc(db, "pickTickets", pt.pickTicketNum.toString()), {
+          status: "CLOSED",
+          closedAt: new Date().toISOString(),
+        });
+      }
+
+      const firstPallet = outboundPallets[0];
+      const shipmentId = `SHP-${firstPallet.sscc18.slice(-8)}`;
+      const totalWeight = outboundPallets.reduce(
+        (s, p) => s + p.lines.reduce((ls, l) => ls + l.weightLbs, 0),
+        0,
+      );
+      const totalCartons = outboundPallets.reduce(
+        (s, p) => s + p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0),
+        0,
+      );
+
+      await createShipmentRecord({
+        id: shipmentId,
+        bolId: "",
+        orderIds: [order.id],
+        tenantId: order.tenantId,
+        warehouseId: order.warehouseId,
+        carrier: order.carrier,
+        scac: "",
+        serviceLevel: order.serviceLevel,
+        mode: "LTL",
+        status: "staged",
+        dockDoor: "D-00",
+        appointmentAt: new Date().toISOString(),
+        trailerNumber: "",
+        sealNumber: "",
+        proNumber: "",
+        shipTo: order.shipToName,
+        pallets: outboundPallets.length,
+        cartons: totalCartons,
+        weightLbs: Math.round(totalWeight * 10) / 10,
+        declaredValue: order.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0),
+      });
+
+      for (const pallet of outboundPallets) {
+        await updateOutboundPallet(pallet.id, {
+          status: "staged",
+          shipmentId,
+        });
+      }
+
+      await updateOrder(order.id, { status: "OUTBOUND_PALLETIZED" });
+
+      toast.success(`Order ${order.id} palletized`, {
+        description: `${outboundPallets.length} O/B pallet(s) · ${shipmentId}`,
+      });
+
+      setPalletizeOpen({ open: false, orderId: null });
+      refreshData();
+    } catch (e) {
+      showError("Palletize Error", e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setIsPalletizing(false);
     }
   };
 
@@ -472,6 +598,7 @@ function AllocationPage() {
       new: "bg-muted text-muted-foreground border-border",
       ALLOCATED: "bg-chart-1/15 text-chart-1 border-chart-1/30",
       PICKED: "bg-chart-4/15 text-chart-4 border-chart-4/30",
+      OUTBOUND_PALLETIZED: "bg-chart-5/15 text-chart-5 border-chart-5/30",
       released: "bg-primary/15 text-primary border-primary/30",
       picking: "bg-chart-2/15 text-chart-2 border-chart-2/30",
       packed: "bg-chart-4/15 text-chart-4 border-chart-4/30",
@@ -669,56 +796,59 @@ function AllocationPage() {
                       {shortUnits}
                     </TableCell>
                     <TableCell>{statusBadge(o.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 text-[11px] gap-1"
-                          onClick={() => setDetailDialog({ open: true, orderId: o.id })}
-                        >
-                          <Eye className="h-3 w-3" /> Details
-                        </Button>
-                        {o.status === "ALLOCATED" && (
-                          <>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="ghost"
                               className="h-7 text-[11px] gap-1"
-                              onClick={() => handleDeallocate(o.id)}
+                              onClick={() => setDetailDialog({ open: true, orderId: o.id })}
                             >
-                              <Undo2 className="h-3 w-3" /> Deallocate
+                              <Eye className="h-3 w-3" /> Details
                             </Button>
-                            <Button
-                              size="sm"
-                              className="h-7 text-[11px] gap-1"
-                              onClick={() => handlePick(o.id)}
-                            >
-                              <PackageSearch className="h-3 w-3" /> Pick
-                            </Button>
-                          </>
-                        )}
-                        {o.status === "PICKED" && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-[11px] gap-1"
-                              onClick={() => handleUnpick(o.id)}
-                            >
-                              <Undo2 className="h-3 w-3" /> Unpick
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="h-7 text-[11px] gap-1"
-                              onClick={() => handleShip(o.id)}
-                            >
-                              <Truck className="h-3 w-3" /> Ship
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
+                            {o.status === "ALLOCATED" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-[11px] gap-1"
+                                  onClick={() => handleDeallocate(o.id)}
+                                >
+                                  <Undo2 className="h-3 w-3" /> Deallocate
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-[11px] gap-1"
+                                  onClick={() => handlePick(o.id)}
+                                >
+                                  <PackageSearch className="h-3 w-3" /> Pick
+                                </Button>
+                              </>
+                            )}
+                            {(o.status === "PICKED" || o.status === "OUTBOUND_PALLETIZED") && (
+                              <>
+                                {o.status === "PICKED" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-[11px] gap-1"
+                                    onClick={() => handleUnpick(o.id)}
+                                  >
+                                    <Undo2 className="h-3 w-3" /> Unpick
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-[11px] gap-1 bg-chart-4 hover:bg-chart-4/90"
+                                  onClick={() => handlePalletize(o.id)}
+                                >
+                                  <Package className="h-3 w-3" />
+                                  {o.status === "OUTBOUND_PALLETIZED" ? "Repalletize" : "Palletize O/B"}
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
                   </TableRow>
                 );
               })}
@@ -1147,6 +1277,120 @@ function AllocationPage() {
             </Button>
             <Button size="sm" onClick={handleConfirmManualPick}>
               Confirm Manual Pick
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Palletize Dialog */}
+      <Dialog
+        open={palletizeOpen.open}
+        onOpenChange={(open) => !open && setPalletizeOpen({ open: false, orderId: null })}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base font-mono flex items-center gap-2">
+              <Package className="h-4 w-4 text-chart-4" />
+              Palletize Order {palletizeOpen.orderId}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Create outbound pallets with UCC128 labels and mark order as O/B Pallet
+            </DialogDescription>
+          </DialogHeader>
+          {palletizeOpen.orderId && (() => {
+            const order = orders.find((o) => o.id === palletizeOpen.orderId);
+            if (!order) return null;
+            const orderTickets = pickTickets.filter((pt) => pt.orderId === order.id);
+            const totalUnits = orderTickets.reduce((s, pt) => s + (pt.qtyPicked || pt.quantityToPick), 0);
+            const recommendedPallets = Math.max(1, Math.ceil(totalUnits / 480));
+            return (
+              <div className="space-y-4">
+                {/* Order Header */}
+                <div className="rounded-md border border-border bg-muted/20 p-3 grid grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order #</div>
+                    <div className="font-mono font-medium">{order.id}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">PO #</div>
+                    <div className="font-mono">{order.poNumber}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Carrier</div>
+                    <div>{order.carrier}</div>
+                  </div>
+                </div>
+
+                {/* SKU Summary */}
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Picked Items</div>
+                  <div className="rounded-md border border-border bg-card p-2 space-y-1 max-h-40 overflow-y-auto">
+                    {orderTickets.map((pt) => (
+                      <div key={pt.pickTicketNum} className="flex items-center justify-between text-xs py-1 border-b border-border last:border-0">
+                        <span className="font-mono text-[11px]">{pt.sku}</span>
+                        <span className="tabular-nums">{pt.qtyPicked || pt.quantityToPick} units</span>
+                        <span className="text-muted-foreground text-[10px]">PT-{pt.pickTicketNum}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pallet Count */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Number of Outbound Pallets
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={palletCount}
+                      onChange={(e) => setPalletCount(parseInt(e.target.value) || 1)}
+                      className="h-8 text-xs font-mono mt-1"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <div className="text-[10px] text-muted-foreground">
+                      Recommended: {recommendedPallets} pallets (480 units/pallet max)<br/>
+                      Total: {totalUnits} units across {orderTickets.length} SKU lines
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-dashed border-border bg-card p-3 text-[11px] text-muted-foreground">
+                  This will:
+                  <ul className="mt-1 space-y-1 ml-4 list-disc">
+                    <li>Generate outbound pallet IDs with UCC128 SSCC-18 barcodes</li>
+                    <li>Close all pick ticket(s) for this order</li>
+                    <li>Create shipment record in "Staged" status</li>
+                    <li>Change order status to O/B Pallet</li>
+                  </ul>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setPalletizeOpen({ open: false, orderId: null })}
+              disabled={isPalletizing}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={confirmPalletize}
+              disabled={isPalletizing}
+            >
+              {isPalletizing ? "Creating..." : (
+                <>
+                  <Boxes className="h-3 w-3" /> Create O/B Pallets
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
