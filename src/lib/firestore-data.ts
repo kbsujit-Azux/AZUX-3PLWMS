@@ -675,6 +675,7 @@ export function subscribeTransactionHistory(
   });
 }
 
+export { db } from "./firestore";
 export { collection, doc, setDoc, updateDoc, getDocs } from "firebase/firestore";
 
 // ============================================================
@@ -1506,22 +1507,32 @@ export async function updateInvoice(invoiceId: string, updates: Partial<Invoice>
 export async function seedBillingData(): Promise<{ success: boolean; error?: string }> {
   try {
     const { billingClients: clients, defaultRules: rules, billableEvents: events, seedInvoices: invoices } = await import("@/lib/billing-data");
-    const batch = writeBatch(db);
+
+    // Clear existing billing collections to remove stale/dummy data
+    const collections = ["billingClients", "chargeRules", "billableEvents", "invoices"];
+    for (const colName of collections) {
+      const snap = await getDocs(collection(db, colName));
+      const batch = writeBatch(db);
+      snap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+
+    const seedBatch = writeBatch(db);
 
     for (const c of clients) {
-      batch.set(doc(db, "billingClients", c.id), c);
+      seedBatch.set(doc(db, "billingClients", c.id), c);
     }
     for (const r of rules) {
-      batch.set(doc(db, "chargeRules", r.id), r);
+      seedBatch.set(doc(db, "chargeRules", r.id), r);
     }
     for (const e of events) {
-      batch.set(doc(db, "billableEvents", e.id), e);
+      seedBatch.set(doc(db, "billableEvents", e.id), e);
     }
     for (const inv of invoices) {
-      batch.set(doc(db, "invoices", inv.id), inv);
+      seedBatch.set(doc(db, "invoices", inv.id), inv);
     }
 
-    await batch.commit();
+    await seedBatch.commit();
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, type ReactNode, useEffect } from "react";
+import { useMemo, useState, useCallback, useRef, type ReactNode, type Dispatch, type SetStateAction, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Receipt,
@@ -38,6 +38,10 @@ import {
 import {
   fmtUSD,
   unitLabel,
+  billingClients,
+  defaultRules,
+  billableEvents,
+  seedInvoices,
   type BillingClient,
   type ChargeRule,
   type ClientId,
@@ -45,6 +49,7 @@ import {
   type InvoiceLine,
   type RateUnit,
   type StorageFrequency,
+  type BillableEvent,
 } from "@/lib/billing-data";
 import { tenants, warehouses } from "@/lib/mock-data";
 import { locationMaster } from "@/lib/master-data";
@@ -63,9 +68,10 @@ import {
   updateBillableEvent,
   createInvoice,
   seedBillingData,
-  getDocs,
-  collection,
 } from "@/lib/firestore-data";
+import { db } from "@/lib/firestore";
+import { getDocs, collection } from "firebase/firestore";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/billing")({
   head: () => ({
@@ -78,6 +84,8 @@ export const Route = createFileRoute("/billing")({
 });
 
 function BillingPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "Admin";
   const [rules, setRules] = useState<ChargeRule[]>([]);
   const [events, setEvents] = useState<BillableEvent[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -85,63 +93,103 @@ function BillingPage() {
   const [activeClientId, setActiveClientId] = useState<ClientId | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [seeded, setSeeded] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [lastAction, setLastAction] = useState<string>("");
 
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setPageError(null);
+    try {
+      const [cs, rs, es, is2] = await Promise.all([
+        getDocs(collection(db, "billingClients")),
+        getDocs(collection(db, "chargeRules")),
+        getDocs(collection(db, "billableEvents")),
+        getDocs(collection(db, "invoices")),
+      ]);
+      const newClients = cs.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillingClient[];
+      setClients(newClients);
+      setRules(rs.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as ChargeRule[]);
+      setEvents(es.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillableEvent[]);
+      setInvoices(is2.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as Invoice[]);
+      if (newClients.length > 0 && !activeClientId) {
+        setActiveClientId(newClients[0].id);
+      }
+    } catch (e: any) {
+      setPageError(e?.message ?? "Failed to load billing data from Firestore");
+      console.error("Billing reload error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeClientId]);
+
+  const activeClientIdRef = useRef(activeClientId);
+  const lastActionRef = useRef(lastAction);
+
+  useEffect(() => { activeClientIdRef.current = activeClientId; }, [activeClientId]);
+  useEffect(() => { lastActionRef.current = lastAction; }, [lastAction]);
+
+  const initRef = useRef<(() => void) | undefined>(undefined);
   useEffect(() => {
     let unsubClients: (() => void) | undefined;
     let unsubRules: (() => void) | undefined;
     let unsubEvents: (() => void) | undefined;
     let unsubInvoices: (() => void) | undefined;
 
-    async function load() {
+    async function init() {
       setLoading(true);
+      setPageError(null);
       try {
-        const [clientsSnap, rulesSnap, eventsSnap, invoicesSnap] = await Promise.all([
+        const [cs, rs, es, is] = await Promise.all([
           getDocs(collection(db, "billingClients")),
           getDocs(collection(db, "chargeRules")),
           getDocs(collection(db, "billableEvents")),
           getDocs(collection(db, "invoices")),
         ]);
 
-        const initialClients = clientsSnap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillingClient[];
-        const initialRules = rulesSnap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as ChargeRule[];
-        const initialEvents = eventsSnap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillableEvent[];
-        const initialInvoices = invoicesSnap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as Invoice[];
+        const initialClients = cs.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillingClient[];
+        const initialRules = rs.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as ChargeRule[];
+        const initialEvents = es.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillableEvent[];
+        const initialInvoices = is.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as Invoice[];
 
         setClients(initialClients);
         setRules(initialRules);
         setEvents(initialEvents);
         setInvoices(initialInvoices);
 
-        if (initialClients.length > 0 && !activeClientId) {
+        if (initialClients.length > 0 && !activeClientIdRef.current) {
           setActiveClientId(initialClients[0].id);
         }
 
-        if (initialClients.length === 0 && !seeded) {
+        if (initialClients.length === 0 || initialClients.some((c) => ["APEX", "GLOBAL", "NORTHSTAR"].includes(c.id))) {
           const res = await seedBillingData();
           if (res.success) {
-            setSeeded(true);
-            const refreshed = await getDocs(collection(db, "billingClients"));
-            const refreshedClients = refreshed.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillingClient[];
-            setClients(refreshedClients);
-            if (refreshedClients.length > 0 && !activeClientId) {
-              setActiveClientId(refreshedClients[0].id);
-            }
+            setLastAction("seeded");
+            await reload();
           }
         }
-
-        unsubClients = subscribeBillingClients(setClients);
-        unsubRules = subscribeChargeRules(setRules);
-        unsubEvents = subscribeBillableEvents(setEvents);
-        unsubInvoices = subscribeInvoices(setInvoices);
-      } catch (e) {
-        console.error("Failed to load billing data", e);
+      } catch (e: any) {
+        setPageError(e?.message ?? "Failed to initialize billing");
+        console.error("Billing init error:", e);
       } finally {
         setLoading(false);
       }
+
+      unsubClients = subscribeBillingClients((items) => {
+        setClients(items);
+        if (items.length > 0 && !activeClientIdRef.current) {
+          setActiveClientId(items[0].id);
+        }
+      });
+      unsubRules = subscribeChargeRules((items) => {
+        setRules(items);
+        if (lastActionRef.current === "added-rule") setLastAction("");
+      });
+      unsubEvents = subscribeBillableEvents(setEvents);
+      unsubInvoices = subscribeInvoices(setInvoices);
+      initRef.current = undefined;
     }
 
-    load();
+    init();
 
     return () => {
       unsubClients?.();
@@ -150,6 +198,54 @@ function BillingPage() {
       unsubInvoices?.();
     };
   }, []);
+
+  const handleAddRule = async (rule: ChargeRule) => {
+    console.log("[Billing] handleAddRule starting:", rule);
+    try {
+      await createChargeRule(rule);
+      console.log("[Billing] createChargeRule succeeded");
+      setLastAction("added-rule");
+      toast.success("Rule saved to Firestore");
+    } catch (e: any) {
+      console.error("[Billing] createChargeRule failed:", e);
+      toast.error("Failed to save rule: " + (e?.message ?? "unknown error"));
+    }
+  };
+
+  const handleToggleRule = async (id: string) => {
+    const rule = rules.find((r) => r.id === id);
+    if (!rule) return;
+    try {
+      await updateChargeRule(id, { enabled: !rule.enabled });
+      setRules((prev) => prev.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)));
+    } catch (e: any) {
+      toast.error("Failed to update rule: " + (e?.message ?? "unknown error"));
+    }
+  };
+
+  const handleDeleteRule = async (id: string) => {
+    try {
+      await deleteChargeRule(id);
+      setRules((prev) => prev.filter((r) => r.id !== id));
+      toast.success("Rule deleted");
+    } catch (e: any) {
+      toast.error("Failed to delete rule: " + (e?.message ?? "unknown error"));
+    }
+  };
+
+  const handleResetData = async () => {
+    try {
+      const res = await seedBillingData();
+      if (res.success) {
+        toast.success("Billing data reset to defaults");
+        await reload();
+      } else {
+        toast.error("Reset failed: " + res.error);
+      }
+    } catch (e: any) {
+      toast.error("Reset error: " + (e?.message ?? "unknown error"));
+    }
+  };
 
   const activeClient = useMemo(
     () => clients.find((c) => c.id === activeClientId) ?? clients[0] ?? null,
@@ -174,6 +270,14 @@ function BillingPage() {
     );
   }
 
+  if (pageError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-sm text-destructive">{pageError}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <header className="flex items-start justify-between gap-4">
@@ -190,27 +294,18 @@ function BillingPage() {
           <Badge variant="outline" className="gap-1"><Sparkles className="h-3 w-3" /> {rules.filter(r => r.enabled).length} active rules</Badge>
           <Badge variant="outline">{events.filter(e => !e.billed).length} unbilled events</Badge>
           <Badge variant="outline">{invoices.length} invoices</Badge>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs gap-1.5"
-            onClick={async () => {
-              const res = await seedBillingData();
-              if (res.success) {
-                toast.success("Billing data reset to defaults");
-                const refreshed = await getDocs(collection(db, "billingClients"));
-                const refreshedClients = refreshed.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as BillingClient[];
-                setClients(refreshedClients);
-                if (refreshedClients.length > 0 && !activeClientId) {
-                  setActiveClientId(refreshedClients[0].id);
-                }
-              } else {
-                toast.error("Reset failed: " + res.error);
-              }
-            }}
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> Reset Data
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={async () => {
+                await handleResetData();
+              }}
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Reset Data
+            </Button>
+          )}
         </div>
       </header>
 
@@ -228,6 +323,9 @@ function BillingPage() {
             clients={clients}
             rules={rules}
             setRules={setRules}
+            onAddRule={handleAddRule}
+            onToggleRule={handleToggleRule}
+            onDeleteRule={handleDeleteRule}
           />
         </TabsContent>
 
@@ -256,20 +354,20 @@ function BillingPage() {
 
 function SetupTab({
   activeClient, onClientChange, clients, rules, setRules,
+  onAddRule, onToggleRule, onDeleteRule,
 }: {
   activeClient: BillingClient | null;
   onClientChange: (id: ClientId) => void;
   clients: BillingClient[];
   rules: ChargeRule[];
   setRules: (r: ChargeRule[]) => void;
+  onAddRule: (r: ChargeRule) => Promise<void>;
+  onToggleRule: (id: string) => Promise<void>;
+  onDeleteRule: (id: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
-  const [toDelete, setToDelete] = useState<string | null>(null);
+  const [toDeleteRule, setToDeleteRule] = useState<string | null>(null);
   const clientRules = rules.filter((r) => r.clientId === activeClient?.id);
-
-  const toggle = (id: string) =>
-    setRules(rules.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)));
-  const remove = (id: string) => setRules(rules.filter((r) => r.id !== id));
 
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
@@ -312,11 +410,16 @@ function SetupTab({
               <DialogTrigger asChild>
                 <Button size="sm"><Plus className="h-4 w-4" /> Add Rule</Button>
               </DialogTrigger>
-              <RuleDialog
-                clientId={activeClient.id}
-                tenantId={activeClient.tenantId}
-                onSave={(rule) => { setRules([...rules, rule]); setOpen(false); toast.success("Rule added"); }}
-              />
+                <RuleDialog
+                  clientId={activeClient.id}
+                  tenantId={activeClient.tenantId}
+                  onSave={async (rule) => {
+                    console.log("[Billing] SetupTab onSave received rule:", rule);
+                    await onAddRule(rule);
+                    console.log("[Billing] SetupTab onAddRule completed");
+                    setOpen(false);
+                  }}
+                />
             </Dialog>
           )}
         </CardHeader>
@@ -356,10 +459,10 @@ function SetupTab({
                       {r.frequency ? ` · ${r.frequency}${r.customCycleDays ? ` (${r.customCycleDays}d)` : ""}` : ""}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Switch checked={r.enabled} onCheckedChange={() => toggle(r.id)} />
+                      <Switch checked={r.enabled} onCheckedChange={() => onToggleRule(r.id)} />
                     </TableCell>
                     <TableCell>
-                      <Button size="icon" variant="ghost" onClick={() => setToDelete(r.id)}>
+                      <Button size="icon" variant="ghost" onClick={() => setToDeleteRule(r.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -371,7 +474,7 @@ function SetupTab({
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+      <AlertDialog open={!!toDeleteRule} onOpenChange={(o) => !o && setToDeleteRule(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete billing rule?</AlertDialogTitle>
@@ -380,15 +483,17 @@ function SetupTab({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setToDelete(null)}>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setToDeleteRule(null)}>
               Cancel
             </Button>
             <Button
               size="sm"
               className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (toDelete) remove(toDelete);
-                setToDelete(null);
+              onClick={async () => {
+                if (toDeleteRule) {
+                  await onDeleteRule(toDeleteRule);
+                  setToDeleteRule(null);
+                }
               }}
             >
               Delete
@@ -425,23 +530,30 @@ function RuleDialog({ clientId, tenantId, onSave }: { clientId: ClientId; tenant
     return locationMaster.filter((l) => l.warehouseId === warehouseId);
   }, [warehouseId]);
 
-  const save = () => {
-    if (!description || !rate) { toast.error("Description and rate are required"); return; }
-    onSave({
-      id: `r${Date.now()}`,
-      clientId,
-      tenantId,
-      warehouseId: warehouseId || undefined,
-      locationId: locationId || undefined,
-      category,
-      description,
-      unit,
-      rate,
-      frequency: category === "Storage" ? frequency : undefined,
-      customCycleDays: category === "Storage" && frequency === "custom" ? customCycleDays : undefined,
-      trigger: category === "Custom" ? trigger || undefined : undefined,
-      enabled: true,
-    });
+  const save = async () => {
+    try {
+      if (!description || !rate) { toast.error("Description and rate are required"); return; }
+      console.log("[Billing] RuleDialog.save calling onSave");
+      await onSave({
+        id: `r${Date.now()}`,
+        clientId,
+        tenantId,
+        warehouseId: warehouseId || undefined,
+        locationId: locationId || undefined,
+        category,
+        description,
+        unit,
+        rate,
+        frequency: category === "Storage" ? frequency : undefined,
+        customCycleDays: category === "Storage" && frequency === "custom" ? customCycleDays : undefined,
+        trigger: category === "Custom" ? trigger || undefined : undefined,
+        enabled: true,
+      });
+      console.log("[Billing] RuleDialog.save completed");
+    } catch (e: any) {
+      console.error("[Billing] RuleDialog.save error:", e);
+      toast.error("Failed to save rule: " + (e?.message ?? "unknown error"));
+    }
   };
 
   return (
@@ -556,10 +668,10 @@ function InvoicesTab({
   rules, events, setEvents, invoices, setInvoices, selectedInvoiceId, setSelectedInvoiceId, clients,
 }: {
   rules: ChargeRule[];
-  events: typeof billableEvents;
-  setEvents: (e: typeof billableEvents) => void;
+  events: BillableEvent[];
+  setEvents: Dispatch<SetStateAction<BillableEvent[]>>;
   invoices: Invoice[];
-  setInvoices: (i: Invoice[]) => void;
+  setInvoices: Dispatch<SetStateAction<Invoice[]>>;
   selectedInvoiceId: string | null;
   setSelectedInvoiceId: (id: string | null) => void;
   clients: BillingClient[];
@@ -568,7 +680,7 @@ function InvoicesTab({
   const [manualOpen, setManualOpen] = useState(false);
   const selected = invoices.find((i) => i.id === selectedInvoiceId) ?? null;
 
-  const runAutomated = () => {
+  const runAutomated = async () => {
     if (!genClient) { toast.error("Select a client"); return; }
     const clientRules = rules.filter((r) => r.clientId === genClient && r.enabled);
     const clientEvents = events.filter((e) => e.clientId === genClient && !e.billed);
@@ -602,11 +714,20 @@ function InvoicesTab({
       toast.error("No events matched active rules.");
       return;
     }
-    const inv = buildInvoice(genClient, lines, "Automated", invoices.length);
-    setInvoices([inv, ...invoices]);
-    setEvents(events.map((e) => (matchedIds.includes(e.id) ? { ...e, billed: true } : e)));
-    setSelectedInvoiceId(inv.id);
-    toast.success(`Draft invoice ${inv.number} compiled from ${lines.length} events`);
+    const inv = buildInvoice(genClient, (clients.find((c) => c.id === genClient)?.tenantId ?? genClient), lines, "Automated", invoices.length);
+    try {
+      await createInvoice(inv);
+      await Promise.all(matchedIds.map((id) => updateBillableEvent(id, { billed: true })));
+      setInvoices((prev) => {
+        if (prev.some((i) => i.id === inv.id)) return prev;
+        return [inv, ...prev];
+      });
+      setEvents((prev) => prev.map((e) => (matchedIds.includes(e.id) ? { ...e, billed: true } : e)));
+      setSelectedInvoiceId(inv.id);
+      toast.success(`Draft invoice ${inv.number} compiled from ${lines.length} events`);
+    } catch (e: any) {
+      toast.error("Failed to save invoice: " + (e?.message ?? "unknown error"));
+    }
   };
 
   return (
@@ -636,11 +757,19 @@ function InvoicesTab({
                 <ManualInvoiceDialog
                   clientId={genClient ?? clients[0]?.id ?? "acme"}
                   clients={clients}
-                  onSave={(inv) => {
-                    setInvoices([inv, ...invoices]);
-                    setSelectedInvoiceId(inv.id);
-                    setManualOpen(false);
-                    toast.success(`Manual invoice ${inv.number} created`);
+                  onSave={async (inv) => {
+                    try {
+                      await createInvoice(inv);
+                      setInvoices((prev) => {
+                        if (prev.some((i) => i.id === inv.id)) return prev;
+                        return [inv, ...prev];
+                      });
+                      setSelectedInvoiceId(inv.id);
+                      setManualOpen(false);
+                      toast.success(`Manual invoice ${inv.number} created`);
+                    } catch (e: any) {
+                      toast.error("Failed to save invoice: " + (e?.message ?? "unknown error"));
+                    }
                   }}
                   nextSeq={invoices.length}
                 />
@@ -698,13 +827,14 @@ function InvoicesTab({
   );
 }
 
-function buildInvoice(clientId: ClientId, lines: InvoiceLine[], source: Invoice["source"], seq: number): Invoice {
+function buildInvoice(clientId: ClientId, tenantId: string, lines: InvoiceLine[], source: Invoice["source"], seq: number): Invoice {
   const now = new Date();
   const due = new Date(); due.setDate(due.getDate() + 30);
   return {
     id: `inv-${Date.now()}`,
     number: `AZ-${now.getFullYear()}-${String(45 + seq).padStart(4, "0")}`,
     clientId,
+    tenantId,
     issueDate: now.toISOString().slice(0, 10),
     dueDate: due.toISOString().slice(0, 10),
     status: "Draft",
@@ -805,7 +935,8 @@ function ManualInvoiceDialog({
         <Button
           onClick={() => {
             if (lines.length === 0) { toast.error("Add at least one line"); return; }
-            const inv = buildInvoice(client, lines, "Manual", nextSeq);
+            const tenantId = (clients.find((c) => c.id === client)?.tenantId ?? client) as string;
+            const inv = buildInvoice(client, tenantId, lines, "Manual", nextSeq);
             inv.taxRate = taxRate / 100;
             onSave(inv);
           }}

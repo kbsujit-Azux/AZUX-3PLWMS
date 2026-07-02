@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { collection, onSnapshot, getDocs, limit, doc, writeBatch, query } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
 
 // Import local seed data
 import {
@@ -18,12 +18,6 @@ import {
   itemMaster as seedItemMaster,
   locationMaster as seedLocationMaster,
 } from "@/lib/master-data";
-import {
-  billingClients as seedBillingClients,
-  defaultRules as seedBillingRules,
-  billableEvents as seedBillableEvents,
-  seedInvoices,
-} from "@/lib/billing-data";
 
 // Import types
 import type { Tenant, Warehouse, InventoryItem } from "@/lib/mock-data";
@@ -51,11 +45,6 @@ import { orders as libOrders, ediLogs as libEdiLogs } from "@/lib/edi-data";
 import { inboundShipments as libInboundShipments } from "@/lib/inbound-data";
 import { shipments as libCarrierDispatches } from "@/lib/shipment-data";
 import { seedBols as libBols } from "@/lib/bol-data";
-import {
-  defaultRules as libBillingRules,
-  billableEvents as libBillableEvents,
-  seedInvoices as libInvoices,
-} from "@/lib/billing-data";
 
 type DatabaseContextType = {
   loading: boolean;
@@ -142,10 +131,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           await seedCollection("inboundShipments", seedInboundShipments, (item) => item.id);
           await seedCollection("carrierDispatches", seedCarrierDispatches, (item) => item.id);
           await seedCollection("bols", seedBols, (item) => item.id);
-          await seedCollection("billingClients", seedBillingClients, (item) => item.id);
-          await seedCollection("billingRules", seedBillingRules, (item) => item.id);
-          await seedCollection("billableEvents", seedBillableEvents, (item) => item.id);
-          await seedCollection("invoices", seedInvoices, (item) => item.id);
           await seedCollection("itemMaster", seedItemMaster, (item) => item.sku);
           await seedCollection("locationMaster", seedLocationMaster, (item) => item.id);
           await seedCollection("ediLogs", seedEdiLogs, (item) => item.id);
@@ -197,9 +182,9 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     syncCollection("carrierDispatches", setCarrierDispatches, libCarrierDispatches);
     syncCollection("bols", setBols, libBols);
     syncCollection("billingClients", setBillingClients);
-    syncCollection("billingRules", setBillingRules, libBillingRules);
-    syncCollection("billableEvents", setBillableEvents, libBillableEvents);
-    syncCollection("invoices", setInvoices, libInvoices);
+    syncCollection("billingRules", setBillingRules);
+    syncCollection("billableEvents", setBillableEvents);
+    syncCollection("invoices", setInvoices);
     syncCollection("itemMaster", setItemMaster, libItemMaster);
     syncCollection("locationMaster", setLocationMaster, libLocationMaster);
     syncCollection("ediLogs", setEdiLogs, libEdiLogs);
