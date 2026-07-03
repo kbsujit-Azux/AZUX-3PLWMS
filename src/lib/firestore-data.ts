@@ -1,6 +1,7 @@
 import {
   collection,
   getDocs,
+  getDoc,
   onSnapshot,
   doc,
   setDoc,
@@ -30,7 +31,7 @@ import type {
 import type { BillOfLading } from "./bol-data";
 import { DROP001_LOCATION } from "./mock-data";
 import type { Pallet } from "./pallet-data";
-import type { ItemMasterRecord, LocationRecord } from "./master-data";
+import type { ItemMasterRecord, LocationRecord, LocationType } from "./master-data";
 import type { InboundShipment, InboundLine } from "./inbound-data";
 import type { Order, EdiLog } from "./edi-data";
 import type { OutboundPallet } from "./outbound-pallet-data";
@@ -257,7 +258,9 @@ export function subscribeOutboundPallets(
   if (conditions.length > 0) q = query(q, ...conditions);
 
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as OutboundPallet));
+    callback(
+      snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as OutboundPallet),
+    );
   });
 }
 
@@ -304,7 +307,7 @@ export async function clearDropBatchesForOrder(orderId: string): Promise<void> {
 
   for (const pt of pts) {
     const invRef = doc(db, "inventoryItems", pt.sku);
-    const invSnap = await getDocs(invRef);
+    const invSnap = await getDoc(invRef);
     if (!invSnap.exists()) continue;
 
     const item = invSnap.data() as InventoryItem;
@@ -613,7 +616,16 @@ export type InventoryTransaction = {
   location: string;
   orderId?: string;
   pickTicketNum?: number;
-  type: "RECEIVE" | "ALLOCATE" | "PICK" | "REALLOCATE" | "SHIP" | "ADJUST";
+  type:
+    | "RECEIVE"
+    | "ALLOCATE"
+    | "PICK"
+    | "REALLOCATE"
+    | "SHIP"
+    | "ADJUST"
+    | "PUTAWAY"
+    | "MOVE"
+    | "DELETE";
   qtyChange: number;
   qtyBefore: number;
   qtyAfter: number;
@@ -1259,10 +1271,10 @@ export async function allocateOrderTransactional(
       })),
     );
 
-  return { success: true };
-} catch (e: any) {
-  return { success: false, error: e.message };
-}
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }
 
 // ============================================================
@@ -1272,8 +1284,9 @@ export async function deleteInventoryBatch(params: {
   sku: string;
   palletId?: string;
   location?: string;
+  user?: string;
 }): Promise<{ success: boolean; deletedCount: number; error?: string }> {
-  const { sku, palletId, location } = params;
+  const { sku, palletId, location, user = "admin" } = params;
   const invRef = doc(db, "inventoryItems", sku);
   try {
     await runTransaction(db, async (transaction) => {
@@ -1283,13 +1296,38 @@ export async function deleteInventoryBatch(params: {
       }
       const item = snap.data() as InventoryItem;
       const before = item.batches?.length ?? 0;
-      const filtered = item.batches?.filter((b) => {
-        if (palletId && b.palletId !== palletId) return true;
-        if (location && b.location !== location) return true;
-        return false;
-      }) ?? [];
+
+      // Log audit trail for each deleted batch
+      for (const b of item.batches ?? []) {
+        if (
+          (palletId && b.palletId === palletId) ||
+          (location && b.location === location) ||
+          (!palletId && !location)
+        ) {
+          const txnId = `TX-${Date.now()}-DEL-${b.batchId}`;
+          transaction.set(doc(db, "inventoryTransactions", txnId), {
+            sku: item.sku,
+            palletId: b.palletId,
+            location: b.location,
+            type: "DELETE",
+            qtyChange: -b.qty,
+            qtyBefore: b.qty,
+            qtyAfter: 0,
+            user,
+            notes: `Batch deleted by admin`,
+            timestamp: serverTimestamp(),
+          });
+        }
+      }
+
+      const filtered =
+        item.batches?.filter((b) => {
+          if (palletId && b.palletId !== palletId) return true;
+          if (location && b.location !== location) return true;
+          return false;
+        }) ?? [];
       transaction.update(invRef, { batches: filtered });
-      return filtered.length;
+      return before - filtered.length;
     });
     return { success: true, deletedCount: 0 };
   } catch (e: any) {
@@ -1504,9 +1542,18 @@ export async function updateInvoice(invoiceId: string, updates: Partial<Invoice>
   await updateDoc(doc(db, "invoices", invoiceId), updates);
 }
 
+export async function deleteInvoice(invoiceId: string): Promise<void> {
+  await deleteDoc(doc(db, "invoices", invoiceId));
+}
+
 export async function seedBillingData(): Promise<{ success: boolean; error?: string }> {
   try {
-    const { billingClients: clients, defaultRules: rules, billableEvents: events, seedInvoices: invoices } = await import("@/lib/billing-data");
+    const {
+      billingClients: clients,
+      defaultRules: rules,
+      billableEvents: events,
+      seedInvoices: invoices,
+    } = await import("@/lib/billing-data");
 
     // Clear existing billing collections to remove stale/dummy data
     const collections = ["billingClients", "chargeRules", "billableEvents", "invoices"];
@@ -1538,4 +1585,3 @@ export async function seedBillingData(): Promise<{ success: boolean; error?: str
     return { success: false, error: e.message };
   }
 }
-

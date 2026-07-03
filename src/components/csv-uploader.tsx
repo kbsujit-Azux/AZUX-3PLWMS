@@ -11,8 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const csvEscape = (v: string) =>
-  /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+const csvEscape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
 type Props = {
   open: boolean;
@@ -73,12 +72,14 @@ export function CsvUploader({
       if (k === "pickable") return "Y";
       return `<${f.key}>`;
     });
-    const csv =
-      headers.map(csvEscape).join(",") + "\n" + sample.map(csvEscape).join(",") + "\n";
+    const csv = headers.map(csvEscape).join(",") + "\n" + sample.map(csvEscape).join(",") + "\n";
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const slug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
     a.href = url;
     a.download = `${slug || "template"}.csv`;
     document.body.appendChild(a);
@@ -177,17 +178,13 @@ export function CsvUploader({
                     >
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono">{f.key}</span>
-                        {f.required && (
-                          <span className="text-[9px] text-destructive">REQ</span>
-                        )}
+                        {f.required && <span className="text-[9px] text-destructive">REQ</span>}
                         <span className="text-muted-foreground text-[10px]">· {f.label}</span>
                       </div>
                       <ArrowRight className="h-3 w-3 text-muted-foreground mx-3" />
                       <select
                         value={mapping[f.key] ?? ""}
-                        onChange={(e) =>
-                          setMapping((m) => ({ ...m, [f.key]: e.target.value }))
-                        }
+                        onChange={(e) => setMapping((m) => ({ ...m, [f.key]: e.target.value }))}
                         className="h-7 rounded border border-input bg-background px-2 text-xs font-mono"
                       >
                         <option value="">— skip —</option>

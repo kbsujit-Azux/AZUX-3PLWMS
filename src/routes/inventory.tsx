@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -32,7 +33,8 @@ import {
 } from "@/components/ui/dialog";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
-import { tenants, warehouses, type InventoryItem } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth";
+import { tenants, warehouses, inventoryItems, type InventoryItem, type InventoryBatch } from "@/lib/mock-data";
 import { inboundShipments } from "@/lib/inbound-data";
 import { fmtDateTime } from "@/lib/utils";
 import {
@@ -40,7 +42,7 @@ import {
   subscribeTransactionHistory,
   InventoryTransaction,
   upsertInventoryItem,
-  updateInventoryBatch,
+  logInventoryTransaction,
 } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inventory")({
@@ -123,7 +125,13 @@ function InventoryPage() {
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
   const [editItem, setEditItem] = useState<InventoryItem | null>(null);
   const [editBatch, setEditBatch] = useState<InventoryItem["batches"][0] | null>(null);
+  const [newItemOpen, setNewItemOpen] = useState(false);
+  const [newItemConfirmOpen, setNewItemConfirmOpen] = useState(false);
+  const [newItemForm, setNewItemForm] = useState<
+    Partial<InventoryItem & { palletId: string; location: string; qty: number; poNumber: string; container?: string }>
+  >({});
   const fileRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
 
   const poRefs = useMemo(buildPoRefs, []);
 
@@ -313,9 +321,30 @@ function InventoryPage() {
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={exportCsv}>
             <Download className="h-3.5 w-3.5" /> Export CSV
           </Button>
-          <Button size="sm" className="h-8 text-xs gap-1.5">
-            <Plus className="h-3.5 w-3.5" /> New item
-          </Button>
+          {user?.role === "Admin" && (
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+onClick={() => {
+                 setNewItemForm({
+                   sku: "",
+                   upc: "",
+                   description: "",
+                   tenantId: tenantId !== "all" ? tenantId : "",
+                   warehouseId: warehouseId !== "all" ? warehouseId : "",
+                   caseQty: 1,
+                   palletId: "",
+                   location: "",
+                   qty: 0,
+                   poNumber: "",
+                   container: "",
+                 });
+                 setNewItemOpen(true);
+               }}
+            >
+              <Plus className="h-3.5 w-3.5" /> New item
+            </Button>
+          )}
         </div>
       </div>
 
@@ -644,12 +673,31 @@ function InventoryPage() {
               batch={editBatch}
               onSave={async (updates) => {
                 try {
+                  const qtyBefore = editBatch.qty;
+                  const qtyAfter = updates.qty ?? qtyBefore;
+                  const qtyChange = qtyAfter - qtyBefore;
+
                   await upsertInventoryItem({
                     ...editItem,
                     batches: editItem.batches.map((b) =>
                       b.batchId === editBatch.batchId ? { ...b, ...updates } : b,
                     ),
                   });
+
+                  if (qtyChange !== 0) {
+                    await logInventoryTransaction({
+                      sku: editItem.sku,
+                      palletId: editBatch.palletId,
+                      location: updates.location ?? editBatch.location,
+                      type: "ADJUST",
+                      qtyChange: qtyChange,
+                      qtyBefore: qtyBefore,
+                      qtyAfter: qtyAfter,
+                      user: user?.name || "admin",
+                      notes: `Manual adjustment via Edit Batch`,
+                    });
+                  }
+
                   toast.success("Batch updated");
                   setEditItem(null);
                 } catch (e: any) {
@@ -661,6 +709,370 @@ function InventoryPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* New Item Dialog (Admin only) */}
+      {user?.role === "Admin" && (
+        <>
+          <Dialog open={newItemOpen} onOpenChange={setNewItemOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="text-base">Add New Inventory Item</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Manually add inventory to the system. Only Admin users can perform this action.
+                </DialogDescription>
+              </DialogHeader>
+<div className="space-y-4">
+                 <div className="grid grid-cols-3 gap-3">
+                   <div>
+                     <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                       SKU
+                     </Label>
+                     <select
+                       value={newItemForm.sku ?? ""}
+                       onChange={(e) => {
+                         const selected = inventoryItems.find((i) => i.sku === e.target.value);
+                         setNewItemForm({
+                           ...newItemForm,
+                           sku: e.target.value,
+                           description: selected?.description ?? "",
+                           upc: selected?.upc ?? "",
+                         });
+                       }}
+                       className="h-8 text-xs font-mono mt-1 rounded-md border border-input bg-background px-2 w-full"
+                     >
+                       <option value="">Select SKU...</option>
+                       {inventoryItems.map((i) => (
+                         <option key={i.sku} value={i.sku}>{i.sku}</option>
+                       ))}
+                     </select>
+                   </div>
+                   <div>
+                     <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                       UPC / GTIN
+                     </Label>
+                     <Input
+                       value={newItemForm.upc ?? ""}
+                       onChange={(e) => setNewItemForm({ ...newItemForm, upc: e.target.value })}
+                       placeholder="e.g. 081234500017"
+                       className="h-8 text-xs font-mono mt-1"
+                     />
+                   </div>
+                   <div>
+                     <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                       Container
+                     </Label>
+                     <Input
+                       value={newItemForm.container ?? ""}
+                       onChange={(e) => setNewItemForm({ ...newItemForm, container: e.target.value })}
+                       placeholder="CNT-12345"
+                       className="h-8 text-xs font-mono mt-1"
+                     />
+                   </div>
+                 </div>
+
+                 <div>
+                   <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                     Description
+                   </Label>
+                   <Input
+                     value={newItemForm.description ?? ""}
+                     onChange={(e) =>
+                       setNewItemForm({ ...newItemForm, description: e.target.value })
+                     }
+                     placeholder="Item description"
+                     className="h-8 text-xs mt-1"
+                     readOnly={!!(newItemForm.sku && inventoryItems.find((i) => i.sku === newItemForm.sku)?.description)}
+                   />
+                 </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Client
+                    </Label>
+                    <select
+                      value={newItemForm.tenantId ?? ""}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, tenantId: e.target.value })}
+                      className="h-8 text-xs rounded-md border border-input bg-background px-2 mt-1 w-full"
+                    >
+                      <option value="">Select client…</option>
+                      {tenants
+                        .filter((t) => t.id !== "all")
+                        .map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.code} · {t.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Warehouse
+                    </Label>
+                    <select
+                      value={newItemForm.warehouseId ?? ""}
+                      onChange={(e) =>
+                        setNewItemForm({ ...newItemForm, warehouseId: e.target.value })
+                      }
+                      className="h-8 text-xs rounded-md border border-input bg-background px-2 mt-1 w-full"
+                    >
+                      <option value="">Select warehouse…</option>
+                      {warehouses
+                        .filter((w) => w.id !== "all")
+                        .map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.code} · {w.city}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Pallet ID
+                    </Label>
+                    <Input
+                      value={newItemForm.palletId ?? ""}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, palletId: e.target.value })}
+                      placeholder="PLT-ATL1-00871"
+                      className="h-8 text-xs font-mono mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Location
+                    </Label>
+                    <Input
+                      value={newItemForm.location ?? ""}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, location: e.target.value })}
+                      placeholder="A12-03-B"
+                      className="h-8 text-xs font-mono mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Qty
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={newItemForm.qty ?? ""}
+                      onChange={(e) =>
+                        setNewItemForm({ ...newItemForm, qty: parseInt(e.target.value) || 0 })
+                      }
+                      placeholder="96"
+                      className="h-8 text-xs font-mono mt-1"
+                    />
+                  </div>
+                </div>
+
+<div>
+                   <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                     PO Number
+                   </Label>
+                   <Input
+                     value={newItemForm.poNumber ?? ""}
+                     onChange={(e) => setNewItemForm({ ...newItemForm, poNumber: e.target.value })}
+                     placeholder="PO-554120"
+                     className="h-8 text-xs font-mono mt-1"
+                   />
+                 </div>
+
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Case Qty
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={newItemForm.caseQty ?? 1}
+                    onChange={(e) =>
+                      setNewItemForm({ ...newItemForm, caseQty: parseInt(e.target.value) || 1 })
+                    }
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" size="sm" onClick={() => setNewItemOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => {
+                    if (
+                      !newItemForm.sku ||
+                      !newItemForm.tenantId ||
+                      !newItemForm.warehouseId ||
+                      !newItemForm.palletId ||
+                      !newItemForm.location ||
+                      (newItemForm.qty ?? 0) <= 0
+                    ) {
+                      toast.error("All fields are required, qty must be greater than 0");
+                      return;
+                    }
+                    setNewItemConfirmOpen(true);
+                  }}
+                >
+                  Continue
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={newItemConfirmOpen} onOpenChange={setNewItemConfirmOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-base">Confirm Add Inventory</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Review and confirm adding this inventory batch.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm">
+                  Please confirm the following inventory item will be added:
+                </p>
+                <div className="rounded-md border border-border bg-muted/30 p-4 space-y-2">
+<div className="grid grid-cols-2 gap-2 text-xs">
+                     <span className="text-muted-foreground">SKU</span>
+                     <span className="font-mono">{newItemForm.sku}</span>
+                     <span className="text-muted-foreground">Description</span>
+                     <span className="font-mono">{newItemForm.description}</span>
+                     <span className="text-muted-foreground">Client</span>
+                     <span className="font-mono">
+                       {tenants.find((t) => t.id === newItemForm.tenantId)?.code}
+                     </span>
+                     <span className="text-muted-foreground">Warehouse</span>
+                     <span className="font-mono">
+                       {warehouses.find((w) => w.id === newItemForm.warehouseId)?.code}
+                     </span>
+                     <span className="text-muted-foreground">Container</span>
+                     <span className="font-mono">{newItemForm.container || "—"}</span>
+                     <span className="text-muted-foreground">Pallet ID</span>
+                     <span className="font-mono">{newItemForm.palletId}</span>
+                     <span className="text-muted-foreground">Location</span>
+                     <span className="font-mono">{newItemForm.location}</span>
+                     <span className="text-muted-foreground">Qty</span>
+                     <span className="font-mono">{newItemForm.qty?.toLocaleString()}</span>
+                     <span className="text-muted-foreground">PO Number</span>
+                     <span className="font-mono">{newItemForm.poNumber || "—"}</span>
+                   </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  This action will create a new inventory batch and log an audit trail entry.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" size="sm" onClick={() => setNewItemConfirmOpen(false)}>
+                  Back
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={async () => {
+                    const {
+                      sku,
+                      upc,
+                      description,
+                      tenantId,
+                      warehouseId,
+                      caseQty,
+                      palletId,
+                      location,
+                      poNumber,
+                      qty,
+                    } = newItemForm;
+
+                    if (
+                      !sku ||
+                      !tenantId ||
+                      !warehouseId ||
+                      !palletId ||
+                      !location ||
+                      qty === undefined ||
+                      qty <= 0
+                    ) {
+                      toast.error("All fields are required, qty must be greater than 0");
+                      return;
+                    }
+
+                    try {
+                      const batchId = `B-MANUAL-${Date.now()}`;
+                      const newBatch: InventoryBatch = {
+                        batchId,
+                        palletId,
+                        receivedAt: new Date().toISOString(),
+                        qty,
+                        location,
+                        poNumber: poNumber || "",
+                        ediSource: "MANUAL",
+                        qtyAllocated: 0,
+                      };
+
+                      const existingItem = liveInventory.find((i) => i.sku === sku);
+                      let item: InventoryItem;
+
+                      if (existingItem) {
+                        item = {
+                          ...existingItem,
+                          batches: [...existingItem.batches, newBatch],
+                        };
+                      } else {
+                        item = {
+                          sku,
+                          upc: upc || "",
+                          itemStyle: "",
+                          description: description || "",
+                          category: "",
+                          uom: "EA",
+                          unitCost: 0,
+                          unitPrice: 0,
+                          caseQty: caseQty || 1,
+                          weightLbs: 0,
+                          tenantId,
+                          warehouseId,
+                          status: "active",
+                          batches: [newBatch],
+                        };
+                      }
+
+                      await upsertInventoryItem(item);
+
+                      await logInventoryTransaction({
+                        sku,
+                        palletId,
+                        location,
+                        type: "RECEIVE",
+                        qtyChange: qty,
+                        qtyBefore: existingItem
+                          ? existingItem.batches.reduce((s, b) => s + b.qty, 0)
+                          : 0,
+                        qtyAfter:
+                          (existingItem ? existingItem.batches.reduce((s, b) => s + b.qty, 0) : 0) +
+                          qty,
+                        user: user?.name || "admin",
+                        notes: `Manual inventory add via Admin Tools`,
+                      });
+
+                      toast.success("Inventory added successfully");
+                      setNewItemOpen(false);
+                      setNewItemConfirmOpen(false);
+                      refreshData();
+                    } catch (e: any) {
+                      toast.error(`Failed to add inventory: ${e.message}`);
+                    }
+                  }}
+                >
+                  Add Inventory
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </div>
   );
 }

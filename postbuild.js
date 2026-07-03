@@ -11,8 +11,8 @@ if (!fs.existsSync(clientDir)) {
 
 // Find the main JS and CSS files
 const files = fs.readdirSync(assetsDir);
-const jsFile = files.find(f => f.startsWith("index-") && f.endsWith(".js"));
-const cssFile = files.find(f => f.startsWith("styles-") && f.endsWith(".css"));
+const jsFile = files.find((f) => f.startsWith("index-") && f.endsWith(".js"));
+const cssFile = files.find((f) => f.startsWith("styles-") && f.endsWith(".css"));
 
 if (!jsFile) {
   console.error("Could not find index-*.js in dist/client/assets!");
@@ -25,7 +25,7 @@ let html = fs.readFileSync(path.join(process.cwd(), "index.html"), "utf-8");
 // Replace the script tag with the bundled one
 html = html.replace(
   '<script type="module" src="/src/start.tsx"></script>',
-  `<script type="module" src="/assets/${jsFile}"></script>`
+  `<script type="module" src="/assets/${jsFile}"></script>`,
 );
 
 // Add the stylesheet link if found

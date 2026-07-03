@@ -19,10 +19,20 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { useWorkspace } from "@/components/workspace-context";
 import { tenants, warehouses } from "@/lib/mock-data";
@@ -35,11 +45,7 @@ import {
   emit945ForBol,
   type BillOfLading,
 } from "@/lib/bol-data";
-import {
-  fetchBillsOfLading,
-  subscribeBillsOfLading,
-  createBol,
-} from "@/lib/firestore-data";
+import { fetchBillsOfLading, subscribeBillsOfLading, createBol } from "@/lib/firestore-data";
 import { BolDocument } from "@/components/bol/bol-document";
 import { PackingSlip } from "@/components/bol/packing-slip";
 import { fmtDateTime } from "@/lib/utils";
@@ -60,12 +66,12 @@ export const Route = createFileRoute("/documents")({
 });
 
 const statusStyles: Record<BillOfLading["status"], string> = {
-  draft:      "bg-muted text-muted-foreground border-border",
-  issued:     "bg-chart-4/15 text-chart-4 border-chart-4/30",
-  tendered:   "bg-primary/15 text-primary border-primary/30",
-  "in-transit":"bg-chart-2/15 text-chart-2 border-chart-2/30",
-  delivered:  "bg-chart-3/15 text-chart-3 border-chart-3/30",
-  void:       "bg-destructive/15 text-destructive border-destructive/30",
+  draft: "bg-muted text-muted-foreground border-border",
+  issued: "bg-chart-4/15 text-chart-4 border-chart-4/30",
+  tendered: "bg-primary/15 text-primary border-primary/30",
+  "in-transit": "bg-chart-2/15 text-chart-2 border-chart-2/30",
+  delivered: "bg-chart-3/15 text-chart-3 border-chart-3/30",
+  void: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
 function DocumentsPage() {
@@ -77,9 +83,13 @@ function DocumentsPage() {
 
   // Load BOLs from Firestore
   useEffect(() => {
-    const unsub = subscribeBillsOfLading((items) => {
-      setBols(items);
-    }, tenantId !== "all" ? tenantId : undefined, warehouseId !== "all" ? warehouseId : undefined);
+    const unsub = subscribeBillsOfLading(
+      (items) => {
+        setBols(items);
+      },
+      tenantId !== "all" ? tenantId : undefined,
+      warehouseId !== "all" ? warehouseId : undefined,
+    );
     return () => unsub();
   }, [tenantId, warehouseId]);
 
@@ -89,7 +99,8 @@ function DocumentsPage() {
       if (warehouseId !== "all" && b.warehouseId !== warehouseId) return false;
       if (query) {
         const q = query.toLowerCase();
-        const blob = `${b.id} ${b.bolNumber} ${b.proNumber} ${b.carrier} ${b.consignee.name} ${b.consignee.city} ${b.childOrderIds.join(" ")}`.toLowerCase();
+        const blob =
+          `${b.id} ${b.bolNumber} ${b.proNumber} ${b.carrier} ${b.consignee.name} ${b.consignee.city} ${b.childOrderIds.join(" ")}`.toLowerCase();
         if (!blob.includes(q)) return false;
       }
       return true;
@@ -109,7 +120,8 @@ function DocumentsPage() {
     const t = { total: filtered.length, master: 0, transit: 0, units: 0 };
     for (const b of filtered) {
       if (b.type === "master") t.master++;
-      if (b.status === "in-transit" || b.status === "issued" || b.status === "tendered") t.transit++;
+      if (b.status === "in-transit" || b.status === "issued" || b.status === "tendered")
+        t.transit++;
       t.units += b.totals.units;
     }
     return t;
@@ -118,7 +130,12 @@ function DocumentsPage() {
   const handleGenerateForOrder = async (orderId: string) => {
     const o = orders.find((x) => x.id === orderId);
     if (!o) return;
-    if (bols.some((b) => b.childOrderIds.length === 1 && b.childOrderIds[0] === orderId && b.type === "single")) {
+    if (
+      bols.some(
+        (b) =>
+          b.childOrderIds.length === 1 && b.childOrderIds[0] === orderId && b.type === "single",
+      )
+    ) {
       toast.error(`BOL already exists for ${orderId}`);
       return;
     }
@@ -175,27 +192,47 @@ function DocumentsPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Documents · Bill of Lading</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            VICS BOL v3.1 engine — generate single & master BOLs consolidating multiple orders by destination
+            VICS BOL v3.1 engine — generate single & master BOLs consolidating multiple orders by
+            destination
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setConsolidateOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setConsolidateOpen(true)}
+          >
             <Layers className="h-3.5 w-3.5" /> Build Master BOL
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-4 divide-x divide-border rounded-md border border-border bg-card">
-        <StatCell icon={FileText}      label="Total BOLs"        value={stats.total}   tone="text-foreground" />
-        <StatCell icon={Layers}        label="Master BOLs"       value={stats.master}  tone="text-primary" />
-        <StatCell icon={Truck}         label="Tendered / Transit" value={stats.transit} tone="text-chart-2" />
-        <StatCell icon={PackagePlus}   label="Handling units"    value={stats.units}   tone="text-chart-3" />
+        <StatCell icon={FileText} label="Total BOLs" value={stats.total} tone="text-foreground" />
+        <StatCell icon={Layers} label="Master BOLs" value={stats.master} tone="text-primary" />
+        <StatCell
+          icon={Truck}
+          label="Tendered / Transit"
+          value={stats.transit}
+          tone="text-chart-2"
+        />
+        <StatCell
+          icon={PackagePlus}
+          label="Handling units"
+          value={stats.units}
+          tone="text-chart-3"
+        />
       </div>
 
       <Tabs defaultValue="issued" className="w-full">
         <TabsList className="h-8">
-          <TabsTrigger value="issued" className="text-xs">Issued BOLs</TabsTrigger>
-          <TabsTrigger value="generate" className="text-xs">Generate from Orders</TabsTrigger>
+          <TabsTrigger value="issued" className="text-xs">
+            Issued BOLs
+          </TabsTrigger>
+          <TabsTrigger value="generate" className="text-xs">
+            Generate from Orders
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="issued" className="mt-3 space-y-3">
@@ -224,17 +261,26 @@ function DocumentsPage() {
                   <TableHead className="text-[10px] uppercase tracking-wider">Carrier</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Consignee</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Orders</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">HU</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Weight (lb)</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    HU
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Weight (lb)
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Status</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Created</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Actions</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-xs text-muted-foreground py-10">
+                    <TableCell
+                      colSpan={11}
+                      className="text-center text-xs text-muted-foreground py-10"
+                    >
                       No BOLs match the current filter. Generate one from the Orders tab.
                     </TableCell>
                   </TableRow>
@@ -246,7 +292,9 @@ function DocumentsPage() {
                     <TableRow key={b.id} className="text-xs hover:bg-muted/30">
                       <TableCell className="py-2 font-mono font-medium">{b.bolNumber}</TableCell>
                       <TableCell className="py-2">
-                        <span className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider ${b.type === "master" ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-muted/40"}`}>
+                        <span
+                          className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider ${b.type === "master" ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-muted/40"}`}
+                        >
                           {b.type === "master" ? "Master" : "Single"}
                         </span>
                       </TableCell>
@@ -255,7 +303,9 @@ function DocumentsPage() {
                         <div className="flex items-center gap-1">
                           <Truck className="h-3 w-3 text-muted-foreground" />
                           {b.carrier}
-                          <span className="text-[10px] text-muted-foreground font-mono">· {b.scac}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            · {b.scac}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="py-2">
@@ -267,20 +317,33 @@ function DocumentsPage() {
                       <TableCell className="py-2">
                         <div className="flex flex-wrap gap-1">
                           {b.childOrderIds.slice(0, 3).map((id) => (
-                            <span key={id} className="font-mono text-[10px] rounded-sm bg-muted px-1 py-0.5">{id}</span>
+                            <span
+                              key={id}
+                              className="font-mono text-[10px] rounded-sm bg-muted px-1 py-0.5"
+                            >
+                              {id}
+                            </span>
                           ))}
                           {b.childOrderIds.length > 3 && (
-                            <span className="text-[10px] text-muted-foreground">+{b.childOrderIds.length - 3}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              +{b.childOrderIds.length - 3}
+                            </span>
                           )}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
                           {tenant?.code} · {wh?.code}
                         </div>
                       </TableCell>
-                      <TableCell className="py-2 text-right tabular-nums">{b.totals.pallets + b.totals.cartons}</TableCell>
-                      <TableCell className="py-2 text-right tabular-nums">{b.totals.weightLbs.toLocaleString()}</TableCell>
+                      <TableCell className="py-2 text-right tabular-nums">
+                        {b.totals.pallets + b.totals.cartons}
+                      </TableCell>
+                      <TableCell className="py-2 text-right tabular-nums">
+                        {b.totals.weightLbs.toLocaleString()}
+                      </TableCell>
                       <TableCell className="py-2">
-                        <span className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusStyles[b.status]}`}>
+                        <span
+                          className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusStyles[b.status]}`}
+                        >
                           {b.status}
                         </span>
                       </TableCell>
@@ -289,7 +352,9 @@ function DocumentsPage() {
                       </TableCell>
                       <TableCell className="py-2 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {(b.status === "draft" || b.status === "issued" || b.status === "tendered") && (
+                          {(b.status === "draft" ||
+                            b.status === "issued" ||
+                            b.status === "tendered") && (
                             <Button
                               size="sm"
                               variant="default"
@@ -299,7 +364,12 @@ function DocumentsPage() {
                               <Send className="h-3 w-3" /> Ship & EDI 945
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5" onClick={() => setPreviewing(b)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] gap-1.5"
+                            onClick={() => setPreviewing(b)}
+                          >
                             <Eye className="h-3 w-3" /> Preview
                           </Button>
                         </div>
@@ -319,17 +389,27 @@ function DocumentsPage() {
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="text-[10px] uppercase tracking-wider">Order #</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">PO</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">Client / WH</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">
+                    Client / WH
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Ship-to</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Carrier</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Lines</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Lines
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">BOL Status</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Action</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Action
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orders
-                  .filter((o) => (tenantId === "all" || o.tenantId === tenantId) && (warehouseId === "all" || o.warehouseId === warehouseId))
+                  .filter(
+                    (o) =>
+                      (tenantId === "all" || o.tenantId === tenantId) &&
+                      (warehouseId === "all" || o.warehouseId === warehouseId),
+                  )
                   .map((o) => {
                     const tenant = tenants.find((t) => t.id === o.tenantId);
                     const wh = warehouses.find((w) => w.id === o.warehouseId);
@@ -339,13 +419,22 @@ function DocumentsPage() {
                         <TableCell className="py-2 font-mono font-medium">{o.id}</TableCell>
                         <TableCell className="py-2 font-mono text-[11px]">{o.poNumber}</TableCell>
                         <TableCell className="py-2 text-[11px]">
-                          <span className="font-mono text-muted-foreground mr-1">{tenant?.code}</span>
+                          <span className="font-mono text-muted-foreground mr-1">
+                            {tenant?.code}
+                          </span>
                           {tenant?.name.split(" ")[0]}
                           <span className="text-muted-foreground"> · {wh?.code}</span>
                         </TableCell>
                         <TableCell className="py-2">{o.shipToName}</TableCell>
-                        <TableCell className="py-2">{o.carrier} <span className="text-[10px] text-muted-foreground">· {o.serviceLevel}</span></TableCell>
-                        <TableCell className="py-2 text-right tabular-nums">{o.lines.length}</TableCell>
+                        <TableCell className="py-2">
+                          {o.carrier}{" "}
+                          <span className="text-[10px] text-muted-foreground">
+                            · {o.serviceLevel}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-2 text-right tabular-nums">
+                          {o.lines.length}
+                        </TableCell>
                         <TableCell className="py-2">
                           {existing ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-mono text-chart-3">
@@ -360,9 +449,19 @@ function DocumentsPage() {
                             size="sm"
                             variant={existing ? "outline" : "default"}
                             className="h-7 text-[11px] gap-1.5"
-                            onClick={() => existing ? setPreviewing(existing) : handleGenerateForOrder(o.id)}
+                            onClick={() =>
+                              existing ? setPreviewing(existing) : handleGenerateForOrder(o.id)
+                            }
                           >
-                            {existing ? <><Eye className="h-3 w-3" /> Preview</> : <><FileText className="h-3 w-3" /> Generate BOL</>}
+                            {existing ? (
+                              <>
+                                <Eye className="h-3 w-3" /> Preview
+                              </>
+                            ) : (
+                              <>
+                                <FileText className="h-3 w-3" /> Generate BOL
+                              </>
+                            )}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -425,8 +524,8 @@ function ConsolidateDialog({
         <DialogHeader>
           <DialogTitle className="text-base">Build Master BOL</DialogTitle>
           <DialogDescription className="text-xs">
-            Orders grouped by destination & carrier. Select 2 or more orders within a group to consolidate them
-            onto a single Master BOL with underlying sub-BOL references.
+            Orders grouped by destination & carrier. Select 2 or more orders within a group to
+            consolidate them onto a single Master BOL with underlying sub-BOL references.
           </DialogDescription>
         </DialogHeader>
 
@@ -445,11 +544,17 @@ function ConsolidateDialog({
                     <span className="font-semibold">{g.shipToName}</span>
                     <span className="text-muted-foreground"> · {g.carrier}</span>
                     <span className="text-[10px] text-muted-foreground font-mono ml-2">
-                      {g.orderIds.length} orders · {g.totalUnits.toLocaleString()} units · {g.totalWeightLbs.toLocaleString()} lb
+                      {g.orderIds.length} orders · {g.totalUnits.toLocaleString()} units ·{" "}
+                      {g.totalWeightLbs.toLocaleString()} lb
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => selectAll(g.key, g.orderIds)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-[11px]"
+                      onClick={() => selectAll(g.key, g.orderIds)}
+                    >
                       Select all
                     </Button>
                     <Button
@@ -466,14 +571,21 @@ function ConsolidateDialog({
                   {g.orderIds.map((id) => {
                     const o = orders.find((x) => x.id === id)!;
                     return (
-                      <label key={id} className="flex items-center gap-3 px-3 py-2 text-xs cursor-pointer hover:bg-muted/30">
+                      <label
+                        key={id}
+                        className="flex items-center gap-3 px-3 py-2 text-xs cursor-pointer hover:bg-muted/30"
+                      >
                         <Checkbox checked={sel.has(id)} onCheckedChange={() => toggle(g.key, id)} />
                         <span className="font-mono font-medium w-24">{id}</span>
-                        <span className="font-mono text-[11px] text-muted-foreground w-28">{o.poNumber}</span>
+                        <span className="font-mono text-[11px] text-muted-foreground w-28">
+                          {o.poNumber}
+                        </span>
                         <span className="flex-1 truncate text-muted-foreground">
                           {o.lines.map((l) => `${l.qtyOrdered}× ${l.sku}`).join(" · ")}
                         </span>
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{o.status}</span>
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          {o.status}
+                        </span>
                       </label>
                     );
                   })}
@@ -484,7 +596,12 @@ function ConsolidateDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => onOpenChange(false)}
+          >
             Close
           </Button>
         </DialogFooter>
@@ -518,28 +635,42 @@ function BolPreviewDialog({
           <Tabs defaultValue="vics" className="w-full">
             <div className="flex items-center justify-between">
               <TabsList className="h-7">
-                <TabsTrigger value="vics" className="text-[10px]">VICS BOL</TabsTrigger>
-                <TabsTrigger value="packing" className="text-[10px]">Packing Slip</TabsTrigger>
+                <TabsTrigger value="vics" className="text-[10px]">
+                  VICS BOL
+                </TabsTrigger>
+                <TabsTrigger value="packing" className="text-[10px]">
+                  Packing Slip
+                </TabsTrigger>
               </TabsList>
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5" onClick={() => window.print()}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px] gap-1.5"
+                  onClick={() => window.print()}
+                >
                   <Printer className="h-3 w-3" /> Print
                 </Button>
-                {onShip && (bol.status === "draft" || bol.status === "issued" || bol.status === "tendered") && (
-                  <Button
-                    size="sm"
-                    className="h-7 text-[11px] gap-1.5"
-                    onClick={() => onShip(bol)}
-                  >
-                    <Send className="h-3 w-3" /> Ship & EDI 945
-                  </Button>
-                )}
+                {onShip &&
+                  (bol.status === "draft" ||
+                    bol.status === "issued" ||
+                    bol.status === "tendered") && (
+                    <Button
+                      size="sm"
+                      className="h-7 text-[11px] gap-1.5"
+                      onClick={() => onShip(bol)}
+                    >
+                      <Send className="h-3 w-3" /> Ship & EDI 945
+                    </Button>
+                  )}
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-7 text-[11px] gap-1.5"
                   onClick={() => {
-                    const blob = new Blob([JSON.stringify(bol, null, 2)], { type: "application/json" });
+                    const blob = new Blob([JSON.stringify(bol, null, 2)], {
+                      type: "application/json",
+                    });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
                     a.href = url;
@@ -590,9 +721,7 @@ function StatCell({
         <Icon className={`h-3 w-3 ${tone}`} />
         {label}
       </div>
-      <div className={`text-base font-semibold tabular-nums ${tone}`}>
-        {value.toLocaleString()}
-      </div>
+      <div className={`text-base font-semibold tabular-nums ${tone}`}>{value.toLocaleString()}</div>
     </div>
   );
 }

@@ -130,7 +130,10 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
     return { success: false, allocatedLines: [], error: `Order ${orderId} not found.` };
   }
 
-  const config: ClientAllocationConfig = getClientAllocationConfig(order.tenantId) ?? { tenantId: order.tenantId, strategy: "LIFO" as const };
+  const config: ClientAllocationConfig = getClientAllocationConfig(order.tenantId) ?? {
+    tenantId: order.tenantId,
+    strategy: "LIFO" as const,
+  };
 
   const allocatedLines: AllocationResult["allocatedLines"] = [];
   let pickTicketNum: number | undefined;
@@ -208,7 +211,7 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
     }
   }
 
-if (allocatedLines.length > 0) {
+  if (allocatedLines.length > 0) {
     // Generate unique pick tickets - one per allocated line
     const tickets: PickTicket[] = [];
     const allocateTxns: Promise<any>[] = [];
@@ -239,7 +242,7 @@ if (allocatedLines.length > 0) {
           qtyAfter: line.qtyAllocated,
           user: "allocation-ui",
           notes: `Allocated ${line.qtyAllocated} units for ${order.id}`,
-        })
+        }),
       );
     }
     const firstTicketNum = tickets.length > 0 ? tickets[0].pickTicketNum : undefined;
@@ -335,7 +338,7 @@ export async function deallocate_order(orderId: string): Promise<DeallocationRes
             qtyAfter: batch.qtyAllocated,
             user: "deallocation-ui",
             notes: `Deallocated ${pt.quantityToPick} units for ${order.id}`,
-          })
+          }),
         );
       }
     }
@@ -501,7 +504,9 @@ export async function pick_pick_ticket(orderId: string): Promise<PickResult> {
       upsertInventoryItem({
         ...item,
         batches: item.batches.map((b) =>
-          b.batchId === originalBatch.batchId ? { ...b, qty: b.qty, qtyAllocated: b.qtyAllocated } : b,
+          b.batchId === originalBatch.batchId
+            ? { ...b, qty: b.qty, qtyAllocated: b.qtyAllocated }
+            : b,
         ),
       } as any),
     );

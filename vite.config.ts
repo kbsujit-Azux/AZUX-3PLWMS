@@ -6,12 +6,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   base: "/",
-  plugins: [
-    tailwindcss(),
-    TanStackRouterVite(),
-    viteReact(),
-    tsconfigPaths(),
-  ],
+  plugins: [tailwindcss(), TanStackRouterVite(), viteReact(), tsconfigPaths()],
   build: {
     outDir: "dist",
     rollupOptions: {
@@ -49,6 +44,3 @@ export default defineConfig({
     port: process.env.PORT ? parseInt(process.env.PORT) : 3000,
   },
 });
-
-
-

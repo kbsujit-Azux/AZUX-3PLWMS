@@ -18,16 +18,13 @@ import {
   ShieldCheck,
   Trash2,
   RefreshCw,
+  FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -55,19 +52,21 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
-import { tenants, warehouses } from "@/lib/mock-data";
+import { tenants, warehouses, inventoryItems } from "@/lib/mock-data";
 import {
   pallets,
   pickWaves,
   buildPickWave,
   suggestPutawayLocation,
   removePallets,
+  appendPallets,
   type Pallet,
   type PalletStatus,
 } from "@/lib/pallet-data";
+import { createPallet } from "@/lib/firestore-data";
 import { orders } from "@/lib/edi-data";
 import { inboundShipments } from "@/lib/inbound-data";
-import { fmtDateTime, fmtDateYear, fmtTime } from "@/lib/utils";
+import { fmtDateTime, fmtDateYear, fmtTime, downloadExcel } from "@/lib/utils";
 
 export const Route = createFileRoute("/pallets")({
   head: () => ({
@@ -84,10 +83,10 @@ export const Route = createFileRoute("/pallets")({
 
 const statusStyles: Record<PalletStatus, string> = {
   building: "bg-chart-4/15 text-chart-4 border-chart-4/30",
-  staged:   "bg-primary/15 text-primary border-primary/30",
-  putaway:  "bg-chart-3/15 text-chart-3 border-chart-3/30",
-  picking:  "bg-chart-2/15 text-chart-2 border-chart-2/30",
-  shipped:  "bg-muted text-muted-foreground border-border",
+  staged: "bg-primary/15 text-primary border-primary/30",
+  putaway: "bg-chart-3/15 text-chart-3 border-chart-3/30",
+  picking: "bg-chart-2/15 text-chart-2 border-chart-2/30",
+  shipped: "bg-muted text-muted-foreground border-border",
 };
 
 function PalletsPage() {
@@ -98,6 +97,19 @@ function PalletsPage() {
   const [labelPallet, setLabelPallet] = useState<Pallet | null>(null);
   const [selectedWave, setSelectedWave] = useState<string>(pickWaves[0].id);
   const [scanTarget, setScanTarget] = useState<Pallet | null>(null);
+  const [newPalletOpen, setNewPalletOpen] = useState(false);
+  const [newPalletData, setNewPalletData] = useState<NewPalletForm>({
+    tenantId: tenantId === "all" ? warehouses[0].id : tenantId,
+    warehouseId: warehouseId === "all" ? warehouses[0].id : warehouseId,
+    sku: "",
+    description: "",
+    itemStyle: "",
+    units: 0,
+    casePack: 1,
+    weightLbsPerUnit: 0,
+    container: "",
+  });
+  const [isCreating, setIsCreating] = useState(false);
   /** Pallets that have been scan-confirmed in this session (id → location). */
   const [confirmed, setConfirmed] = useState<Record<string, string>>({});
   /** Pallet IDs deleted in this session (non-putaway only). */
@@ -117,23 +129,24 @@ function PalletsPage() {
   const visiblePallets = useMemo(
     () =>
       pallets
-      .filter((p) => !deleted.has(p.id))
-      .map((p) =>
-        confirmed[p.id]
-          ? { ...p, status: "putaway" as PalletStatus, location: confirmed[p.id] }
-          : p,
-      )
-      .filter((p) => {
-        if (tenantId !== "all" && p.tenantId !== tenantId) return false;
-        if (warehouseId !== "all" && p.warehouseId !== warehouseId) return false;
-        if (query) {
-          const q = query.toLowerCase();
-          const r = refFor(p.poNumber);
-          const blob = `${p.id} ${p.sku} ${p.itemStyle} ${p.description} ${p.poNumber} ${r.container} ${r.trailer}`.toLowerCase();
-          if (!blob.includes(q)) return false;
-        }
-        return true;
-      }),
+        .filter((p) => !deleted.has(p.id))
+        .map((p) =>
+          confirmed[p.id]
+            ? { ...p, status: "putaway" as PalletStatus, location: confirmed[p.id] }
+            : p,
+        )
+        .filter((p) => {
+          if (tenantId !== "all" && p.tenantId !== tenantId) return false;
+          if (warehouseId !== "all" && p.warehouseId !== warehouseId) return false;
+          if (query) {
+            const q = query.toLowerCase();
+            const r = refFor(p.poNumber);
+            const blob =
+              `${p.id} ${p.sku} ${p.itemStyle} ${p.description} ${p.poNumber} ${r.container} ${r.trailer}`.toLowerCase();
+            if (!blob.includes(q)) return false;
+          }
+          return true;
+        }),
     [tenantId, warehouseId, query, confirmed, poRefs, deleted],
   );
 
@@ -181,6 +194,77 @@ function PalletsPage() {
     return t;
   }, [visiblePallets]);
 
+  const handleCreatePallet = async () => {
+    if (
+      !newPalletData.sku ||
+      !newPalletData.description ||
+      !newPalletData.itemStyle ||
+      newPalletData.units <= 0
+    ) {
+      toast.error("Missing required fields", {
+        description: "Please fill in SKU, Description, Item Style, and Units (must be > 0).",
+      });
+      return;
+    }
+    setIsCreating(true);
+    try {
+      const wh = warehouses.find((w) => w.id === newPalletData.warehouseId);
+      const whCode = wh?.code ?? "WH";
+      const seq = Math.floor(Math.random() * 90000) + 10000;
+      const palletId = `PLT-${whCode}-${seq.toString().padStart(5, "0")}`;
+      const now = new Date().toISOString();
+      const suggested = suggestPutawayLocation(newPalletData.itemStyle, newPalletData.warehouseId);
+      const zone = (suggested.split("·")[1]?.[0] ?? "A") as Pallet["zone"];
+
+      const newPallet: Pallet = {
+        id: palletId,
+        itemStyle: newPalletData.itemStyle,
+        tenantId: newPalletData.tenantId,
+        warehouseId: newPalletData.warehouseId,
+        sku: newPalletData.sku,
+        description: newPalletData.description,
+        units: newPalletData.units,
+        capacityUnits: Math.ceil(newPalletData.units * 1.25),
+        casePack: newPalletData.casePack,
+        weightLbs: +(newPalletData.units * newPalletData.weightLbsPerUnit).toFixed(1),
+        builtAt: now,
+        builtBy: "Manual creation",
+        poNumber: "MANUAL-PO",
+        container: newPalletData.container || undefined,
+        ediSource: "MANUAL",
+        status: "staged",
+        location: null,
+        suggestedLocation: suggested,
+        zone,
+        receivedAt: now,
+      };
+
+      await createPallet(newPallet);
+      appendPallets([newPallet]);
+
+      toast.success("Pallet created", {
+        description: `${palletId} · ${newPalletData.units} units · staged for putaway`,
+      });
+      setNewPalletOpen(false);
+    } catch (e: any) {
+      toast.error("Failed to create pallet", { description: e.message });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleSkuChange = (sku: string) => {
+    const masterItem = inventoryItems.find((i) => i.sku === sku);
+    setNewPalletData({
+      ...newPalletData,
+      sku,
+      description: masterItem?.description ?? "",
+      itemStyle: masterItem?.itemStyle ?? "",
+      casePack: masterItem?.caseQty ?? 1,
+      weightLbsPerUnit: masterItem?.weightLbs ?? 0,
+    });
+  };
+
   return (
     <div className="px-6 py-6 space-y-4">
       {/* Header */}
@@ -198,18 +282,96 @@ function PalletsPage() {
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
             <ScanLine className="h-3.5 w-3.5" /> Scan pallet
           </Button>
-          <Button size="sm" className="h-8 text-xs gap-1.5">
-            <Plus className="h-3.5 w-3.5" /> Build pallet
+          <Button
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+onClick={() => {
+               setNewPalletData({
+                 tenantId: tenantId === "all" ? warehouses[0].id : tenantId,
+                 warehouseId: warehouseId === "all" ? warehouses[0].id : warehouseId,
+                 sku: "",
+                 description: "",
+                 itemStyle: "",
+                 units: 0,
+                 casePack: 1,
+                 weightLbsPerUnit: 0,
+                 container: "",
+               });
+               setNewPalletOpen(true);
+             }}
+          >
+            <Plus className="h-3.5 w-3.5" /> NEW Pallet
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => {
+const reportData = visiblePallets.map((p) => ({
+                 Pallet: p.id,
+                 "Item Style": p.itemStyle,
+                 SKU: p.sku,
+                 Description: p.description,
+                 Client: tenants.find((t) => t.id === p.tenantId)?.code || "",
+                 Warehouse: warehouses.find((w) => w.id === p.warehouseId)?.code || "",
+                 "PO Number": p.poNumber,
+                 Container: p.container || "—",
+                 Units: p.units,
+                 Cases: Math.ceil(p.units / Math.max(1, p.casePack)),
+                 "Weight (lb)": p.weightLbs,
+                 Location: p.location || "",
+                 "Suggested Location": p.suggestedLocation,
+                 Zone: p.zone,
+                 "Built At": p.builtAt,
+                 Status: p.status,
+               }));
+              downloadExcel("pallets-report.xlsx", reportData, [
+                { header: "Pallet", key: "Pallet" },
+                { header: "Item Style", key: "Item Style" },
+                { header: "SKU", key: "SKU" },
+                { header: "Description", key: "Description" },
+                { header: "Client", key: "Client" },
+                { header: "Warehouse", key: "Warehouse" },
+                { header: "PO Number", key: "PO Number" },
+                { header: "Container", key: "Container" },
+                { header: "Units", key: "Units" },
+                { header: "Cases", key: "Cases" },
+                { header: "Weight (lb)", key: "Weight (lb)" },
+                { header: "Location", key: "Location" },
+                { header: "Suggested Location", key: "Suggested Location" },
+                { header: "Zone", key: "Zone" },
+                { header: "Built At", key: "Built At" },
+                { header: "Status", key: "Status" },
+              ]);
+              toast.success("Pallet report downloaded", { description: "pallets-report.xlsx" });
+            }}
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" /> Report
           </Button>
         </div>
       </div>
 
       {/* Stat strip */}
       <div className="grid grid-cols-4 divide-x divide-border rounded-md border border-border bg-card">
-        <StatCell icon={Boxes}        label="Active pallets"    value={stats.active}          tone="text-foreground" />
-        <StatCell icon={Layers}       label="Currently building" value={stats.building}        tone="text-chart-4" />
-        <StatCell icon={MapPin}       label="Awaiting putaway"  value={stats.awaitingPutaway} tone="text-primary" />
-        <StatCell icon={PackageCheck} label="Units on pallets"  value={stats.units}           tone="text-chart-3" />
+        <StatCell icon={Boxes} label="Active pallets" value={stats.active} tone="text-foreground" />
+        <StatCell
+          icon={Layers}
+          label="Currently building"
+          value={stats.building}
+          tone="text-chart-4"
+        />
+        <StatCell
+          icon={MapPin}
+          label="Awaiting putaway"
+          value={stats.awaitingPutaway}
+          tone="text-primary"
+        />
+        <StatCell
+          icon={PackageCheck}
+          label="Units on pallets"
+          value={stats.units}
+          tone="text-chart-3"
+        />
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
@@ -227,20 +389,34 @@ function PalletsPage() {
 
         {/* ─── Pallet Builder ───────────────────────────────────────── */}
         <TabsContent value="build" className="mt-3 space-y-3">
-          <Toolbar query={query} setQuery={setQuery} placeholder="Search pallet ID, SKU, style, PO, container/trailer…" />
+          <Toolbar
+            query={query}
+            setQuery={setQuery}
+            placeholder="Search pallet ID, SKU, style, PO, container/trailer…"
+          />
           <div className="rounded-md border border-border bg-card overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="text-[10px] uppercase tracking-wider">Pallet ID</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Item style</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">SKU / description</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">Client / WH</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">
+                    SKU / description
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">
+                    Client / WH
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">PO</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">Container / Trailer</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">Qty / Case pack</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">
+                    Container / Trailer
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">
+                    Qty / Case pack
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider w-40">Fill</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Weight</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Weight
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Built</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Status</TableHead>
                   <TableHead className="w-24" />
@@ -273,26 +449,30 @@ function PalletsPage() {
                       <TableCell className="py-2 font-mono text-[11px]">
                         {container && (
                           <div className="text-foreground">
-                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground mr-1">CNT</span>
+                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground mr-1">
+                              CNT
+                            </span>
                             {container}
                           </div>
                         )}
                         {trailer && (
                           <div className="text-foreground">
-                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground mr-1">TRL</span>
+                            <span className="text-[9px] uppercase tracking-wider text-muted-foreground mr-1">
+                              TRL
+                            </span>
                             {trailer}
                           </div>
                         )}
-                        {!container && !trailer && (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        {!container && !trailer && <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="py-2">
                         <div className="font-mono text-[11px] tabular-nums">
-                          {p.units.toLocaleString()} <span className="text-muted-foreground">{`${p.units === 1 ? "unit" : "units"}`}</span>
+                          {p.units.toLocaleString()}{" "}
+                          <span className="text-muted-foreground">{`${p.units === 1 ? "unit" : "units"}`}</span>
                         </div>
                         <div className="text-[10px] text-muted-foreground tabular-nums">
-                          {Math.ceil(p.units / Math.max(1, p.casePack)).toLocaleString()} cases @ {p.casePack}/case
+                          {Math.ceil(p.units / Math.max(1, p.casePack)).toLocaleString()} cases @{" "}
+                          {p.casePack}/case
                         </div>
                       </TableCell>
                       <TableCell className="py-2">
@@ -335,11 +515,17 @@ function PalletsPage() {
                             size="icon"
                             className="h-7 w-7 text-destructive hover:text-destructive disabled:opacity-30"
                             title={
-                              p.status === "putaway" || p.status === "picking" || p.status === "shipped"
+                              p.status === "putaway" ||
+                              p.status === "picking" ||
+                              p.status === "shipped"
                                 ? `Cannot delete — pallet is ${p.status}`
                                 : "Delete pallet"
                             }
-                            disabled={p.status === "putaway" || p.status === "picking" || p.status === "shipped"}
+                            disabled={
+                              p.status === "putaway" ||
+                              p.status === "picking" ||
+                              p.status === "shipped"
+                            }
                             onClick={() => handleDeleteRequest(p)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -361,9 +547,9 @@ function PalletsPage() {
             <div>
               <div className="font-medium">Slotting engine</div>
               <div className="text-muted-foreground text-[11px] mt-0.5">
-                Locations are suggested from the warehouse map using item style
-                affinity, velocity zone, weight class and cube utilization. Operators
-                confirm or override before posting the putaway.
+                Locations are suggested from the warehouse map using item style affinity, velocity
+                zone, weight class and cube utilization. Operators confirm or override before
+                posting the putaway.
               </div>
             </div>
           </div>
@@ -382,10 +568,16 @@ function PalletsPage() {
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="text-[10px] uppercase tracking-wider">Pallet</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Style</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Units</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Weight</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Units
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Weight
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Current</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">Suggested location</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">
+                    Suggested location
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Zone</TableHead>
                   <TableHead className="w-28" />
                 </TableRow>
@@ -542,57 +734,71 @@ function PalletsPage() {
                     key={i}
                     className="bg-background"
                     style={{
-                      width: ((i * 31 + labelPallet.id.charCodeAt(i % labelPallet.id.length)) % 3) + 1,
+                      width:
+                        ((i * 31 + labelPallet.id.charCodeAt(i % labelPallet.id.length)) % 3) + 1,
                       height: "100%",
                     }}
                   />
                 ))}
               </div>
-              <div className="mt-1 text-center text-[10px] tracking-[0.3em]">
-                {labelPallet.id}
-              </div>
+              <div className="mt-1 text-center text-[10px] tracking-[0.3em]">{labelPallet.id}</div>
             </div>
           )}
-      <DialogFooter>
-        <Button variant="outline" size="sm" onClick={() => setLabelPallet(null)}>
-          Close
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => {
-            toast.success("Label queued", { description: `Sent to ZT411-DOCK-A` });
-            setLabelPallet(null);
-          }}
-        >
-          <Printer className="h-3.5 w-3.5" /> Print label
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setLabelPallet(null)}>
+              Close
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                toast.success("Label queued", { description: `Sent to ZT411-DOCK-A` });
+                setLabelPallet(null);
+              }}
+            >
+              <Printer className="h-3.5 w-3.5" /> Print label
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-  <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>Delete pallet {deleteConfirmId}?</AlertDialogTitle>
-        <AlertDialogDescription className="text-xs">
-          This permanently removes the pallet and returns its units to the inbound pool. This action cannot be undone.
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDeleteConfirmId(null)}>
-          Cancel
-        </Button>
-        <Button
-          size="sm"
-          className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          onClick={handleDeleteConfirm}
-        >
-          Delete
-        </Button>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
-</div>
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => !o && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete pallet {deleteConfirmId}?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              This permanently removes the pallet and returns its units to the inbound pool. This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setDeleteConfirmId(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteConfirm}
+            >
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <NewPalletDialog
+        open={newPalletOpen}
+        onOpenChange={setNewPalletOpen}
+        data={newPalletData}
+        setData={setNewPalletData}
+        onCreate={handleCreatePallet}
+        isCreating={isCreating}
+      />
+    </div>
   );
 }
 
@@ -620,13 +826,7 @@ function Toolbar({
   );
 }
 
-function PickRoutePanel({
-  waveId,
-  strategy,
-}: {
-  waveId: string;
-  strategy: "LIFO" | "FIFO";
-}) {
+function PickRoutePanel({ waveId, strategy }: { waveId: string; strategy: "LIFO" | "FIFO" }) {
   const wave = pickWaves.find((w) => w.id === waveId)!;
   const order = orders.find((o) => o.id === wave.orderId);
 
@@ -663,7 +863,9 @@ function PickRoutePanel({
             <TableHead className="text-[10px] uppercase tracking-wider">Pallet ID</TableHead>
             <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
             <TableHead className="text-[10px] uppercase tracking-wider">Received</TableHead>
-            <TableHead className="text-[10px] uppercase tracking-wider text-right">Pick qty</TableHead>
+            <TableHead className="text-[10px] uppercase tracking-wider text-right">
+              Pick qty
+            </TableHead>
             <TableHead className="w-16" />
           </TableRow>
         </TableHeader>
@@ -696,9 +898,7 @@ function PickRoutePanel({
               <TableCell className="py-2 text-[11px] text-muted-foreground tabular-nums">
                 {fmtDateYear(step.receivedAt)}
               </TableCell>
-              <TableCell className="py-2 text-right tabular-nums font-medium">
-                {step.qty}
-              </TableCell>
+              <TableCell className="py-2 text-right tabular-nums font-medium">{step.qty}</TableCell>
               <TableCell className="py-2 text-right">
                 <Button
                   variant="ghost"
@@ -739,9 +939,7 @@ function StatCell({
         <Icon className={`h-3 w-3 ${tone}`} />
         {label}
       </div>
-      <div className={`text-base font-semibold tabular-nums ${tone}`}>
-        {value.toLocaleString()}
-      </div>
+      <div className={`text-base font-semibold tabular-nums ${tone}`}>{value.toLocaleString()}</div>
     </div>
   );
 }
@@ -775,8 +973,7 @@ function ScanConfirmDialog({
   if (!pallet) return null;
 
   const palletOk = palletScan.trim().toUpperCase() === pallet.id.toUpperCase();
-  const locationOk =
-    locationScan.trim().toUpperCase() === pallet.suggestedLocation.toUpperCase();
+  const locationOk = locationScan.trim().toUpperCase() === pallet.suggestedLocation.toUpperCase();
   const palletEntered = palletScan.length > 0;
   const locationEntered = locationScan.length > 0;
 
@@ -821,8 +1018,7 @@ function ScanConfirmDialog({
             Scan-to-confirm putaway
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Validate both the pallet license plate and the bin barcode before
-            posting the movement.
+            Validate both the pallet license plate and the bin barcode before posting the movement.
           </DialogDescription>
         </DialogHeader>
 
@@ -856,9 +1052,7 @@ function ScanConfirmDialog({
           autoFocus={active === "pallet"}
           value={palletScan}
           placeholder={`e.g. ${pallet.id}`}
-          state={
-            !palletEntered ? "idle" : palletOk ? "ok" : "error"
-          }
+          state={!palletEntered ? "idle" : palletOk ? "ok" : "error"}
           locked={palletOk}
           shake={shake === "pallet"}
           onChange={setPalletScan}
@@ -871,15 +1065,7 @@ function ScanConfirmDialog({
           autoFocus={active === "location"}
           value={locationScan}
           placeholder={`e.g. ${pallet.suggestedLocation}`}
-          state={
-            !palletOk
-              ? "disabled"
-              : !locationEntered
-                ? "idle"
-                : locationOk
-                  ? "ok"
-                  : "error"
-          }
+          state={!palletOk ? "disabled" : !locationEntered ? "idle" : locationOk ? "ok" : "error"}
           locked={!palletOk}
           shake={shake === "location"}
           onChange={setLocationScan}
@@ -952,9 +1138,7 @@ function ScanRow({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
         {state === "ok" && (
           <span className="inline-flex items-center gap-1 text-[10px] text-chart-3">
             <CheckCircle2 className="h-3 w-3" /> match
@@ -966,7 +1150,9 @@ function ScanRow({
           </span>
         )}
       </div>
-      <div className={`flex items-center gap-2 rounded-md border bg-background px-2 transition ${border} ${shake ? "animate-pulse" : ""}`}>
+      <div
+        className={`flex items-center gap-2 rounded-md border bg-background px-2 transition ${border} ${shake ? "animate-pulse" : ""}`}
+      >
         <ScanLine
           className={`h-4 w-4 ${state === "ok" ? "text-chart-3" : state === "error" ? "text-destructive" : "text-primary"} ${state === "idle" ? "animate-pulse" : ""}`}
         />
@@ -986,5 +1172,227 @@ function ScanRow({
         />
       </div>
     </div>
+  );
+}
+
+type NewPalletForm = {
+  tenantId: string;
+  warehouseId: string;
+  sku: string;
+  description: string;
+  itemStyle: string;
+  units: number;
+  casePack: number;
+  weightLbsPerUnit: number;
+  container?: string;
+};
+
+function NewPalletDialog({
+  open,
+  onOpenChange,
+  data,
+  setData,
+  onCreate,
+  isCreating,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  data: NewPalletForm;
+  setData: (data: NewPalletForm) => void;
+  onCreate: () => void;
+  isCreating: boolean;
+}) {
+  const updateField = (field: keyof typeof data, value: string | number) => {
+    setData({ ...data, [field]: value });
+  };
+
+  const isValid = data.sku && data.description && data.itemStyle && data.units > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-base font-mono flex items-center gap-2">
+            <Plus className="h-4 w-4 text-primary" />
+            Create NEW Pallet
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Enter pallet details. A system-generated pallet number will be assigned and the pallet
+            will be in "Staged" status for putaway.
+          </DialogDescription>
+        </DialogHeader>
+<div className="space-y-4">
+           <div className="grid grid-cols-2 gap-3">
+             <div className="col-span-2">
+               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                 Client
+               </Label>
+               <select
+                 value={data.tenantId}
+                 onChange={(e) => updateField("tenantId", e.target.value)}
+                 className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs mt-1"
+               >
+                 <option value="">Select client...</option>
+                 {tenants.map((t) => (
+                   <option key={t.id} value={t.id} disabled={t.id === "all"}>
+                     {t.name}
+                   </option>
+                 ))}
+               </select>
+             </div>
+             <div className="col-span-2">
+               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                 Warehouse
+               </Label>
+               <select
+                 value={data.warehouseId}
+                 onChange={(e) => updateField("warehouseId", e.target.value)}
+                 className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs mt-1"
+               >
+                 <option value="">Select warehouse...</option>
+                 {warehouses.map((w) => (
+                   <option key={w.id} value={w.id} disabled={w.id === "all"}>
+                     {w.code} - {w.name}
+                   </option>
+                 ))}
+               </select>
+             </div>
+             <div>
+               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                 SKU
+               </Label>
+               <select
+                 value={data.sku}
+                 onChange={(e) => {
+                   const selected = inventoryItems.find((i) => i.sku === e.target.value);
+                   setData({
+                     ...data,
+                     sku: e.target.value,
+                     description: selected?.description ?? "",
+                     itemStyle: selected?.itemStyle ?? "",
+                     casePack: selected?.caseQty ?? 1,
+                   });
+                 }}
+                 className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs font-mono mt-1"
+               >
+                 <option value="">Select SKU...</option>
+                 {inventoryItems.map((i) => (
+                   <option key={i.sku} value={i.sku}>{i.sku}</option>
+                 ))}
+               </select>
+             </div>
+             <div>
+               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                 Item Style
+               </Label>
+               <Input
+                 value={data.itemStyle}
+                 onChange={(e) => updateField("itemStyle", e.target.value)}
+                 placeholder="e.g. TENT-2P"
+                 className="h-8 text-xs font-mono mt-1"
+                 readOnly={!!(data.sku && inventoryItems.find((i) => i.sku === data.sku)?.itemStyle)}
+               />
+             </div>
+             <div className="col-span-2">
+               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                 Description
+               </Label>
+               <Input
+                 value={data.description}
+                 onChange={(e) => updateField("description", e.target.value)}
+                 placeholder="Product description..."
+                 className="h-8 text-xs mt-1"
+                 readOnly={!!(data.sku && inventoryItems.find((i) => i.sku === data.sku)?.description)}
+               />
+             </div>
+             <div>
+               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                 Units
+               </Label>
+               <Input
+                 type="number"
+                 value={data.units || ""}
+                 onChange={(e) => updateField("units", parseInt(e.target.value) || 0)}
+                 placeholder="0"
+                 className="h-8 text-xs font-mono mt-1"
+                 min={0}
+               />
+             </div>
+             <div>
+               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                 Case Pack
+               </Label>
+               <Input
+                 type="number"
+                 value={data.casePack || ""}
+                 onChange={(e) => updateField("casePack", parseInt(e.target.value) || 1)}
+                 placeholder="1"
+                 className="h-8 text-xs font-mono mt-1"
+                 min={1}
+               />
+             </div>
+             <div>
+               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                 Weight per Unit (lb)
+               </Label>
+               <Input
+                 type="number"
+                 step="0.1"
+                 value={data.weightLbsPerUnit || ""}
+                 onChange={(e) => updateField("weightLbsPerUnit", parseFloat(e.target.value) || 0)}
+                 placeholder="0.0"
+                 className="h-8 text-xs font-mono mt-1"
+                 min={0}
+               />
+             </div>
+             <div>
+               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                 Container
+               </Label>
+               <Input
+                 value={data.container}
+                 onChange={(e) => updateField("container", e.target.value)}
+                 placeholder="CNT-12345"
+                 className="h-8 text-xs font-mono mt-1"
+               />
+             </div>
+           </div>
+          <div className="rounded-md border border-dashed border-border bg-card p-3 text-[11px] text-muted-foreground">
+            The pallet will be created with:
+            <ul className="mt-1 space-y-1 ml-4 list-disc">
+              <li>System-generated pallet number (format: PLT-WHCODE-XXXXX)</li>
+              <li>
+                Status: <span className="font-mono">staged</span> - ready for putaway
+              </li>
+              <li>Suggested location auto-assigned based on item style affinity</li>
+            </ul>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            disabled={isCreating}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={onCreate}
+            disabled={!isValid || isCreating}
+          >
+            {isCreating ? (
+              "Creating..."
+            ) : (
+              <>
+                <Plus className="h-3.5 w-3.5" /> Create & Stage Pallet
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

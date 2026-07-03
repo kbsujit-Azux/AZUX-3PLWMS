@@ -42,10 +42,38 @@ export const Route = createFileRoute("/")({
 });
 
 const kpis = [
-  { label: "Active Inbound", value: "147", delta: "+12 today", trend: "up", icon: PackageCheck, accent: "text-chart-2" },
-  { label: "Active Outbound", value: "318", delta: "+34 today", trend: "up", icon: Truck, accent: "text-chart-3" },
-  { label: "Total SKUs", value: "12,488", delta: "across 4 tenants", trend: "flat", icon: Boxes, accent: "text-chart-1" },
-  { label: "Network Utilization", value: "72%", delta: "−2.1% vs yday", trend: "down", icon: Gauge, accent: "text-chart-4" },
+  {
+    label: "Active Inbound",
+    value: "147",
+    delta: "+12 today",
+    trend: "up",
+    icon: PackageCheck,
+    accent: "text-chart-2",
+  },
+  {
+    label: "Active Outbound",
+    value: "318",
+    delta: "+34 today",
+    trend: "up",
+    icon: Truck,
+    accent: "text-chart-3",
+  },
+  {
+    label: "Total SKUs",
+    value: "12,488",
+    delta: "across 4 tenants",
+    trend: "flat",
+    icon: Boxes,
+    accent: "text-chart-1",
+  },
+  {
+    label: "Network Utilization",
+    value: "72%",
+    delta: "−2.1% vs yday",
+    trend: "down",
+    icon: Gauge,
+    accent: "text-chart-4",
+  },
 ] as const;
 
 const volumeSeries = [
@@ -75,14 +103,62 @@ const opsLogs: {
   message: string;
   ref: string;
 }[] = [
-  { ts: "14:42:18", level: "ok", warehouse: "ATL1", message: "EDI 945 ack sent to Acme Outdoor Co.", ref: "SO-554920" },
-  { ts: "14:39:02", level: "info", warehouse: "ORD2", message: "Pallet PLT-ORD2-01290 directed to D04-02-B", ref: "PLT-ORD2-01290" },
-  { ts: "14:36:51", level: "warn", warehouse: "LAX3", message: "Cycle count variance detected on SKU NSA-TEE-WHT-L (−12 units)", ref: "CC-2208" },
-  { ts: "14:31:09", level: "info", warehouse: "ATL1", message: "Inbound ASN (EDI 943) received: 96 cartons", ref: "ASN-110298" },
-  { ts: "14:24:33", level: "error", warehouse: "EWR1", message: "Carrier pickup missed window — UPS Ground", ref: "BOL-77410" },
-  { ts: "14:18:14", level: "ok", warehouse: "ORD2", message: "Wave 412 picked & packed (38 orders)", ref: "WAVE-412" },
-  { ts: "14:11:47", level: "info", warehouse: "ATL1", message: "CSV upload mapped: 1,204 item-master rows", ref: "JOB-9981" },
-  { ts: "14:04:22", level: "warn", warehouse: "LAX3", message: "Capacity nearing threshold (91%)", ref: "WH-LAX3" },
+  {
+    ts: "14:42:18",
+    level: "ok",
+    warehouse: "ATL1",
+    message: "EDI 945 ack sent to Acme Outdoor Co.",
+    ref: "SO-554920",
+  },
+  {
+    ts: "14:39:02",
+    level: "info",
+    warehouse: "ORD2",
+    message: "Pallet PLT-ORD2-01290 directed to D04-02-B",
+    ref: "PLT-ORD2-01290",
+  },
+  {
+    ts: "14:36:51",
+    level: "warn",
+    warehouse: "LAX3",
+    message: "Cycle count variance detected on SKU NSA-TEE-WHT-L (−12 units)",
+    ref: "CC-2208",
+  },
+  {
+    ts: "14:31:09",
+    level: "info",
+    warehouse: "ATL1",
+    message: "Inbound ASN (EDI 943) received: 96 cartons",
+    ref: "ASN-110298",
+  },
+  {
+    ts: "14:24:33",
+    level: "error",
+    warehouse: "EWR1",
+    message: "Carrier pickup missed window — UPS Ground",
+    ref: "BOL-77410",
+  },
+  {
+    ts: "14:18:14",
+    level: "ok",
+    warehouse: "ORD2",
+    message: "Wave 412 picked & packed (38 orders)",
+    ref: "WAVE-412",
+  },
+  {
+    ts: "14:11:47",
+    level: "info",
+    warehouse: "ATL1",
+    message: "CSV upload mapped: 1,204 item-master rows",
+    ref: "JOB-9981",
+  },
+  {
+    ts: "14:04:22",
+    level: "warn",
+    warehouse: "LAX3",
+    message: "Capacity nearing threshold (91%)",
+    ref: "WH-LAX3",
+  },
 ];
 
 const levelStyles: Record<LogLevel, { dot: string; label: string; icon: typeof AlertTriangle }> = {
@@ -148,7 +224,11 @@ function Dashboard() {
                   </span>
                   <span
                     className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${
-                      k.trend === "down" ? "text-destructive" : k.trend === "up" ? "text-chart-3" : "text-muted-foreground"
+                      k.trend === "down"
+                        ? "text-destructive"
+                        : k.trend === "up"
+                          ? "text-chart-3"
+                          : "text-muted-foreground"
                     }`}
                   >
                     {k.trend !== "flat" && <TrendIcon className="h-3 w-3" />}
@@ -195,11 +275,35 @@ function Dashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fill: "var(--muted-foreground)", fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fill: "var(--muted-foreground)", fontSize: 10 }} tickLine={false} axisLine={false} width={32} />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={32}
+                  />
                   <Tooltip content={<ChartTooltip />} cursor={{ stroke: "var(--border)" }} />
-                  <Area type="monotone" dataKey="inbound" name="Inbound" stroke="var(--chart-2)" strokeWidth={2} fill="url(#gIn)" />
-                  <Area type="monotone" dataKey="outbound" name="Outbound" stroke="var(--chart-3)" strokeWidth={2} fill="url(#gOut)" />
+                  <Area
+                    type="monotone"
+                    dataKey="inbound"
+                    name="Inbound"
+                    stroke="var(--chart-2)"
+                    strokeWidth={2}
+                    fill="url(#gIn)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="outbound"
+                    name="Outbound"
+                    stroke="var(--chart-3)"
+                    strokeWidth={2}
+                    fill="url(#gOut)"
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -216,12 +320,35 @@ function Dashboard() {
           <CardContent className="pt-1">
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={carrierSeries} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+                <BarChart
+                  data={carrierSeries}
+                  layout="vertical"
+                  margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
+                >
                   <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" domain={[80, 100]} tick={{ fill: "var(--muted-foreground)", fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis type="category" dataKey="carrier" tick={{ fill: "var(--muted-foreground)", fontSize: 10 }} tickLine={false} axisLine={false} width={60} />
+                  <XAxis
+                    type="number"
+                    domain={[80, 100]}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="carrier"
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={60}
+                  />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--muted)" }} />
-                  <Bar dataKey="onTime" name="On-time %" fill="var(--chart-1)" radius={[0, 3, 3, 0]} barSize={14} />
+                  <Bar
+                    dataKey="onTime"
+                    name="On-time %"
+                    fill="var(--chart-1)"
+                    radius={[0, 3, 3, 0]}
+                    barSize={14}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -239,22 +366,33 @@ function Dashboard() {
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
-            {warehouses.filter((w) => w.id !== "all").map((w) => {
-              const tone =
-                w.capacityPct >= 90 ? "bg-destructive" : w.capacityPct >= 75 ? "bg-chart-4" : "bg-primary";
-              return (
-                <div key={w.id} className="grid grid-cols-[110px_1fr_44px] items-center gap-3">
-                  <div className="flex flex-col">
-                    <span className="font-mono text-[11px]">{w.code}</span>
-                    <span className="text-[10px] text-muted-foreground">{w.city}</span>
+            {warehouses
+              .filter((w) => w.id !== "all")
+              .map((w) => {
+                const tone =
+                  w.capacityPct >= 90
+                    ? "bg-destructive"
+                    : w.capacityPct >= 75
+                      ? "bg-chart-4"
+                      : "bg-primary";
+                return (
+                  <div key={w.id} className="grid grid-cols-[110px_1fr_44px] items-center gap-3">
+                    <div className="flex flex-col">
+                      <span className="font-mono text-[11px]">{w.code}</span>
+                      <span className="text-[10px] text-muted-foreground">{w.city}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${tone}`}
+                        style={{ width: `${w.capacityPct}%` }}
+                      />
+                    </div>
+                    <span className="text-right text-[11px] font-mono tabular-nums">
+                      {w.capacityPct}%
+                    </span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className={`h-full rounded-full ${tone}`} style={{ width: `${w.capacityPct}%` }} />
-                  </div>
-                  <span className="text-right text-[11px] font-mono tabular-nums">{w.capacityPct}%</span>
-                </div>
-              );
-            })}
+                );
+              })}
           </CardContent>
         </Card>
 
@@ -290,7 +428,9 @@ function Dashboard() {
                       <tr key={i} className="border-t border-border hover:bg-muted/20">
                         <td className="px-3 py-1.5 font-mono text-muted-foreground">{l.ts}</td>
                         <td className="px-3 py-1.5">
-                          <span className={`inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-medium ${s.label}`}>
+                          <span
+                            className={`inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-medium ${s.label}`}
+                          >
                             <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
                             {l.level}
                           </span>

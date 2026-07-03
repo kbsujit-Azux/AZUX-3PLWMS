@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
-import { Moon, Sun, ChevronsUpDown, Building2, Warehouse as WarehouseIcon, LogOut } from "lucide-react";
+import {
+  Moon,
+  Sun,
+  ChevronsUpDown,
+  Building2,
+  Warehouse as WarehouseIcon,
+  LogOut,
+} from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -98,16 +105,12 @@ function UserChip() {
       <div className="h-6 w-6 rounded-full bg-gradient-to-br from-primary to-chart-3" />
       <div className="flex flex-col leading-tight">
         <span className="text-xs font-medium">{user.name}</span>
-        <span className="text-[10px] text-muted-foreground">{user.role} · {user.warehouseCode}</span>
+        <span className="text-[10px] text-muted-foreground">
+          {user.role} · {user.warehouseCode}
+        </span>
       </div>
       <ChevronsUpDown className="h-3 w-3 text-muted-foreground" />
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7"
-        onClick={logout}
-        title="Sign out"
-      >
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={logout} title="Sign out">
         <LogOut className="h-3.5 w-3.5" />
       </Button>
     </div>

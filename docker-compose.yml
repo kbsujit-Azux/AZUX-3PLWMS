@@ -4,7 +4,7 @@ services:
     container_name: azux-wms
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:3000"   # Nginx on the host proxies to this
+      - "127.0.0.1:3000:3000" # Nginx on the host proxies to this
     environment:
       NODE_ENV: production
       PORT: "3000"
@@ -30,7 +30,7 @@ services:
       # Initial schema (optional): drop .sql files into ./db/init/
       - ./db/init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "127.0.0.1:5432:5432"   # bound to localhost only
+      - "127.0.0.1:5432:5432" # bound to localhost only
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-azux_app} -d ${POSTGRES_DB:-azux_wms}"]
       interval: 10s

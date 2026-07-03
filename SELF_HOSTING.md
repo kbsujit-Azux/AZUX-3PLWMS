@@ -6,14 +6,14 @@ Ubuntu 22.04) using Docker. Shared / Premium / Business hosting will
 
 Files added to the repo for self-hosting:
 
-| File                     | Purpose                                          |
-| ------------------------ | ------------------------------------------------ |
-| `Dockerfile`             | Builds the app for Node.js (multi-stage)         |
-| `docker-compose.yml`     | Runs app + PostgreSQL 16 together                |
-| `.dockerignore`          | Keeps the image small / safe                     |
-| `.env.example`           | Template for runtime secrets                     |
-| `vite.config.node.ts`    | Node-target Vite config (replaces Lovable one)   |
-| `db/init/`               | Drop `.sql` files here — auto-run on first boot  |
+| File                  | Purpose                                         |
+| --------------------- | ----------------------------------------------- |
+| `Dockerfile`          | Builds the app for Node.js (multi-stage)        |
+| `docker-compose.yml`  | Runs app + PostgreSQL 16 together               |
+| `.dockerignore`       | Keeps the image small / safe                    |
+| `.env.example`        | Template for runtime secrets                    |
+| `vite.config.node.ts` | Node-target Vite config (replaces Lovable one)  |
+| `db/init/`            | Drop `.sql` files here — auto-run on first boot |
 
 ---
 
@@ -103,9 +103,9 @@ internet directly).
 
 In **Hostinger → Domains → azuxit.com → DNS records**:
 
-| Type | Name | Value         | TTL |
-| ---- | ---- | ------------- | --- |
-| A    | wms  | `<VPS_IP>`    | 300 |
+| Type | Name | Value      | TTL |
+| ---- | ---- | ---------- | --- |
+| A    | wms  | `<VPS_IP>` | 300 |
 
 Wait 1–5 minutes for propagation, then verify:
 
@@ -175,13 +175,13 @@ disk-level rollbacks.
 
 ## 9. Troubleshooting
 
-| Symptom                              | Fix                                                                    |
-| ------------------------------------ | ---------------------------------------------------------------------- |
-| `502 Bad Gateway` from Nginx         | `docker compose ps` — app container down? `docker compose logs app`    |
-| `connection refused` to Postgres     | DB not healthy yet — `docker compose ps`, wait for `(healthy)`         |
-| Cert issuance fails                  | DNS hasn't propagated — `dig wms.azuxit.com` first, then retry certbot |
-| App rebuilds but UI is stale         | Hard-refresh (Ctrl+Shift+R) — installable PWA caches the manifest icon |
-| Out-of-memory during `docker build`  | Upgrade to KVM 4, or swap: `fallocate -l 2G /swap && mkswap /swap && swapon /swap` |
+| Symptom                             | Fix                                                                                |
+| ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `502 Bad Gateway` from Nginx        | `docker compose ps` — app container down? `docker compose logs app`                |
+| `connection refused` to Postgres    | DB not healthy yet — `docker compose ps`, wait for `(healthy)`                     |
+| Cert issuance fails                 | DNS hasn't propagated — `dig wms.azuxit.com` first, then retry certbot             |
+| App rebuilds but UI is stale        | Hard-refresh (Ctrl+Shift+R) — installable PWA caches the manifest icon             |
+| Out-of-memory during `docker build` | Upgrade to KVM 4, or swap: `fallocate -l 2G /swap && mkswap /swap && swapon /swap` |
 
 ---
 
@@ -193,6 +193,7 @@ BOL, billing). The Postgres container is up and ready, but the app
 isn't reading from it yet.
 
 Steps **2 and 3** from the original migration plan will:
+
 - Add Drizzle ORM + a schema for all modules
 - Replace mock data with `createServerFn` calls to Postgres
 - Replace the mock sign-in (`password = "azux"`) with bcrypt + httpOnly

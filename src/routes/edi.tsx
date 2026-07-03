@@ -50,11 +50,27 @@ export const Route = createFileRoute("/edi")({
 });
 
 const statusStyles: Record<EdiStatus, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
-  processed: { label: "Processed", cls: "bg-chart-3/15 text-chart-3 border-chart-3/30", Icon: CheckCircle2 },
-  accepted:  { label: "Accepted",  cls: "bg-primary/15 text-primary border-primary/30",  Icon: CheckCircle2 },
-  pending:   { label: "Pending",   cls: "bg-muted text-muted-foreground border-border",   Icon: Clock },
-  warning:   { label: "Warning",   cls: "bg-chart-4/15 text-chart-4 border-chart-4/30",   Icon: AlertTriangle },
-  rejected:  { label: "Rejected",  cls: "bg-destructive/15 text-destructive border-destructive/30", Icon: XCircle },
+  processed: {
+    label: "Processed",
+    cls: "bg-chart-3/15 text-chart-3 border-chart-3/30",
+    Icon: CheckCircle2,
+  },
+  accepted: {
+    label: "Accepted",
+    cls: "bg-primary/15 text-primary border-primary/30",
+    Icon: CheckCircle2,
+  },
+  pending: { label: "Pending", cls: "bg-muted text-muted-foreground border-border", Icon: Clock },
+  warning: {
+    label: "Warning",
+    cls: "bg-chart-4/15 text-chart-4 border-chart-4/30",
+    Icon: AlertTriangle,
+  },
+  rejected: {
+    label: "Rejected",
+    cls: "bg-destructive/15 text-destructive border-destructive/30",
+    Icon: XCircle,
+  },
 };
 
 const ALL: "ALL" = "ALL";
@@ -74,7 +90,8 @@ function EdiPage() {
       if (statusFilter !== ALL && l.status !== statusFilter) return false;
       if (query) {
         const q = query.toLowerCase();
-        const blob = `${l.id} ${l.partner} ${l.documentRef} ${l.isaControl} ${l.message}`.toLowerCase();
+        const blob =
+          `${l.id} ${l.partner} ${l.documentRef} ${l.isaControl} ${l.message}`.toLowerCase();
         if (!blob.includes(q)) return false;
       }
       return true;
@@ -82,7 +99,10 @@ function EdiPage() {
   }, [tenantId, warehouseId, txnFilter, statusFilter, query]);
 
   const counts = useMemo(() => {
-    const byTxn: Record<EdiTxnType, { total: number; ok: number; warn: number; err: number; pending: number }> = {
+    const byTxn: Record<
+      EdiTxnType,
+      { total: number; ok: number; warn: number; err: number; pending: number }
+    > = {
       "832": { total: 0, ok: 0, warn: 0, err: 0, pending: 0 },
       "940": { total: 0, ok: 0, warn: 0, err: 0, pending: 0 },
       "943": { total: 0, ok: 0, warn: 0, err: 0, pending: 0 },
@@ -130,7 +150,9 @@ function EdiPage() {
               key={t.type}
               onClick={() => setTxnFilter((f) => (f === t.type ? ALL : t.type))}
               className={`text-left rounded-md border bg-card p-3 transition-colors ${
-                txnFilter === t.type ? "border-primary ring-1 ring-primary/30" : "border-border hover:border-foreground/20"
+                txnFilter === t.type
+                  ? "border-primary ring-1 ring-primary/30"
+                  : "border-border hover:border-foreground/20"
               }`}
             >
               <div className="flex items-center justify-between">
@@ -329,7 +351,7 @@ function EdiPage() {
                   Segment preview
                 </div>
                 <pre className="text-[10px] leading-relaxed bg-muted/30 border border-border rounded-md p-3 overflow-auto font-mono">
-{`ISA*00*          *00*          *ZZ*${detail.partner.padEnd(15).slice(0, 15)}*ZZ*AZUX3PLWMS     *260519*0614*U*00501*${detail.isaControl}*0*P*>~
+                  {`ISA*00*          *00*          *ZZ*${detail.partner.padEnd(15).slice(0, 15)}*ZZ*AZUX3PLWMS     *260519*0614*U*00501*${detail.isaControl}*0*P*>~
 GS*${detail.txn === "832" ? "SC" : detail.txn === "940" ? "OW" : detail.txn === "943" ? "AR" : detail.txn === "944" ? "RE" : "SW"}*${detail.partner.split("-")[0]}*AZUX3PL*20260519*0614*${detail.gsControl}*X*005010~
 ST*${detail.txn}*0001~
 ${detail.txn === "940" ? `W05*N*${detail.documentRef}~` : ""}${detail.txn === "945" ? `W06*N*${detail.documentRef}~` : ""}${detail.txn === "832" ? `BCT*PA*${detail.documentRef}*${detail.partner.split("-")[0]}~` : ""}${detail.txn === "943" ? `W06*N*${detail.documentRef}~` : ""}${detail.txn === "944" ? `W17*F*20260519*${detail.documentRef}~` : ""}
@@ -340,8 +362,7 @@ IEA*1*${detail.isaControl}~`}
                 </pre>
               </div>
               <div className="text-[11px] rounded-md border border-border bg-card p-3">
-                <span className="text-muted-foreground">Processor note:</span>{" "}
-                {detail.message}
+                <span className="text-muted-foreground">Processor note:</span> {detail.message}
               </div>
             </div>
           )}

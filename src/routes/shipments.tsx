@@ -23,10 +23,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useWorkspace } from "@/components/workspace-context";
@@ -48,7 +58,7 @@ import {
 import { buildBolFromOrder, emit945ForBol, type BillOfLading } from "@/lib/bol-data";
 import { BolDocument } from "@/components/bol/bol-document";
 import { PackingSlip } from "@/components/bol/packing-slip";
-import { fmtDateTime } from "@/lib/utils";
+import { fmtDateTime, downloadExcel } from "@/lib/utils";
 import type { Order } from "@/lib/edi-data";
 import { useEffect } from "react";
 
@@ -95,22 +105,29 @@ type Shipment = {
   declaredValue: number;
 };
 
-type ShipmentStatus = "pending" | "staged" | "loading" | "tendered" | "in-transit" | "delivered" | "exception";
+type ShipmentStatus =
+  | "pending"
+  | "staged"
+  | "loading"
+  | "tendered"
+  | "in-transit"
+  | "delivered"
+  | "exception";
 
 const statusStyles: Record<ShipmentStatus, string> = {
-  pending:     "bg-muted text-muted-foreground border-border",
-  staged:      "bg-chart-4/15 text-chart-4 border-chart-4/30",
-  loading:     "bg-chart-2/15 text-chart-2 border-chart-2/30",
-  tendered:    "bg-primary/15 text-primary border-primary/30",
-  "in-transit":"bg-chart-2/15 text-chart-2 border-chart-2/30",
-  delivered:   "bg-chart-3/15 text-chart-3 border-chart-3/30",
-  exception:   "bg-destructive/15 text-destructive border-destructive/30",
+  pending: "bg-muted text-muted-foreground border-border",
+  staged: "bg-chart-4/15 text-chart-4 border-chart-4/30",
+  loading: "bg-chart-2/15 text-chart-2 border-chart-2/30",
+  tendered: "bg-primary/15 text-primary border-primary/30",
+  "in-transit": "bg-chart-2/15 text-chart-2 border-chart-2/30",
+  delivered: "bg-chart-3/15 text-chart-3 border-chart-3/30",
+  exception: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
 const modeStyles: Record<string, string> = {
-  TL:         "bg-primary/10 text-primary border-primary/30",
-  LTL:        "bg-chart-4/10 text-chart-4 border-chart-4/30",
-  Parcel:     "bg-chart-3/10 text-chart-3 border-chart-3/30",
+  TL: "bg-primary/10 text-primary border-primary/30",
+  LTL: "bg-chart-4/10 text-chart-4 border-chart-4/30",
+  Parcel: "bg-chart-3/10 text-chart-3 border-chart-3/30",
   Intermodal: "bg-chart-2/10 text-chart-2 border-chart-2/30",
 };
 
@@ -136,9 +153,13 @@ function ShipmentsPage() {
   const [isTendering, setIsTendering] = useState(false);
 
   useEffect(() => {
-    const unsubShip = subscribeShipmentRecords((items) => {
-      setShipments(items as Shipment[]);
-    }, tenantId !== "all" ? tenantId : undefined, warehouseId !== "all" ? warehouseId : undefined);
+    const unsubShip = subscribeShipmentRecords(
+      (items) => {
+        setShipments(items as Shipment[]);
+      },
+      tenantId !== "all" ? tenantId : undefined,
+      warehouseId !== "all" ? warehouseId : undefined,
+    );
 
     const unsubOrders = subscribeOrders(
       (ords) => {
@@ -150,13 +171,21 @@ function ShipmentsPage() {
       warehouseId !== "all" ? warehouseId : undefined,
     );
 
-    const unsubPallets = subscribeOutboundPallets((pallets) => {
-      setOutboundPallets(pallets);
-    }, tenantId !== "all" ? tenantId : undefined, warehouseId !== "all" ? warehouseId : undefined);
+    const unsubPallets = subscribeOutboundPallets(
+      (pallets) => {
+        setOutboundPallets(pallets);
+      },
+      tenantId !== "all" ? tenantId : undefined,
+      warehouseId !== "all" ? warehouseId : undefined,
+    );
 
-    const unsubBols = subscribeBillsOfLading((items) => {
-      setBols(items);
-    }, tenantId !== "all" ? tenantId : undefined, warehouseId !== "all" ? warehouseId : undefined);
+    const unsubBols = subscribeBillsOfLading(
+      (items) => {
+        setBols(items);
+      },
+      tenantId !== "all" ? tenantId : undefined,
+      warehouseId !== "all" ? warehouseId : undefined,
+    );
 
     return () => {
       unsubShip();
@@ -174,7 +203,8 @@ function ShipmentsPage() {
       if (tab !== "all" && s.status !== tab) return false;
       if (query) {
         const q = query.toLowerCase();
-        const blob = `${s.id} ${s.bolId} ${s.proNumber} ${s.trailerNumber} ${s.sealNumber} ${s.carrier} ${s.scac} ${s.shipTo} ${s.orderIds.join(" ")} ${s.driverName ?? ""}`.toLowerCase();
+        const blob =
+          `${s.id} ${s.bolId} ${s.proNumber} ${s.trailerNumber} ${s.sealNumber} ${s.carrier} ${s.scac} ${s.shipTo} ${s.orderIds.join(" ")} ${s.driverName ?? ""}`.toLowerCase();
         if (!blob.includes(q)) return false;
       }
       return true;
@@ -197,7 +227,8 @@ function ShipmentsPage() {
   }, [all, tenantId, warehouseId]);
 
   const openShipment = openId ? all.find((s) => s.id === openId) : null;
-  const openBol = openShipment && openShipment.bolId ? bols.find((b) => b.id === openShipment!.bolId) : undefined;
+  const openBol =
+    openShipment && openShipment.bolId ? bols.find((b) => b.id === openShipment!.bolId) : undefined;
 
   const openTenderDialog = (shipment: Shipment) => {
     setTenderShipment(shipment);
@@ -253,7 +284,7 @@ function ShipmentsPage() {
           cod: 0,
           declaredValue: tenderShipment.declaredValue,
           shipper: {
-            name: `AZUX 3PL · ${warehouses.find(w => w.id === tenderShipment.warehouseId)?.code ?? "WH"}`,
+            name: `AZUX 3PL · ${warehouses.find((w) => w.id === tenderShipment.warehouseId)?.code ?? "WH"}`,
             address1: "—",
             city: "—",
             state: "—",
@@ -285,10 +316,29 @@ function ShipmentsPage() {
             })),
           ),
           totals: {
-            units: palletsForOrder.reduce((s: number, p: any) => s + p.lines.reduce((ls: number, l: any) => ls + l.unitsPicked, 0), 0),
+            units: palletsForOrder.reduce(
+              (s: number, p: any) =>
+                s + p.lines.reduce((ls: number, l: any) => ls + l.unitsPicked, 0),
+              0,
+            ),
             pallets: palletsForOrder.length,
-            cartons: palletsForOrder.reduce((s: number, p: any) => s + p.lines.reduce((ls: number, l: any) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0), 0),
-            weightLbs: Math.round(palletsForOrder.reduce((s: number, p: any) => s + p.lines.reduce((ls: number, l: any) => ls + l.weightLbs, 0), 0) * 10) / 10,
+            cartons: palletsForOrder.reduce(
+              (s: number, p: any) =>
+                s +
+                p.lines.reduce(
+                  (ls: number, l: any) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)),
+                  0,
+                ),
+              0,
+            ),
+            weightLbs:
+              Math.round(
+                palletsForOrder.reduce(
+                  (s: number, p: any) =>
+                    s + p.lines.reduce((ls: number, l: any) => ls + l.weightLbs, 0),
+                  0,
+                ) * 10,
+              ) / 10,
           },
         };
       }
@@ -360,9 +410,14 @@ function ShipmentsPage() {
       const shipmentPallets = outboundPallets.filter((p) => p.shipmentId === id);
       for (const pallet of shipmentPallets) {
         await updateOutboundPallet(pallet.id, {
-          status: next === "in-transit" ? "in-transit" :
-                  next === "delivered" ? "delivered" :
-                  next === "staged" ? "staged" : pallet.status,
+          status:
+            next === "in-transit"
+              ? "in-transit"
+              : next === "delivered"
+                ? "delivered"
+                : next === "staged"
+                  ? "staged"
+                  : pallet.status,
         });
       }
     }
@@ -377,37 +432,120 @@ function ShipmentsPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Shipments</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Dock-door scheduling · driver check-in · EDI 945 tender · POD capture · every shipment ties to a systemic VICS BOL
+            Dock-door scheduling · driver check-in · EDI 945 tender · POD capture · every shipment
+            ties to a systemic VICS BOL
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setTick((t) => t + 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setTick((t) => t + 1)}
+          >
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-            <Download className="h-3.5 w-3.5" /> Export
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => {
+              const reportData = filtered.map((s) => ({
+                Shipment: s.id,
+                BOL: s.bolId || "",
+                PRO: s.proNumber,
+                Client: tenants.find((t) => t.id === s.tenantId)?.name || "",
+                "Client Code": tenants.find((t) => t.id === s.tenantId)?.code || "",
+                Warehouse: warehouses.find((w) => w.id === s.warehouseId)?.code || "",
+                "Dock Door": s.dockDoor,
+                Carrier: s.carrier,
+                SCAC: s.scac,
+                Mode: s.mode,
+                "Ship To": s.shipTo,
+                "Appointment At": s.appointmentAt,
+                Pallets: s.pallets,
+                Cartons: s.cartons,
+                "Weight (lb)": s.weightLbs,
+                Status: s.status,
+              }));
+              downloadExcel("shipments-report.xlsx", reportData, [
+                { header: "Shipment", key: "Shipment" },
+                { header: "BOL", key: "BOL" },
+                { header: "PRO", key: "PRO" },
+                { header: "Client", key: "Client" },
+                { header: "Client Code", key: "Client Code" },
+                { header: "Warehouse", key: "Warehouse" },
+                { header: "Dock Door", key: "Dock Door" },
+                { header: "Carrier", key: "Carrier" },
+                { header: "SCAC", key: "SCAC" },
+                { header: "Mode", key: "Mode" },
+                { header: "Ship To", key: "Ship To" },
+                { header: "Appointment At", key: "Appointment At" },
+                { header: "Pallets", key: "Pallets" },
+                { header: "Cartons", key: "Cartons" },
+                { header: "Weight (lb)", key: "Weight (lb)" },
+                { header: "Status", key: "Status" },
+              ]);
+              toast.success("Report downloaded", { description: "shipments-report.xlsx" });
+            }}
+          >
+            <Download className="h-3.5 w-3.5" /> Report
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-5 divide-x divide-border rounded-md border border-border bg-card">
-        <StatCell icon={DoorOpen}       label="Staged / pending"  value={stats.staged}        tone="text-foreground" />
-        <StatCell icon={PlayCircle}     label="Loading / tendered" value={stats.loading}      tone="text-chart-4" />
-        <StatCell icon={Truck}          label="In transit"        value={stats.transit}       tone="text-chart-2" />
-        <StatCell icon={AlertTriangle}  label="Exceptions"        value={stats.exception}     tone="text-destructive" />
-        <StatCell icon={PackageCheck}   label="Delivered today"   value={stats.deliveredToday} tone="text-chart-3" />
+        <StatCell
+          icon={DoorOpen}
+          label="Staged / pending"
+          value={stats.staged}
+          tone="text-foreground"
+        />
+        <StatCell
+          icon={PlayCircle}
+          label="Loading / tendered"
+          value={stats.loading}
+          tone="text-chart-4"
+        />
+        <StatCell icon={Truck} label="In transit" value={stats.transit} tone="text-chart-2" />
+        <StatCell
+          icon={AlertTriangle}
+          label="Exceptions"
+          value={stats.exception}
+          tone="text-destructive"
+        />
+        <StatCell
+          icon={PackageCheck}
+          label="Delivered today"
+          value={stats.deliveredToday}
+          tone="text-chart-3"
+        />
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <div className="flex items-center justify-between gap-2">
           <TabsList className="h-8">
-            <TabsTrigger value="all" className="text-xs px-2.5">All</TabsTrigger>
-            <TabsTrigger value="staged" className="text-xs px-2.5">Staged</TabsTrigger>
-            <TabsTrigger value="loading" className="text-xs px-2.5">Loading</TabsTrigger>
-            <TabsTrigger value="tendered" className="text-xs px-2.5">Tendered</TabsTrigger>
-            <TabsTrigger value="in-transit" className="text-xs px-2.5">In-Transit</TabsTrigger>
-            <TabsTrigger value="delivered" className="text-xs px-2.5">Delivered</TabsTrigger>
-            <TabsTrigger value="exception" className="text-xs px-2.5">Exception</TabsTrigger>
+            <TabsTrigger value="all" className="text-xs px-2.5">
+              All
+            </TabsTrigger>
+            <TabsTrigger value="staged" className="text-xs px-2.5">
+              Staged
+            </TabsTrigger>
+            <TabsTrigger value="loading" className="text-xs px-2.5">
+              Loading
+            </TabsTrigger>
+            <TabsTrigger value="tendered" className="text-xs px-2.5">
+              Tendered
+            </TabsTrigger>
+            <TabsTrigger value="in-transit" className="text-xs px-2.5">
+              In-Transit
+            </TabsTrigger>
+            <TabsTrigger value="delivered" className="text-xs px-2.5">
+              Delivered
+            </TabsTrigger>
+            <TabsTrigger value="exception" className="text-xs px-2.5">
+              Exception
+            </TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
             <div className="relative w-72">
@@ -434,12 +572,20 @@ function ShipmentsPage() {
                   <TableHead className="text-[10px] uppercase tracking-wider">BOL · PRO</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Client</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">WH · Door</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">Carrier · Mode</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">
+                    Carrier · Mode
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Ship-to</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Appt</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Plt</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Ctn</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Wt (lb)</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Plt
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Ctn
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Wt (lb)
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Status</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider w-32" />
                 </TableRow>
@@ -447,7 +593,10 @@ function ShipmentsPage() {
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center text-xs text-muted-foreground py-10">
+                    <TableCell
+                      colSpan={12}
+                      className="text-center text-xs text-muted-foreground py-10"
+                    >
                       No shipments match the current filter.
                     </TableCell>
                   </TableRow>
@@ -474,7 +623,9 @@ function ShipmentsPage() {
                         <div className="text-[10px] text-muted-foreground">{s.proNumber}</div>
                       </TableCell>
                       <TableCell className="py-2">
-                        <span className="font-mono text-[10px] text-muted-foreground mr-1">{tenant?.code}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground mr-1">
+                          {tenant?.code}
+                        </span>
                         {tenant?.name.split(" ")[0]}
                       </TableCell>
                       <TableCell className="py-2 font-mono text-[11px]">
@@ -486,7 +637,9 @@ function ShipmentsPage() {
                           <Truck className="h-3 w-3 text-muted-foreground" />
                           <span>{s.carrier}</span>
                         </div>
-                        <span className={`inline-flex items-center rounded-sm border px-1 py-0 text-[9px] font-mono mt-0.5 ${modeStyles[s.mode] || modeStyles.LTL}`}>
+                        <span
+                          className={`inline-flex items-center rounded-sm border px-1 py-0 text-[9px] font-mono mt-0.5 ${modeStyles[s.mode] || modeStyles.LTL}`}
+                        >
                           {s.mode}
                         </span>
                       </TableCell>
@@ -496,9 +649,13 @@ function ShipmentsPage() {
                       </TableCell>
                       <TableCell className="py-2 text-right tabular-nums">{s.pallets}</TableCell>
                       <TableCell className="py-2 text-right tabular-nums">{s.cartons}</TableCell>
-                      <TableCell className="py-2 text-right tabular-nums">{s.weightLbs.toLocaleString()}</TableCell>
+                      <TableCell className="py-2 text-right tabular-nums">
+                        {s.weightLbs.toLocaleString()}
+                      </TableCell>
                       <TableCell className="py-2">
-                        <span className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusStyles[s.status as ShipmentStatus]}`}>
+                        <span
+                          className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusStyles[s.status as ShipmentStatus]}`}
+                        >
                           <CircleDot className="h-2.5 w-2.5 mr-1" />
                           {s.status.replace("-", " ")}
                         </span>
@@ -510,7 +667,10 @@ function ShipmentsPage() {
                               size="sm"
                               variant="default"
                               className="h-7 text-[11px] gap-1.5"
-                              onClick={(e) => { e.stopPropagation(); openTenderDialog(s); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openTenderDialog(s);
+                              }}
                             >
                               <ClipboardList className="h-3 w-3" /> Tender
                             </Button>
@@ -520,7 +680,10 @@ function ShipmentsPage() {
                               size="sm"
                               variant="outline"
                               className="h-7 text-[11px] gap-1.5"
-                              onClick={(e) => { e.stopPropagation(); doTransition(s.id, "loading", "driver checked in — loading"); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                doTransition(s.id, "loading", "driver checked in — loading");
+                              }}
                             >
                               <PlayCircle className="h-3 w-3" /> Check-in
                             </Button>
@@ -530,7 +693,10 @@ function ShipmentsPage() {
                               size="sm"
                               variant="outline"
                               className="h-7 text-[11px] gap-1.5"
-                              onClick={(e) => { e.stopPropagation(); doTransition(s.id, "in-transit", "trailer departed yard"); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                doTransition(s.id, "in-transit", "trailer departed yard");
+                              }}
                             >
                               <Send className="h-3 w-3" /> Depart
                             </Button>
@@ -540,7 +706,11 @@ function ShipmentsPage() {
                               size="sm"
                               variant="outline"
                               className="h-7 text-[11px] gap-1.5"
-                              onClick={(e) => { e.stopPropagation(); setPodSigner(""); setPodOpen(true); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPodSigner("");
+                                setPodOpen(true);
+                              }}
                             >
                               <ClipboardCheck className="h-3 w-3" /> POD
                             </Button>
@@ -549,7 +719,10 @@ function ShipmentsPage() {
                             size="sm"
                             variant="ghost"
                             className="h-7 text-[11px] gap-1.5"
-                            onClick={(e) => { e.stopPropagation(); setOpenId(s.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenId(s.id);
+                            }}
                           >
                             <FileText className="h-3 w-3" /> View
                           </Button>
@@ -572,66 +745,100 @@ function ShipmentsPage() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 font-mono">
                   {openShipment.id}
-                  <span className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusStyles[openShipment.status as ShipmentStatus]}`}>
+                  <span
+                    className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusStyles[openShipment.status as ShipmentStatus]}`}
+                  >
                     {openShipment.status.replace("-", " ")}
                   </span>
                 </DialogTitle>
                 <DialogDescription className="text-xs">
-                  Tied to BOL <span className="font-mono">{openShipment.bolId || "Pending"}</span> · PRO{" "}
-                  <span className="font-mono">{openShipment.proNumber}</span> · {openShipment.carrier} ({openShipment.scac})
+                  Tied to BOL <span className="font-mono">{openShipment.bolId || "Pending"}</span> ·
+                  PRO <span className="font-mono">{openShipment.proNumber}</span> ·{" "}
+                  {openShipment.carrier} ({openShipment.scac})
                 </DialogDescription>
               </DialogHeader>
 
               {/* Ops snapshot */}
               <div className="grid grid-cols-4 gap-3">
-                <OpsCell label="Dock door"     value={openShipment.dockDoor} mono />
-                <OpsCell label="Appointment"   value={fmtDateTime(openShipment.appointmentAt)} />
-                <OpsCell label="Trailer"       value={openShipment.trailerNumber} mono />
-                <OpsCell label="Seal"          value={openShipment.sealNumber} mono />
-                <OpsCell label="Driver"        value={openShipment.driverName ?? "—"} />
-                <OpsCell label="Driver phone"  value={openShipment.driverPhone ?? "—"} mono />
-                <OpsCell label="Check-in"      value={openShipment.checkInAt ? fmtDateTime(openShipment.checkInAt) : "—"} />
-                <OpsCell label="Departed"      value={openShipment.departedAt ? fmtDateTime(openShipment.departedAt) : "—"} />
-                <OpsCell label="Delivered"     value={openShipment.deliveredAt ? fmtDateTime(openShipment.deliveredAt) : "—"} />
+                <OpsCell label="Dock door" value={openShipment.dockDoor} mono />
+                <OpsCell label="Appointment" value={fmtDateTime(openShipment.appointmentAt)} />
+                <OpsCell label="Trailer" value={openShipment.trailerNumber} mono />
+                <OpsCell label="Seal" value={openShipment.sealNumber} mono />
+                <OpsCell label="Driver" value={openShipment.driverName ?? "—"} />
+                <OpsCell label="Driver phone" value={openShipment.driverPhone ?? "—"} mono />
+                <OpsCell
+                  label="Check-in"
+                  value={openShipment.checkInAt ? fmtDateTime(openShipment.checkInAt) : "—"}
+                />
+                <OpsCell
+                  label="Departed"
+                  value={openShipment.departedAt ? fmtDateTime(openShipment.departedAt) : "—"}
+                />
+                <OpsCell
+                  label="Delivered"
+                  value={openShipment.deliveredAt ? fmtDateTime(openShipment.deliveredAt) : "—"}
+                />
                 <OpsCell label="POD signed by" value={openShipment.podSignedBy ?? "—"} />
-                <OpsCell label="Pallets / Cartons" value={`${openShipment.pallets} PLT · ${openShipment.cartons} CTN`} />
-                <OpsCell label="Weight · Value" value={`${openShipment.weightLbs.toLocaleString()} lb · $${openShipment.declaredValue.toLocaleString()}`} />
+                <OpsCell
+                  label="Pallets / Cartons"
+                  value={`${openShipment.pallets} PLT · ${openShipment.cartons} CTN`}
+                />
+                <OpsCell
+                  label="Weight · Value"
+                  value={`${openShipment.weightLbs.toLocaleString()} lb · $${openShipment.declaredValue.toLocaleString()}`}
+                />
               </div>
 
               {/* Lifecycle actions */}
               <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Lifecycle</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Lifecycle
+                </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <LifecycleBtn
-                    icon={DoorOpen} label="Mark staged"
+                    icon={DoorOpen}
+                    label="Mark staged"
                     disabled={openShipment.status !== "pending"}
                     onClick={() => doTransition(openShipment.id, "staged", "marked staged at dock")}
                   />
                   {openShipment.status === "staged" && (
                     <LifecycleBtn
-                      icon={ClipboardList} label="Tender shipment"
+                      icon={ClipboardList}
+                      label="Tender shipment"
                       primary
                       onClick={() => openTenderDialog(openShipment)}
                     />
                   )}
                   <LifecycleBtn
-                    icon={PlayCircle} label="Driver check-in"
+                    icon={PlayCircle}
+                    label="Driver check-in"
                     disabled={openShipment.status !== "loading"}
-                    onClick={() => doTransition(openShipment.id, "loading", "driver checked in — loading")}
+                    onClick={() =>
+                      doTransition(openShipment.id, "loading", "driver checked in — loading")
+                    }
                   />
                   <LifecycleBtn
-                    icon={Send} label="Depart yard"
+                    icon={Send}
+                    label="Depart yard"
                     disabled={openShipment.status !== "tendered"}
-                    onClick={() => doTransition(openShipment.id, "in-transit", "trailer departed yard")}
+                    onClick={() =>
+                      doTransition(openShipment.id, "in-transit", "trailer departed yard")
+                    }
                   />
                   <LifecycleBtn
-                    icon={ClipboardCheck} label="Capture POD"
+                    icon={ClipboardCheck}
+                    label="Capture POD"
                     disabled={openShipment.status !== "in-transit"}
-                    onClick={() => { setPodSigner(""); setPodOpen(true); }}
+                    onClick={() => {
+                      setPodSigner("");
+                      setPodOpen(true);
+                    }}
                   />
                   <div className="flex-1" />
                   <Button
-                    size="sm" variant="outline" className="h-7 text-xs gap-1.5"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1.5"
                     onClick={() => window.print()}
                   >
                     <Printer className="h-3.5 w-3.5" /> Print
@@ -640,7 +847,12 @@ function ShipmentsPage() {
               </div>
 
               <DialogFooter>
-                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setOpenId(null)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setOpenId(null)}
+                >
                   Close
                 </Button>
               </DialogFooter>
@@ -666,22 +878,30 @@ function ShipmentsPage() {
               {/* Order Header */}
               <div className="rounded-md border border-border bg-muted/20 p-3 grid grid-cols-3 gap-3 text-xs">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Order
+                  </div>
                   <div className="font-mono font-medium">{tenderShipment.orderIds[0]}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ship-to</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Ship-to
+                  </div>
                   <div>{tenderShipment.shipTo}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Pallets</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Pallets
+                  </div>
                   <div className="font-mono">{tenderShipment.pallets}</div>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div>
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Carrier SCAC</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Carrier SCAC
+                  </Label>
                   <Input
                     value={tenderScac}
                     onChange={(e) => setTenderScac(e.target.value.toUpperCase())}
@@ -691,7 +911,9 @@ function ShipmentsPage() {
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Carrier Name</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Carrier Name
+                  </Label>
                   <Input
                     value={tenderCarrier}
                     onChange={(e) => setTenderCarrier(e.target.value)}
@@ -700,7 +922,9 @@ function ShipmentsPage() {
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Authorization / Notes</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Authorization / Notes
+                  </Label>
                   <textarea
                     value={tenderAuth}
                     onChange={(e) => setTenderAuth(e.target.value)}
@@ -722,7 +946,12 @@ function ShipmentsPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setTenderOpen(false)} disabled={isTendering}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setTenderOpen(false)}
+              disabled={isTendering}
+            >
               Cancel
             </Button>
             <Button
@@ -731,7 +960,9 @@ function ShipmentsPage() {
               onClick={confirmTender}
               disabled={isTendering}
             >
-              {isTendering ? "Tendering..." : (
+              {isTendering ? (
+                "Tendering..."
+              ) : (
                 <>
                   <Send className="h-3.5 w-3.5" /> Confirm & Tender
                 </>
@@ -751,14 +982,18 @@ function ShipmentsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Signed by</label>
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Signed by
+            </label>
             <Input
               value={podSigner}
               onChange={(e) => setPodSigner(e.target.value)}
               placeholder="Receiving contact name"
               className="h-9 text-sm"
             />
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Delivery Date</label>
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Delivery Date
+            </label>
             <Input
               type="date"
               className="h-9 text-sm"
@@ -766,7 +1001,12 @@ function ShipmentsPage() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPodOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setPodOpen(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -797,17 +1037,23 @@ function ShipmentsPage() {
 }
 
 function StatCell({
-  icon: Icon, label, value, tone,
-}: { icon: typeof Truck; label: string; value: number; tone: string }) {
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: typeof Truck;
+  label: string;
+  value: number;
+  tone: string;
+}) {
   return (
     <div className="px-4 py-2.5">
       <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
         <Icon className={`h-3 w-3 ${tone}`} />
         {label}
       </div>
-      <div className={`text-base font-semibold tabular-nums ${tone}`}>
-        {value.toLocaleString()}
-      </div>
+      <div className={`text-base font-semibold tabular-nums ${tone}`}>{value.toLocaleString()}</div>
     </div>
   );
 }
@@ -822,9 +1068,17 @@ function OpsCell({ label, value, mono }: { label: string; value: string; mono?: 
 }
 
 function LifecycleBtn({
-  icon: Icon, label, onClick, disabled, primary,
+  icon: Icon,
+  label,
+  onClick,
+  disabled,
+  primary,
 }: {
-  icon: any; label: string; onClick: () => void; disabled?: boolean; primary?: boolean;
+  icon: any;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  primary?: boolean;
 }) {
   return (
     <Button

@@ -19,12 +19,22 @@ export function BolDocument({ bol }: { bol: BillOfLading }) {
           </div>
         </div>
         <div className="w-72 border-l border-black/80 p-2 grid grid-cols-2 gap-x-2 gap-y-1">
-          <Cell label="BOL Number" mono>{bol.bolNumber}</Cell>
-          <Cell label="PRO #" mono>{bol.proNumber}</Cell>
-          <Cell label="Carrier" >{bol.carrier}</Cell>
-          <Cell label="SCAC" mono>{bol.scac}</Cell>
-          <Cell label="Trailer" mono>{bol.trailerNumber}</Cell>
-          <Cell label="Seal" mono>{bol.sealNumber}</Cell>
+          <Cell label="BOL Number" mono>
+            {bol.bolNumber}
+          </Cell>
+          <Cell label="PRO #" mono>
+            {bol.proNumber}
+          </Cell>
+          <Cell label="Carrier">{bol.carrier}</Cell>
+          <Cell label="SCAC" mono>
+            {bol.scac}
+          </Cell>
+          <Cell label="Trailer" mono>
+            {bol.trailerNumber}
+          </Cell>
+          <Cell label="Seal" mono>
+            {bol.sealNumber}
+          </Cell>
         </div>
       </div>
 
@@ -45,16 +55,20 @@ export function BolDocument({ bol }: { bol: BillOfLading }) {
             <div className="text-[9px] mt-1">Third party acct: {bol.thirdPartyAccount}</div>
           )}
           <div className="mt-1 grid grid-cols-3 gap-1">
-            <Check label="Prepaid"    on={bol.freightChargeTerms === "prepaid"} />
-            <Check label="Collect"    on={bol.freightChargeTerms === "collect"} />
-            <Check label="3rd Party"  on={bol.freightChargeTerms === "third-party"} />
+            <Check label="Prepaid" on={bol.freightChargeTerms === "prepaid"} />
+            <Check label="Collect" on={bol.freightChargeTerms === "collect"} />
+            <Check label="3rd Party" on={bol.freightChargeTerms === "third-party"} />
           </div>
         </div>
         <div className="border-l border-black/80 p-2 grid grid-cols-2 gap-y-1">
           <Cell label="Pickup Date">{fmtDateYear(bol.pickupDate)}</Cell>
-          <Cell label="Generated"  >{fmtDateYear(bol.createdAt)}</Cell>
-          <Cell label="COD ($)" mono>{bol.cod.toFixed(2)}</Cell>
-          <Cell label="Declared Value ($)" mono>{bol.declaredValue.toLocaleString()}</Cell>
+          <Cell label="Generated">{fmtDateYear(bol.createdAt)}</Cell>
+          <Cell label="COD ($)" mono>
+            {bol.cod.toFixed(2)}
+          </Cell>
+          <Cell label="Declared Value ($)" mono>
+            {bol.declaredValue.toLocaleString()}
+          </Cell>
         </div>
       </div>
 
@@ -129,7 +143,9 @@ export function BolDocument({ bol }: { bol: BillOfLading }) {
                 <Td className="text-center">{l.hazmat ? "X" : ""}</Td>
                 <Td>
                   <div>{l.description}</div>
-                  <div className="text-[8px] text-black/60">SKU {l.sku} · PO {l.poNumber} · SO {l.orderId}</div>
+                  <div className="text-[8px] text-black/60">
+                    SKU {l.sku} · PO {l.poNumber} · SO {l.orderId}
+                  </div>
                 </Td>
                 <Td mono>{l.nmfc}</Td>
                 <Td className="text-right tabular-nums">{l.freightClass}</Td>
@@ -155,21 +171,29 @@ export function BolDocument({ bol }: { bol: BillOfLading }) {
       </div>
 
       <div className="grid grid-cols-3 border-t border-black/80">
-        <Signature title="Shipper Signature / Date"
-          subtitle="This is to certify that the above named materials are properly classified, packaged, marked and labeled, and are in proper condition for transportation according to applicable regulations of the DOT." />
+        <Signature
+          title="Shipper Signature / Date"
+          subtitle="This is to certify that the above named materials are properly classified, packaged, marked and labeled, and are in proper condition for transportation according to applicable regulations of the DOT."
+        />
         <div className="border-l border-black/80">
-          <Signature title="Trailer Loaded / Freight Counted"
-            subtitle="By shipper · By driver · Pieces counted by driver" />
+          <Signature
+            title="Trailer Loaded / Freight Counted"
+            subtitle="By shipper · By driver · Pieces counted by driver"
+          />
         </div>
         <div className="border-l border-black/80">
-          <Signature title="Carrier Signature / Pickup Date"
-            subtitle="Carrier acknowledges receipt of packages and required placards. Property described above received in good order, except as noted." />
+          <Signature
+            title="Carrier Signature / Pickup Date"
+            subtitle="Carrier acknowledges receipt of packages and required placards. Property described above received in good order, except as noted."
+          />
         </div>
       </div>
 
       {/* Footer */}
       <div className="border-t border-black/80 px-3 py-1.5 flex items-center justify-between text-[8px] uppercase tracking-widest text-black/60">
-        <span>AZUX 3PL · {bol.scac} · VICS BOL {bol.type === "master" ? "Master" : "Standard"}</span>
+        <span>
+          AZUX 3PL · {bol.scac} · VICS BOL {bol.type === "master" ? "Master" : "Standard"}
+        </span>
         <span>Generated by AZUX 3PL WMS Systems</span>
         <span className="font-mono">BOL {bol.bolNumber}</span>
       </div>
@@ -179,7 +203,15 @@ export function BolDocument({ bol }: { bol: BillOfLading }) {
 
 /* ────────── tiny presentation helpers ────────────────────────────── */
 
-function Cell({ label, children, mono }: { label: string; children: React.ReactNode; mono?: boolean }) {
+function Cell({
+  label,
+  children,
+  mono,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+}) {
   return (
     <div className="min-w-0">
       <div className="text-[8px] uppercase tracking-wider text-black/60">{label}</div>
@@ -189,23 +221,39 @@ function Cell({ label, children, mono }: { label: string; children: React.ReactN
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-[8px] uppercase tracking-widest text-black/60">{children}</div>
-  );
+  return <div className="text-[8px] uppercase tracking-widest text-black/60">{children}</div>;
 }
 
 function Th({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
-  return <th className={`px-2 py-1 text-left text-[9px] uppercase tracking-wider font-semibold ${className}`}>{children}</th>;
+  return (
+    <th
+      className={`px-2 py-1 text-left text-[9px] uppercase tracking-wider font-semibold ${className}`}
+    >
+      {children}
+    </th>
+  );
 }
 
-function Td({ children, className = "", mono }: { children?: React.ReactNode; className?: string; mono?: boolean }) {
-  return <td className={`px-2 py-1 align-top ${mono ? "font-mono" : ""} ${className}`}>{children}</td>;
+function Td({
+  children,
+  className = "",
+  mono,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+  mono?: boolean;
+}) {
+  return (
+    <td className={`px-2 py-1 align-top ${mono ? "font-mono" : ""} ${className}`}>{children}</td>
+  );
 }
 
 function Check({ label, on }: { label: string; on: boolean }) {
   return (
     <div className="flex items-center gap-1">
-      <div className={`h-3 w-3 border border-black/80 flex items-center justify-center text-[10px] font-bold ${on ? "bg-black text-white" : ""}`}>
+      <div
+        className={`h-3 w-3 border border-black/80 flex items-center justify-center text-[10px] font-bold ${on ? "bg-black text-white" : ""}`}
+      >
         {on ? "X" : ""}
       </div>
       <span className="text-[9px]">{label}</span>
@@ -220,7 +268,16 @@ function Party({
   sid,
 }: {
   title: string;
-  p: { name: string; address1: string; address2?: string; city: string; state: string; zip: string; contact?: string; phone?: string };
+  p: {
+    name: string;
+    address1: string;
+    address2?: string;
+    city: string;
+    state: string;
+    zip: string;
+    contact?: string;
+    phone?: string;
+  };
   sidLabel: string;
   sid?: string;
 }) {
@@ -230,11 +287,17 @@ function Party({
       <div className="mt-0.5 font-semibold">{p.name}</div>
       <div>{p.address1}</div>
       {p.address2 && <div>{p.address2}</div>}
-      <div>{p.city}, {p.state} {p.zip}</div>
+      <div>
+        {p.city}, {p.state} {p.zip}
+      </div>
       <div className="mt-1 grid grid-cols-2 gap-x-2">
         <Cell label="Contact">{p.contact ?? "—"}</Cell>
-        <Cell label="Phone" mono>{p.phone ?? "—"}</Cell>
-        <Cell label={sidLabel} mono>{sid ?? "—"}</Cell>
+        <Cell label="Phone" mono>
+          {p.phone ?? "—"}
+        </Cell>
+        <Cell label={sidLabel} mono>
+          {sid ?? "—"}
+        </Cell>
         <Cell label="FOB">No</Cell>
       </div>
     </div>

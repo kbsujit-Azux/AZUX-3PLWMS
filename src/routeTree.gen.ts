@@ -20,6 +20,7 @@ import { Route as InboundRouteImport } from './routes/inbound'
 import { Route as EdiRouteImport } from './routes/edi'
 import { Route as DocumentsRouteImport } from './routes/documents'
 import { Route as BillingRouteImport } from './routes/billing'
+import { Route as Allocation_backupRouteImport } from './routes/allocation_backup'
 import { Route as AllocationRouteImport } from './routes/allocation'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -78,6 +79,11 @@ const BillingRoute = BillingRouteImport.update({
   path: '/billing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Allocation_backupRoute = Allocation_backupRouteImport.update({
+  id: '/allocation_backup',
+  path: '/allocation_backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AllocationRoute = AllocationRouteImport.update({
   id: '/allocation',
   path: '/allocation',
@@ -92,6 +98,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/allocation': typeof AllocationRoute
+  '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
   '/documents': typeof DocumentsRoute
   '/edi': typeof EdiRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/allocation': typeof AllocationRoute
+  '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
   '/documents': typeof DocumentsRoute
   '/edi': typeof EdiRoute
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/allocation': typeof AllocationRoute
+  '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
   '/documents': typeof DocumentsRoute
   '/edi': typeof EdiRoute
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/allocation'
+    | '/allocation_backup'
     | '/billing'
     | '/documents'
     | '/edi'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/allocation'
+    | '/allocation_backup'
     | '/billing'
     | '/documents'
     | '/edi'
@@ -170,6 +181,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/allocation'
+    | '/allocation_backup'
     | '/billing'
     | '/documents'
     | '/edi'
@@ -186,6 +198,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AllocationRoute: typeof AllocationRoute
+  Allocation_backupRoute: typeof Allocation_backupRoute
   BillingRoute: typeof BillingRoute
   DocumentsRoute: typeof DocumentsRoute
   EdiRoute: typeof EdiRoute
@@ -278,6 +291,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BillingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/allocation_backup': {
+      id: '/allocation_backup'
+      path: '/allocation_backup'
+      fullPath: '/allocation_backup'
+      preLoaderRoute: typeof Allocation_backupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/allocation': {
       id: '/allocation'
       path: '/allocation'
@@ -298,6 +318,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AllocationRoute: AllocationRoute,
+  Allocation_backupRoute: Allocation_backupRoute,
   BillingRoute: BillingRoute,
   DocumentsRoute: DocumentsRoute,
   EdiRoute: EdiRoute,

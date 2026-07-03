@@ -13,7 +13,6 @@ import {
   Eye,
   Package,
   Boxes,
-  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -489,8 +488,7 @@ function AllocationPage() {
         0,
       );
       const totalCartons = outboundPallets.reduce(
-        (s, p) =>
-          s + p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0),
+        (s, p) => s + p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0),
         0,
       );
 
@@ -798,59 +796,59 @@ function AllocationPage() {
                       {shortUnits}
                     </TableCell>
                     <TableCell>{statusBadge(o.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 text-[11px] gap-1"
-                          onClick={() => setDetailDialog({ open: true, orderId: o.id })}
-                        >
-                          <Eye className="h-3 w-3" /> Details
-                        </Button>
-                        {o.status === "ALLOCATED" && (
-                          <>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="ghost"
                               className="h-7 text-[11px] gap-1"
-                              onClick={() => handleDeallocate(o.id)}
+                              onClick={() => setDetailDialog({ open: true, orderId: o.id })}
                             >
-                              <Undo2 className="h-3 w-3" /> Deallocate
+                              <Eye className="h-3 w-3" /> Details
                             </Button>
-                            <Button
-                              size="sm"
-                              className="h-7 text-[11px] gap-1"
-                              onClick={() => handlePick(o.id)}
-                            >
-                              <PackageSearch className="h-3 w-3" /> Pick
-                            </Button>
-                          </>
-                        )}
-                        {(o.status === "PICKED" || o.status === "OUTBOUND_PALLETIZED") && (
-                          <>
-                            {o.status === "PICKED" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-[11px] gap-1"
-                                onClick={() => handleUnpick(o.id)}
-                              >
-                                <Undo2 className="h-3 w-3" /> Unpick
-                              </Button>
+                            {o.status === "ALLOCATED" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-[11px] gap-1"
+                                  onClick={() => handleDeallocate(o.id)}
+                                >
+                                  <Undo2 className="h-3 w-3" /> Deallocate
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-[11px] gap-1"
+                                  onClick={() => handlePick(o.id)}
+                                >
+                                  <PackageSearch className="h-3 w-3" /> Pick
+                                </Button>
+                              </>
                             )}
-                            <Button
-                              size="sm"
-                              className="h-7 text-[11px] gap-1 bg-chart-4 hover:bg-chart-4/90"
-                              onClick={() => handlePalletize(o.id)}
-                            >
-                              <Package className="h-3 w-3" />
-                              {o.status === "OUTBOUND_PALLETIZED" ? "Repalletize" : "Palletize O/B"}
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
+                            {(o.status === "PICKED" || o.status === "OUTBOUND_PALLETIZED") && (
+                              <>
+                                {o.status === "PICKED" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-[11px] gap-1"
+                                    onClick={() => handleUnpick(o.id)}
+                                  >
+                                    <Undo2 className="h-3 w-3" /> Unpick
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-[11px] gap-1 bg-chart-4 hover:bg-chart-4/90"
+                                  onClick={() => handlePalletize(o.id)}
+                                >
+                                  <Package className="h-3 w-3" />
+                                  {o.status === "OUTBOUND_PALLETIZED" ? "Repalletize" : "Palletize O/B"}
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
                   </TableRow>
                 );
               })}
@@ -1299,99 +1297,79 @@ function AllocationPage() {
               Create outbound pallets with UCC128 labels and mark order as O/B Pallet
             </DialogDescription>
           </DialogHeader>
-          {palletizeOpen.orderId &&
-            (() => {
-              const order = orders.find((o) => o.id === palletizeOpen.orderId);
-              if (!order) return null;
-              const orderTickets = pickTickets.filter((pt) => pt.orderId === order.id);
-              const totalUnits = orderTickets.reduce(
-                (s, pt) => s + (pt.qtyPicked || pt.quantityToPick),
-                0,
-              );
-              const recommendedPallets = Math.max(1, Math.ceil(totalUnits / 480));
-              return (
-                <div className="space-y-4">
-                  {/* Order Header */}
-                  <div className="rounded-md border border-border bg-muted/20 p-3 grid grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Order #
-                      </div>
-                      <div className="font-mono font-medium">{order.id}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        PO #
-                      </div>
-                      <div className="font-mono">{order.poNumber}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Carrier
-                      </div>
-                      <div>{order.carrier}</div>
-                    </div>
-                  </div>
-
-                  {/* SKU Summary */}
+          {palletizeOpen.orderId && (() => {
+            const order = orders.find((o) => o.id === palletizeOpen.orderId);
+            if (!order) return null;
+            const orderTickets = pickTickets.filter((pt) => pt.orderId === order.id);
+            const totalUnits = orderTickets.reduce((s, pt) => s + (pt.qtyPicked || pt.quantityToPick), 0);
+            const recommendedPallets = Math.max(1, Math.ceil(totalUnits / 480));
+            return (
+              <div className="space-y-4">
+                {/* Order Header */}
+                <div className="rounded-md border border-border bg-muted/20 p-3 grid grid-cols-3 gap-3 text-xs">
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                      Picked Items
-                    </div>
-                    <div className="rounded-md border border-border bg-card p-2 space-y-1 max-h-40 overflow-y-auto">
-                      {orderTickets.map((pt) => (
-                        <div
-                          key={pt.pickTicketNum}
-                          className="flex items-center justify-between text-xs py-1 border-b border-border last:border-0"
-                        >
-                          <span className="font-mono text-[11px]">{pt.sku}</span>
-                          <span className="tabular-nums">
-                            {pt.qtyPicked || pt.quantityToPick} units
-                          </span>
-                          <span className="text-muted-foreground text-[10px]">
-                            PT-{pt.pickTicketNum}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order #</div>
+                    <div className="font-mono font-medium">{order.id}</div>
                   </div>
-
-                  {/* Pallet Count */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Number of Outbound Pallets
-                      </label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={palletCount}
-                        onChange={(e) => setPalletCount(parseInt(e.target.value) || 1)}
-                        className="h-8 text-xs font-mono mt-1"
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <div className="text-[10px] text-muted-foreground">
-                        Recommended: {recommendedPallets} pallets (480 units/pallet max)
-                        <br />
-                        Total: {totalUnits} units across {orderTickets.length} SKU lines
-                      </div>
-                    </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">PO #</div>
+                    <div className="font-mono">{order.poNumber}</div>
                   </div>
-
-                  <div className="rounded-md border border-dashed border-border bg-card p-3 text-[11px] text-muted-foreground">
-                    This will:
-                    <ul className="mt-1 space-y-1 ml-4 list-disc">
-                      <li>Generate outbound pallet IDs with UCC128 SSCC-18 barcodes</li>
-                      <li>Close all pick ticket(s) for this order</li>
-                      <li>Create shipment record in "Staged" status</li>
-                      <li>Change order status to O/B Pallet</li>
-                    </ul>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Carrier</div>
+                    <div>{order.carrier}</div>
                   </div>
                 </div>
-              );
-            })()}
+
+                {/* SKU Summary */}
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Picked Items</div>
+                  <div className="rounded-md border border-border bg-card p-2 space-y-1 max-h-40 overflow-y-auto">
+                    {orderTickets.map((pt) => (
+                      <div key={pt.pickTicketNum} className="flex items-center justify-between text-xs py-1 border-b border-border last:border-0">
+                        <span className="font-mono text-[11px]">{pt.sku}</span>
+                        <span className="tabular-nums">{pt.qtyPicked || pt.quantityToPick} units</span>
+                        <span className="text-muted-foreground text-[10px]">PT-{pt.pickTicketNum}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pallet Count */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Number of Outbound Pallets
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={palletCount}
+                      onChange={(e) => setPalletCount(parseInt(e.target.value) || 1)}
+                      className="h-8 text-xs font-mono mt-1"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <div className="text-[10px] text-muted-foreground">
+                      Recommended: {recommendedPallets} pallets (480 units/pallet max)<br/>
+                      Total: {totalUnits} units across {orderTickets.length} SKU lines
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-dashed border-border bg-card p-3 text-[11px] text-muted-foreground">
+                  This will:
+                  <ul className="mt-1 space-y-1 ml-4 list-disc">
+                    <li>Generate outbound pallet IDs with UCC128 SSCC-18 barcodes</li>
+                    <li>Close all pick ticket(s) for this order</li>
+                    <li>Create shipment record in "Staged" status</li>
+                    <li>Change order status to O/B Pallet</li>
+                  </ul>
+                </div>
+              </div>
+            );
+          })()}
           <DialogFooter>
             <Button
               variant="outline"
@@ -1408,9 +1386,7 @@ function AllocationPage() {
               onClick={confirmPalletize}
               disabled={isPalletizing}
             >
-              {isPalletizing ? (
-                "Creating..."
-              ) : (
+              {isPalletizing ? "Creating..." : (
                 <>
                   <Boxes className="h-3 w-3" /> Create O/B Pallets
                 </>

@@ -7,33 +7,33 @@ export type InboundLine = {
   upc: string;
   itemStyle: string;
   description: string;
-  lot: string;                  // EDI 943 LOT01 — supplier lot / batch
-  expirationDate: string;       // ISO date — EDI 943 DTM/036
-  qtyExpected: number;          // Units
-  cartonsExpected: number;      // EDI 943 N1*CN / cartons
+  lot: string; // EDI 943 LOT01 — supplier lot / batch
+  expirationDate: string; // ISO date — EDI 943 DTM/036
+  qtyExpected: number; // Units
+  cartonsExpected: number; // EDI 943 N1*CN / cartons
   uom: string;
   weightLbsPerUnit: number;
-  unitsPerPallet: number;       // Tied to item-style pallet build
-  receivedQty: number;          // Updated post-receipt
-  palletIds: string[];          // Pallets created from this line
+  unitsPerPallet: number; // Tied to item-style pallet build
+  receivedQty: number; // Updated post-receipt
+  palletIds: string[]; // Pallets created from this line
   status: "expected" | "partial" | "received";
 };
 
 export type InboundShipment = {
-  id: string;                   // Internal receipt id
-  ediRef: string;               // EDI 943 BSN02
+  id: string; // Internal receipt id
+  ediRef: string; // EDI 943 BSN02
   isaControl: string;
   tenantId: string;
   warehouseId: string;
   partner: string;
   carrier: string;
-  trailerNumber: string;        // Trailer / container #
-  containerNumber: string;      // Ocean / intermodal container
+  trailerNumber: string; // Trailer / container #
+  containerNumber: string; // Ocean / intermodal container
   sealNumber: string;
-  bolNumber: string;            // Bill of Lading
+  bolNumber: string; // Bill of Lading
   origin: string;
   poNumber: string;
-  appointmentAt: string;        // Scheduled gate appointment
+  appointmentAt: string; // Scheduled gate appointment
   expectedAt: string;
   receivedAt: string | null;
   doorAssigned: string | null;
@@ -66,18 +66,57 @@ export const inboundShipments: InboundShipment[] = [
     status: "arrived",
     source: "EDI_943",
     lines: [
-      { lineNo: 1, sku: "ACM-TENT-2P-OLV", upc: "081234500017", itemStyle: "TENT-2P", description: "Ridgeline 2P Tent, Olive",
-        lot: "LOT-TNT-2604A", expirationDate: ts("2029-05-01T00:00:00Z"),
-        qtyExpected: 96, cartonsExpected: 24, uom: "EA", weightLbsPerUnit: 6.2,
-        unitsPerPallet: 48, receivedQty: 0, palletIds: [], status: "expected" },
-      { lineNo: 2, sku: "ACM-STV-CMP-01", upc: "081234500024", itemStyle: "STV-CMP", description: "Compact Camp Stove",
-        lot: "LOT-STV-2605B", expirationDate: ts("2030-12-31T00:00:00Z"),
-        qtyExpected: 144, cartonsExpected: 12, uom: "EA", weightLbsPerUnit: 1.8,
-        unitsPerPallet: 72, receivedQty: 0, palletIds: [], status: "expected" },
-      { lineNo: 3, sku: "ACM-LANTERN-LED", upc: "081234500048", itemStyle: "LANTERN-LED", description: "Trailhead LED Lantern, 400lm",
-        lot: "LOT-LTN-2605C", expirationDate: ts("2030-05-01T00:00:00Z"),
-        qtyExpected: 60, cartonsExpected: 10, uom: "EA", weightLbsPerUnit: 0.9,
-        unitsPerPallet: 60, receivedQty: 0, palletIds: [], status: "expected" },
+      {
+        lineNo: 1,
+        sku: "ACM-TENT-2P-OLV",
+        upc: "081234500017",
+        itemStyle: "TENT-2P",
+        description: "Ridgeline 2P Tent, Olive",
+        lot: "LOT-TNT-2604A",
+        expirationDate: ts("2029-05-01T00:00:00Z"),
+        qtyExpected: 96,
+        cartonsExpected: 24,
+        uom: "EA",
+        weightLbsPerUnit: 6.2,
+        unitsPerPallet: 48,
+        receivedQty: 0,
+        palletIds: [],
+        status: "expected",
+      },
+      {
+        lineNo: 2,
+        sku: "ACM-STV-CMP-01",
+        upc: "081234500024",
+        itemStyle: "STV-CMP",
+        description: "Compact Camp Stove",
+        lot: "LOT-STV-2605B",
+        expirationDate: ts("2030-12-31T00:00:00Z"),
+        qtyExpected: 144,
+        cartonsExpected: 12,
+        uom: "EA",
+        weightLbsPerUnit: 1.8,
+        unitsPerPallet: 72,
+        receivedQty: 0,
+        palletIds: [],
+        status: "expected",
+      },
+      {
+        lineNo: 3,
+        sku: "ACM-LANTERN-LED",
+        upc: "081234500048",
+        itemStyle: "LANTERN-LED",
+        description: "Trailhead LED Lantern, 400lm",
+        lot: "LOT-LTN-2605C",
+        expirationDate: ts("2030-05-01T00:00:00Z"),
+        qtyExpected: 60,
+        cartonsExpected: 10,
+        uom: "EA",
+        weightLbsPerUnit: 0.9,
+        unitsPerPallet: 60,
+        receivedQty: 0,
+        palletIds: [],
+        status: "expected",
+      },
     ],
   },
   {
@@ -101,14 +140,40 @@ export const inboundShipments: InboundShipment[] = [
     status: "unloading",
     source: "EDI_943",
     lines: [
-      { lineNo: 1, sku: "NSA-HOOD-BLK-M", upc: "087654300010", itemStyle: "HOOD-CLASSIC", description: "Classic Hoodie, Black, M",
-        lot: "LOT-HD-26Q2-01", expirationDate: ts("2031-01-01T00:00:00Z"),
-        qtyExpected: 960, cartonsExpected: 40, uom: "EA", weightLbsPerUnit: 1.1,
-        unitsPerPallet: 240, receivedQty: 480, palletIds: ["PLT-ORD2-01244", "PLT-ORD2-01302"], status: "partial" },
-      { lineNo: 2, sku: "NSA-TEE-WHT-L", upc: "087654300027", itemStyle: "TEE-PREMIUM", description: "Premium Tee White, L",
-        lot: "LOT-TEE-26Q2-04", expirationDate: ts("2031-01-01T00:00:00Z"),
-        qtyExpected: 2880, cartonsExpected: 60, uom: "EA", weightLbsPerUnit: 0.4,
-        unitsPerPallet: 1440, receivedQty: 0, palletIds: [], status: "expected" },
+      {
+        lineNo: 1,
+        sku: "NSA-HOOD-BLK-M",
+        upc: "087654300010",
+        itemStyle: "HOOD-CLASSIC",
+        description: "Classic Hoodie, Black, M",
+        lot: "LOT-HD-26Q2-01",
+        expirationDate: ts("2031-01-01T00:00:00Z"),
+        qtyExpected: 960,
+        cartonsExpected: 40,
+        uom: "EA",
+        weightLbsPerUnit: 1.1,
+        unitsPerPallet: 240,
+        receivedQty: 480,
+        palletIds: ["PLT-ORD2-01244", "PLT-ORD2-01302"],
+        status: "partial",
+      },
+      {
+        lineNo: 2,
+        sku: "NSA-TEE-WHT-L",
+        upc: "087654300027",
+        itemStyle: "TEE-PREMIUM",
+        description: "Premium Tee White, L",
+        lot: "LOT-TEE-26Q2-04",
+        expirationDate: ts("2031-01-01T00:00:00Z"),
+        qtyExpected: 2880,
+        cartonsExpected: 60,
+        uom: "EA",
+        weightLbsPerUnit: 0.4,
+        unitsPerPallet: 1440,
+        receivedQty: 0,
+        palletIds: [],
+        status: "expected",
+      },
     ],
   },
   {
@@ -132,14 +197,40 @@ export const inboundShipments: InboundShipment[] = [
     status: "scheduled",
     source: "EDI_943",
     lines: [
-      { lineNo: 1, sku: "HLE-EARB-PRO", upc: "099887700013", itemStyle: "EARB-PRO", description: "ProSound Earbuds Gen 3",
-        lot: "LOT-EARB-2605", expirationDate: ts("2030-05-01T00:00:00Z"),
-        qtyExpected: 1200, cartonsExpected: 60, uom: "EA", weightLbsPerUnit: 0.3,
-        unitsPerPallet: 600, receivedQty: 0, palletIds: [], status: "expected" },
-      { lineNo: 2, sku: "HLE-CHRG-65W", upc: "099887700020", itemStyle: "CHRG-USBC", description: "65W GaN USB-C Charger",
-        lot: "LOT-CHRG-2605", expirationDate: ts("2030-05-01T00:00:00Z"),
-        qtyExpected: 900, cartonsExpected: 30, uom: "EA", weightLbsPerUnit: 0.4,
-        unitsPerPallet: 450, receivedQty: 0, palletIds: [], status: "expected" },
+      {
+        lineNo: 1,
+        sku: "HLE-EARB-PRO",
+        upc: "099887700013",
+        itemStyle: "EARB-PRO",
+        description: "ProSound Earbuds Gen 3",
+        lot: "LOT-EARB-2605",
+        expirationDate: ts("2030-05-01T00:00:00Z"),
+        qtyExpected: 1200,
+        cartonsExpected: 60,
+        uom: "EA",
+        weightLbsPerUnit: 0.3,
+        unitsPerPallet: 600,
+        receivedQty: 0,
+        palletIds: [],
+        status: "expected",
+      },
+      {
+        lineNo: 2,
+        sku: "HLE-CHRG-65W",
+        upc: "099887700020",
+        itemStyle: "CHRG-USBC",
+        description: "65W GaN USB-C Charger",
+        lot: "LOT-CHRG-2605",
+        expirationDate: ts("2030-05-01T00:00:00Z"),
+        qtyExpected: 900,
+        cartonsExpected: 30,
+        uom: "EA",
+        weightLbsPerUnit: 0.4,
+        unitsPerPallet: 450,
+        receivedQty: 0,
+        palletIds: [],
+        status: "expected",
+      },
     ],
   },
   {
@@ -163,10 +254,23 @@ export const inboundShipments: InboundShipment[] = [
     status: "received",
     source: "EDI_944",
     lines: [
-      { lineNo: 1, sku: "VRD-COLL-30CT", upc: "076500011120", itemStyle: "COLL-PWDR", description: "Collagen Peptides 30ct",
-        lot: "LOT-COLL-26Q2", expirationDate: ts("2028-05-18T00:00:00Z"),
-        qtyExpected: 72, cartonsExpected: 3, uom: "EA", weightLbsPerUnit: 0.8,
-        unitsPerPallet: 72, receivedQty: 72, palletIds: ["PLT-ATL1-00955"], status: "received" },
+      {
+        lineNo: 1,
+        sku: "VRD-COLL-30CT",
+        upc: "076500011120",
+        itemStyle: "COLL-PWDR",
+        description: "Collagen Peptides 30ct",
+        lot: "LOT-COLL-26Q2",
+        expirationDate: ts("2028-05-18T00:00:00Z"),
+        qtyExpected: 72,
+        cartonsExpected: 3,
+        uom: "EA",
+        weightLbsPerUnit: 0.8,
+        unitsPerPallet: 72,
+        receivedQty: 72,
+        palletIds: ["PLT-ATL1-00955"],
+        status: "received",
+      },
     ],
   },
 ];
@@ -184,4 +288,103 @@ export function shipmentProgressPct(s: InboundShipment): number {
   const exp = s.lines.reduce((a, l) => a + l.qtyExpected, 0);
   const rec = s.lines.reduce((a, l) => a + l.receivedQty, 0);
   return exp === 0 ? 0 : Math.min(100, Math.round((rec / exp) * 100));
+}
+
+export type InboundReceiptLine = {
+  lineNo: number;
+  sku: string;
+  upc: string;
+  description: string;
+  lot: string;
+  expirationDate: string;
+  qtyExpected: number;
+  qtyReceived: number;
+  cartonsExpected: number;
+  cartonsReceived: number;
+  palletCount: number;
+  putawayDate: string | null;
+  putawayBy: string | null;
+  osdQty: number;
+  osdReason: string;
+};
+
+export type InboundReceipt = {
+  id: string;
+  receiptRef: string;
+  inboundShipmentId: string;
+  tenantId: string;
+  warehouseId: string;
+  carrier: string;
+  trailerNumber: string;
+  containerNumber: string;
+  sealNumber: string;
+  bolNumber: string;
+  poNumber: string;
+  appointmentAt: string;
+  closedAt: string;
+  source: "EDI_943" | "EDI_944" | "CSV" | "MANUAL";
+  lines: InboundReceiptLine[];
+};
+
+export const inboundReceipts: InboundReceipt[] = [];
+
+function genReceiptId(): string {
+  const idx = inboundReceipts.length + 1;
+  return `RCP-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, "0")}${idx.toString().padStart(4, "0")}`;
+}
+
+export function closeInboundShipment(
+  shipment: InboundShipment,
+  putawayInfo: { lineNo: number; putawayDate: string; putawayBy: string }[],
+  osdInfo: { lineNo: number; osdQty: number; osdReason: string }[],
+): InboundReceipt {
+  const ts = (d: string) => new Date(d).toISOString();
+
+  const lines: InboundReceiptLine[] = shipment.lines.map((l, idx) => {
+    const putaway = putawayInfo.find((p) => p.lineNo === l.lineNo);
+    const osd = osdInfo.find((o) => o.lineNo === l.lineNo);
+    const cartonsPerUnit = l.qtyExpected > 0 ? l.cartonsExpected / l.qtyExpected : 0;
+
+    return {
+      lineNo: l.lineNo,
+      sku: l.sku,
+      upc: l.upc,
+      description: l.description,
+      lot: l.lot,
+      expirationDate: l.expirationDate,
+      qtyExpected: l.qtyExpected,
+      qtyReceived: l.receivedQty,
+      cartonsExpected: l.cartonsExpected,
+      cartonsReceived: Math.round(l.receivedQty * cartonsPerUnit),
+      palletCount: l.palletIds.length,
+      putawayDate: putaway?.putawayDate ?? null,
+      putawayBy: putaway?.putawayBy ?? null,
+      osdQty: osd?.osdQty ?? 0,
+      osdReason: osd?.osdReason ?? "",
+    };
+  });
+
+  const receipt: InboundReceipt = {
+    id: genReceiptId(),
+    receiptRef: `R-${shipment.ediRef}`,
+    inboundShipmentId: shipment.id,
+    tenantId: shipment.tenantId,
+    warehouseId: shipment.warehouseId,
+    carrier: shipment.carrier,
+    trailerNumber: shipment.trailerNumber,
+    containerNumber: shipment.containerNumber,
+    sealNumber: shipment.sealNumber,
+    bolNumber: shipment.bolNumber,
+    poNumber: shipment.poNumber,
+    appointmentAt: shipment.appointmentAt,
+    closedAt: new Date().toISOString(),
+    source: shipment.source,
+    lines,
+  };
+
+  inboundReceipts.unshift(receipt);
+  shipment.status = "received";
+  shipment.receivedAt = receipt.closedAt;
+
+  return receipt;
 }

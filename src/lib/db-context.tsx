@@ -33,7 +33,7 @@ export type WmsDataContextType = {
 const WmsDataContext = createContext<WmsDataContextType | undefined>(undefined);
 
 export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
-  const [data, setData] = useState<Omit<WmsDataContextType, 'loading'>>({
+  const [data, setData] = useState<Omit<WmsDataContextType, "loading">>({
     tenants: [],
     warehouses: [],
     inventoryItems: [],
@@ -60,15 +60,26 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
       // 2. Setup listeners
       const collections = [
-        "tenants", "warehouses", "inventoryItems", "pallets", "pickWaves",
-        "orders", "inboundShipments", "carrierDispatches", "bols",
-        "billingRates", "billingRuns", "itemMaster", "locationMaster", "ediLogs"
+        "tenants",
+        "warehouses",
+        "inventoryItems",
+        "pallets",
+        "pickWaves",
+        "orders",
+        "inboundShipments",
+        "carrierDispatches",
+        "bols",
+        "billingRates",
+        "billingRuns",
+        "itemMaster",
+        "locationMaster",
+        "ediLogs",
       ];
 
       collections.forEach((colName) => {
         const unsub = onSnapshot(collection(db, colName), (snapshot) => {
-          const docs = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
-          setData(prev => ({ ...prev, [colName]: docs }));
+          const docs = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
+          setData((prev) => ({ ...prev, [colName]: docs }));
         });
         unsubs.push(unsub);
       });
@@ -78,15 +89,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     setup();
 
     return () => {
-      unsubs.forEach(u => u());
+      unsubs.forEach((u) => u());
     };
   }, []);
 
-  return (
-    <WmsDataContext.Provider value={{ ...data, loading }}>
-      {children}
-    </WmsDataContext.Provider>
-  );
+  return <WmsDataContext.Provider value={{ ...data, loading }}>{children}</WmsDataContext.Provider>;
 };
 
 export const useWmsData = () => {
@@ -116,7 +123,7 @@ async function seedDatabaseIfEmpty() {
       billingRuns,
       itemMaster,
       locationMaster,
-      ediLogs
+      ediLogs,
     };
 
     for (const [colName, items] of Object.entries(seedData)) {

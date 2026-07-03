@@ -13,7 +13,6 @@ import {
   Eye,
   Package,
   Boxes,
-  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -71,7 +70,7 @@ import {
 import type { PickTicket } from "@/lib/mock-data";
 import { fmtDateTime } from "@/lib/utils";
 
-export const Route = createFileRoute("/allocation")({
+export const Route = createFileRoute("/allocation_backup")({
   head: () => ({
     meta: [
       { title: "Allocation Lifecycle — AZUX 3PL WMS Systems" },

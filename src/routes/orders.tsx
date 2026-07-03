@@ -163,7 +163,7 @@ function OrdersPage() {
   };
 
   const linesFor = (o: Order): OrderLine[] => lineOverrides[o.id] ?? o.lines;
-  const isLocked = (s: Order["status"]) => s === "shipped" || s === "delivered" || s === "exception";
+  const isLocked = (s: Order["status"]) => s === "shipped" || s === "exception";
 
   const handleNewOrderSave = async (newOrder: Order) => {
     try {
@@ -257,6 +257,62 @@ function OrdersPage() {
     return t;
   }, [filtered, lineOverrides]);
 
+  const exportCsv = () => {
+    const headers = [
+      "Order #",
+      "PO Number",
+      "Customer Order #",
+      "EDI Ref",
+      "Client",
+      "Warehouse",
+      "Ship-to",
+      "Carrier",
+      "Service",
+      "Lines",
+      "Units",
+      "Status",
+      "Source",
+      "Required by",
+    ];
+    const lines = [headers.join(",")];
+    for (const o of filtered) {
+      const tenant = tenants.find((t) => t.id === o.tenantId);
+      const wh = warehouses.find((w) => w.id === o.warehouseId);
+      const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
+      lines.push(
+        [
+          o.id,
+          o.poNumber,
+          o.customerOrderNumber,
+          o.ediRef,
+          tenant?.code ?? o.tenantId,
+          wh?.code ?? o.warehouseId,
+          o.shipToName,
+          o.carrier,
+          o.serviceLevel,
+          String(linesFor(o).length),
+          String(units),
+          o.status,
+          o.source,
+          new Date(o.mustShipDate).toLocaleDateString(),
+        ].join(","),
+      );
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `azux-orders-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Orders exported", {
+      description: `${filtered.length} records · ready for download`,
+    });
+  };
+
   return (
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-end justify-between">
@@ -278,7 +334,7 @@ function OrdersPage() {
           >
             <Upload className="h-3.5 w-3.5" /> Upload CSV
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={exportCsv}>
             <Download className="h-3.5 w-3.5" /> Export
           </Button>
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setNewOrderOpen(true)}>

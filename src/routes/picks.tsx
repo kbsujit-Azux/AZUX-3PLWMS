@@ -120,11 +120,9 @@ function PicksPage() {
 
   // Load initial data and subscribe to updates
   useEffect(() => {
-    const unsubPick = subscribePickTickets(
-      (pts) => {
-        setPickTickets(pts);
-      },
-    );
+    const unsubPick = subscribePickTickets((pts) => {
+      setPickTickets(pts);
+    });
     const unsubInv = subscribeInventoryItems((items) => {
       const map = new Map();
       items.forEach((item) => {
@@ -179,7 +177,8 @@ function PicksPage() {
       if (warehouseId !== "all" && r.warehouseId !== warehouseId) return false;
       if (query) {
         const q = query.toLowerCase();
-        const blob = `${r.pickTicketNum} ${r.orderId} ${r.sku} ${r.palletId} ${r.fromLocation}`.toLowerCase();
+        const blob =
+          `${r.pickTicketNum} ${r.orderId} ${r.sku} ${r.palletId} ${r.fromLocation}`.toLowerCase();
         if (!blob.includes(q)) return false;
       }
       return true;
@@ -299,9 +298,7 @@ function PicksPage() {
       const order = ordersMap.get(orderId);
       if (!order) continue;
       if (order.status === "OUTBOUND_PALLETIZED" || order.status === "shipped") continue;
-      const allPicked = pts.every(
-        (pt) => pt.status === "PICKED" || pt.status === "CLOSED",
-      );
+      const allPicked = pts.every((pt) => pt.status === "PICKED" || pt.status === "CLOSED");
       if (allPicked && pts.length > 0) {
         result.push({ order, pickTickets: pts });
       }
@@ -327,7 +324,7 @@ function PicksPage() {
         description: item?.description || pt.sku,
         unitsPicked: pt.qtyPicked || pt.quantityToPick,
         caseQty: item?.caseQty || 1,
-        weightLbs: ((pt.qtyPicked || pt.quantityToPick) * (item?.weightLbs || 1)),
+        weightLbs: (pt.qtyPicked || pt.quantityToPick) * (item?.weightLbs || 1),
         pickTicketNum: pt.pickTicketNum,
       };
     });
@@ -382,7 +379,8 @@ function PicksPage() {
         0,
       );
       const totalCartons = pendingOutboundPallets.reduce(
-        (s, p) => s + p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0),
+        (s, p) =>
+          s + p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0),
         0,
       );
 
@@ -406,10 +404,7 @@ function PicksPage() {
         pallets: totalPallets,
         cartons: totalCartons,
         weightLbs: Math.round(totalWeightLbs * 10) / 10,
-        declaredValue: palletizeOrderOpen.lines.reduce(
-          (s, l) => s + l.qtyOrdered * l.unitPrice,
-          0,
-        ),
+        declaredValue: palletizeOrderOpen.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0),
       });
 
       for (const pallet of pendingOutboundPallets) {
@@ -444,11 +439,17 @@ function PicksPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Pick Tickets</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Directed picking · enter quantities · reallocate on shortage · palletize when fully picked
+            Directed picking · enter quantities · reallocate on shortage · palletize when fully
+            picked
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => location.reload()}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => location.reload()}
+          >
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </Button>
         </div>
@@ -484,8 +485,12 @@ function PicksPage() {
                   <TableHead className="text-[10px] uppercase tracking-wider">PO #</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Ship-to</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Carrier</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">Units</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider text-right">SKUs</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Units
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    SKUs
+                  </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider w-40" />
                 </TableRow>
               </TableHeader>
@@ -500,7 +505,9 @@ function PicksPage() {
                       <TableCell className="py-2">{order.shipToName}</TableCell>
                       <TableCell className="py-2">{order.carrier}</TableCell>
                       <TableCell className="py-2 text-right tabular-nums">{totalUnits}</TableCell>
-                      <TableCell className="py-2 text-right tabular-nums">{order.lines.length}</TableCell>
+                      <TableCell className="py-2 text-right tabular-nums">
+                        {order.lines.length}
+                      </TableCell>
                       <TableCell className="py-2 text-right">
                         <Button
                           size="sm"
@@ -536,9 +543,15 @@ function PicksPage() {
               <TableHead className="text-[10px] uppercase tracking-wider">Pick Ticket</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Order</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider">Pallet · Location</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-right">Units</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-right">Cartons</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider">
+                Pallet · Location
+              </TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                Units
+              </TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                Cartons
+              </TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Status</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider w-20" />
             </TableRow>
@@ -555,7 +568,9 @@ function PicksPage() {
               <TableRow key={r.pickTicketNum} className="text-xs hover:bg-muted/30">
                 <TableCell className="py-2 font-mono font-medium">
                   {r.reallocated && (
-                    <span className="text-chart-5 mr-1" title="Reallocated">★</span>
+                    <span className="text-chart-5 mr-1" title="Reallocated">
+                      ★
+                    </span>
                   )}
                   <button
                     type="button"
@@ -574,21 +589,31 @@ function PicksPage() {
                   <div>{r.palletId}</div>
                   <div className="text-[10px] text-muted-foreground">{r.fromLocation}</div>
                 </TableCell>
-                <TableCell className="py-2 text-right tabular-nums">{r.quantityToPick.toLocaleString()}</TableCell>
-                <TableCell className="py-2 text-right tabular-nums">{r.cartonsToPick.toLocaleString()}</TableCell>
+                <TableCell className="py-2 text-right tabular-nums">
+                  {r.quantityToPick.toLocaleString()}
+                </TableCell>
+                <TableCell className="py-2 text-right tabular-nums">
+                  {r.cartonsToPick.toLocaleString()}
+                </TableCell>
                 <TableCell className="py-2">
-                  <span className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
-                    r.status === "GENERATED" ? "bg-muted text-muted-foreground border-border" :
-                    r.status === "PICKED" ? "bg-chart-1/15 text-chart-1 border-chart-1/30" :
-                    "bg-chart-3/15 text-chart-3 border-chart-3/30"
-                  }`}>
+                  <span
+                    className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
+                      r.status === "GENERATED"
+                        ? "bg-muted text-muted-foreground border-border"
+                        : r.status === "PICKED"
+                          ? "bg-chart-1/15 text-chart-1 border-chart-1/30"
+                          : "bg-chart-3/15 text-chart-3 border-chart-3/30"
+                    }`}
+                  >
                     {r.status}
                   </span>
                 </TableCell>
                 <TableCell className="py-2 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <Button
-                      variant="ghost" size="icon" className="h-7 w-7"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
                       onClick={() => pickHistory(r.pickTicketNum)}
                       title="View history"
                     >
@@ -596,7 +621,9 @@ function PicksPage() {
                     </Button>
                     {r.status !== "CLOSED" && (
                       <Button
-                        variant="ghost" size="icon" className="h-7 w-7"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
                         onClick={() => closePick(r.pickTicketNum)}
                         title="Close pick ticket"
                       >
@@ -615,7 +642,9 @@ function PicksPage() {
       <Dialog open={!!selectedPick} onOpenChange={(o) => !o && setSelectedPick(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-base font-mono">Pick Ticket PT-{selectedPick?.pickTicketNum}</DialogTitle>
+            <DialogTitle className="text-base font-mono">
+              Pick Ticket PT-{selectedPick?.pickTicketNum}
+            </DialogTitle>
             <DialogDescription className="text-xs">
               Enter picked quantity. Enter 0 to reallocate if location/pallet not found.
             </DialogDescription>
@@ -624,16 +653,22 @@ function PicksPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">SKU</label>
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    SKU
+                  </label>
                   <div className="font-mono font-medium">{selectedPick.sku}</div>
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Order</label>
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Order
+                  </label>
                   <div className="font-mono">{selectedPick.orderId}</div>
                 </div>
               </div>
               <div>
-                <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Location</label>
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Location
+                </label>
                 <div className="flex items-center gap-2 mt-1">
                   <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="font-mono">{selectedPick.fromLocation}</span>
@@ -643,7 +678,9 @@ function PicksPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Units to Pick</label>
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Units to Pick
+                  </label>
                   <Input
                     type="number"
                     value={pickQty}
@@ -654,7 +691,9 @@ function PicksPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Cartons</label>
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Cartons
+                  </label>
                   <Input
                     type="number"
                     value={pickCartons}
@@ -667,9 +706,16 @@ function PicksPage() {
               <div className="bg-muted/30 rounded-md p-3 text-xs">
                 <div className="font-medium mb-1">Directed Pick Instructions</div>
                 <ul className="space-y-1 text-muted-foreground">
-                  <li>• Go to location <strong>{selectedPick.fromLocation}</strong></li>
-                  <li>• Scan pallet <strong>{selectedPick.palletId}</strong></li>
-                  <li>• Pick <strong>{selectedPick.quantityToPick} units</strong> (<strong>{selectedPick.cartonsToPick} cartons</strong>)</li>
+                  <li>
+                    • Go to location <strong>{selectedPick.fromLocation}</strong>
+                  </li>
+                  <li>
+                    • Scan pallet <strong>{selectedPick.palletId}</strong>
+                  </li>
+                  <li>
+                    • Pick <strong>{selectedPick.quantityToPick} units</strong> (
+                    <strong>{selectedPick.cartonsToPick} cartons</strong>)
+                  </li>
                   <li>• Enter picked quantity and confirm</li>
                   <li>• If location/pallet not found, enter 0 to reallocate</li>
                 </ul>
@@ -677,7 +723,9 @@ function PicksPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setSelectedPick(null)}>Cancel</Button>
+            <Button variant="outline" size="sm" onClick={() => setSelectedPick(null)}>
+              Cancel
+            </Button>
             <Button size="sm" className="h-8 text-xs gap-1.5" onClick={confirmPick}>
               <Save className="h-3.5 w-3.5" /> Confirm Pick
             </Button>
@@ -689,7 +737,9 @@ function PicksPage() {
       <Dialog open={pickHistoryOpen} onOpenChange={setPickHistoryOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base font-mono">Pick Ticket History PT-{activePickTicket}</DialogTitle>
+            <DialogTitle className="text-base font-mono">
+              Pick Ticket History PT-{activePickTicket}
+            </DialogTitle>
             <DialogDescription className="text-xs">
               Transaction history for this pick ticket
             </DialogDescription>
@@ -701,7 +751,10 @@ function PicksPage() {
               </div>
             )}
             {transactions.map((t) => (
-              <div key={t.id} className="flex items-center justify-between text-xs border-b border-border pb-2">
+              <div
+                key={t.id}
+                className="flex items-center justify-between text-xs border-b border-border pb-2"
+              >
                 <span className="text-muted-foreground">{fmtDateTime(t.timestamp)}</span>
                 <span className="font-mono">{t.type}</span>
                 <span className="text-right">{t.qtyChange} units</span>
@@ -710,13 +763,18 @@ function PicksPage() {
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setPickHistoryOpen(false)}>Close</Button>
+            <Button variant="outline" size="sm" onClick={() => setPickHistoryOpen(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Palletize Order Dialog */}
-      <Dialog open={!!palletizeOrderOpen && !palletizeConfirmOpen} onOpenChange={(o) => !o && setPalletizeOrderOpen(null)}>
+      <Dialog
+        open={!!palletizeOrderOpen && !palletizeConfirmOpen}
+        onOpenChange={(o) => !o && setPalletizeOrderOpen(null)}
+      >
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-mono flex items-center gap-2">
@@ -732,49 +790,77 @@ function PicksPage() {
               {/* Order Header */}
               <div className="rounded-md border border-border bg-muted/20 p-3 grid grid-cols-4 gap-3 text-xs">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order #</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Order #
+                  </div>
                   <div className="font-mono font-medium">{palletizeOrderOpen.id}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">PO #</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    PO #
+                  </div>
                   <div className="font-mono">{palletizeOrderOpen.poNumber}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ship-to</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Ship-to
+                  </div>
                   <div>{palletizeOrderOpen.shipToName}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Carrier</div>
-                  <div>{palletizeOrderOpen.carrier} · {palletizeOrderOpen.serviceLevel}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Carrier
+                  </div>
+                  <div>
+                    {palletizeOrderOpen.carrier} · {palletizeOrderOpen.serviceLevel}
+                  </div>
                 </div>
               </div>
 
               {/* SKU Lines */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Picked Items</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+                  Picked Items
+                </div>
                 <div className="rounded-md border border-border bg-card overflow-hidden">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/40 hover:bg-muted/40">
                         <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
-                        <TableHead className="text-[10px] uppercase tracking-wider">Description</TableHead>
-                        <TableHead className="text-[10px] uppercase tracking-wider text-right">Units Picked</TableHead>
-                        <TableHead className="text-[10px] uppercase tracking-wider text-right">Case Pack</TableHead>
-                        <TableHead className="text-[10px] uppercase tracking-wider text-right">Weight (lb)</TableHead>
+                        <TableHead className="text-[10px] uppercase tracking-wider">
+                          Description
+                        </TableHead>
+                        <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                          Units Picked
+                        </TableHead>
+                        <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                          Case Pack
+                        </TableHead>
+                        <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                          Weight (lb)
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {(() => {
-                        const orderPicks = pickTickets.filter((pt) => pt.orderId === palletizeOrderOpen!.id);
+                        const orderPicks = pickTickets.filter(
+                          (pt) => pt.orderId === palletizeOrderOpen!.id,
+                        );
                         return orderPicks.map((pt) => {
                           const item = inventory.get(pt.sku);
                           const units = pt.qtyPicked || pt.quantityToPick;
                           return (
                             <TableRow key={pt.pickTicketNum} className="text-xs">
                               <TableCell className="py-2 font-mono font-medium">{pt.sku}</TableCell>
-                              <TableCell className="py-2 text-[11px]">{item?.description || pt.sku}</TableCell>
-                              <TableCell className="py-2 text-right tabular-nums">{units}</TableCell>
-                              <TableCell className="py-2 text-right tabular-nums">{item?.caseQty || 1}</TableCell>
+                              <TableCell className="py-2 text-[11px]">
+                                {item?.description || pt.sku}
+                              </TableCell>
+                              <TableCell className="py-2 text-right tabular-nums">
+                                {units}
+                              </TableCell>
+                              <TableCell className="py-2 text-right tabular-nums">
+                                {item?.caseQty || 1}
+                              </TableCell>
                               <TableCell className="py-2 text-right tabular-nums">
                                 {(units * (item?.weightLbs || 1)).toFixed(1)}
                               </TableCell>
@@ -804,14 +890,25 @@ function PicksPage() {
                 </div>
                 <div className="flex items-end">
                   <div className="text-[10px] text-muted-foreground">
-                    Recommended: {Math.max(1, Math.ceil(pickTickets.filter(pt => pt.orderId === palletizeOrderOpen!.id).reduce((s, pt) => s + (pt.qtyPicked || pt.quantityToPick), 0) / 480))} pallets based on 480 units/pallet capacity
+                    Recommended:{" "}
+                    {Math.max(
+                      1,
+                      Math.ceil(
+                        pickTickets
+                          .filter((pt) => pt.orderId === palletizeOrderOpen!.id)
+                          .reduce((s, pt) => s + (pt.qtyPicked || pt.quantityToPick), 0) / 480,
+                      ),
+                    )}{" "}
+                    pallets based on 480 units/pallet capacity
                   </div>
                 </div>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setPalletizeOrderOpen(null)}>Cancel</Button>
+            <Button variant="outline" size="sm" onClick={() => setPalletizeOrderOpen(null)}>
+              Cancel
+            </Button>
             <Button
               size="sm"
               className="h-8 text-xs gap-1.5"
@@ -840,16 +937,24 @@ function PicksPage() {
               {/* Summary */}
               <div className="rounded-md border border-border bg-muted/20 p-3 grid grid-cols-3 gap-3 text-xs">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Order</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Order
+                  </div>
                   <div className="font-mono font-medium">{pendingOutboundPallets[0].orderId}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Pallets</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Total Pallets
+                  </div>
                   <div className="font-mono font-medium">{pendingOutboundPallets.length}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total SKU Lines</div>
-                  <div className="font-mono font-medium">{pendingOutboundPallets.reduce((s, p) => s + p.lines.length, 0)}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Total SKU Lines
+                  </div>
+                  <div className="font-mono font-medium">
+                    {pendingOutboundPallets.reduce((s, p) => s + p.lines.length, 0)}
+                  </div>
                 </div>
               </div>
 
@@ -859,7 +964,9 @@ function PicksPage() {
                   <div key={pallet.id} className="rounded-md border border-border bg-card p-3">
                     <div className="flex items-center justify-between mb-2">
                       <div className="font-mono font-medium text-xs">{pallet.id}</div>
-                      <div className="text-[10px] font-mono text-muted-foreground">UCC128: {pallet.ucc128Data}</div>
+                      <div className="text-[10px] font-mono text-muted-foreground">
+                        UCC128: {pallet.ucc128Data}
+                      </div>
                     </div>
                     <div className="grid grid-cols-5 gap-2 text-[10px]">
                       {pallet.lines.map((line, idx) => (
@@ -881,7 +988,12 @@ function PicksPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setPalletizeConfirmOpen(false)} disabled={isPalletizing}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPalletizeConfirmOpen(false)}
+              disabled={isPalletizing}
+            >
               Back
             </Button>
             <Button
@@ -903,7 +1015,10 @@ function PicksPage() {
       </Dialog>
 
       {/* UCC128 Label Preview Dialog */}
-      <Ucc128LabelDialog pallets={pendingOutboundPallets} onClose={() => setPendingOutboundPallets([])} />
+      <Ucc128LabelDialog
+        pallets={pendingOutboundPallets}
+        onClose={() => setPendingOutboundPallets([])}
+      />
     </div>
   );
 }
@@ -912,7 +1027,9 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: str
   return (
     <div className="px-4 py-2.5">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`text-base font-semibold tabular-nums ${tone ?? ""}`}>{value.toLocaleString()}</div>
+      <div className={`text-base font-semibold tabular-nums ${tone ?? ""}`}>
+        {value.toLocaleString()}
+      </div>
     </div>
   );
 }
@@ -948,9 +1065,14 @@ function Ucc128LabelDialog({
         </DialogHeader>
         <div className="space-y-3 max-h-[60vh] overflow-y-auto">
           {printQueue.map((pallet) => (
-            <div key={pallet.id} className="rounded-md border-2 border-foreground/80 bg-white p-4 font-mono text-xs text-black">
+            <div
+              key={pallet.id}
+              className="rounded-md border-2 border-foreground/80 bg-white p-4 font-mono text-xs text-black"
+            >
               <div className="flex items-center justify-between border-b-2 border-black/80 pb-2">
-                <span className="text-[10px] uppercase tracking-wider">AZUX 3PL WMS · Outbound Pallet</span>
+                <span className="text-[10px] uppercase tracking-wider">
+                  AZUX 3PL WMS · Outbound Pallet
+                </span>
                 <span className="text-[10px] uppercase tracking-wider">UCC128</span>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
@@ -966,7 +1088,7 @@ function Ucc128LabelDialog({
                   <div className="text-[8px] uppercase tracking-wider text-black/60">PO #</div>
                   <div className="text-xs">
                     {(() => {
-                      const order = orders.find(o => o.id === pallet.orderId);
+                      const order = orders.find((o) => o.id === pallet.orderId);
                       return order?.poNumber || "—";
                     })()}
                   </div>
@@ -976,8 +1098,12 @@ function Ucc128LabelDialog({
                   <div className="text-xs">{pallet.sscc18}</div>
                 </div>
                 <div className="col-span-2">
-                  <div className="text-[8px] uppercase tracking-wider text-black/60">UCC128 Barcode</div>
-                  <div className="text-xs font-mono break-all bg-black/5 p-1 rounded">{pallet.ucc128Data}</div>
+                  <div className="text-[8px] uppercase tracking-wider text-black/60">
+                    UCC128 Barcode
+                  </div>
+                  <div className="text-xs font-mono break-all bg-black/5 p-1 rounded">
+                    {pallet.ucc128Data}
+                  </div>
                 </div>
               </div>
               {/* Mock barcode */}
@@ -993,20 +1119,27 @@ function Ucc128LabelDialog({
                   />
                 ))}
               </div>
-              <div className="mt-1 text-center text-[10px] tracking-[0.2em]">
-                {pallet.sscc18}
-              </div>
+              <div className="mt-1 text-center text-[10px] tracking-[0.2em]">{pallet.sscc18}</div>
             </div>
           ))}
         </div>
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => { onClose(); setPrintQueue([]); }}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              onClose();
+              setPrintQueue([]);
+            }}
+          >
             Close
           </Button>
           <Button
             size="sm"
             onClick={() => {
-              toast.success("Labels queued", { description: `Sent to ZT411-DOCK-B · ${printQueue.length} labels` });
+              toast.success("Labels queued", {
+                description: `Sent to ZT411-DOCK-B · ${printQueue.length} labels`,
+              });
               setPrintQueue([]);
               onClose();
             }}

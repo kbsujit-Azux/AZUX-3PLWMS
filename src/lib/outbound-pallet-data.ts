@@ -62,7 +62,8 @@ function computeCheckDigit(s: string): number {
 
 export function generateSSCC18(orderId: string, palletSeq: number, totalPallets: number): string {
   const extension = "0";
-  const serialRef = `${totalPallets}${palletSeq}`.padStart(6, "0") + orderId.replace(/\D/g, "").slice(-4);
+  const serialRef =
+    `${totalPallets}${palletSeq}`.padStart(6, "0") + orderId.replace(/\D/g, "").slice(-4);
   const payload = extension + COMPANY_PREFIX + serialRef;
   const check = computeCheckDigit(payload);
   return payload + check.toString();

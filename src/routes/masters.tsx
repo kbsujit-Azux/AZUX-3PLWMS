@@ -14,6 +14,8 @@ import {
   Pencil,
   ShieldCheck,
   RefreshCw,
+  FileText,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +72,8 @@ import { useAuth } from "@/lib/auth";
 import {
   deleteInventoryBatch,
   rebuildLocationMasterFromInventory,
+  fetchTransactionHistory,
+  type InventoryTransaction,
 } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/masters")({
@@ -124,7 +128,8 @@ function MastersPage() {
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const t = sp.get("tab");
-    if (t === "items" || t === "locations" || t === "exceptions") setTab(t);
+    if (t === "items" || t === "locations" || t === "exceptions" || t === "admin" || t === "audit")
+      setTab(t);
     const addSku = sp.get("addSku");
     if (addSku) {
       setTab("items");
@@ -238,6 +243,11 @@ function MastersPage() {
           {isAdmin && (
             <TabsTrigger value="admin">
               <ShieldCheck className="h-3.5 w-3.5 mr-1.5" /> Admin Tools
+            </TabsTrigger>
+          )}
+          {isAdmin && (
+            <TabsTrigger value="audit">
+              <FileText className="h-3.5 w-3.5 mr-1.5" /> Inventory Audit Trail
             </TabsTrigger>
           )}
         </TabsList>
@@ -402,7 +412,7 @@ function MastersPage() {
           </div>
         </TabsContent>
 
-        {/* LOCATION MASTER ------------------------------------- */}
+        {/* LOCATION MASTER --------------------------------------- */}
         <TabsContent value="locations" className="space-y-3">
           <div className="flex items-center gap-2">
             <div className="relative flex-1 max-w-sm">
@@ -410,7 +420,7 @@ function MastersPage() {
               <Input
                 value={locQuery}
                 onChange={(e) => setLocQuery(e.target.value)}
-                placeholder="Search location ID, zone, type…"
+                placeholder="Search location ID, zone…"
                 className="pl-8 h-8 text-xs"
               />
             </div>
@@ -418,10 +428,17 @@ function MastersPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 text-xs"
+                className="h-8 text-xs gap-1.5"
                 onClick={() => setCsvLocOpen(true)}
               >
-                <Upload className="h-3.5 w-3.5 mr-1.5" /> Import CSV
+                <Upload className="h-3.5 w-3.5" /> Import CSV
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => setEditLoc({} as LocationRecord)}
+              >
+                <Plus className="h-3.5 w-3.5" /> New Location
               </Button>
             </div>
           </div>
@@ -430,20 +447,12 @@ function MastersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[10px] uppercase tracking-wider">
-                    Location ID
-                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Location</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Type</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Zone</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">
-                    Tenant / Client
-                  </TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">Warehouse</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">Capacity</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Occupancy</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Pickable</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">
-                    Allowed Styles
-                  </TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Client</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Notes</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">
                     Actions
@@ -451,91 +460,70 @@ function MastersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {locs.map((l) => {
-                  const pct = locationOccupancyPct(l);
-                  return (
-                    <TableRow key={l.id} className="text-xs">
-                      <TableCell className="font-mono">{l.id}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-mono ${typeStyles[l.type]}`}
+                {locs.map((l) => (
+                  <TableRow key={l.id} className="text-xs">
+                    <TableCell className="font-mono">{l.id}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-mono ${typeStyles[l.type]}`}
+                      >
+                        {l.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono">{l.zone}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Progress value={locationOccupancyPct(l)} className="h-1.5 flex-1" />
+                        <span className="text-[10px] text-muted-foreground w-10 text-right">
+                          {locationOccupancyPct(l)}%
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={l.pickable ? "default" : "outline"} className="text-[10px]">
+                        {l.pickable ? "Yes" : "No"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {l.tenantId
+                        ? (tenants.find((t) => t.id === l.tenantId)?.code ?? l.tenantId)
+                        : "All"}
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                      {l.notes}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          title="Edit location"
+                          onClick={() => setEditLoc(l)}
                         >
-                          {l.type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{l.zone}</TableCell>
-                      <TableCell className="font-mono text-[11px] text-muted-foreground">
-                        {l.tenantId
-                          ? (tenants.find((t) => t.id === l.tenantId)?.code ?? l.tenantId)
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {warehouses.find((w) => w.id === l.warehouseId)?.code ?? l.warehouseId}
-                      </TableCell>
-                      <TableCell className="min-w-[140px]">
-                        <div className="flex items-center gap-2">
-                          <Progress value={pct} className="h-1.5 w-20" />
-                          <span className="font-mono text-[11px] text-muted-foreground">
-                            {l.occupiedPallets}/{l.capacityPallets}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {l.pickable ? (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] bg-chart-3/15 text-chart-3 border-chart-3/30"
-                          >
-                            Yes
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] bg-muted text-muted-foreground"
-                          >
-                            No · excluded from allocation
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-[11px] text-muted-foreground">
-                        {l.allowedItemStyles?.join(", ") ?? "any"}
-                      </TableCell>
-                      <TableCell className="text-[11px] text-muted-foreground">
-                        {l.notes ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            title="Edit location"
-                            onClick={() => setEditLoc(l)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-destructive hover:text-destructive"
-                            title="Delete location"
-                            onClick={() => setToDeleteLoc(l)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          title="Delete location"
+                          onClick={() => setToDeleteLoc(l)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
                 {locs.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={8}
                       className="text-center text-xs text-muted-foreground py-8"
                     >
-                      No locations for the current warehouse filter.
+                      No locations match the current filter.
                     </TableCell>
                   </TableRow>
                 )}
@@ -546,102 +534,71 @@ function MastersPage() {
 
         {/* EXCEPTIONS ------------------------------------------- */}
         <TabsContent value="exceptions" className="space-y-3">
-          {exceptions.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border bg-card px-6 py-10 text-center">
-              <CheckCircle2 className="h-6 w-6 text-chart-3 mx-auto" />
-              <p className="mt-2 text-sm font-medium">
-                All Inbound and Order lines reconcile to Item Master
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Cross-checks executed against {itemMaster.length} item-master records.
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-md border border-border bg-card">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-[10px] uppercase tracking-wider">Scope</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider">Document</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider">Tenant</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider">Reason</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider text-right">
-                      Action
-                    </TableHead>
+          <div className="rounded-md border border-border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Type</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Entity</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Details</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Warehouse</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Client</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {exceptions.map((e, i) => (
+                  <TableRow key={i} className="text-xs">
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-mono bg-destructive/15 text-destructive border-destructive/30"
+                      >
+                        {e.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono">{e.entity}</TableCell>
+                    <TableCell className="max-w-md truncate">{e.details}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {warehouses.find((w) => w.id === e.warehouseId)?.code}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {tenants.find((t) => t.id === e.tenantId)?.code}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {exceptions.map((e, idx) => (
-                    <TableRow
-                      key={`${e.scope}-${e.documentId}-${e.sku}-${idx}`}
-                      className="text-xs"
+                ))}
+                {exceptions.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center text-xs text-muted-foreground py-8"
                     >
-                      <TableCell>
-                        <Badge variant="outline" className="text-[10px] capitalize">
-                          {e.scope}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono">{e.documentId}</TableCell>
-                      <TableCell className="font-mono">{e.sku}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {tenants.find((t) => t.id === e.tenantId)?.code ?? e.tenantId}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] bg-destructive/15 text-destructive border-destructive/30"
-                        >
-                          <Layers className="h-3 w-3 mr-1" /> {e.detail}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-[11px] gap-1.5"
-                          onClick={() =>
-                            setAddDialog({
-                              open: true,
-                              prefill: { sku: e.sku, tenantId: e.tenantId },
-                            })
-                          }
-                        >
-                          <Plus className="h-3 w-3" /> Add to Item Master
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                      No exceptions found. All master data is clean.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </TabsContent>
 
-        {/* ADMIN TOOLS ------------------------------------------- */}
+        {/* ADMIN TOOLS ------------------------------------------ */}
         {isAdmin && (
           <TabsContent value="admin" className="space-y-4">
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-destructive" />
-                  Admin Inventory Cleanup
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Permanently delete a specific inventory batch. Use when the system fails to clear
-                  DROP or staging inventory automatically.
-                </p>
-              </div>
+            <div className="rounded-md border border-border bg-card p-4 space-y-4">
+              <h3 className="text-sm font-semibold">Admin Tools</h3>
+              <p className="text-xs text-muted-foreground">
+                Dangerous actions for cleaning up data from inbound errors.
+              </p>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    SKU
+                    SKU to delete
                   </Label>
                   <Input
                     value={adminSku}
-                    onChange={(e) => setAdminSku(e.target.value.trim())}
-                    placeholder="e.g. ACM-TENT-2P-OLV"
+                    onChange={(e) => setAdminSku(e.target.value)}
+                    placeholder="SKU-ABC-123"
                     className="h-8 text-xs font-mono mt-1"
                   />
                 </div>
@@ -651,8 +608,8 @@ function MastersPage() {
                   </Label>
                   <Input
                     value={adminPalletId}
-                    onChange={(e) => setAdminPalletId(e.target.value.trim())}
-                    placeholder="e.g. PLT-ATL1-00871"
+                    onChange={(e) => setAdminPalletId(e.target.value)}
+                    placeholder="PLT-ATL1-00871"
                     className="h-8 text-xs font-mono mt-1"
                   />
                 </div>
@@ -662,102 +619,51 @@ function MastersPage() {
                   </Label>
                   <Input
                     value={adminLocation}
-                    onChange={(e) => setAdminLocation(e.target.value.trim())}
-                    placeholder="e.g. DROP001 or A12-03-B"
+                    onChange={(e) => setAdminLocation(e.target.value)}
+                    placeholder="A12-03-B"
                     className="h-8 text-xs font-mono mt-1"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Button
                   size="sm"
-                  variant="destructive"
+                  variant="outline"
                   className="h-8 text-xs gap-1.5"
-                  disabled={isDeleting || !adminSku}
+                  disabled={isDeleting || (!adminSku && !adminPalletId && !adminLocation)}
                   onClick={async () => {
                     setIsDeleting(true);
-                    setAdminDeleteResult(null);
                     try {
-                      const res = await deleteInventoryBatch({
+                      const result = await deleteInventoryBatch({
                         sku: adminSku,
                         palletId: adminPalletId || undefined,
                         location: adminLocation || undefined,
+                        user: user?.name || "admin",
                       });
-                      if (res.success) {
-                        setAdminDeleteResult(
-                          `Deleted ${res.deletedCount} batch(es) from SKU ${adminSku}`,
-                        );
-                        setAdminSku("");
-                        setAdminPalletId("");
-                        setAdminLocation("");
-                        toast.success("Inventory batch deleted");
-                      } else {
-                        setAdminDeleteResult(`Error: ${res.error}`);
-                        toast.error(res.error ?? "Delete failed");
-                      }
+                      setAdminDeleteResult(`${result.deletedCount} batches deleted`);
+                      force((n) => n + 1);
+                    } catch (e: any) {
+                      setAdminDeleteResult(`Error: ${e.message}`);
                     } finally {
                       setIsDeleting(false);
                     }
                   }}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  {isDeleting ? "Deleting..." : "Delete Batch"}
+                  {isDeleting ? "Deleting..." : "Delete Inventory Batches"}
                 </Button>
                 {adminDeleteResult && (
-                  <span className="text-[11px] text-muted-foreground">{adminDeleteResult}</span>
+                  <span className="text-xs text-muted-foreground">{adminDeleteResult}</span>
                 )}
               </div>
             </div>
+          </TabsContent>
+        )}
 
-            <div className="rounded-md border border-border bg-card p-4 space-y-3">
-              <div>
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <Database className="h-4 w-4 text-primary" />
-                  Rebuild Location Master from Inventory
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Scans all inventory records and rebuilds the Location Master from actual
-                  locations in use. Removes stale locations that no longer exist in inventory and
-                  updates tenant/warehouse assignments.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="default"
-                  className="h-8 text-xs gap-1.5"
-                  disabled={isRebuilding}
-                  onClick={async () => {
-                    setIsRebuilding(true);
-                    setRebuildResult(null);
-                    try {
-                      const res = await rebuildLocationMasterFromInventory();
-                      if (res.success) {
-                        setRebuildResult(
-                          `Created ${res.created}, updated ${res.updated}, removed ${res.removed} locations`,
-                        );
-                        toast.success("Location Master rebuilt from inventory", {
-                          description: `+${res.created} created · ${res.updated} updated · ${res.removed} stale removed`,
-                        });
-                      } else {
-                        setRebuildResult(`Error: ${res.error}`);
-                        toast.error(res.error ?? "Rebuild failed");
-                      }
-                    } finally {
-                      setIsRebuilding(false);
-                    }
-                  }}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  {isRebuilding ? "Rebuilding..." : "Rebuild Location Master"}
-                </Button>
-                {rebuildResult && (
-                  <span className="text-[11px] text-muted-foreground">{rebuildResult}</span>
-                )}
-              </div>
-            </div>
+        {/* INVENTORY AUDIT TRAIL */}
+        {isAdmin && (
+          <TabsContent value="audit" className="space-y-4">
+            <InventoryAuditTrail />
           </TabsContent>
         )}
       </Tabs>
@@ -1420,6 +1326,231 @@ function Field({
     <div className={`space-y-1 ${className ?? ""}`}>
       <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</Label>
       {children}
+    </div>
+  );
+}
+
+// ============================================================
+// Inventory Audit Trail Component
+// ============================================================
+function InventoryAuditTrail() {
+  const [auditTransactions, setAuditTransactions] = useState<InventoryTransaction[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [auditQuery, setAuditQuery] = useState("");
+  const [auditSku, setAuditSku] = useState("");
+  const [auditDateFrom, setAuditDateFrom] = useState("");
+  const [auditDateTo, setAuditDateTo] = useState("");
+
+  const loadTransactions = async () => {
+    setLoading(true);
+    try {
+      const allTxns = await fetchTransactionHistory();
+      setAuditTransactions(allTxns);
+    } catch (e: any) {
+      toast.error(`Failed to load audit trail: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTransactions();
+  }, []);
+
+  const filteredTransactions = useMemo(() => {
+    return auditTransactions.filter((t) => {
+      if (auditSku && t.sku !== auditSku) return false;
+      if (auditQuery) {
+        const q = auditQuery.toLowerCase();
+        const blob =
+          `${t.sku} ${t.palletId} ${t.location} ${t.user} ${t.notes || ""}`.toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      if (auditDateFrom) {
+        const from = new Date(auditDateFrom);
+        const txnDate = new Date(t.timestamp);
+        if (txnDate < from) return false;
+      }
+      if (auditDateTo) {
+        const to = new Date(auditDateTo);
+        to.setHours(23, 59, 59, 999);
+        const txnDate = new Date(t.timestamp);
+        if (txnDate > to) return false;
+      }
+      return true;
+    });
+  }, [auditTransactions, auditQuery, auditSku, auditDateFrom, auditDateTo]);
+
+  const exportAuditCsv = () => {
+    const headers = [
+      "Timestamp",
+      "SKU",
+      "Pallet ID",
+      "Location",
+      "Type",
+      "Qty Change",
+      "Qty Before",
+      "Qty After",
+      "User",
+      "Order ID",
+      "Pick Ticket",
+      "Notes",
+    ];
+    const lines = [headers.join(",")];
+    for (const t of filteredTransactions) {
+      lines.push(
+        [
+          fmtDateYear(t.timestamp),
+          t.sku,
+          t.palletId,
+          t.location,
+          t.type,
+          t.qtyChange,
+          t.qtyBefore,
+          t.qtyAfter,
+          t.user,
+          t.orderId || "",
+          t.pickTicketNum ? `PT-${t.pickTicketNum}` : "",
+          t.notes || "",
+        ].join(","),
+      );
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `azux-inventory-audit-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Audit trail exported", {
+      description: `${filteredTransactions.length} records · ready for download`,
+    });
+  };
+
+  const typeColors: Record<string, string> = {
+    RECEIVE: "bg-chart-3/15 text-chart-3 border-chart-3/30",
+    PICK: "bg-destructive/15 text-destructive border-destructive/30",
+    ALLOCATE: "bg-chart-1/15 text-chart-1 border-chart-1/30",
+    REALLOCATE: "bg-primary/15 text-primary border-primary/30",
+    SHIP: "bg-muted/15 text-muted-foreground border-border",
+    ADJUST: "bg-chart-4/15 text-chart-4 border-chart-4/30",
+    PUTAWAY: "bg-chart-2/15 text-chart-2 border-chart-2/30",
+    MOVE: "bg-chart-5/15 text-chart-5 border-chart-5/30",
+    DELETE: "bg-destructive/15 text-destructive border-destructive/30",
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold">Inventory Audit Trail</h3>
+          <p className="text-xs text-muted-foreground">
+            Complete audit log of all inventory changes: putaway, move, delete, allocate, update
+          </p>
+        </div>
+        <Button size="sm" className="h-8 text-xs gap-1.5" onClick={exportAuditCsv}>
+          <Download className="h-3.5 w-3.5" /> Export Audit Report
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={auditQuery}
+            onChange={(e) => setAuditQuery(e.target.value)}
+            placeholder="Search SKU, pallet, location, user…"
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+        <Input
+          value={auditSku}
+          onChange={(e) => setAuditSku(e.target.value)}
+          placeholder="SKU filter…"
+          className="h-8 text-xs font-mono w-48"
+        />
+        <Input
+          type="date"
+          value={auditDateFrom}
+          onChange={(e) => setAuditDateFrom(e.target.value)}
+          className="h-8 text-xs w-36"
+        />
+        <Input
+          type="date"
+          value={auditDateTo}
+          onChange={(e) => setAuditDateTo(e.target.value)}
+          className="h-8 text-xs w-36"
+        />
+      </div>
+
+      <div className="rounded-md border border-border bg-card overflow-hidden">
+        <div className="max-h-96 overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40 sticky top-0">
+              <tr className="text-[10px] uppercase tracking-wider">
+                <th className="text-left p-2 font-normal">Timestamp</th>
+                <th className="text-left p-2 font-normal">SKU</th>
+                <th className="text-left p-2 font-normal">Pallet / Location</th>
+                <th className="text-left p-2 font-normal">Type</th>
+                <th className="text-right p-2 font-normal">Change</th>
+                <th className="text-right p-2 font-normal">Before → After</th>
+                <th className="text-left p-2 font-normal">User</th>
+                <th className="text-left p-2 font-normal">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-4 text-muted-foreground">
+                    Loading audit trail…
+                  </td>
+                </tr>
+              ) : filteredTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-4 text-muted-foreground">
+                    No audit records match the current filters.
+                  </td>
+                </tr>
+              ) : (
+                filteredTransactions.map((t) => (
+                  <tr key={t.id} className="border-t border-border">
+                    <td className="p-2 text-[11px] tabular-nums">{fmtDateYear(t.timestamp)}</td>
+                    <td className="p-2 font-mono">{t.sku}</td>
+                    <td className="p-2 font-mono text-[11px]">
+                      <div>{t.palletId}</div>
+                      <div className="text-[10px] text-muted-foreground">{t.location}</div>
+                    </td>
+                    <td className="p-2">
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-sm border ${typeColors[t.type] || "bg-muted/15"}`}
+                      >
+                        {t.type}
+                      </span>
+                    </td>
+                    <td className="p-2 text-right tabular-nums">
+                      {t.qtyChange > 0 ? "+" : ""}
+                      {t.qtyChange}
+                    </td>
+                    <td className="p-2 text-right tabular-nums">
+                      {t.qtyBefore} → {t.qtyAfter}
+                    </td>
+                    <td className="p-2 font-mono">{t.user}</td>
+                    <td
+                      className="p-2 text-[11px] text-muted-foreground truncate max-w-48"
+                      title={t.notes}
+                    >
+                      {t.notes || "—"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

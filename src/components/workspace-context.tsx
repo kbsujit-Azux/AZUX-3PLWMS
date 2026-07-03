@@ -31,7 +31,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <Ctx.Provider value={{ tenantId, setTenantId, warehouseId, setWarehouseId, strategy, setStrategy, theme, toggleTheme }}>
+    <Ctx.Provider
+      value={{
+        tenantId,
+        setTenantId,
+        warehouseId,
+        setWarehouseId,
+        strategy,
+        setStrategy,
+        theme,
+        toggleTheme,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );

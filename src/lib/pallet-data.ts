@@ -3,25 +3,26 @@ import { warehouses, inventoryItems, type InventoryItem } from "./mock-data";
 export type PalletStatus = "building" | "staged" | "putaway" | "picking" | "shipped";
 
 export type Pallet = {
-  id: string;                 // Unique pallet license plate
-  itemStyle: string;          // Pallet grouping key
+  id: string; // Unique pallet license plate
+  itemStyle: string; // Pallet grouping key
   tenantId: string;
   warehouseId: string;
   sku: string;
   description: string;
   units: number;
-  capacityUnits: number;      // Max units this pallet config can hold
-  casePack: number;           // Units per case (EDI 832 PO4 / item master)
+  capacityUnits: number; // Max units this pallet config can hold
+  casePack: number; // Units per case (EDI 832 PO4 / item master)
   weightLbs: number;
   builtAt: string;
   builtBy: string;
   poNumber: string;
+  container?: string; // Optional container reference
   ediSource: "EDI_943" | "EDI_944" | "CSV" | "MANUAL";
   status: PalletStatus;
-  location: string | null;    // Aisle-Shelf-Bin when putaway complete
-  suggestedLocation: string;  // Directed putaway suggestion
+  location: string | null; // Aisle-Shelf-Bin when putaway complete
+  suggestedLocation: string; // Directed putaway suggestion
   zone: "A" | "B" | "C" | "D" | "E" | "F" | "G";
-  receivedAt: string;         // For LIFO/FIFO ordering
+  receivedAt: string; // For LIFO/FIFO ordering
 };
 
 const ts = (d: string) => new Date(d).toISOString();
@@ -30,9 +31,7 @@ const ts = (d: string) => new Date(d).toISOString();
 export function suggestPutawayLocation(itemStyle: string, warehouseId: string): string {
   // In production this consults the warehouse slotting map (velocity, weight,
   // zone affinity, cube). Deterministic mock based on style + warehouse.
-  const styleHash = itemStyle
-    .split("")
-    .reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const styleHash = itemStyle.split("").reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
   const zones = ["A", "B", "C", "D", "E", "F", "G"];
   const zone = zones[styleHash % zones.length];
   const aisle = ((styleHash >> 3) % 18) + 1;
@@ -46,8 +45,9 @@ function buildSeedPallets(): Pallet[] {
   const out: Pallet[] = [];
   for (const item of inventoryItems) {
     for (const b of item.batches) {
-      const zoneChar = (suggestPutawayLocation(item.itemStyle, item.warehouseId)
-        .split("·")[1]?.[0] ?? "A") as Pallet["zone"];
+      const zoneChar = (suggestPutawayLocation(item.itemStyle, item.warehouseId).split(
+        "·",
+      )[1]?.[0] ?? "A") as Pallet["zone"];
       out.push({
         id: b.palletId,
         itemStyle: item.itemStyle,
@@ -75,16 +75,31 @@ function buildSeedPallets(): Pallet[] {
   // A few in-flight pallets to demo the building / staging states
   const inFlight: Pallet[] = [
     seedPallet({
-      id: "PLT-ATL1-00973", item: inventoryItems[0], status: "building", units: 36, builtAt: "2026-05-19T08:15:00Z",
-      poNumber: "PO-554120", ediSource: "EDI_943",
+      id: "PLT-ATL1-00973",
+      item: inventoryItems[0],
+      status: "building",
+      units: 36,
+      builtAt: "2026-05-19T08:15:00Z",
+      poNumber: "PO-554120",
+      ediSource: "EDI_943",
     }),
     seedPallet({
-      id: "PLT-ORD2-01302", item: inventoryItems[2], status: "staged", units: 240, builtAt: "2026-05-19T07:42:00Z",
-      poNumber: "PO-770221", ediSource: "EDI_943",
+      id: "PLT-ORD2-01302",
+      item: inventoryItems[2],
+      status: "staged",
+      units: 240,
+      builtAt: "2026-05-19T07:42:00Z",
+      poNumber: "PO-770221",
+      ediSource: "EDI_943",
     }),
     seedPallet({
-      id: "PLT-EWR1-00421", item: inventoryItems[4], status: "picking", units: 300, builtAt: "2026-05-19T07:05:00Z",
-      poNumber: "PO-310995", ediSource: "EDI_944",
+      id: "PLT-EWR1-00421",
+      item: inventoryItems[4],
+      status: "picking",
+      units: 300,
+      builtAt: "2026-05-19T07:05:00Z",
+      poNumber: "PO-310995",
+      ediSource: "EDI_944",
     }),
   ];
 
@@ -267,8 +282,48 @@ export function buildPickWave(
 
 /** Mock open pick waves for the directed picking screen */
 export const pickWaves: Omit<PickWave, "instructions">[] = [
-  { id: "WAVE-2026-0519-001", orderId: "SO-770412", poNumber: "PO-770412", tenantId: "northstar",  warehouseId: "ord2", carrier: "UPS",   releasedAt: "2026-05-19T07:10:00Z", status: "in-progress", assignee: "R. Alvarez" },
-  { id: "WAVE-2026-0519-002", orderId: "SO-310995", poNumber: "PO-310995", tenantId: "harborlite", warehouseId: "ewr1", carrier: "FedEx", releasedAt: "2026-05-19T06:55:00Z", status: "in-progress", assignee: "M. Chen" },
-  { id: "WAVE-2026-0519-003", orderId: "SO-554120", poNumber: "PO-554120", tenantId: "acme",       warehouseId: "atl1", carrier: "FedEx", releasedAt: "2026-05-19T06:30:00Z", status: "released",    assignee: "Unassigned" },
-  { id: "WAVE-2026-0518-022", orderId: "SO-220116", poNumber: "PO-220116", tenantId: "verdant",    warehouseId: "atl1", carrier: "USPS",  releasedAt: "2026-05-18T22:40:00Z", status: "complete",    assignee: "J. Okafor" },
+  {
+    id: "WAVE-2026-0519-001",
+    orderId: "SO-770412",
+    poNumber: "PO-770412",
+    tenantId: "northstar",
+    warehouseId: "ord2",
+    carrier: "UPS",
+    releasedAt: "2026-05-19T07:10:00Z",
+    status: "in-progress",
+    assignee: "R. Alvarez",
+  },
+  {
+    id: "WAVE-2026-0519-002",
+    orderId: "SO-310995",
+    poNumber: "PO-310995",
+    tenantId: "harborlite",
+    warehouseId: "ewr1",
+    carrier: "FedEx",
+    releasedAt: "2026-05-19T06:55:00Z",
+    status: "in-progress",
+    assignee: "M. Chen",
+  },
+  {
+    id: "WAVE-2026-0519-003",
+    orderId: "SO-554120",
+    poNumber: "PO-554120",
+    tenantId: "acme",
+    warehouseId: "atl1",
+    carrier: "FedEx",
+    releasedAt: "2026-05-19T06:30:00Z",
+    status: "released",
+    assignee: "Unassigned",
+  },
+  {
+    id: "WAVE-2026-0518-022",
+    orderId: "SO-220116",
+    poNumber: "PO-220116",
+    tenantId: "verdant",
+    warehouseId: "atl1",
+    carrier: "USPS",
+    releasedAt: "2026-05-18T22:40:00Z",
+    status: "complete",
+    assignee: "J. Okafor",
+  },
 ];
