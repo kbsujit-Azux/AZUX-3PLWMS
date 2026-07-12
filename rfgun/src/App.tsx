@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef, type FormEvent } from "react"
 import { toast } from "sonner";
 import { db } from "@shared/lib/firestore";
 import { collection, getDocs, getDoc, doc, updateDoc, addDoc, query, where, limit, orderBy, runTransaction, serverTimestamp } from "firebase/firestore";
-import { PackageSearch, MoveRight, ClipboardList, Container, ScanLine, History, LogOut, ArrowLeft, CheckCircle2, AlertTriangle, MapPin, Boxes, Warehouse } from "lucide-react";
+import { hashPassword, verifyPassword } from "@shared/lib/password-utils";
+import { PackageSearch, MoveRight, ClipboardList, Container, ScanLine, History, LogOut, ArrowLeft, CheckCircle2, AlertTriangle, MapPin, Boxes, Warehouse, Camera, CameraOff, X } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface Employee { badgeId: string; name: string; role: string; assignedClientId: string; assignedWarehouseId: string; active: boolean; }
@@ -18,12 +19,16 @@ function useRfSession() {
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(false);
 
-  const setBadgeId = useCallback((id: string) => {
+  const setBadgeId = useCallback((id: string, password?: string) => {
     _setBadgeId(id);
+    if (password) {
+      localStorage.setItem("azux.rf.password", password);
+    }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    const storedPassword = localStorage.getItem("azux.rf.password") || "";
     if (!badgeId) { setVerified(false); setEmployee(null); return; }
     setLoading(true);
     getDocs(query(collection(db, "employees"), where("badgeId", "==", badgeId), limit(1)))
@@ -31,14 +36,35 @@ function useRfSession() {
         if (cancelled) return;
         const d = snap.docs[0];
         if (d) {
-          const data = d.data() as Omit<Employee, "id">;
-          setEmployee({ id: d.id, ...data } as Employee);
-          setVerified(true);
-          localStorage.setItem("azux.rf.badgeId", badgeId);
+          const data = d.data() as any;
+          const storedHash = data.passwordHash || "";
+          if (storedPassword && storedHash) {
+            verifyPassword(storedPassword, storedHash).then((valid) => {
+              if (cancelled) return;
+              if (valid) {
+                const emp: Employee = { id: d.id, ...data } as Employee;
+                setEmployee(emp);
+                setVerified(true);
+                localStorage.setItem("azux.rf.badgeId", badgeId);
+              } else {
+                setEmployee(null);
+                setVerified(false);
+                localStorage.removeItem("azux.rf.badgeId");
+                localStorage.removeItem("azux.rf.password");
+                toast.error("Invalid credentials", { description: "Badge ID or PIN is incorrect." });
+              }
+            });
+          } else {
+            setEmployee(null);
+            setVerified(false);
+            toast.error("Invalid credentials", { description: "Badge ID or PIN is incorrect." });
+          }
         } else {
           setEmployee(null);
           setVerified(false);
           localStorage.removeItem("azux.rf.badgeId");
+          localStorage.removeItem("azux.rf.password");
+          toast.error("Invalid credentials", { description: "Badge ID or PIN is incorrect." });
         }
       })
       .catch(() => { if (!cancelled) { setVerified(false); setEmployee(null); } })
@@ -46,7 +72,7 @@ function useRfSession() {
     return () => { cancelled = true; };
   }, [badgeId]);
 
-  const logout = useCallback(() => { _setBadgeId(""); setEmployee(null); setVerified(false); localStorage.removeItem("azux.rf.badgeId"); }, []);
+  const logout = useCallback(() => { _setBadgeId(""); setEmployee(null); setVerified(false); localStorage.removeItem("azux.rf.badgeId"); localStorage.removeItem("azux.rf.password"); }, []);
 
   return { badgeId, employee, loading, verified, setBadgeId, logout };
 }
@@ -94,6 +120,176 @@ function playChime(type: "ok" | "err") {
     osc.start();
     osc.stop(ctx.currentTime + 0.12);
   } catch { /* no audio */ }
+}
+
+// ─── Camera Scanner Hook ────────────────────────────────────────────────────
+function useCameraScanner(onScan: (code: string) => void) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string>("");
+  const [flash, setFlash] = useState(false);
+  const rafRef = useRef<number>(0);
+  const lastScanRef = useRef<string>("");
+  const scanCooldownRef = useRef<number>(0);
+
+  const startCamera = useCallback(async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 }, zoom: 2.0 },
+      });
+      setStream(mediaStream);
+      setError("");
+      setScanning(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        videoRef.current.setAttribute("playsinline", "");
+        videoRef.current.play();
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Camera access denied";
+      setError(msg);
+      toast.error("Camera error", { description: msg });
+    }
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      setStream(null);
+    }
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    setScanning(false);
+  }, [stream]);
+
+  const tick = useCallback(async () => {
+    if (!scanning || !videoRef.current || !canvasRef.current || !videoRef.current.videoWidth) {
+      rafRef.current = requestAnimationFrame(tick);
+      return;
+    }
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { rafRef.current = requestAnimationFrame(tick); return; }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    try {
+      if ("BarcodeDetector" in window && video.readyState >= 2) {
+        const detector = new (window as unknown as Record<string, unknown>).BarcodeDetector({ formats: ["code_128"] });
+        const barcodes = await (detector as { detect: (input: HTMLCanvasElement) => Promise<Array<{ rawValue: string; boundingBox?: DOMRectReadOnly }>> }).detect(canvas);
+        const now = Date.now();
+        for (const barcode of barcodes) {
+          if (barcode.rawValue && barcode.rawValue !== lastScanRef.current && now - scanCooldownRef.current > 2000) {
+            lastScanRef.current = barcode.rawValue;
+            scanCooldownRef.current = now;
+            setFlash(true);
+            setTimeout(() => setFlash(false), 200);
+            onScan(barcode.rawValue);
+            break;
+          }
+        }
+      }
+    } catch { /* barcode detection failed for this frame */ }
+
+    rafRef.current = requestAnimationFrame(tick);
+  }, [scanning, onScan]);
+
+  useEffect(() => {
+    if (scanning) {
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [scanning, tick]);
+
+  useEffect(() => {
+    return () => {
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [stream]);
+
+  return { videoRef, canvasRef, stream, scanning, error, flash, startCamera, stopCamera };
+}
+
+// ─── Shared UI ──────────────────────────────────────────────────────────────
+function CameraOverlay({ videoRef, canvasRef, stream, scanning, flash, onStart, onStop, error }: { videoRef: React.RefObject<HTMLVideoElement | null>; canvasRef: React.RefObject<HTMLCanvasElement | null>; stream: MediaStream | null; scanning: boolean; flash: boolean; onStart: () => void; onStop: () => void; error: string; }) {
+  return (
+    <div className="relative rounded-lg overflow-hidden bg-black aspect-[3/4] sm:aspect-video">
+      {!stream && !error && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 space-y-3">
+          <Camera className="h-10 w-10" />
+          <p className="text-xs">Camera preview</p>
+          <button onClick={onStart} className="px-4 py-2 bg-emerald-600 text-white rounded-md text-xs font-semibold">Enable Camera</button>
+        </div>
+      )}
+      {error && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 space-y-2 p-4">
+          <CameraOff className="h-8 w-8 text-red-400" />
+          <p className="text-xs text-center">{error}</p>
+        </div>
+      )}
+      <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+      <canvas ref={canvasRef} className="hidden" />
+      {scanning && (
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-x-0 top-0 h-[38%] bg-gradient-to-b from-black/60 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-[38%] bg-gradient-to-t from-black/60 to-transparent" />
+          <div className="absolute inset-x-0 top-0 bottom-0 flex items-center justify-center">
+            <div className="relative w-[82%] h-[24%]">
+              <div className="absolute inset-0 border border-emerald-400/60 rounded-sm" />
+              <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-emerald-400 rounded-tl-sm" />
+              <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-emerald-400 rounded-tr-sm" />
+              <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-emerald-400 rounded-bl-sm" />
+              <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-emerald-400 rounded-br-sm" />
+              <div className="absolute inset-x-2 top-0 h-px bg-emerald-400/40 animate-[scanline_1.2s_ease-in-out_infinite]" style={{animationName: 'scanline', animationDuration: '1.2s', animationTimingFunction: 'ease-in-out', animationIterationCount: 'infinite'}} />
+            </div>
+          </div>
+          <div className="absolute top-4 left-4 px-2 py-1 bg-emerald-600 text-white text-[10px] rounded font-medium">SCANNING UCC-128</div>
+        </div>
+      )}
+      {flash && (
+        <div className="absolute inset-0 bg-emerald-400/20 pointer-events-none" />
+      )}
+      {stream && !scanning && (
+        <button onClick={onStart} className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-emerald-600 text-white rounded-md text-xs font-semibold flex items-center gap-2">
+          <ScanLine className="h-3 w-3" /> Start Scanner
+        </button>
+      )}
+      {scanning && (
+        <button onClick={onStop} className="absolute top-4 right-4 p-2 bg-red-600 text-white rounded-full">
+          <X className="h-4 w-4" />
+        </button>
+      )}
+      <style>{`
+        @keyframes scanline {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(calc(24vh - 1px)); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function useBarcodeInput(onScan: (code: string) => void, placeholder = "Scan or enter barcode") {
+  const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const handleKey = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      const val = input.trim();
+      if (val) { onScan(val); setInput(""); }
+    }
+  }, [input, onScan]);
+
+  return { input, setInput, inputRef, handleKey, placeholder };
 }
 
 // ─── Screens ────────────────────────────────────────────────────────────────
@@ -156,12 +352,23 @@ function PutawayScreen({ employee }: { employee: Employee }) {
     finally { setBusy(false); }
   }, [pallet, location, employee, busy]);
 
+  const scanner = useCameraScanner((code) => {
+    if (step === "scan-pallet") handlePallet(code);
+    else if (step === "scan-location") handleLoc(code);
+  });
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <div className="flex items-center gap-2"><PackageSearch className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Directed Putaway</h1></div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
-      {step === "scan-pallet" && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">1. Scan Pallet ID</p><input ref={palletRef} autoFocus placeholder="Scan pallet barcode" className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" onKeyDown={(e) => { if (e.key === "Enter") handlePallet((e.target as HTMLInputElement).value.trim()); }} /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => handlePallet((palletRef.current?.value ?? "").trim())} disabled={busy}><ScanLine className="h-4 w-4 inline mr-2" />Look Up Pallet</button></div>)}
-      {step === "scan-location" && pallet && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400 space-y-1"><div className="flex items-center gap-2"><Boxes className="h-3 w-3" /><span className="font-mono">{pallet.id}</span></div><div>{pallet.description} · {pallet.units} units</div><div className="text-emerald-400">SCAN TARGET LOCATION →</div></div><p className="text-xs text-slate-300">2. Scan Destination Location ID</p><input autoFocus placeholder="e.g. A12-03-B" value={locInput} onChange={(e) => setLocInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLoc(e.currentTarget.value.trim()); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => handleLoc(locInput.trim())} disabled={busy}><MapPin className="h-4 w-4 inline mr-2" />Verify Location</button><button className="w-full text-slate-400 text-xs" onClick={() => { setStep("scan-pallet"); setPallet(null); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
+      {(step === "scan-pallet" || step === "scan-location") && (
+        <div className="space-y-3">
+          <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
+          <div className="text-center text-[10px] text-slate-500">or use manual input below</div>
+        </div>
+      )}
+      {step === "scan-pallet" && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">1. Scan Pallet ID</p><input ref={palletRef} placeholder="Scan pallet barcode" className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" onKeyDown={(e) => { if (e.key === "Enter") handlePallet((e.target as HTMLInputElement).value.trim()); }} /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => handlePallet((palletRef.current?.value ?? "").trim())} disabled={busy}><ScanLine className="h-4 w-4 inline mr-2" />Look Up Pallet</button></div>)}
+      {step === "scan-location" && pallet && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400 space-y-1"><div className="flex items-center gap-2"><Boxes className="h-3 w-3" /><span className="font-mono">{pallet.id}</span></div><div>{pallet.description} · {pallet.units} units</div><div className="text-emerald-400">SCAN TARGET LOCATION →</div></div><p className="text-xs text-slate-300">2. Scan Destination Location ID</p><input autoFocus placeholder="e.g. A12-03-B" value={locInput} onChange={(e) => setLocInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLoc(e.currentTarget.value.trim()); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => handleLoc(locInput.trim())} disabled={busy}><MapPin className="h-4 w-4 inline mr-2" />Verify Location</button><button className="w-full text-slate-400 text-xs" onClick={() => { setStep("scan-pallet"); setPallet(null); setError(""); scanner.stopScanning(); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
       {step === "confirm" && pallet && location && (<div className="border border-emerald-500/50 bg-emerald-950/20 rounded-md p-4 space-y-3"><div className="flex items-center gap-2 text-emerald-400 text-xs"><CheckCircle2 className="h-4 w-4" /><span className="font-medium">Ready to confirm</span></div><div className="text-xs text-slate-300 space-y-1"><div>Pallet: <span className="font-mono text-white">{pallet.id}</span></div><div>SKU: <span className="font-mono text-white">{pallet.sku}</span></div><div>Units: <span className="font-mono text-white">{pallet.units}</span></div><div>From: <span className="font-mono text-amber-400">{pallet.location ?? "staged"}</span></div><div>To: <span className="font-mono text-emerald-400">{location}</span></div></div><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirm} disabled={busy}>{busy ? "Committing…" : "Confirm Putaway"}</button><button className="w-full text-slate-400 text-xs" onClick={() => { setStep("scan-location"); setLocation(""); setLocInput(""); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
     </div>
   );
@@ -226,12 +433,20 @@ function MoveScreen({ employee }: { employee: Employee }) {
     finally { setBusy(false); }
   }, [pallet, origin, dest, employee, busy]);
 
+  const scanner = useCameraScanner((code) => {
+    if (step === "scan-origin") handleOrigin(code);
+    else if (step === "scan-dest") handleDest(code);
+  });
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <div className="flex items-center gap-2"><MoveRight className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Move Pallet</h1></div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
+      {(step === "scan-origin" || step === "scan-dest") && (
+        <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
+      )}
       {step === "scan-origin" && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">1. Scan Origin Location</p><input autoFocus placeholder="Scan origin location" className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" onKeyDown={(e) => { if (e.key === "Enter") handleOrigin(e.currentTarget.value.trim()); }} /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => { const v = (document.activeElement as HTMLInputElement)?.value?.trim() || ""; handleOrigin(v); }} disabled={busy}><MapPin className="h-4 w-4 inline mr-2" />Verify Origin</button></div>)}
-      {step === "scan-dest" && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400">Origin: <span className="font-mono text-white">{origin}</span> · Pallet: <span className="font-mono text-white">{pallet?.id}</span></div><p className="text-xs text-slate-300">2. Scan Destination Location</p><input autoFocus placeholder="Scan destination" className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" onKeyDown={(e) => { if (e.key === "Enter") handleDest(e.currentTarget.value.trim()); }} /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => { const v = (document.activeElement as HTMLInputElement)?.value?.trim() || ""; handleDest(v); }} disabled={busy}><MapPin className="h-4 w-4 inline mr-2" />Verify Destination</button><button className="w-full text-slate-400 text-xs" onClick={() => { setStep("scan-origin"); setPallet(null); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
+      {step === "scan-dest" && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400">Origin: <span className="font-mono text-white">{origin}</span> · Pallet: <span className="font-mono text-white">{pallet?.id}</span></div><p className="text-xs text-slate-300">2. Scan Destination Location</p><input autoFocus placeholder="Scan destination" className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" onKeyDown={(e) => { if (e.key === "Enter") handleDest(e.currentTarget.value.trim()); }} /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => { const v = (document.activeElement as HTMLInputElement)?.value?.trim() || ""; handleDest(v); }} disabled={busy}><MapPin className="h-4 w-4 inline mr-2" />Verify Destination</button><button className="w-full text-slate-400 text-xs" onClick={() => { setStep("scan-origin"); setPallet(null); setError(""); scanner.stopScanning(); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
       {step === "confirm" && (<div className="border border-emerald-500/50 bg-emerald-950/20 rounded-md p-4 space-y-3"><div className="flex items-center gap-2 text-emerald-400 text-xs"><CheckCircle2 className="h-4 w-4" /><span className="font-medium">Confirm Move</span></div><div className="text-xs text-slate-300 space-y-1"><div>Pallet: <span className="font-mono text-white">{pallet?.id}</span></div><div>{origin} → {dest}</div></div><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirm} disabled={busy}>{busy ? "Moving…" : "Confirm Move"}</button><button className="w-full text-slate-400 text-xs" onClick={() => { setStep("scan-dest"); setDest(""); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
     </div>
   );
@@ -273,11 +488,18 @@ function PickScreen({ employee }: { employee: Employee }) {
     finally { setBusy(false); }
   }, [ticket, qty, employee, busy]);
 
+  const scanner = useCameraScanner((code) => { setTicketId(code); });
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Directed Pick</h1></div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
-      {!ticket ? (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Enter Pick Ticket #</p><input autoFocus placeholder="Ticket number" value={ticketId} onChange={(e) => setTicketId(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup} disabled={busy}>{busy ? "Loading…" : "Lookup Ticket"}</button></div>) : (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400 space-y-1"><div>Ticket: <span className="font-mono text-white">{ticket.number}</span></div><div>SKU: <span className="font-mono text-white">{ticket.sku}</span></div><div>Ordered: <span className="font-mono text-white">{ticket.qtyOrdered}</span> · Picked: <span className="font-mono text-white">{ticket.qtyPicked}</span></div><div>Location: <span className="font-mono text-white">{ticket.locationId ?? "—"}</span></div></div><p className="text-xs text-slate-300">Pick Quantity</p><input autoFocus placeholder="Qty" type="number" value={qty} onChange={(e) => setQty(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmPick(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirmPick} disabled={busy}>{busy ? "Picking…" : "Confirm Pick"}</button><button className="w-full text-slate-400 text-xs" onClick={() => { setTicket(null); setQty(""); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
+      {!ticket ? (
+        <div className="space-y-3">
+          <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
+          <div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Enter Pick Ticket #</p><input autoFocus placeholder="Ticket number" value={ticketId} onChange={(e) => setTicketId(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup} disabled={busy}>{busy ? "Loading…" : "Lookup Ticket"}</button></div>
+        </div>
+      ) : (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400 space-y-1"><div>Ticket: <span className="font-mono text-white">{ticket.number}</span></div><div>SKU: <span className="font-mono text-white">{ticket.sku}</span></div><div>Ordered: <span className="font-mono text-white">{ticket.qtyOrdered}</span> · Picked: <span className="font-mono text-white">{ticket.qtyPicked}</span></div><div>Location: <span className="font-mono text-white">{ticket.locationId ?? "—"}</span></div></div><p className="text-xs text-slate-300">Pick Quantity</p><input autoFocus placeholder="Qty" type="number" value={qty} onChange={(e) => setQty(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmPick(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirmPick} disabled={busy}>{busy ? "Picking…" : "Confirm Pick"}</button><button className="w-full text-slate-400 text-xs" onClick={() => { setTicket(null); setQty(""); setError(""); scanner.stopScanning(); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
     </div>
   );
 }
@@ -336,11 +558,18 @@ function ReceivingScreen({ employee }: { employee: Employee }) {
     finally { setBusy(false); }
   }, [shipment, lines, received, employee, busy]);
 
+  const scanner = useCameraScanner((code) => setShipmentId(code));
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <div className="flex items-center gap-2"><Container className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Dock Receiving</h1></div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
-      {!shipment ? (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Scan Container / ASN</p><input autoFocus placeholder="Shipment or ASN #" value={shipmentId} onChange={(e) => setShipmentId(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup} disabled={busy}>{busy ? "Loading…" : "Lookup Shipment"}</button></div>) : (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400">Shipment: <span className="font-mono text-white">{shipment.id}</span></div>{lines.map((line: any) => { const sku = line.sku || line.itemCode; const qty = received[sku] || 0; const max = line.qtyExpected || line.qty || 999; return (<div key={sku} className="flex items-center justify-between text-xs"><div><div className="font-mono text-white">{sku}</div><div className="text-slate-500">Expected: {max}</div></div><div className="flex items-center gap-2"><button className="h-8 w-8 rounded border border-slate-700 bg-slate-800 text-white" onClick={() => updateReceived(sku, -1)}>-</button><span className="font-mono text-white w-8 text-center">{qty}</span><button className="h-8 w-8 rounded border border-slate-700 bg-slate-800 text-white" onClick={() => updateReceived(sku, 1)} disabled={qty >= max}>+</button></div></div>); })}<button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirmReceiving} disabled={busy}>{busy ? "Receiving…" : "Confirm Receipt"}</button><button className="w-full text-slate-400 text-xs" onClick={() => { setShipment(null); setLines([]); setReceived({}); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
+      {!shipment ? (
+        <div className="space-y-3">
+          <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
+          <div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Scan Container / ASN</p><input autoFocus placeholder="Shipment or ASN #" value={shipmentId} onChange={(e) => setShipmentId(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup} disabled={busy}>{busy ? "Loading…" : "Lookup Shipment"}</button></div>
+        </div>
+      ) : (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400">Shipment: <span className="font-mono text-white">{shipment.id}</span></div>{lines.map((line: any) => { const sku = line.sku || line.itemCode; const qty = received[sku] || 0; const max = line.qtyExpected || line.qty || 999; return (<div key={sku} className="flex items-center justify-between text-xs"><div><div className="font-mono text-white">{sku}</div><div className="text-slate-500">Expected: {max}</div></div><div className="flex items-center gap-2"><button className="h-8 w-8 rounded border border-slate-700 bg-slate-800 text-white" onClick={() => updateReceived(sku, -1)}>-</button><span className="font-mono text-white w-8 text-center">{qty}</span><button className="h-8 w-8 rounded border border-slate-700 bg-slate-800 text-white" onClick={() => updateReceived(sku, 1)} disabled={qty >= max}>+</button></div></div>); })}<button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirmReceiving} disabled={busy}>{busy ? "Receiving…" : "Confirm Receipt"}</button><button className="w-full text-slate-400 text-xs" onClick={() => { setShipment(null); setLines([]); setReceived({}); setError(""); scanner.stopScanning(); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
     </div>
   );
 }
@@ -376,12 +605,17 @@ function InquiryScreen({ employee }: { employee: Employee }) {
     } catch (e: unknown) { setResult(e instanceof Error ? e.message : "Lookup failed"); setDetail([]); playChime("err"); }
   }, [mode, input, employee]);
 
+  const scanner = useCameraScanner((code) => { setInput(code); });
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <div className="flex items-center gap-2"><ScanLine className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Inquiry</h1></div>
       <div className="flex gap-2 text-xs">
         {(["pallet", "location", "sku"] as const).map((m) => (<button key={m} className={`flex-1 py-2 rounded border ${mode === m ? "border-emerald-500 bg-emerald-950/30 text-emerald-400" : "border-slate-800 text-slate-400"}`} onClick={() => setMode(m)}>{m.toUpperCase()}</button>))}
       </div>
+      {(mode === "pallet" || mode === "location") && (
+        <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
+      )}
       <div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Scan / enter {mode}</p><input autoFocus placeholder={mode === "pallet" ? "Pallet ID" : mode === "location" ? "Location ID" : "SKU / UPC"} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup}>Lookup</button></div>
       {result && (<div className="border border-slate-800 bg-slate-900 rounded-md p-3 space-y-1"><div className="text-xs font-medium text-white">{result}</div>{detail.map((d, i) => (<div key={i} className="text-[11px] text-slate-300 font-mono">{d}</div>))}</div>)}
     </div>
@@ -404,9 +638,12 @@ function HistoryScreen({ employee }: { employee: Employee }) {
     finally { setLoading(false); }
   }, [employee, input]);
 
+  const scanner = useCameraScanner((code) => { setInput(code); });
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <div className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Item History</h1></div>
+      <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
       <div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Scan SKU / UPC / Item Code</p><input ref={ref} autoFocus placeholder="SKU or UPC" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup} disabled={loading}>{loading ? "Loading…" : "Lookup History"}</button></div>
       {entries.length > 0 && (<div className="space-y-2"><div className="text-[10px] uppercase tracking-wider text-slate-500">Last {entries.length} movements</div>{entries.map((e) => (<div key={e.movementId} className="border border-slate-800 bg-slate-900 rounded-md p-3 space-y-1"><div className="flex items-center justify-between"><span className="text-[10px] font-mono text-emerald-400">{e.type}</span><span className="text-[10px] text-slate-500">{e.timestamp.toLocaleString?.("en-US", { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) ?? "—"}</span></div><div className="text-[11px] text-slate-300 font-mono space-y-0.5"><div>Item: {e.itemCode}</div><div>{e.fromLocationId || "—"} → {e.toLocationId || "—"}</div><div>Qty: {e.movedQty} {e.uom} · Ref: {e.referenceId}</div><div className="text-slate-500">By: {e.badgeId}</div></div></div>))}</div>)}
       {entries.length === 0 && !loading && input && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 text-xs text-slate-500 flex items-center gap-2"><AlertTriangle className="h-4 w-4" />No movement history found</div>)}
@@ -431,18 +668,24 @@ export default function App() {
   if (!verified && !loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 p-4">
-        <form onSubmit={(e: FormEvent) => { e.preventDefault(); const input = document.getElementById("rf-badge") as HTMLInputElement; if (input) setBadgeId(input.value.trim()); }} className="w-full max-w-sm space-y-6">
-          <div className="text-center space-y-2">
-            <Warehouse className="h-10 w-10 mx-auto text-emerald-400" />
+        <form onSubmit={(e: FormEvent) => { e.preventDefault(); const badgeInput = document.getElementById("rf-badge") as HTMLInputElement; const pwInput = document.getElementById("rf-password") as HTMLInputElement; if (badgeInput && pwInput) setBadgeId(badgeInput.value.trim(), pwInput.value.trim()); }} className="w-full max-w-sm space-y-6">
+          <div className="text-center space-y-3">
+            <img src="/logo-placeholder.svg" alt="AZUX 3PL" className="h-14 mx-auto" />
             <h1 className="text-xl font-semibold text-white tracking-tight">RF Terminal</h1>
-            <p className="text-xs text-slate-400">Scan badge or enter Badge ID to continue</p>
+            <p className="text-xs text-slate-400">Enter your Badge ID and PIN to continue</p>
           </div>
-          <div className="space-y-2">
-            <label htmlFor="rf-badge" className="text-xs text-slate-300">Badge ID</label>
-            <input id="rf-badge" autoFocus placeholder="e.g. WH-1001" className="w-full h-12 bg-slate-900 border border-slate-700 text-white text-center text-lg font-mono tracking-widest rounded-md" />
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label htmlFor="rf-badge" className="text-xs text-slate-300">Badge ID</label>
+              <input id="rf-badge" autoFocus placeholder="e.g. WH-1001" className="w-full h-12 bg-slate-900 border border-slate-700 text-white text-center text-lg font-mono tracking-widest rounded-md" />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="rf-password" className="text-xs text-slate-300">PIN / Password</label>
+              <input id="rf-password" type="password" placeholder="Enter PIN" className="w-full h-12 bg-slate-900 border border-slate-700 text-white text-center text-lg font-mono tracking-widest rounded-md" />
+            </div>
           </div>
           <button type="submit" className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-md" disabled={loading}>Sign In</button>
-          <p className="text-center text-[10px] text-slate-500">Demo badges: WH-1001, WH-1002, WH-1003</p>
+          <p className="text-center text-[10px] text-slate-500">Demo: WH-1001 / admin123, WH-1002 / ops123</p>
         </form>
       </div>
     );
@@ -451,9 +694,9 @@ export default function App() {
   if (!employee) return <div className="p-4 text-xs text-slate-500">Loading…</div>;
 
   return (
-    <div className="mx-auto max-w-md h-screen bg-slate-950 text-white flex flex-col">
+    <div className="mx-auto max-w-md md:max-w-2xl h-screen bg-slate-950 text-white flex flex-col">
       <header className="flex items-center gap-2 border-b border-slate-800 bg-slate-900 px-3 py-2 shrink-0">
-        <Warehouse className="h-4 w-4 text-emerald-400" />
+        <img src="/logo-placeholder.svg" alt="AZUX" className="h-8 w-auto" />
         <div className="flex-1 min-w-0">
           <div className="text-xs font-medium truncate">{employee.name}</div>
           <div className="text-[10px] text-slate-400 font-mono truncate">{employee.assignedWarehouseId} · {employee.badgeId}</div>

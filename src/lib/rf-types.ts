@@ -27,6 +27,7 @@ export type WarehouseEmployee = {
   assignedWarehouseId: string;
   isActive: boolean;
   createdAt: string;
+  passwordHash: string;
 };
 
 /** Append-only audit record for every physical inventory movement. */

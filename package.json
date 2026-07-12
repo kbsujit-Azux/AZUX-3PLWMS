@@ -9,6 +9,8 @@
     "build:node": "node -e \"require('fs').copyFileSync('vite.config.node.ts', 'vite.config.ts')\" && vite build",
     "build:dev": "vite build --mode development",
     "build:rfgun": "vite build --config rfgun/vite.config.ts",
+    "seed": "npx tsx scripts/seed-firestore.ts",
+    "seed:employees": "npx tsx scripts/seed-employees.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

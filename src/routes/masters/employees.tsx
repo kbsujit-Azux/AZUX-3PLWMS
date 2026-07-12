@@ -49,6 +49,7 @@ import {
 } from "@/lib/firestore-data";
 import { tenants, warehouses } from "@/lib/mock-data";
 import type { WarehouseEmployee } from "@/lib/rf-types";
+import { hashPassword } from "@/lib/password-utils";
 
 export const Route = createFileRoute("/masters/employees")({
   head: () => ({
@@ -65,6 +66,7 @@ const EMPTY: WarehouseEmployee = {
   assignedWarehouseId: "all",
   isActive: true,
   createdAt: new Date().toISOString(),
+  passwordHash: "",
 };
 
 function EmployeesPage() {
@@ -76,6 +78,8 @@ function EmployeesPage() {
   const [form, setForm] = useState<WarehouseEmployee>(EMPTY);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -107,12 +111,16 @@ function EmployeesPage() {
       assignedClientId: tenantId === "all" ? "all" : tenantId,
       assignedWarehouseId: warehouseId === "all" ? "all" : warehouseId,
     });
+    setPassword("");
+    setConfirmPassword("");
     setDialogOpen(true);
   };
 
   const openEdit = (emp: WarehouseEmployee) => {
     setEditing(emp);
     setForm({ ...emp });
+    setPassword("");
+    setConfirmPassword("");
     setDialogOpen(true);
   };
 
@@ -121,15 +129,30 @@ function EmployeesPage() {
       toast.error("Badge ID, Name, and Email are required");
       return;
     }
+    if (!editing && !password) {
+      toast.error("Password is required for new employees");
+      return;
+    }
+    if (password && password !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
     try {
+      let passwordHash = form.passwordHash;
+      if (password) {
+        passwordHash = await hashPassword(password);
+      }
+      const data = { ...form, passwordHash };
       if (editing) {
-        await updateEmployee(editing.badgeId, form);
+        await updateEmployee(editing.badgeId, data);
         toast.success("Employee updated");
       } else {
-        await createEmployee(form);
+        await createEmployee(data);
         toast.success("Employee created");
       }
       setDialogOpen(false);
+      setPassword("");
+      setConfirmPassword("");
       const list = await fetchEmployees(tenantId, warehouseId);
       setEmployees(list);
     } catch (e: unknown) {
@@ -357,6 +380,30 @@ function EmployeesPage() {
                 Active account
               </Label>
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-300">
+                {editing ? "New PIN (leave blank to keep current)" : "Set PIN"}
+              </Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="h-9 bg-slate-800 border-slate-700 text-sm"
+                placeholder={editing ? "Leave blank to keep current" : "Enter PIN for RF Gun"}
+              />
+            </div>
+            {password && (
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300">Confirm PIN</Label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="h-9 bg-slate-800 border-slate-700 text-sm"
+                  placeholder="Re-enter PIN"
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" className="text-slate-400" onClick={() => setDialogOpen(false)}>

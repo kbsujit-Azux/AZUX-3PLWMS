@@ -11,6 +11,7 @@ import { inboundShipments } from "./inbound-data";
 import { shipments as carrierDispatches } from "./shipment-data";
 import { seedBols as bols } from "./bol-data";
 import { defaultRules as billingRates, seedInvoices as billingRuns } from "./billing-data";
+import { employees } from "./rf-employees";
 
 export type WmsDataContextType = {
   tenants: any[];
@@ -124,6 +125,7 @@ async function seedDatabaseIfEmpty() {
       itemMaster,
       locationMaster,
       ediLogs,
+      employees,
     };
 
     for (const [colName, items] of Object.entries(seedData)) {
@@ -131,6 +133,8 @@ async function seedDatabaseIfEmpty() {
         let docRef;
         if (item.id) {
           docRef = doc(db, colName, String(item.id));
+        } else if (item.badgeId) {
+          docRef = doc(db, colName, String(item.badgeId));
         } else if (item.sku) {
           docRef = doc(db, colName, String(item.sku));
         } else if (item.palletId) {

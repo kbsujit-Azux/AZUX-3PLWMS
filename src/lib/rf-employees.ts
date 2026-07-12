@@ -34,6 +34,7 @@ export const employees: WarehouseEmployee[] = [
     assignedWarehouseId: "all",
     isActive: true,
     createdAt: new Date().toISOString(),
+    passwordHash: "a3558c02f2483fe4598698057990faabf3447f5500b863269fb3432e1261052a",
   },
   {
     badgeId: "WH-1002",
@@ -43,6 +44,7 @@ export const employees: WarehouseEmployee[] = [
     assignedWarehouseId: "atl1",
     isActive: true,
     createdAt: new Date().toISOString(),
+    passwordHash: "6b40a76a260e025828e88ecd922004a93b1a1c422d2d90ef89b87422179680bc",
   },
   {
     badgeId: "WH-1003",
@@ -52,6 +54,7 @@ export const employees: WarehouseEmployee[] = [
     assignedWarehouseId: "ord2",
     isActive: true,
     createdAt: new Date().toISOString(),
+    passwordHash: "9b852d37a4a30b5750511e023d50c336424ff358572adfe6939ff9e4e89b1e9e",
   },
   {
     badgeId: "WH-1004",
@@ -61,6 +64,7 @@ export const employees: WarehouseEmployee[] = [
     assignedWarehouseId: "lax3",
     isActive: true,
     createdAt: new Date().toISOString(),
+    passwordHash: "9b852d37a4a30b5750511e023d50c336424ff358572adfe6939ff9e4e89b1e9e",
   },
   {
     badgeId: "WH-1005",
@@ -70,6 +74,7 @@ export const employees: WarehouseEmployee[] = [
     assignedWarehouseId: "ewr1",
     isActive: true,
     createdAt: new Date().toISOString(),
+    passwordHash: "6d0ff6f95ffd82b6af1a27c7acb869a291b3df24b654ef2d3181f1f0152fa7cf",
   },
   {
     badgeId: "WH-1006",
@@ -79,6 +84,7 @@ export const employees: WarehouseEmployee[] = [
     assignedWarehouseId: "atl1",
     isActive: true,
     createdAt: new Date().toISOString(),
+    passwordHash: "8643005c351ad4a2c2128c5967ad13bc87a17f293ebad4cc44b4543832a21979",
   },
   {
     badgeId: "WH-1007",
@@ -88,5 +94,6 @@ export const employees: WarehouseEmployee[] = [
     assignedWarehouseId: "atl1",
     isActive: true,
     createdAt: new Date().toISOString(),
+    passwordHash: "efc09ad7e7bfe1808c05b91d4672fe334b3576a3e3486057f560b1a405977503",
   },
 ];
