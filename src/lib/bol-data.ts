@@ -1,8 +1,41 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Bill of Lading & Shipping Documents
+ * ============================================================
+ *
+ *  Purpose: VICS Bill of Lading (v3.1) generation, Master BOL
+ *           consolidation, and EDI 945 auto-transmission. BOLs
+ *           are the legal freight documents that drive outbound
+ *           shipments and carrier handoff.
+ *
+ *  Key types exported:
+ *    • BillOfLading / Bol           — VICS BOL document
+ *    • BolFreightLine               — Individual freight line (NMFC, class, weight)
+ *    • Party                        — Shipper / Consignee / BillTo
+ *    • BolType, BolStatus, FreightChargeTerms — Document enums
+ *    • ConsolidationGroup           — Master BOL candidate grouping
+ *
+ *  Helper functions:
+ *    • buildBolFromOrder()          — Single-order BOL derivation
+ *    • buildConsolidationGroups()   — Group orders by dest+carrier+WH
+ *    • buildMasterBol()             — Consolidate N orders into one BOL
+ *    • emit945ForBol()              — Fire EDI 945 log entry
+ *    • seedBols[]                   — Pre-built BOLs from shipped orders
+ *
+ *  Firestore CRUD (in firestore-data.ts):
+ *    fetchBillsOfLading / subscribeBillsOfLading / createBol
+ *
+ *  Extension points:
+ *    - Add HazMat documentation and special handling codes
+ *    - Add customs/export documentation for international shipments
+ *    - Add proof-of-delivery (POD) capture and storage
+ *    - Add freight rating engine (class + weight → cost)
+ * ============================================================
+ */
+
 import { orders, type Order, type OrderLine } from "./edi-data";
 import { inventoryItems, tenants, warehouses } from "./mock-data";
 import { ediLogs, type EdiLog } from "./edi-data";
-
-/** VICS Bill of Lading — Voluntary Interindustry Commerce Standards (v3.1) */
 export type FreightChargeTerms = "prepaid" | "collect" | "third-party";
 export type BolType = "single" | "master";
 export type BolStatus = "draft" | "issued" | "tendered" | "in-transit" | "delivered" | "void";

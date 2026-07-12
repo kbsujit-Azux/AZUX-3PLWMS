@@ -1,3 +1,39 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Pallet Management & Directed Picking
+ * ============================================================
+ *
+ *  Purpose: Inbound pallet building, directed putaway suggestions,
+ *           and outbound directed pick wave construction. Pallets
+ *           are the physical unit of work in the 3PL warehouse.
+ *
+ *  Key types exported:
+ *    • Pallet, PalletStatus         — Inbound pallet with build/putaway state
+ *    • PickInstruction              — Single stop in a directed pick route
+ *    • PickWave                     — Grouped pick instructions per order
+ *
+ *  Data:
+ *    • pallets[]                    — All pallets (inbound + in-flight)
+ *    • pickWaves[]                  — Mock open pick waves
+ *
+ *  Helper functions:
+ *    • suggestPutawayLocation()     — Directed putaway: style+WH → slot
+ *    • createPalletsFromInbound()   — Build pallets from ASN line
+ *    • buildPickWave()              — LIFO/FIFO + aisle-sequenced pick route
+ *    • appendPallets / removePallets — In-memory pallet store mutators
+ *
+ *  Firestore CRUD (in firestore-data.ts):
+ *    fetchPallets / subscribePallets / createPallet / createPallets / updatePallet
+ *    fetchOutboundPallets / subscribeOutboundPallets / createOutboundPallet ...
+ *
+ *  Extension points:
+ *    - Add pallet build rules (max weight, mixed-SKU rules)
+ *    - Add cube/weight-based slotting optimization
+ *    - Add pick wave batching across multiple orders
+ *    - Add pallet re-labeling / re-palletization
+ * ============================================================
+ */
+
 import { warehouses, inventoryItems, type InventoryItem } from "./mock-data";
 
 export type PalletStatus = "building" | "staged" | "putaway" | "picking" | "shipped";

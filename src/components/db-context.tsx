@@ -1,3 +1,40 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Database Context Provider (React)
+ * ============================================================
+ *
+ *  Purpose: React context that bridges Firestore real-time
+ *           listeners into the component tree. On mount it:
+ *     1. Seeds Firestore with mock data if the database is empty
+ *     2. Subscribes to all WMS collections via onSnapshot
+ *     3. Keeps in-memory lib arrays synchronized with Firestore
+ *
+ *  Provides (via useWmsData()):
+ *    • loading                   — Initial seed/sync in progress
+ *    • refreshData()             — Force re-subscribe (e.g. after auth change)
+ *    • tenants[], warehouses[]   — Master data
+ *    • inventoryItems[]          — Stock on hand
+ *    • pallets[], pickWaves[]    — Pallet & wave management
+ *    • orders[], pickTickets[]   — Order lifecycle
+ *    • inboundShipments[]        — ASN receiving
+ *    • carrierDispatches[]       — Shipment/yard ops
+ *    • bols[]                    — Bills of lading
+ *    • billingClients, billingRules, billableEvents, invoices[]
+ *    • itemMaster[], locationMaster[] — Master data
+ *    • ediLogs[]                 — EDI transaction log
+ *    • clientAllocationConfigs[] — Per-tenant allocation config
+ *
+ *  Seeding:
+ *    Seeds all collections on first load if tenants collection
+ *    is empty. Uses writeBatch for atomic collection seeding.
+ *
+ *  Extension points:
+ *    - Add new collections to syncCollection() calls
+ *    - Add new state variables + setters for new domain data
+ *    - Adjust seeding logic for production (remove mock data)
+ * ============================================================
+ */
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { collection, onSnapshot, getDocs, limit, doc, writeBatch, query } from "firebase/firestore";
 import { db } from "@/lib/firestore";
@@ -6,18 +43,21 @@ import { db } from "@/lib/firestore";
 import {
   tenants as seedTenants,
   warehouses as seedWarehouses,
+} from "@/lib/mock-data";
+import {
   inventoryItems as seedInventoryItems,
   clientAllocationConfigs as seedClientAllocationConfigs,
 } from "@/lib/mock-data";
+import {
+  itemMaster as seedItemMaster,
+  locationMaster as seedLocationMaster,
+} from "@/lib/master-data";
 import { pallets as seedPallets, pickWaves as seedPickWaves } from "@/lib/pallet-data";
 import { orders as seedOrders, ediLogs as seedEdiLogs } from "@/lib/edi-data";
 import { inboundShipments as seedInboundShipments } from "@/lib/inbound-data";
 import { shipments as seedCarrierDispatches } from "@/lib/shipment-data";
 import { seedBols as seedBols } from "@/lib/bol-data";
-import {
-  itemMaster as seedItemMaster,
-  locationMaster as seedLocationMaster,
-} from "@/lib/master-data";
+import { employees as seedEmployees } from "@/lib/rf-employees";
 
 // Import types
 import type { Tenant, Warehouse, InventoryItem } from "@/lib/mock-data";
@@ -67,6 +107,7 @@ type DatabaseContextType = {
   ediLogs: EdiLog[];
   clientAllocationConfigs: ClientAllocationConfig[];
   pickTickets: PickTicket[];
+  employees: any[];
 };
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -93,6 +134,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     [],
   );
   const [pickTickets, setPickTickets] = useState<PickTicket[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
   const [dataVersion, setDataVersion] = useState(0);
 
   const refreshData = useCallback(() => {
@@ -134,11 +176,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           await seedCollection("itemMaster", seedItemMaster, (item) => item.sku);
           await seedCollection("locationMaster", seedLocationMaster, (item) => item.id);
           await seedCollection("ediLogs", seedEdiLogs, (item) => item.id);
-          await seedCollection(
-            "clientAllocationConfigs",
-            seedClientAllocationConfigs,
-            (item) => item.tenantId,
-          );
+          await seedCollection("clientAllocationConfigs", seedClientAllocationConfigs, (item) => item.tenantId);
+          await seedCollection("employees", seedEmployees, (item) => item.badgeId);
 
           console.log("Default WMS datasets successfully seeded to Firestore!");
         }
@@ -194,6 +233,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       libClientAllocationConfigs,
     );
     syncCollection("pickTickets", setPickTickets, libPickTickets);
+    syncCollection("employees", setEmployees as any, [] as any);
 
     // Turn off loading once initial data snaps are bound
     setLoading(false);
@@ -224,6 +264,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         ediLogs,
         clientAllocationConfigs,
         pickTickets,
+        employees,
       }}
     >
       {loading ? (

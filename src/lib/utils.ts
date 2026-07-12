@@ -1,3 +1,27 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Shared UI Utilities
+ * ============================================================
+ *
+ *  Purpose: Shared utility functions used across the WMS UI.
+ *           Tailwind class merging, SSR-safe date/time formatting,
+ *           and CSV/Excel export helpers.
+ *
+ *  Exports:
+ *    • cn()                   — clsx + tailwind-merge (preferred class join)
+ *    • fmtDateTime()          — "May 12, 14:20" (SSR-safe UTC)
+ *    • fmtDate()              — "May 12" (SSR-safe UTC)
+ *    • fmtDateYear()          — "May 12, 2026" (SSR-safe UTC)
+ *    • fmtTime()              — "14:20" (SSR-safe UTC)
+ *    • downloadExcel()        — CSV download with column selection
+ *
+ *  Extension points:
+ *    - Add number/currency formatting
+ *    - Add unit conversion helpers (LBS ↔ KG, IN ↔ CM)
+ *    - Add barcode/SSCC validation utilities
+ * ============================================================
+ */
+
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 

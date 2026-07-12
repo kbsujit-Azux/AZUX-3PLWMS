@@ -1,3 +1,37 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — EDI Hub & Order Management (EDI 832/940)
+ * ============================================================
+ *
+ *  Purpose: EDI transaction metadata, order management (EDI 940
+ *           Warehouse Shipping Order), and EDI log streaming.
+ *           Also houses the canonical Order type used across the
+ *           entire application.
+ *
+ *  Key types exported:
+ *    • EdiTxnMeta, EdiLog        — EDI transaction catalog & log entries
+ *    • Order, OrderLine          — Outbound order header & lines (EDI 940)
+ *    • EdiStatus                 — Transaction processing state
+ *
+ *  Data:
+ *    • EDI_TXNS[]                — Supported EDI transaction types
+ *    • ediLogs[]                 — Mock EDI transaction log
+ *    • orders[]                  — Mock outbound orders
+ *
+ *  Constants:
+ *    • EDI_TXNS                  — 832, 940, 943, 944, 945 catalog
+ *
+ *  Firestore CRUD (in firestore-data.ts):
+ *    fetchEdiLogs
+ *    fetchOrders / subscribeOrders / createOrder / updateOrder / deleteOrder
+ *
+ *  Extension points:
+ *    - Add new EDI transaction types to EDI_TXNS and EdiTxnType union
+ *    - Extend Order type with new statuses or fields
+ *    - Add EDI parsing/validation logic for inbound documents
+ * ============================================================
+ */
+
 export type EdiTxnType = "832" | "940" | "943" | "944" | "945";
 export type EdiDirection = "inbound" | "outbound";
 export type EdiStatus = "accepted" | "processed" | "pending" | "warning" | "rejected";

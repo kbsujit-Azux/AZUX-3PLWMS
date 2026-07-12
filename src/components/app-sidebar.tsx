@@ -14,6 +14,7 @@ import {
   Database,
   Receipt,
   PackageCheck,
+  ScanLine,
 } from "lucide-react";
 import {
   Sidebar,
@@ -47,6 +48,10 @@ const systems = [
   { title: "Documents (BOL)", url: "/documents", icon: FileText },
   { title: "Billing", url: "/billing", icon: Receipt },
   { title: "Settings", url: "/settings", icon: Settings },
+] as const;
+
+const rfTerminal = [
+  { title: "RF Terminal", url: "/rf/putaway", icon: ScanLine },
 ] as const;
 
 export function AppSidebar() {
@@ -102,6 +107,24 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleSys.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                    <Link to={item.url} className="flex items-center gap-2">
+                      <item.icon className="h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>RF Terminal</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {rfTerminal.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                     <Link to={item.url} className="flex items-center gap-2">

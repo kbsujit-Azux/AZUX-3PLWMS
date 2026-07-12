@@ -1,3 +1,29 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Firebase Initialization
+ * ============================================================
+ *
+ *  Purpose: Single initialization point for Firebase services.
+ *           Creates the Firebase app (idempotent), then exports
+ *           the Firestore, Auth, and Realtime Database instances.
+ *
+ *  Exports:
+ *    • app      — Firebase app instance
+ *    • db       — Firestore database (used by firestore-data.ts)
+ *    • auth     — Firebase Auth (used by auth.tsx)
+ *    • rtdb     — Realtime Database (available for live yard ops)
+ *
+ *  Configuration:
+ *    All values come from Vite env vars (VITE_FIREBASE_*).
+ *    See .env.example or vite.config for required variables.
+ *
+ *  Extension points:
+ *    - Add Firebase Storage initialization for document/image storage
+ *    - Add Firebase Functions reference for server-side operations
+ *    - Add Firestore emulator setup for local development
+ * ============================================================
+ */
+
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";

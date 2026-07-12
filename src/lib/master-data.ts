@@ -1,8 +1,49 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Master Data (Item Master EDI 832 + Locations)
+ * ============================================================
+ *
+ *  Purpose: Two master data domains:
+ *    1. Item Master (EDI 832) — SKU catalog with dimensions,
+ *       NMFC, freight class, case specs, and tenant binding.
+ *    2. Location Master — Warehouse location definitions with
+ *       zone, capacity, pickability, and item-style constraints.
+ *
+ *  Key types exported:
+ *    • ItemMasterRecord          — EDI 832 catalog record per SKU
+ *    • LocationRecord            — Warehouse location (RACK/FLR/DROP)
+ *    • LocationType              — "FLR" | "DROP" | "RACK"
+ *    • MasterException           — Validation error against item master
+ *
+ *  Data:
+ *    • itemMaster[]              — Seed item master records
+ *    • locationMaster[]          — Seed location definitions
+ *
+ *  Helper functions:
+ *    • cbmFromInches()           — L×W×H → cubic meters
+ *    • nmfcFor()                 — NMFC/freight class lookup by SKU/category
+ *    • findItem()                — Item master lookup by SKU
+ *    • hasInventoryForSku()      — Inventory existence check
+ *    • validateLineAgainstItemMaster() — Inbound/order line validation
+ *    • collectMasterExceptions() — Batch validation across all documents
+ *    • pickableLocations()       — Filter to allocatable locations
+ *    • findLocation()            — Location lookup by ID
+ *    • locationOccupancyPct()    — Capacity utilization
+ *
+ *  Firestore CRUD (in firestore-data.ts):
+ *    fetchItemMaster / subscribeItemMaster / addItemToMaster / deleteItemFromMaster
+ *    fetchLocations / subscribeLocations
+ *
+ *  Extension points:
+ *    - Add new commodity categories to NMFC_BY_CATEGORY
+ *    - Add per-SKU overrides to NMFC_BY_SKU / CASE_SPECS
+ *    - Extend LocationRecord with aisle velocity or slotting rules
+ * ============================================================
+ */
+
 import { inventoryItems } from "./mock-data";
 import { inboundShipments } from "./inbound-data";
 import { orders } from "./edi-data";
-
-/** EDI 832 — Price/Sales Catalog (Item Master) */
 export type ItemMasterRecord = {
   sku: string; // Vendor SKU (EDI 832 LIN03)
   upc: string; // GTIN / UPC (EDI 832 LIN05)

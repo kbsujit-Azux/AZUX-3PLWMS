@@ -1,3 +1,40 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Outbound Pallet (SSCC-18 / UCC-128)
+ * ============================================================
+ *
+ *  Purpose: Outbound pallet construction with GS1 SSCC-18 serial
+ *           shipping container codes and UCC-128 label data. Used
+ *           for carrier-compliant pallet identification on outbound
+ *           shipments.
+ *
+ *  Key types exported:
+ *    • OutboundPallet              — Built pallet with SSCC/UCC data
+ *    • OutboundPalletLine          — Per-SKU line on outbound pallet
+ *    • OutboundPalletStatus        — Built → staged → loading → in-transit → delivered
+ *    • OutboundPalletCreateInput   — Factory input for pallet creation
+ *
+ *  Helper functions:
+ *    • generateSSCC18()            — GS1-compliant serial code
+ *    • buildUcc128Label()          — AI(00) SSCC label string
+ *    • buildOutboundPalletId()     — OBP-{order}-{seq} license plate
+ *    • createOutboundPalletFromInput() — Factory: input → OutboundPallet
+ *    • OUTBOUND_PALLET_STATUSES[]  — Status enum values
+ *
+ *  Firestore CRUD (in firestore-data.ts):
+ *    fetchOutboundPallets / subscribeOutboundPallets
+ *    fetchOutboundPalletsByOrder
+ *    createOutboundPallet / createOutboundPallets / updateOutboundPallet
+ *    getNextOutboundPalletSeq
+ *
+ *  Extension points:
+ *    - Add SSCC-18 check digit validation
+ *    - Add pallet weight/cube verification before tendering
+ *    - Add mixed-client pallet rules
+ *    - Add pallet consolidation / re-palletization
+ * ============================================================
+ */
+
 export type OutboundPalletStatus =
   | "built"
   | "staged"

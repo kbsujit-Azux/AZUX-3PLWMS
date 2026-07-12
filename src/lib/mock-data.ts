@@ -1,3 +1,37 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Core Domain Types & Constants
+ * ============================================================
+ *
+ *  Purpose: Foundational WMS 3PL domain model shared across the
+ *           entire application. Defines tenants, warehouses,
+ *           inventory items, batches, pick tickets, orders, and
+ *           allocation configuration.
+ *
+ *  Key types exported:
+ *    • Tenant, Warehouse          — Multi-tenant / multi-warehouse config
+ *    • InventoryItem, InventoryBatch — Stock on hand with batch-level tracking
+ *    • PickTicket                 — Directed pick work unit
+ *    • ClientAllocationConfig     — Per-tenant LIFO/FIFO strategy
+ *    • OrderStatus, PickTicketStatus — Lifecycle enums
+ *    • AllocationResult, DeallocationResult, PickResult, ShipResult
+ *
+ *  Constants:
+ *    • DROP001_LOCATION           — Staging location for picked goods
+ *    • NON_ALLOCATABLE_LOCATIONS  — Excluded from allocation pool
+ *
+ *  Helper functions:
+ *    • totalOnHand()              — Sum all batch qty for an item
+ *    • sortedBatches()            — Sort batches by LIFO or FIFO
+ *    • getClientAllocationConfig()- — Lookup tenant allocation strategy
+ *
+ *  Extension points:
+ *    - Add new domain statuses to the relevant union type
+ *    - Add new helper utilities after the existing ones
+ *    - Do NOT put business logic here; use allocation-engine.ts
+ * ============================================================
+ */
+
 export type Tenant = { id: string; name: string; code: string };
 export type Warehouse = {
   id: string;

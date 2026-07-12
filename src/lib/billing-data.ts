@@ -1,3 +1,46 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Billing & Charge Management
+ * ============================================================
+ *
+ *  Purpose: 3PL client billing — charge rules, billable event
+ *           generation, and invoice creation. Supports inbound
+ *           handling, outbound pick/pack, and storage billing
+ *           at pallet, carton, container, BOL, location, and
+ *           warehouse levels.
+ *
+ *  Key types exported:
+ *    • BillingClient               — Client billing profile
+ *    • ChargeRule                  — Rule that maps activity → rate
+ *    • BillableEvent               — Captured billable activity
+ *    • Invoice, InvoiceLine        — Generated invoices
+ *    • RateUnit, StorageFrequency  — Billing configuration enums
+ *
+ *  Data:
+ *    • billingClients[]            — Mock billing clients
+ *    • defaultRules[]              — Seed charge rules per client
+ *    • billableEvents[]            — Mock captured events
+ *    • seedInvoices[]              — Mock invoices
+ *
+ *  Helper functions:
+ *    • unitLabel()                 — Human-readable rate unit
+ *    • fmtUSD()                    — Currency formatting
+ *
+ *  Firestore CRUD (in firestore-data.ts):
+ *    subscribeBillingClients / createBillingClient / updateBillingClient / deleteBillingClient
+ *    subscribeChargeRules / createChargeRule / updateChargeRule / deleteChargeRule
+ *    subscribeBillableEvents / createBillableEvent / updateBillableEvent
+ *    subscribeInvoices / createInvoice / updateInvoice / deleteInvoice
+ *    seedBillingData               — Seed all billing collections
+ *
+ *  Extension points:
+ *    - Add automated event capture hooks (e.g. on pick complete → create event)
+ *    - Add tiered pricing (volume breaks, minimums)
+ *    - Add minimum charge / minimum commitment logic
+ *    - Add accrual-based billing for unbilled periods
+ * ============================================================
+ */
+
 export type ClientId = string;
 
 export type BillingClient = {

@@ -1,7 +1,41 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Shipment Lifecycle & Yard Operations
+ * ============================================================
+ *
+ *  Purpose: Outbound shipment lifecycle beyond the BOL — yard
+ *           management, dock door assignment, driver check-in,
+ *           loading, tender, departure, and proof-of-delivery.
+ *           Maps BOL statuses to shipment operational states.
+ *
+ *  Key types exported:
+ *    • Shipment, ShipmentStatus    — Yard dispatch record
+ *    • CarrierDispatch             — Alias for Shipment
+ *
+ *  Data:
+ *    • shipments[]                 — Derived from seed BOLs
+ *    • shipmentBols[]              — BOLs backing shipments
+ *
+ *  Helper functions:
+ *    • getBolForShipment()         — FK resolution: shipment → BOL
+ *    • getShipmentForOrder()       — FK resolution: order → shipment
+ *    • transitionShipment()        — State machine: next status + extras
+ *    • recordPod()                 — Capture proof-of-delivery
+ *    • SHIPMENT_STATUSES[]         — Allowed status values
+ *
+ *  Firestore CRUD (in firestore-data.ts):
+ *    createShipmentRecord / updateShipmentRecord / subscribeShipmentRecords
+ *
+ *  Extension points:
+ *    - Add dock door scheduling and appointment management
+ *    - Add carrier check-in / driver verification
+ *    - Add trailer/equipment tracking (asset management)
+ *    - Add exception handling (refused, damaged, short-shipped)
+ * ============================================================
+ */
+
 import { seedBols, buildBolFromOrder, emit945ForBol, type BillOfLading } from "./bol-data";
 import { orders } from "./edi-data";
-
-/** 3PL shipment lifecycle — yard / dock operations layered on top of a BOL. */
 export type ShipmentStatus =
   | "pending" // BOL drafted, awaiting staging
   | "staged" // Freight staged at a dock door

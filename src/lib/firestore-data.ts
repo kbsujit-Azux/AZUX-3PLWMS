@@ -1,3 +1,85 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Firestore Data-Access Layer (DAL)
+ * ============================================================
+ *
+ *  Purpose: All Firestore collection operations for the WMS 3PL
+ *           system. Every read, write, subscribe, and transactional
+ *           operation flows through this module. This is the only
+ *           module that imports from "firebase/firestore" directly
+ *           (aside from firestore.ts which creates the db instance).
+ *
+ *  Naming convention:
+ *    fetchX()           — One-time read of collection X
+ *    subscribeX()       — Real-time onSnapshot listener for X
+ *    createX()          — setDoc for a single X record
+ *    updateX()          — updateDoc for a single X record
+ *    deleteX()          — deleteDoc for a single X record
+ *    batchWriteX()      — writeBatch for bulk X writes
+ *
+ *  Collections covered:
+ *    ┌─────────────────────┬──────────────────────────────────────────┐
+ *    │ Collection          │ CRUD Functions                           │
+ *    ├─────────────────────┼──────────────────────────────────────────┤
+ *    │ tenants             │ fetchTenants, subscribeTenants           │
+ *    │ warehouses          │ fetchWarehouses, subscribeWarehouses     │
+ *    │ itemMaster          │ fetchItemMaster, subscribeItemMaster,    │
+ *    │                     │ addItemToMaster, deleteItemMaster        │
+ *    │ inboundShipments    │ fetchInboundShipments, subscribe...,     │
+ *    │                     │ updateInboundLine, receiveInbound...     │
+ *    │ pallets             │ fetchPallets, subscribePallets,          │
+ *    │                     │ createPallet, createPallets, updatePallet│
+ *    │ outboundPallets     │ fetchOutboundPallets, subscribe...,      │
+ *    │                     │ createOutboundPallet, update..., getNext │
+ *    │ shipments           │ createShipmentRecord, update...,         │
+ *    │                     │ subscribeShipmentRecords                 │
+ *    │ orders              │ fetchOrders, subscribeOrders,            │
+ *    │                     │ createOrder, updateOrder, deleteOrder    │
+ *    │ inventoryItems      │ fetchInventoryItems, subscribe...,       │
+ *    │                     │ upsertInventoryItem, updateInventoryBatch│
+ *    │ pickTickets         │ fetchPickTickets, subscribe...,          │
+ *    │                     │ writePickTicket, batchWrite..., update,  │
+ *    │                     │ delete, deleteByOrder                    │
+ *    │ ediLogs             │ fetchEdiLogs                             │
+ *    │ locations           │ fetchLocations, subscribeLocations       │
+ *    │ clientAllocation... │ fetch, subscribe, set, delete            │
+ *    │ billsOfLading       │ fetch, subscribe, create                 │
+ *    │ inventoryTrans...   │ log, fetch, subscribe                    │
+ *    │ counters            │ (used internally by getNext*Seq)         │
+ *    │ billingClients      │ CRUD via subscribe/create/update/delete  │
+ *    │ chargeRules         │ CRUD via subscribe/create/update/delete  │
+ *    │ billableEvents      │ CRUD via subscribe/create/update         │
+ *    │ invoices            │ CRUD via subscribe/create/update/delete  │
+ *    └─────────────────────┴──────────────────────────────────────────┘
+ *
+ *  Transactional operations (runTransaction):
+ *    • executeDirectedPick()      — Directed pick with batch updates
+ *    • executeManualPick()        — Manual pick with auto-generated ticket
+ *    • reallocatePickTicket()     — Reallocate to next available batch
+ *    • getNextOrderSeq()          — Atomic order number generation
+ *    • getNextPickTicketSeq()     — Atomic pick ticket sequence
+ *    • getNextBolNumber()         — Atomic BOL number generation
+ *    • getNextOutboundPalletSeq() — Atomic outbound pallet sequence
+ *    • shipOrder()                — Full ship transaction: BOL + tickets + inv
+ *    • allocateOrderTransactional() — Allocation + order status + batch qty
+ *    • deallocateOrderTransactional() — Reverse allocation
+ *    • deleteInventoryBatch()     — Admin batch deletion with audit trail
+ *    • rebuildLocationMasterFromInventory() — Sync locations from inventory
+ *
+ *  Extension points for advanced WMS 3PL functions:
+ *    - To add a new Firestore collection:
+ *      1. Define the type in the appropriate lib/*.ts module
+ *      2. Add fetchX / subscribeX / createX / updateX / deleteX here
+ *      3. Follow the tenantId/warehouseId filter pattern
+ *      4. Export the new functions from src/lib/index.ts
+ *    - To add a new transactional operation:
+ *      1. Use runTransaction() for atomic reads + writes
+ *      2. Validate preconditions before entering the transaction
+ *      3. Log inventory transactions for audit trail
+ *      4. Return typed result objects (success + error pattern)
+ * ============================================================
+ */
+
 import {
   collection,
   getDocs,
@@ -36,6 +118,7 @@ import type { InboundShipment, InboundLine } from "./inbound-data";
 import type { Order, EdiLog } from "./edi-data";
 import type { OutboundPallet } from "./outbound-pallet-data";
 import type { BillingClient, ChargeRule, BillableEvent, Invoice } from "./billing-data";
+import type { WarehouseEmployee, MovementHistory } from "./rf-types";
 
 // ============================================================
 // Tenants
@@ -1555,7 +1638,6 @@ export async function seedBillingData(): Promise<{ success: boolean; error?: str
       seedInvoices: invoices,
     } = await import("@/lib/billing-data");
 
-    // Clear existing billing collections to remove stale/dummy data
     const collections = ["billingClients", "chargeRules", "billableEvents", "invoices"];
     for (const colName of collections) {
       const snap = await getDocs(collection(db, colName));
@@ -1565,23 +1647,111 @@ export async function seedBillingData(): Promise<{ success: boolean; error?: str
     }
 
     const seedBatch = writeBatch(db);
-
-    for (const c of clients) {
-      seedBatch.set(doc(db, "billingClients", c.id), c);
-    }
-    for (const r of rules) {
-      seedBatch.set(doc(db, "chargeRules", r.id), r);
-    }
-    for (const e of events) {
-      seedBatch.set(doc(db, "billableEvents", e.id), e);
-    }
-    for (const inv of invoices) {
-      seedBatch.set(doc(db, "invoices", inv.id), inv);
-    }
-
+    for (const c of clients) seedBatch.set(doc(db, "billingClients", c.id), c);
+    for (const r of rules) seedBatch.set(doc(db, "chargeRules", r.id), r);
+    for (const e of events) seedBatch.set(doc(db, "billableEvents", e.id), e);
+    for (const inv of invoices) seedBatch.set(doc(db, "invoices", inv.id), inv);
     await seedBatch.commit();
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
+}
+
+// ============================================================
+// Warehouse Employees (RF Gun Badge Auth)
+// ============================================================
+export async function fetchEmployees(tenantId?: string, warehouseId?: string): Promise<WarehouseEmployee[]> {
+  let q: Query = collection(db, "employees");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("assignedClientId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("assignedWarehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions);
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as WarehouseEmployee[];
+}
+
+export function subscribeEmployees(
+  callback: (employees: WarehouseEmployee[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "employees");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("assignedClientId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("assignedWarehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions);
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as WarehouseEmployee[]);
+  });
+}
+
+export async function createEmployee(emp: WarehouseEmployee): Promise<void> {
+  await setDoc(doc(db, "employees", emp.badgeId), emp);
+}
+
+export async function updateEmployee(badgeId: string, updates: Partial<WarehouseEmployee>): Promise<void> {
+  await updateDoc(doc(db, "employees", badgeId), updates);
+}
+
+export async function deleteEmployee(badgeId: string): Promise<void> {
+  await deleteDoc(doc(db, "employees", badgeId));
+}
+
+// ============================================================
+// Movement History (Append-Only Audit Log)
+// ============================================================
+export async function logMovement(entry: Omit<MovementHistory, "movementId">): Promise<string> {
+  const id = `MV-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await setDoc(doc(db, "movementHistory", id), {
+    ...entry,
+    movementId: id,
+    timestamp: serverTimestamp(),
+  });
+  return id;
+}
+
+export async function fetchMovementHistory(filters?: {
+  badgeId?: string;
+  tenantId?: string;
+  itemCode?: string;
+  type?: MovementHistory["type"];
+  limit?: number;
+}): Promise<MovementHistory[]> {
+  let q: Query = collection(db, "movementHistory");
+  const conditions: any[] = [];
+  if (filters?.badgeId) conditions.push(where("badgeId", "==", filters.badgeId));
+  if (filters?.tenantId) conditions.push(where("tenantId", "==", filters.tenantId));
+  if (filters?.itemCode) conditions.push(where("itemCode", "==", filters.itemCode));
+  if (filters?.type) conditions.push(where("type", "==", filters.type));
+  if (conditions.length > 0) q = query(q, ...conditions);
+  const snap = await getDocs(q);
+  let results = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as MovementHistory[];
+  if (filters?.limit) results = results.slice(0, filters.limit);
+  const sorted = results.sort((a, b) => ((b as any).timestamp?.seconds ?? 0) - ((a as any).timestamp?.seconds ?? 0));
+  return sorted;
+}
+
+export function subscribeMovementHistory(
+  callback: (entries: MovementHistory[]) => void,
+  filters?: { badgeId?: string; tenantId?: string; itemCode?: string; type?: MovementHistory["type"] },
+): Unsubscribe {
+  let q: Query = collection(db, "movementHistory");
+  const conditions: any[] = [];
+  if (filters?.badgeId) conditions.push(where("badgeId", "==", filters.badgeId));
+  if (filters?.tenantId) conditions.push(where("tenantId", "==", filters.tenantId));
+  if (filters?.itemCode) conditions.push(where("itemCode", "==", filters.itemCode));
+  if (filters?.type) conditions.push(where("type", "==", filters.type));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("timestamp", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as MovementHistory[]);
+  });
+}
+
+export async function seedEmployees(employees: WarehouseEmployee[]): Promise<void> {
+  const batch = writeBatch(db);
+  for (const emp of employees) {
+    batch.set(doc(db, "employees", emp.badgeId), emp);
+  }
+  await batch.commit();
 }

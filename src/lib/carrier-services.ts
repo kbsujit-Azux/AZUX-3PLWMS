@@ -1,3 +1,34 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Carrier Service Catalog
+ * ============================================================
+ *
+ *  Purpose: Reference catalog of carrier service levels, SCAC
+ *           codes, transit times, and pricing tiers. Used for
+ *           carrier selection on orders and BOL generation.
+ *
+ *  Key types exported:
+ *    • CarrierServiceRecord        — Service definition (carrier, code, transit)
+ *
+ *  Data:
+ *    • carrierServices[]           — All carrier/service records
+ *
+ *  Helper functions:
+ *    • getActiveCarriers()         — Unique carrier list (active only)
+ *    • getServiceCodesByCarrier()  — Filtered services for a carrier
+ *    • getServiceCodeDescription() — Service code → description
+ *
+ *  SCAC mapping (in bol-data.ts):
+ *    FedEx → FXFE, UPS → UPSN, USPS → USPS, Maersk → MAEU, etc.
+ *
+ *  Extension points:
+ *    - Add carrier transit-time SLAs
+ *    - Add carrier rate tables for cost estimation
+ *    - Add carrier performance metrics (on-time %, exception rate)
+ *    - Add carrier qualification/insurance tracking
+ * ============================================================
+ */
+
 export type CarrierServiceRecord = {
   id: string;
   carrier: string;

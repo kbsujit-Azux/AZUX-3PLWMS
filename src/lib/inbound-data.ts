@@ -1,6 +1,41 @@
-import { warehouses } from "./mock-data";
+/**
+ * ============================================================
+ *  MODULE INDEX — Inbound Operations (EDI 943 / EDI 944)
+ * ============================================================
+ *
+ *  Purpose: Inbound shipment lifecycle — ASN receipt through
+ *           putaway and receipt closure. Covers EDI 943 (Stock
+ *           Transfer Shipment Advice) inbound flow and EDI 944
+ *           (Stock Transfer Receipt Advice) outbound confirmation.
+ *
+ *  Key types exported:
+ *    • InboundShipment           — ASN header (door, carrier, PO, status)
+ *    • InboundLine               — ASN line item (SKU, qty, lot, expiry)
+ *    • InboundReceipt            — Closed receipt after putaway
+ *    • InboundReceiptLine        — Per-line receipt detail (OSD, cartons)
+ *
+ *  Data:
+ *    • inboundShipments[]        — Mock ASN records
+ *    • inboundReceipts[]         — Closed receipts (mutable)
+ *
+ *  Helper functions:
+ *    • warehouseCode()           — WH ID → code lookup
+ *    • inboundProgressPct()      — Line-level receive progress
+ *    • shipmentProgressPct()     — Shipment-level receive progress
+ *    • closeInboundShipment()    — Convert ASN → InboundReceipt
+ *
+ *  Firestore CRUD (in firestore-data.ts):
+ *    fetchInboundShipments / subscribeInboundShipments
+ *    updateInboundLine / receiveInboundShipment
+ *
+ *  Extension points:
+ *    - Add new ASN statuses to InboundShipment.status union
+ *    - Add OSD (Out of Spec / Damage) reason codes
+ *    - Add carrier appointment scheduling logic
+ * ============================================================
+ */
 
-/** EDI 943 — Stock Transfer Shipment Advice (inbound ASN). */
+import { warehouses } from "./mock-data";
 export type InboundLine = {
   lineNo: number;
   sku: string;

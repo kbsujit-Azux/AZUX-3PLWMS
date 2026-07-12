@@ -1,3 +1,46 @@
+/**
+ * ============================================================
+ *  MODULE INDEX — Allocation & Order Fulfillment Engine
+ * ============================================================
+ *
+ *  Purpose: Core WMS 3PL order lifecycle — allocate, deallocate,
+ *           pick, unpick, and ship. This is the transactional heart
+ *           of the 3PL system, coordinating inventory, pick tickets,
+ *           and order status transitions.
+ *
+ *  Key functions exported:
+ *    • validateOrderForAllocation()    — Guard: order must be "new"
+ *    • validateOrderForDeallocation()  — Guard: order must be "ALLOCATED"
+ *    • validatePickTicketForPick()     — Guard: ticket must be "GENERATED"
+ *    • validateOrderForPick()          — Guard: order must be "ALLOCATED"
+ *    • validateOrderForUnpick()        — Guard: order must be "PICKED"
+ *    • validateOrderForShip()          — Guard: order must be "PICKED"
+ *    • allocate_order()                — LIFO/FIFO allocation + pick tickets
+ *    • deallocate_order()              — Reverse allocation, remove tickets
+ *    • pick_pick_ticket()              — Execute directed pick, stage to DROP
+ *    • unpick_order()                  — Reverse pick, return to original location
+ *    • ship_order()                    — Close pick tickets, generate BOL/945
+ *    • canAllocate / canDeallocate / canPick / canUnpick / canShip
+ *    • getOrderStatusLabel()
+ *
+ *  State machine:
+ *    new → ALLOCATED → PICKED → shipped
+ *           ↑           │
+ *           └── deallocate / unpick
+ *
+ *  Firestore writes (via firestore-data.ts):
+ *    createOrder, updateOrder, writePickTicket, batchWritePickTickets,
+ *    updatePickTicket, deletePickTicketsByOrder, upsertInventoryItem,
+ *    logInventoryTransaction, shipOrder
+ *
+ *  Extension points:
+ *    - Add wave/pick group logic for batch order allocation
+ *    - Add partial pick / backorder handling
+ *    - Add cross-dock allocation (no storage allocation)
+ *    - Add serialized/lot tracking for regulated items
+ * ============================================================
+ */
+
 import {
   collection,
   getDocs,

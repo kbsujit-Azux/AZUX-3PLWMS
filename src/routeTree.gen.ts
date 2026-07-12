@@ -15,6 +15,7 @@ import { Route as PicksRouteImport } from './routes/picks'
 import { Route as PalletsRouteImport } from './routes/pallets'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as MastersRouteImport } from './routes/masters'
+import { Route as EmployeesRouteImport } from './routes/masters/employees'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InboundRouteImport } from './routes/inbound'
 import { Route as EdiRouteImport } from './routes/edi'
@@ -23,6 +24,12 @@ import { Route as BillingRouteImport } from './routes/billing'
 import { Route as Allocation_backupRouteImport } from './routes/allocation_backup'
 import { Route as AllocationRouteImport } from './routes/allocation'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RfPutawayRouteImport } from './routes/rf/putaway'
+import { Route as RfMoveRouteImport } from './routes/rf/move'
+import { Route as RfPickRouteImport } from './routes/rf/pick'
+import { Route as RfReceivingRouteImport } from './routes/rf/receiving'
+import { Route as RfInquiryRouteImport } from './routes/rf/inquiry'
+import { Route as RfHistoryRouteImport } from './routes/rf/history'
 
 const ShipmentsRoute = ShipmentsRouteImport.update({
   id: '/shipments',
@@ -94,6 +101,41 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RfPutawayRoute = RfPutawayRouteImport.update({
+  id: '/rf/putaway',
+  path: '/rf/putaway',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RfMoveRoute = RfMoveRouteImport.update({
+  id: '/rf/move',
+  path: '/rf/move',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RfPickRoute = RfPickRouteImport.update({
+  id: '/rf/pick',
+  path: '/rf/pick',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RfReceivingRoute = RfReceivingRouteImport.update({
+  id: '/rf/receiving',
+  path: '/rf/receiving',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RfInquiryRoute = RfInquiryRouteImport.update({
+  id: '/rf/inquiry',
+  path: '/rf/inquiry',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RfHistoryRoute = RfHistoryRouteImport.update({
+  id: '/rf/history',
+  path: '/rf/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmployeesRoute = EmployeesRouteImport.update({
+  id: '/masters/employees',
+  path: '/masters/employees',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -105,9 +147,16 @@ export interface FileRoutesByFullPath {
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
   '/masters': typeof MastersRoute
+  '/masters/employees': typeof EmployeesRoute
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
+  '/rf/putaway': typeof RfPutawayRoute
+  '/rf/move': typeof RfMoveRoute
+  '/rf/pick': typeof RfPickRoute
+  '/rf/receiving': typeof RfReceivingRoute
+  '/rf/inquiry': typeof RfInquiryRoute
+  '/rf/history': typeof RfHistoryRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
 }
@@ -121,9 +170,16 @@ export interface FileRoutesByTo {
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
   '/masters': typeof MastersRoute
+  '/masters/employees': typeof EmployeesRoute
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
+  '/rf/putaway': typeof RfPutawayRoute
+  '/rf/move': typeof RfMoveRoute
+  '/rf/pick': typeof RfPickRoute
+  '/rf/receiving': typeof RfReceivingRoute
+  '/rf/inquiry': typeof RfInquiryRoute
+  '/rf/history': typeof RfHistoryRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
 }
@@ -138,9 +194,16 @@ export interface FileRoutesById {
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
   '/masters': typeof MastersRoute
+  '/masters/employees': typeof EmployeesRoute
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
+  '/rf/putaway': typeof RfPutawayRoute
+  '/rf/move': typeof RfMoveRoute
+  '/rf/pick': typeof RfPickRoute
+  '/rf/receiving': typeof RfReceivingRoute
+  '/rf/inquiry': typeof RfInquiryRoute
+  '/rf/history': typeof RfHistoryRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
 }
@@ -156,9 +219,16 @@ export interface FileRouteTypes {
     | '/inbound'
     | '/inventory'
     | '/masters'
+    | '/masters/employees'
     | '/orders'
     | '/pallets'
     | '/picks'
+    | '/rf/putaway'
+    | '/rf/move'
+    | '/rf/pick'
+    | '/rf/receiving'
+    | '/rf/inquiry'
+    | '/rf/history'
     | '/settings'
     | '/shipments'
   fileRoutesByTo: FileRoutesByTo
@@ -172,9 +242,16 @@ export interface FileRouteTypes {
     | '/inbound'
     | '/inventory'
     | '/masters'
+    | '/masters/employees'
     | '/orders'
     | '/pallets'
     | '/picks'
+    | '/rf/putaway'
+    | '/rf/move'
+    | '/rf/pick'
+    | '/rf/receiving'
+    | '/rf/inquiry'
+    | '/rf/history'
     | '/settings'
     | '/shipments'
   id:
@@ -188,9 +265,16 @@ export interface FileRouteTypes {
     | '/inbound'
     | '/inventory'
     | '/masters'
+    | '/masters/employees'
     | '/orders'
     | '/pallets'
     | '/picks'
+    | '/rf/putaway'
+    | '/rf/move'
+    | '/rf/pick'
+    | '/rf/receiving'
+    | '/rf/inquiry'
+    | '/rf/history'
     | '/settings'
     | '/shipments'
   fileRoutesById: FileRoutesById
@@ -205,9 +289,16 @@ export interface RootRouteChildren {
   InboundRoute: typeof InboundRoute
   InventoryRoute: typeof InventoryRoute
   MastersRoute: typeof MastersRoute
+  EmployeesRoute: typeof EmployeesRoute
   OrdersRoute: typeof OrdersRoute
   PalletsRoute: typeof PalletsRoute
   PicksRoute: typeof PicksRoute
+  RfPutawayRoute: typeof RfPutawayRoute
+  RfMoveRoute: typeof RfMoveRoute
+  RfPickRoute: typeof RfPickRoute
+  RfReceivingRoute: typeof RfReceivingRoute
+  RfInquiryRoute: typeof RfInquiryRoute
+  RfHistoryRoute: typeof RfHistoryRoute
   SettingsRoute: typeof SettingsRoute
   ShipmentsRoute: typeof ShipmentsRoute
 }
@@ -226,6 +317,48 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/history': {
+      id: '/rf/history'
+      path: '/rf/history'
+      fullPath: '/rf/history'
+      preLoaderRoute: typeof RfHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/inquiry': {
+      id: '/rf/inquiry'
+      path: '/rf/inquiry'
+      fullPath: '/rf/inquiry'
+      preLoaderRoute: typeof RfInquiryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/receiving': {
+      id: '/rf/receiving'
+      path: '/rf/receiving'
+      fullPath: '/rf/receiving'
+      preLoaderRoute: typeof RfReceivingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/pick': {
+      id: '/rf/pick'
+      path: '/rf/pick'
+      fullPath: '/rf/pick'
+      preLoaderRoute: typeof RfPickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/move': {
+      id: '/rf/move'
+      path: '/rf/move'
+      fullPath: '/rf/move'
+      preLoaderRoute: typeof RfMoveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/putaway': {
+      id: '/rf/putaway'
+      path: '/rf/putaway'
+      fullPath: '/rf/putaway'
+      preLoaderRoute: typeof RfPutawayRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/picks': {
@@ -247,6 +380,13 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/orders'
       preLoaderRoute: typeof OrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/masters/employees': {
+      id: '/masters/employees'
+      path: '/masters/employees'
+      fullPath: '/masters/employees'
+      preLoaderRoute: typeof EmployeesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/masters': {
@@ -325,9 +465,16 @@ const rootRouteChildren: RootRouteChildren = {
   InboundRoute: InboundRoute,
   InventoryRoute: InventoryRoute,
   MastersRoute: MastersRoute,
+  EmployeesRoute: EmployeesRoute,
   OrdersRoute: OrdersRoute,
   PalletsRoute: PalletsRoute,
   PicksRoute: PicksRoute,
+  RfPutawayRoute: RfPutawayRoute,
+  RfMoveRoute: RfMoveRoute,
+  RfPickRoute: RfPickRoute,
+  RfReceivingRoute: RfReceivingRoute,
+  RfInquiryRoute: RfInquiryRoute,
+  RfHistoryRoute: RfHistoryRoute,
   SettingsRoute: SettingsRoute,
   ShipmentsRoute: ShipmentsRoute,
 }
