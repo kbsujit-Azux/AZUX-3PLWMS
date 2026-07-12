@@ -39,7 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { RFSessionProvider, useRfSession } from "@/lib/rf-session";
+import { useRfSession } from "@/lib/rf-session";
 import { fetchPickTickets, updatePickTicket } from "@/lib/firestore-data";
 import { runTransaction, doc } from "firebase/firestore";
 import { db } from "@/lib/firestore";
@@ -398,10 +398,6 @@ function PickInner() {
 
 export const Route = createFileRoute("/rf/pick")({
   component: function PickRoute() {
-    return (
-      <RFSessionProvider>
-        <PickInner />
-      </RFSessionProvider>
-    );
+    return <PickInner />;
   },
 });

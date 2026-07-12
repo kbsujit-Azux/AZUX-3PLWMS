@@ -180,6 +180,17 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           await seedCollection("employees", seedEmployees, (item) => item.badgeId);
 
           console.log("Default WMS datasets successfully seeded to Firestore!");
+        } else {
+          const empSnap = await getDocs(collection(db, "employees"));
+          if (empSnap.empty) {
+            console.log("Seeding employees into existing database...");
+            const batch = writeBatch(db);
+            seedEmployees.forEach((emp) => {
+              batch.set(doc(db, "employees", emp.badgeId), emp);
+            });
+            await batch.commit();
+            console.log("Employees seeded successfully!");
+          }
         }
       } catch (err) {
         console.error("Firestore database seeding failed:", err);

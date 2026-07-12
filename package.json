@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:node": "node -e \"require('fs').copyFileSync('vite.config.node.ts', 'vite.config.ts')\" && vite build",
     "build:dev": "vite build --mode development",
+    "build:rfgun": "vite build --config rfgun/vite.config.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

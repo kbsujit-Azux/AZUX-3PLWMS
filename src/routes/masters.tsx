@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -16,6 +16,7 @@ import {
   RefreshCw,
   FileText,
   Download,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -188,12 +189,17 @@ function MastersPage() {
 
   return (
     <div className="px-6 py-6 space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Master Data</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Item Master (EDI 832) and Warehouse Location Master. Inbound ASNs and Orders are
-          cross-checked against these registers before execution.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Master Data</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Item Master (EDI 832) and Warehouse Location Master. Inbound ASNs and Orders are
+            cross-checked against these registers before execution.
+          </p>
+        </div>
+        <Button asChild size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-500">
+          <Link to="/masters/employees"><Users className="h-4 w-4 mr-1" /> Employees</Link>
+        </Button>
       </div>
 
       <div className="grid grid-cols-4 gap-3">

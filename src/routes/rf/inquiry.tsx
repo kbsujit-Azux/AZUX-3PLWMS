@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { RFSessionProvider, useRfSession } from "@/lib/rf-session";
+import { useRfSession } from "@/lib/rf-session";
 import { fetchPallets, fetchInventoryItems, fetchLocations } from "@/lib/firestore-data";
 
 type ScanMode = "pallet" | "location" | "sku";
@@ -225,10 +225,6 @@ function InquiryInner() {
 
 export const Route = createFileRoute("/rf/inquiry")({
   component: function InquiryRoute() {
-    return (
-      <RFSessionProvider>
-        <InquiryInner />
-      </RFSessionProvider>
-    );
+    return <InquiryInner />;
   },
 });

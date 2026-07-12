@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { fetchEmployees } from "@/lib/firestore-data";
 import type { WarehouseEmployee } from "@/lib/rf-types";
 
+const STORAGE_KEY = "azux.rf.badgeId";
+
 type RfSessionCtx = {
   employee: WarehouseEmployee | null;
   badgeId: string;
@@ -22,7 +24,13 @@ type RfSessionCtx = {
 const Ctx = createContext<RfSessionCtx | null>(null);
 
 export function RFSessionProvider({ children }: { children: ReactNode }) {
-  const [badgeId, setBadgeId] = useState("");
+  const [badgeId, setBadgeIdState] = useState<string>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [employee, setEmployee] = useState<WarehouseEmployee | null>(null);
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(false);
@@ -31,33 +39,49 @@ export function RFSessionProvider({ children }: { children: ReactNode }) {
     if (!badgeId || badgeId.length < 2) return;
     let cancelled = false;
     setLoading(true);
-    fetchEmployees(badgeId ? undefined : undefined, badgeId ? undefined : undefined).then(
-      (list) => {
-        if (cancelled) return;
-        const match = list.find(
-          (e) => e.badgeId.toLowerCase() === badgeId.toLowerCase() && e.isActive,
-        );
-        if (match) {
-          setEmployee(match);
-          setVerified(true);
-          toast.success(`Welcome, ${match.name}`);
-        } else {
-          setEmployee(null);
-          setVerified(false);
-          toast.error("Badge not found or inactive");
+    fetchEmployees(undefined, undefined).then((list) => {
+      if (cancelled) return;
+      const match = list.find(
+        (e) => e.badgeId.toLowerCase() === badgeId.toLowerCase() && e.isActive,
+      );
+      if (match) {
+        setEmployee(match);
+        setVerified(true);
+        try {
+          localStorage.setItem(STORAGE_KEY, badgeId);
+        } catch {
+          // storage not available
         }
-        setLoading(false);
-      },
-    );
+      } else {
+        setEmployee(null);
+        setVerified(false);
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          // storage not available
+        }
+        toast.error("Badge not found or inactive");
+      }
+      setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
   }, [badgeId]);
 
+  const setBadgeId = (id: string) => {
+    setBadgeIdState(id);
+  };
+
   const logout = () => {
-    setBadgeId("");
+    setBadgeIdState("");
     setEmployee(null);
     setVerified(false);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // storage not available
+    }
   };
 
   return (

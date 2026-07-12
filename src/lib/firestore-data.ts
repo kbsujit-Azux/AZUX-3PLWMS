@@ -148,6 +148,20 @@ export function subscribeWarehouses(callback: (warehouses: Warehouse[]) => void)
   });
 }
 
+export async function createWarehouse(warehouse: Omit<Warehouse, "id">): Promise<string> {
+  const ref = doc(collection(db, "warehouses"));
+  await setDoc(ref, warehouse);
+  return ref.id;
+}
+
+export async function updateWarehouse(id: string, warehouse: Partial<Warehouse>): Promise<void> {
+  await updateDoc(doc(db, "warehouses", id), warehouse);
+}
+
+export async function deleteWarehouse(id: string): Promise<void> {
+  await deleteDoc(doc(db, "warehouses", id));
+}
+
 // ============================================================
 // Item Master
 // ============================================================

@@ -15,6 +15,7 @@ import {
   Receipt,
   PackageCheck,
   ScanLine,
+  Users,
 } from "lucide-react";
 import {
   Sidebar,
@@ -44,6 +45,8 @@ const operations = [
 
 const systems = [
   { title: "Master Data", url: "/masters", icon: Database },
+  { title: "Warehouses", url: "/masters/warehouses", icon: Warehouse },
+  { title: "Employees", url: "/masters/employees", icon: Users },
   { title: "EDI Hub", url: "/edi", icon: Cable },
   { title: "Documents (BOL)", url: "/documents", icon: FileText },
   { title: "Billing", url: "/billing", icon: Receipt },
@@ -51,7 +54,7 @@ const systems = [
 ] as const;
 
 const rfTerminal = [
-  { title: "RF Terminal", url: "/rf/putaway", icon: ScanLine },
+  { title: "RF Terminal", url: "https://rfgun.web.app", icon: ScanLine },
 ] as const;
 
 export function AppSidebar() {
@@ -126,11 +129,11 @@ export function AppSidebar() {
             <SidebarMenu>
               {rfTerminal.map((item) => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
-                    <Link to={item.url} className="flex items-center gap-2">
+                  <SidebarMenuButton asChild isActive={false} tooltip={item.title}>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
                       <item.icon className="h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
-                    </Link>
+                    </a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

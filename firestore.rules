@@ -89,6 +89,27 @@ service cloud.firestore {
         request.auth.token.tenantId == resource.data.tenantId;
     }
     
+    // Warehouse Employees (RF Gun Badge Auth)
+    match /employees/{badgeId} {
+      allow read: if true || 
+        (resource.data.assignedClientId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.assignedClientId);
+      allow write: if true || 
+        request.auth.uid == resource.data.assignedClientId ||
+        request.auth.token.tenantId == resource.data.assignedClientId;
+    }
+    
+    // Movement History (Append-Only Audit Log)
+    match /movementHistory/{movementId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow create: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+      allow update, delete: if false;
+    }
+    
     // Inventory Transactions
     match /inventoryTransactions/{txnId} {
       allow read, write: if true;
@@ -112,7 +133,7 @@ service cloud.firestore {
          request.auth.token.tenantId == resource.data.tenantId);
       allow write: if true || 
         request.auth.uid == resource.data.tenantId ||
-         request.auth.token.tenantId == resource.data.tenantId;
+        request.auth.token.tenantId == resource.data.tenantId;
     }
   }
 }

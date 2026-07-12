@@ -1,0 +1,486 @@
+import { useState, useEffect, useCallback, useRef, type FormEvent } from "react";
+import { toast } from "sonner";
+import { db } from "@shared/lib/firestore";
+import { collection, getDocs, getDoc, doc, updateDoc, addDoc, query, where, limit, orderBy, runTransaction, serverTimestamp } from "firebase/firestore";
+import { PackageSearch, MoveRight, ClipboardList, Container, ScanLine, History, LogOut, ArrowLeft, CheckCircle2, AlertTriangle, MapPin, Boxes, Warehouse } from "lucide-react";
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+interface Employee { badgeId: string; name: string; role: string; assignedClientId: string; assignedWarehouseId: string; active: boolean; }
+interface Pallet { id: string; sku: string; units: number; status: string; location?: string; description?: string; poNumber?: string; ediSource?: string; }
+interface LocationRecord { id: string; type: string; occupiedPallets?: number; }
+interface MovementHistory { movementId: string; type: string; itemCode: string; fromLocationId?: string; toLocationId?: string; movedQty: number; uom: string; referenceId: string; badgeId: string; tenantId: string; timestamp: Date; }
+interface PickTicket { number: string; sku: string; qtyOrdered: number; qtyPicked: number; status: string; locationId?: string; }
+
+// ─── Session ────────────────────────────────────────────────────────────────
+function useRfSession() {
+  const [badgeId, _setBadgeId] = useState<string>(() => localStorage.getItem("azux.rf.badgeId") || "");
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [verified, setVerified] = useState(false);
+
+  const setBadgeId = useCallback((id: string) => {
+    _setBadgeId(id);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!badgeId) { setVerified(false); setEmployee(null); return; }
+    setLoading(true);
+    getDocs(query(collection(db, "employees"), where("badgeId", "==", badgeId), limit(1)))
+      .then((snap) => {
+        if (cancelled) return;
+        const d = snap.docs[0];
+        if (d) {
+          const data = d.data() as Omit<Employee, "id">;
+          setEmployee({ id: d.id, ...data } as Employee);
+          setVerified(true);
+          localStorage.setItem("azux.rf.badgeId", badgeId);
+        } else {
+          setEmployee(null);
+          setVerified(false);
+          localStorage.removeItem("azux.rf.badgeId");
+        }
+      })
+      .catch(() => { if (!cancelled) { setVerified(false); setEmployee(null); } })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [badgeId]);
+
+  const logout = useCallback(() => { _setBadgeId(""); setEmployee(null); setVerified(false); localStorage.removeItem("azux.rf.badgeId"); }, []);
+
+  return { badgeId, employee, loading, verified, setBadgeId, logout };
+}
+
+// ─── Data helpers ───────────────────────────────────────────────────────────
+async function fetchPallets(tenantId: string, warehouseId: string): Promise<Pallet[]> {
+  const snap = await getDocs(query(collection(db, "pallets"), where("clientId", "==", tenantId), where("warehouseId", "==", warehouseId)));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Pallet, "id">) } as Pallet));
+}
+async function fetchLocations(tenantId: string, warehouseId: string): Promise<LocationRecord[]> {
+  const snap = await getDocs(query(collection(db, "locationMaster"), where("clientId", "==", tenantId), where("warehouseId", "==", warehouseId)));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LocationRecord, "id">) } as LocationRecord));
+}
+async function fetchPickTickets(tenantId: string, warehouseId: string): Promise<PickTicket[]> {
+  const snap = await getDocs(query(collection(db, "pickTickets"), where("clientId", "==", tenantId), where("warehouseId", "==", warehouseId), where("status", "in", ["OPEN", "PARTIAL"])));
+  return snap.docs.map((d) => ({ number: d.id, ...(d.data() as Omit<PickTicket, "number">) } as PickTicket));
+}
+async function fetchInboundShipments(tenantId: string, warehouseId: string) {
+  const snap = await getDocs(query(collection(db, "inboundShipments"), where("clientId", "==", tenantId), where("warehouseId", "==", warehouseId)));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
+}
+async function fetchMovementHistory(tenantId: string, itemCode: string, limitCount = 25): Promise<MovementHistory[]> {
+  const snap = await getDocs(query(collection(db, "movementHistory"), where("tenantId", "==", tenantId), where("itemCode", "==", itemCode), orderBy("timestamp", "desc"), limit(limitCount)));
+  return snap.docs.map((d) => {
+    const data = d.data() as Omit<MovementHistory, "movementId">;
+    const ts = data.timestamp as { toDate?: () => Date } | string | undefined;
+    const timestamp = typeof ts === "object" && ts && "toDate" in ts && typeof ts.toDate === "function" ? ts.toDate() : new Date(ts as string);
+    return { movementId: d.id, ...data, timestamp } as MovementHistory;
+  });
+}
+async function logMovement(entry: Omit<MovementHistory, "movementId" | "timestamp">) {
+  await addDoc(collection(db, "movementHistory"), { ...entry, timestamp: serverTimestamp() });
+}
+
+function playChime(type: "ok" | "err") {
+  try {
+    const AudioCtx = window.AudioContext || ((window as unknown as Record<string, unknown>).webkitAudioContext as unknown as typeof AudioContext);
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = type === "ok" ? 880 : 220;
+    gain.gain.value = 0.15;
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  } catch { /* no audio */ }
+}
+
+// ─── Screens ────────────────────────────────────────────────────────────────
+function PutawayScreen({ employee }: { employee: Employee }) {
+  const [step, setStep] = useState<"scan-pallet" | "scan-location" | "confirm">("scan-pallet");
+  const [pallet, setPallet] = useState<Pallet | null>(null);
+  const [locInput, setLocInput] = useState("");
+  const [location, setLocation] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [locations, setLocations] = useState<Record<string, LocationRecord>>({});
+  const palletRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { fetchLocations(employee.assignedClientId, employee.assignedWarehouseId).then((locs) => { const m: Record<string, LocationRecord> = {}; for (const l of locs) m[l.id] = l; setLocations(m); }); }, [employee]);
+
+  const handlePallet = useCallback(async (id: string) => {
+    if (busy) return; setBusy(true); setError("");
+    try {
+      const list = await fetchPallets(employee.assignedClientId, employee.assignedWarehouseId);
+      const found = list.find((p) => p.id.toLowerCase() === id.toLowerCase());
+      if (!found || found.status === "putaway" || found.status === "shipped") { setError(`Pallet ${id} not found or already put away`); playChime("err"); setBusy(false); return; }
+      setPallet(found); setStep("scan-location"); playChime("ok");
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Lookup failed"); playChime("err"); }
+    finally { setBusy(false); }
+  }, [employee, busy]);
+
+  const handleLoc = useCallback(async (locId: string) => {
+    if (!pallet || busy) return;
+    const loc = locations[locId];
+    if (!loc) { setError(`Location ${locId} not found`); playChime("err"); return; }
+    if (loc.type === "DROP") { setError(`${locId} is a DROP — use Move or Pick`); playChime("err"); return; }
+    if (loc.occupiedPallets && loc.occupiedPallets > 0 && loc.type === "RACK") { setError(`${locId} appears occupied`); playChime("err"); return; }
+    setLocation(locId); setStep("confirm"); playChime("ok");
+  }, [pallet, busy, locations]);
+
+  const confirm = useCallback(async () => {
+    if (!pallet || !location || busy) return;
+    setBusy(true); setError("");
+    try {
+      await runTransaction(db, async (txn) => {
+        txn.update(doc(db, "pallets", pallet.id), { status: "putaway", location, updatedAt: new Date().toISOString() });
+        const invSnap = await txn.get(doc(db, "inventoryItems", pallet.sku));
+        if (invSnap.exists()) {
+          const item = invSnap.data() as Record<string, unknown>;
+          const batches = (item.batches as Array<{ palletId?: string; location?: string }>) || [];
+          const idx = batches.findIndex((b) => b.palletId === pallet.id && b.location !== location);
+          const updated = [...batches];
+          if (idx >= 0 && updated[idx]) { updated[idx] = { ...updated[idx], location, receivedAt: new Date().toISOString() }; }
+          else { updated.push({ batchId: `BATCH-${Date.now()}`, palletId: pallet.id, location, qty: pallet.units, qtyAllocated: 0, receivedAt: new Date().toISOString(), poNumber: pallet.poNumber, ediSource: pallet.ediSource }); }
+          txn.update(doc(db, "inventoryItems", pallet.sku), { batches: updated });
+        }
+        const locRef = doc(db, "locationMaster", location);
+        const locSnap = await txn.get(locRef);
+        if (locSnap.exists()) txn.update(locRef, { occupiedPallets: ((locSnap.data() as Record<string, unknown>)?.occupiedPallets ?? 0) as number + 1 });
+      });
+      await logMovement({ type: "PUTAWAY", itemCode: pallet.sku, toLocationId: location, movedQty: pallet.units, uom: "EA", referenceId: pallet.id, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
+      toast.success(`${pallet.id} → ${location}`); playChime("ok");
+      setPallet(null); setLocation(""); setLocInput(""); setStep("scan-pallet");
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Putaway failed"); playChime("err"); }
+    finally { setBusy(false); }
+  }, [pallet, location, employee, busy]);
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center gap-2"><PackageSearch className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Directed Putaway</h1></div>
+      {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
+      {step === "scan-pallet" && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">1. Scan Pallet ID</p><input ref={palletRef} autoFocus placeholder="Scan pallet barcode" className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" onKeyDown={(e) => { if (e.key === "Enter") handlePallet((e.target as HTMLInputElement).value.trim()); }} /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => handlePallet((palletRef.current?.value ?? "").trim())} disabled={busy}><ScanLine className="h-4 w-4 inline mr-2" />Look Up Pallet</button></div>)}
+      {step === "scan-location" && pallet && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400 space-y-1"><div className="flex items-center gap-2"><Boxes className="h-3 w-3" /><span className="font-mono">{pallet.id}</span></div><div>{pallet.description} · {pallet.units} units</div><div className="text-emerald-400">SCAN TARGET LOCATION →</div></div><p className="text-xs text-slate-300">2. Scan Destination Location ID</p><input autoFocus placeholder="e.g. A12-03-B" value={locInput} onChange={(e) => setLocInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLoc(e.currentTarget.value.trim()); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => handleLoc(locInput.trim())} disabled={busy}><MapPin className="h-4 w-4 inline mr-2" />Verify Location</button><button className="w-full text-slate-400 text-xs" onClick={() => { setStep("scan-pallet"); setPallet(null); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
+      {step === "confirm" && pallet && location && (<div className="border border-emerald-500/50 bg-emerald-950/20 rounded-md p-4 space-y-3"><div className="flex items-center gap-2 text-emerald-400 text-xs"><CheckCircle2 className="h-4 w-4" /><span className="font-medium">Ready to confirm</span></div><div className="text-xs text-slate-300 space-y-1"><div>Pallet: <span className="font-mono text-white">{pallet.id}</span></div><div>SKU: <span className="font-mono text-white">{pallet.sku}</span></div><div>Units: <span className="font-mono text-white">{pallet.units}</span></div><div>From: <span className="font-mono text-amber-400">{pallet.location ?? "staged"}</span></div><div>To: <span className="font-mono text-emerald-400">{location}</span></div></div><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirm} disabled={busy}>{busy ? "Committing…" : "Confirm Putaway"}</button><button className="w-full text-slate-400 text-xs" onClick={() => { setStep("scan-location"); setLocation(""); setLocInput(""); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
+    </div>
+  );
+}
+
+function MoveScreen({ employee }: { employee: Employee }) {
+  const [step, setStep] = useState<"scan-origin" | "scan-dest" | "confirm">("scan-origin");
+  const [pallet, setPallet] = useState<Pallet | null>(null);
+  const [origin, setOrigin] = useState("");
+  const [dest, setDest] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [locations, setLocations] = useState<Record<string, LocationRecord>>({});
+
+  useEffect(() => { fetchLocations(employee.assignedClientId, employee.assignedWarehouseId).then((locs) => { const m: Record<string, LocationRecord> = {}; for (const l of locs) m[l.id] = l; setLocations(m); }); }, [employee]);
+
+  const handleOrigin = useCallback(async (locId: string) => {
+    if (busy) return; setBusy(true); setError("");
+    try {
+      const list = await fetchPallets(employee.assignedClientId, employee.assignedWarehouseId);
+      const found = list.find((p) => (p.location ?? "").toLowerCase() === locId.toLowerCase() && p.status !== "shipped");
+      if (!found) { setError(`No active pallet at ${locId}`); playChime("err"); setBusy(false); return; }
+      setPallet(found); setOrigin(locId); setStep("scan-dest"); playChime("ok");
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Lookup failed"); playChime("err"); }
+    finally { setBusy(false); }
+  }, [employee, busy]);
+
+  const handleDest = useCallback(async (locId: string) => {
+    if (!pallet || busy) return;
+    const loc = locations[locId];
+    if (!loc) { setError(`Location ${locId} not found`); playChime("err"); return; }
+    if (loc.type === "DROP") { setError(`${locId} is a DROP`); playChime("err"); return; }
+    setDest(locId); setStep("confirm"); playChime("ok");
+  }, [pallet, busy, locations]);
+
+  const confirm = useCallback(async () => {
+    if (!pallet || !origin || !dest || busy) return;
+    setBusy(true); setError("");
+    try {
+      await runTransaction(db, async (txn) => {
+        txn.update(doc(db, "pallets", pallet.id), { location: dest, updatedAt: new Date().toISOString() });
+        const invSnap = await txn.get(doc(db, "inventoryItems", pallet.sku));
+        if (invSnap.exists()) {
+          const item = invSnap.data() as Record<string, unknown>;
+          const batches = (item.batches as Array<{ palletId?: string; location?: string }>) || [];
+          const idx = batches.findIndex((b) => b.palletId === pallet.id);
+          const updated = [...batches];
+          if (idx >= 0 && updated[idx]) { updated[idx] = { ...updated[idx], location: dest }; }
+          txn.update(doc(db, "inventoryItems", pallet.sku), { batches: updated });
+        }
+        const oldLocRef = doc(db, "locationMaster", origin);
+        const oldSnap = await txn.get(oldLocRef);
+        if (oldSnap.exists()) txn.update(oldLocRef, { occupiedPallets: Math.max(0, ((oldSnap.data() as Record<string, unknown>)?.occupiedPallets ?? 0) as number - 1) });
+        const newLocRef = doc(db, "locationMaster", dest);
+        const newSnap = await txn.get(newLocRef);
+        if (newSnap.exists()) txn.update(newLocRef, { occupiedPallets: ((newSnap.data() as Record<string, unknown>)?.occupiedPallets ?? 0) as number + 1 });
+      });
+      await logMovement({ type: "MOVE_PALLET", itemCode: pallet.sku, fromLocationId: origin, toLocationId: dest, movedQty: pallet.units, uom: "EA", referenceId: pallet.id, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
+      toast.success(`${pallet.id}: ${origin} → ${dest}`); playChime("ok");
+      setPallet(null); setOrigin(""); setDest(""); setStep("scan-origin");
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Move failed"); playChime("err"); }
+    finally { setBusy(false); }
+  }, [pallet, origin, dest, employee, busy]);
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center gap-2"><MoveRight className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Move Pallet</h1></div>
+      {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
+      {step === "scan-origin" && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">1. Scan Origin Location</p><input autoFocus placeholder="Scan origin location" className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" onKeyDown={(e) => { if (e.key === "Enter") handleOrigin(e.currentTarget.value.trim()); }} /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => { const v = (document.activeElement as HTMLInputElement)?.value?.trim() || ""; handleOrigin(v); }} disabled={busy}><MapPin className="h-4 w-4 inline mr-2" />Verify Origin</button></div>)}
+      {step === "scan-dest" && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400">Origin: <span className="font-mono text-white">{origin}</span> · Pallet: <span className="font-mono text-white">{pallet?.id}</span></div><p className="text-xs text-slate-300">2. Scan Destination Location</p><input autoFocus placeholder="Scan destination" className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" onKeyDown={(e) => { if (e.key === "Enter") handleDest(e.currentTarget.value.trim()); }} /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={() => { const v = (document.activeElement as HTMLInputElement)?.value?.trim() || ""; handleDest(v); }} disabled={busy}><MapPin className="h-4 w-4 inline mr-2" />Verify Destination</button><button className="w-full text-slate-400 text-xs" onClick={() => { setStep("scan-origin"); setPallet(null); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
+      {step === "confirm" && (<div className="border border-emerald-500/50 bg-emerald-950/20 rounded-md p-4 space-y-3"><div className="flex items-center gap-2 text-emerald-400 text-xs"><CheckCircle2 className="h-4 w-4" /><span className="font-medium">Confirm Move</span></div><div className="text-xs text-slate-300 space-y-1"><div>Pallet: <span className="font-mono text-white">{pallet?.id}</span></div><div>{origin} → {dest}</div></div><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirm} disabled={busy}>{busy ? "Moving…" : "Confirm Move"}</button><button className="w-full text-slate-400 text-xs" onClick={() => { setStep("scan-dest"); setDest(""); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
+    </div>
+  );
+}
+
+function PickScreen({ employee }: { employee: Employee }) {
+  const [ticket, setTicket] = useState<PickTicket | null>(null);
+  const [ticketId, setTicketId] = useState("");
+  const [qty, setQty] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleLookup = useCallback(async () => {
+    if (busy || !ticketId.trim()) return;
+    setBusy(true); setError("");
+    try {
+      const list = await fetchPickTickets(employee.assignedClientId, employee.assignedWarehouseId);
+      const found = list.find((t) => t.number.toLowerCase() === ticketId.trim().toLowerCase());
+      if (!found) { setError(`Pick ticket ${ticketId} not found`); playChime("err"); setBusy(false); return; }
+      setTicket(found); playChime("ok");
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Lookup failed"); playChime("err"); }
+    finally { setBusy(false); }
+  }, [employee, ticketId, busy]);
+
+  const confirmPick = useCallback(async () => {
+    if (!ticket || busy) return;
+    const picked = parseInt(qty, 10);
+    if (isNaN(picked) || picked <= 0) { setError("Enter valid quantity"); playChime("err"); return; }
+    if (picked > ticket.qtyOrdered - ticket.qtyPicked) { setError(`Cannot exceed remaining ${ticket.qtyOrdered - ticket.qtyPicked}`); playChime("err"); return; }
+    setBusy(true); setError("");
+    try {
+      const newQtyPicked = ticket.qtyPicked + picked;
+      const status = newQtyPicked >= ticket.qtyOrdered ? "PICKED" : "PARTIAL";
+      await updateDoc(doc(db, "pickTickets", ticket.number), { qtyPicked: newQtyPicked, status, pickedAt: new Date().toISOString() });
+      await logMovement({ type: "DIRECTED_PICK", itemCode: ticket.sku, fromLocationId: ticket.locationId, toLocationId: "DROP001", movedQty: picked, uom: "EA", referenceId: ticket.number, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
+      toast.success(`Picked ${picked} units`); playChime("ok");
+      setTicket(null); setTicketId(""); setQty("");
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Pick failed"); playChime("err"); }
+    finally { setBusy(false); }
+  }, [ticket, qty, employee, busy]);
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Directed Pick</h1></div>
+      {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
+      {!ticket ? (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Enter Pick Ticket #</p><input autoFocus placeholder="Ticket number" value={ticketId} onChange={(e) => setTicketId(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup} disabled={busy}>{busy ? "Loading…" : "Lookup Ticket"}</button></div>) : (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400 space-y-1"><div>Ticket: <span className="font-mono text-white">{ticket.number}</span></div><div>SKU: <span className="font-mono text-white">{ticket.sku}</span></div><div>Ordered: <span className="font-mono text-white">{ticket.qtyOrdered}</span> · Picked: <span className="font-mono text-white">{ticket.qtyPicked}</span></div><div>Location: <span className="font-mono text-white">{ticket.locationId ?? "—"}</span></div></div><p className="text-xs text-slate-300">Pick Quantity</p><input autoFocus placeholder="Qty" type="number" value={qty} onChange={(e) => setQty(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmPick(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirmPick} disabled={busy}>{busy ? "Picking…" : "Confirm Pick"}</button><button className="w-full text-slate-400 text-xs" onClick={() => { setTicket(null); setQty(""); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
+    </div>
+  );
+}
+
+function ReceivingScreen({ employee }: { employee: Employee }) {
+  const [shipment, setShipment] = useState<any>(null);
+  const [shipmentId, setShipmentId] = useState("");
+  const [lines, setLines] = useState<any[]>([]);
+  const [received, setReceived] = useState<Record<string, number>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLookup = useCallback(async () => {
+    if (busy || !shipmentId.trim()) return;
+    setBusy(true); setError("");
+    try {
+      const list = await fetchInboundShipments(employee.assignedClientId, employee.assignedWarehouseId);
+      const found = list.find((s) => s.id.toLowerCase() === shipmentId.trim().toLowerCase());
+      if (!found) { setError(`Shipment ${shipmentId} not found`); playChime("err"); setBusy(false); return; }
+      setShipment(found);
+      const shipmentLines = (found.lines || []) as any[];
+      setLines(shipmentLines);
+      const init: Record<string, number> = {};
+      for (const l of shipmentLines) init[l.sku || l.itemCode] = 0;
+      setReceived(init);
+      playChime("ok");
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Lookup failed"); playChime("err"); }
+    finally { setBusy(false); }
+  }, [employee, shipmentId, busy]);
+
+  const updateReceived = (sku: string, delta: number) => {
+    setReceived((prev) => {
+      const current = prev[sku] || 0;
+      const line = lines.find((l: any) => (l.sku || l.itemCode) === sku);
+      const max = line ? (line.qtyExpected || line.qty || 999) : 999;
+      return { ...prev, [sku]: Math.max(0, Math.min(max, current + delta)) };
+    });
+  };
+
+  const confirmReceiving = useCallback(async () => {
+    if (!shipment || busy) return;
+    setBusy(true); setError("");
+    try {
+      const now = new Date().toISOString();
+      for (const line of lines) {
+        const sku = line.sku || line.itemCode;
+        const qty = received[sku] || 0;
+        if (qty <= 0) continue;
+        await addDoc(collection(db, "pallets"), { sku, units: qty, status: "NEW", clientId: employee.assignedClientId, warehouseId: employee.assignedWarehouseId, poNumber: shipment.poNumber, ediSource: shipment.ediSource, createdAt: now, updatedAt: now });
+        await logMovement({ type: "DOCK_RECEIVING", itemCode: sku, toLocationId: "RECEIVING", movedQty: qty, uom: "EA", referenceId: shipment.id, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
+      }
+      await updateDoc(doc(db, "inboundShipments", shipment.id), { status: "RECEIVED", receivedAt: now });
+      toast.success("Receiving complete"); playChime("ok");
+      setShipment(null); setShipmentId(""); setLines([]); setReceived({});
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Receiving failed"); playChime("err"); }
+    finally { setBusy(false); }
+  }, [shipment, lines, received, employee, busy]);
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center gap-2"><Container className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Dock Receiving</h1></div>
+      {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
+      {!shipment ? (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Scan Container / ASN</p><input autoFocus placeholder="Shipment or ASN #" value={shipmentId} onChange={(e) => setShipmentId(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup} disabled={busy}>{busy ? "Loading…" : "Lookup Shipment"}</button></div>) : (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><div className="text-xs text-slate-400">Shipment: <span className="font-mono text-white">{shipment.id}</span></div>{lines.map((line: any) => { const sku = line.sku || line.itemCode; const qty = received[sku] || 0; const max = line.qtyExpected || line.qty || 999; return (<div key={sku} className="flex items-center justify-between text-xs"><div><div className="font-mono text-white">{sku}</div><div className="text-slate-500">Expected: {max}</div></div><div className="flex items-center gap-2"><button className="h-8 w-8 rounded border border-slate-700 bg-slate-800 text-white" onClick={() => updateReceived(sku, -1)}>-</button><span className="font-mono text-white w-8 text-center">{qty}</span><button className="h-8 w-8 rounded border border-slate-700 bg-slate-800 text-white" onClick={() => updateReceived(sku, 1)} disabled={qty >= max}>+</button></div></div>); })}<button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirmReceiving} disabled={busy}>{busy ? "Receiving…" : "Confirm Receipt"}</button><button className="w-full text-slate-400 text-xs" onClick={() => { setShipment(null); setLines([]); setReceived({}); setError(""); }}><ArrowLeft className="h-4 w-4 inline mr-1" />Back</button></div>)}
+    </div>
+  );
+}
+
+function InquiryScreen({ employee }: { employee: Employee }) {
+  const [mode, setMode] = useState<"pallet" | "location" | "sku">("pallet");
+  const [input, setInput] = useState("");
+  const [result, setResult] = useState<string>("");
+  const [detail, setDetail] = useState<string[]>([]);
+
+  const handleLookup = useCallback(async () => {
+    if (!input.trim()) return;
+    const id = input.trim();
+    try {
+      if (mode === "pallet") {
+        const snap = await getDoc(doc(db, "pallets", id));
+        if (!snap.exists()) { setResult("Not found"); setDetail([]); playChime("err"); return; }
+        const d = snap.data() as Record<string, unknown>;
+        setResult("Pallet Detail");
+        setDetail([`SKU: ${d.sku}`, `Units: ${d.units}`, `Status: ${d.status}`, `Location: ${d.location ?? "—"}`, `PO: ${d.poNumber ?? "—"}`]);
+      } else if (mode === "location") {
+        const snap = await getDocs(query(collection(db, "pallets"), where("location", "==", id), where("clientId", "==", employee.assignedClientId)));
+        const items = snap.docs.map((d) => { const data = d.data() as Record<string, unknown>; return `${d.id}: ${data.sku} (${data.units} units)`; });
+        setResult(`Location: ${id} (${items.length} pallets)`);
+        setDetail(items.length ? items : ["No pallets at this location"]);
+      } else {
+        const snap = await getDocs(query(collection(db, "inventoryItems"), where("sku", "==", id), where("clientId", "==", employee.assignedClientId)));
+        const items = snap.docs.map((d) => { const data = d.data() as Record<string, unknown>; const batches = (data.batches as any[]) || []; const total = batches.reduce((s, b) => s + (b.qty || 0), 0); return `${d.id}: ${total} units across ${batches.length} batches`; });
+        setResult(`SKU: ${id} (${items.length} items)`);
+        setDetail(items.length ? items : ["No inventory for this SKU"]);
+      }
+      playChime("ok");
+    } catch (e: unknown) { setResult(e instanceof Error ? e.message : "Lookup failed"); setDetail([]); playChime("err"); }
+  }, [mode, input, employee]);
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center gap-2"><ScanLine className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Inquiry</h1></div>
+      <div className="flex gap-2 text-xs">
+        {(["pallet", "location", "sku"] as const).map((m) => (<button key={m} className={`flex-1 py-2 rounded border ${mode === m ? "border-emerald-500 bg-emerald-950/30 text-emerald-400" : "border-slate-800 text-slate-400"}`} onClick={() => setMode(m)}>{m.toUpperCase()}</button>))}
+      </div>
+      <div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Scan / enter {mode}</p><input autoFocus placeholder={mode === "pallet" ? "Pallet ID" : mode === "location" ? "Location ID" : "SKU / UPC"} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup}>Lookup</button></div>
+      {result && (<div className="border border-slate-800 bg-slate-900 rounded-md p-3 space-y-1"><div className="text-xs font-medium text-white">{result}</div>{detail.map((d, i) => (<div key={i} className="text-[11px] text-slate-300 font-mono">{d}</div>))}</div>)}
+    </div>
+  );
+}
+
+function HistoryScreen({ employee }: { employee: Employee }) {
+  const [input, setInput] = useState("");
+  const [entries, setEntries] = useState<MovementHistory[]>([]);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+
+  const handleLookup = useCallback(async () => {
+    if (!input.trim()) return;
+    setLoading(true); setEntries([]);
+    try {
+      const results = await fetchMovementHistory(employee.assignedClientId, input.trim(), 25);
+      setEntries(results); playChime("ok");
+    } catch { playChime("err"); }
+    finally { setLoading(false); }
+  }, [employee, input]);
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Item History</h1></div>
+      <div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Scan SKU / UPC / Item Code</p><input ref={ref} autoFocus placeholder="SKU or UPC" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup} disabled={loading}>{loading ? "Loading…" : "Lookup History"}</button></div>
+      {entries.length > 0 && (<div className="space-y-2"><div className="text-[10px] uppercase tracking-wider text-slate-500">Last {entries.length} movements</div>{entries.map((e) => (<div key={e.movementId} className="border border-slate-800 bg-slate-900 rounded-md p-3 space-y-1"><div className="flex items-center justify-between"><span className="text-[10px] font-mono text-emerald-400">{e.type}</span><span className="text-[10px] text-slate-500">{e.timestamp.toLocaleString?.("en-US", { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) ?? "—"}</span></div><div className="text-[11px] text-slate-300 font-mono space-y-0.5"><div>Item: {e.itemCode}</div><div>{e.fromLocationId || "—"} → {e.toLocationId || "—"}</div><div>Qty: {e.movedQty} {e.uom} · Ref: {e.referenceId}</div><div className="text-slate-500">By: {e.badgeId}</div></div></div>))}</div>)}
+      {entries.length === 0 && !loading && input && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 text-xs text-slate-500 flex items-center gap-2"><AlertTriangle className="h-4 w-4" />No movement history found</div>)}
+    </div>
+  );
+}
+
+// ─── Main App ───────────────────────────────────────────────────────────────
+const NAV = [
+  { title: "Putaway", screen: "putaway" as const, icon: PackageSearch },
+  { title: "Move", screen: "move" as const, icon: MoveRight },
+  { title: "Pick", screen: "pick" as const, icon: ClipboardList },
+  { title: "Receive", screen: "receiving" as const, icon: Container },
+  { title: "Inquiry", screen: "inquiry" as const, icon: ScanLine },
+  { title: "History", screen: "history" as const, icon: History },
+];
+
+export default function App() {
+  const { employee, verified, loading, setBadgeId, logout } = useRfSession();
+  const [screen, setScreen] = useState<"putaway" | "move" | "pick" | "receiving" | "inquiry" | "history">("putaway");
+
+  if (!verified && !loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 p-4">
+        <form onSubmit={(e: FormEvent) => { e.preventDefault(); const input = document.getElementById("rf-badge") as HTMLInputElement; if (input) setBadgeId(input.value.trim()); }} className="w-full max-w-sm space-y-6">
+          <div className="text-center space-y-2">
+            <Warehouse className="h-10 w-10 mx-auto text-emerald-400" />
+            <h1 className="text-xl font-semibold text-white tracking-tight">RF Terminal</h1>
+            <p className="text-xs text-slate-400">Scan badge or enter Badge ID to continue</p>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="rf-badge" className="text-xs text-slate-300">Badge ID</label>
+            <input id="rf-badge" autoFocus placeholder="e.g. WH-1001" className="w-full h-12 bg-slate-900 border border-slate-700 text-white text-center text-lg font-mono tracking-widest rounded-md" />
+          </div>
+          <button type="submit" className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-md" disabled={loading}>Sign In</button>
+          <p className="text-center text-[10px] text-slate-500">Demo badges: WH-1001, WH-1002, WH-1003</p>
+        </form>
+      </div>
+    );
+  }
+
+  if (!employee) return <div className="p-4 text-xs text-slate-500">Loading…</div>;
+
+  return (
+    <div className="mx-auto max-w-md h-screen bg-slate-950 text-white flex flex-col">
+      <header className="flex items-center gap-2 border-b border-slate-800 bg-slate-900 px-3 py-2 shrink-0">
+        <Warehouse className="h-4 w-4 text-emerald-400" />
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-medium truncate">{employee.name}</div>
+          <div className="text-[10px] text-slate-400 font-mono truncate">{employee.assignedWarehouseId} · {employee.badgeId}</div>
+        </div>
+        <button className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-white" onClick={logout}><LogOut className="h-4 w-4" /></button>
+      </header>
+      <main className="flex-1 overflow-y-auto">
+        {screen === "putaway" && <PutawayScreen employee={employee} />}
+        {screen === "move" && <MoveScreen employee={employee} />}
+        {screen === "pick" && <PickScreen employee={employee} />}
+        {screen === "receiving" && <ReceivingScreen employee={employee} />}
+        {screen === "inquiry" && <InquiryScreen employee={employee} />}
+        {screen === "history" && <HistoryScreen employee={employee} />}
+      </main>
+      <nav className="border-t border-slate-800 bg-slate-900/95 backdrop-blur">
+        <div className="grid grid-cols-6">
+          {NAV.map((item) => {
+            const active = screen === item.screen;
+            return (
+              <button key={item.screen} onClick={() => setScreen(item.screen)} className="flex flex-col items-center gap-0.5 py-2 text-[10px] transition-colors">
+                <item.icon className={`h-5 w-5 ${active ? "text-emerald-400" : "text-slate-500"}`} />
+                <span className={active ? "text-emerald-400 font-medium" : "text-slate-500"}>{item.title}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
+  );
+}

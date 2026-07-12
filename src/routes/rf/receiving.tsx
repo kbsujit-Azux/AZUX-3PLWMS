@@ -38,7 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { RFSessionProvider, useRfSession } from "@/lib/rf-session";
+import { useRfSession } from "@/lib/rf-session";
 import { fetchInboundShipments, receiveInboundShipment } from "@/lib/firestore-data";
 import { createPalletsFromInbound } from "@/lib/pallet-data";
 import { DROP001_LOCATION } from "@/lib/mock-data";
@@ -351,10 +351,6 @@ function ReceivingInner() {
 
 export const Route = createFileRoute("/rf/receiving")({
   component: function ReceivingRoute() {
-    return (
-      <RFSessionProvider>
-        <ReceivingInner />
-      </RFSessionProvider>
-    );
+    return <ReceivingInner />;
   },
 });

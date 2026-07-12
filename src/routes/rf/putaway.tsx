@@ -38,7 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { RFSessionProvider, useRfSession } from "@/lib/rf-session";
+import { useRfSession } from "@/lib/rf-session";
 import {
   fetchPallets,
   updatePallet,
@@ -349,10 +349,6 @@ function PutawayInner() {
 
 export const Route = createFileRoute("/rf/putaway")({
   component: function PutawayRoute() {
-    return (
-      <RFSessionProvider>
-        <PutawayInner />
-      </RFSessionProvider>
-    );
+    return <PutawayInner />;
   },
 });

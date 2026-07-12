@@ -15,6 +15,7 @@ import { Route as PicksRouteImport } from './routes/picks'
 import { Route as PalletsRouteImport } from './routes/pallets'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as MastersRouteImport } from './routes/masters'
+import { Route as WarehousesRouteImport } from './routes/masters/warehouses'
 import { Route as EmployeesRouteImport } from './routes/masters/employees'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InboundRouteImport } from './routes/inbound'
@@ -24,6 +25,7 @@ import { Route as BillingRouteImport } from './routes/billing'
 import { Route as Allocation_backupRouteImport } from './routes/allocation_backup'
 import { Route as AllocationRouteImport } from './routes/allocation'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RfRouteImport } from './routes/rf/index'
 import { Route as RfPutawayRouteImport } from './routes/rf/putaway'
 import { Route as RfMoveRouteImport } from './routes/rf/move'
 import { Route as RfPickRouteImport } from './routes/rf/pick'
@@ -101,34 +103,44 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RfRoute = RfRouteImport.update({
+  id: '/rf',
+  path: '/rf',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RfPutawayRoute = RfPutawayRouteImport.update({
   id: '/rf/putaway',
   path: '/rf/putaway',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => RfRoute,
 } as any)
 const RfMoveRoute = RfMoveRouteImport.update({
   id: '/rf/move',
   path: '/rf/move',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => RfRoute,
 } as any)
 const RfPickRoute = RfPickRouteImport.update({
   id: '/rf/pick',
   path: '/rf/pick',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => RfRoute,
 } as any)
 const RfReceivingRoute = RfReceivingRouteImport.update({
   id: '/rf/receiving',
   path: '/rf/receiving',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => RfRoute,
 } as any)
 const RfInquiryRoute = RfInquiryRouteImport.update({
   id: '/rf/inquiry',
   path: '/rf/inquiry',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => RfRoute,
 } as any)
 const RfHistoryRoute = RfHistoryRouteImport.update({
   id: '/rf/history',
   path: '/rf/history',
+  getParentRoute: () => RfRoute,
+} as any)
+const WarehousesRoute = WarehousesRouteImport.update({
+  id: '/masters/warehouses',
+  path: '/masters/warehouses',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmployeesRoute = EmployeesRouteImport.update({
@@ -147,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
   '/masters': typeof MastersRoute
+  '/masters/warehouses': typeof WarehousesRoute
   '/masters/employees': typeof EmployeesRoute
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
@@ -170,10 +183,12 @@ export interface FileRoutesByTo {
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
   '/masters': typeof MastersRoute
+  '/masters/warehouses': typeof WarehousesRoute
   '/masters/employees': typeof EmployeesRoute
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
+  '/rf': typeof RfRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/move': typeof RfMoveRoute
   '/rf/pick': typeof RfPickRoute
@@ -194,10 +209,12 @@ export interface FileRoutesById {
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
   '/masters': typeof MastersRoute
+  '/masters/warehouses': typeof WarehousesRoute
   '/masters/employees': typeof EmployeesRoute
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
+  '/rf': typeof RfRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/move': typeof RfMoveRoute
   '/rf/pick': typeof RfPickRoute
@@ -219,10 +236,12 @@ export interface FileRouteTypes {
     | '/inbound'
     | '/inventory'
     | '/masters'
+    | '/masters/warehouses'
     | '/masters/employees'
     | '/orders'
     | '/pallets'
     | '/picks'
+    | '/rf'
     | '/rf/putaway'
     | '/rf/move'
     | '/rf/pick'
@@ -242,10 +261,12 @@ export interface FileRouteTypes {
     | '/inbound'
     | '/inventory'
     | '/masters'
+    | '/masters/warehouses'
     | '/masters/employees'
     | '/orders'
     | '/pallets'
     | '/picks'
+    | '/rf'
     | '/rf/putaway'
     | '/rf/move'
     | '/rf/pick'
@@ -265,10 +286,12 @@ export interface FileRouteTypes {
     | '/inbound'
     | '/inventory'
     | '/masters'
+    | '/masters/warehouses'
     | '/masters/employees'
     | '/orders'
     | '/pallets'
     | '/picks'
+    | '/rf'
     | '/rf/putaway'
     | '/rf/move'
     | '/rf/pick'
@@ -289,10 +312,12 @@ export interface RootRouteChildren {
   InboundRoute: typeof InboundRoute
   InventoryRoute: typeof InventoryRoute
   MastersRoute: typeof MastersRoute
+  WarehousesRoute: typeof WarehousesRoute
   EmployeesRoute: typeof EmployeesRoute
   OrdersRoute: typeof OrdersRoute
   PalletsRoute: typeof PalletsRoute
   PicksRoute: typeof PicksRoute
+  RfRoute: typeof RfRoute
   RfPutawayRoute: typeof RfPutawayRoute
   RfMoveRoute: typeof RfMoveRoute
   RfPickRoute: typeof RfPickRoute
@@ -324,41 +349,48 @@ declare module '@tanstack/react-router' {
       path: '/rf/history'
       fullPath: '/rf/history'
       preLoaderRoute: typeof RfHistoryRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof RfRouteImport
     }
     '/rf/inquiry': {
       id: '/rf/inquiry'
       path: '/rf/inquiry'
       fullPath: '/rf/inquiry'
       preLoaderRoute: typeof RfInquiryRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof RfRouteImport
     }
     '/rf/receiving': {
       id: '/rf/receiving'
       path: '/rf/receiving'
       fullPath: '/rf/receiving'
       preLoaderRoute: typeof RfReceivingRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof RfRouteImport
     }
     '/rf/pick': {
       id: '/rf/pick'
       path: '/rf/pick'
       fullPath: '/rf/pick'
       preLoaderRoute: typeof RfPickRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof RfRouteImport
     }
     '/rf/move': {
       id: '/rf/move'
       path: '/rf/move'
       fullPath: '/rf/move'
       preLoaderRoute: typeof RfMoveRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof RfRouteImport
     }
     '/rf/putaway': {
       id: '/rf/putaway'
       path: '/rf/putaway'
       fullPath: '/rf/putaway'
       preLoaderRoute: typeof RfPutawayRouteImport
+      parentRoute: typeof RfRouteImport
+    }
+    '/rf': {
+      id: '/rf'
+      path: '/rf'
+      fullPath: '/rf'
+      preLoaderRoute: typeof RfRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/picks': {
@@ -387,6 +419,13 @@ declare module '@tanstack/react-router' {
       path: '/masters/employees'
       fullPath: '/masters/employees'
       preLoaderRoute: typeof EmployeesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/masters/warehouses': {
+      id: '/masters/warehouses'
+      path: '/masters/warehouses'
+      fullPath: '/masters/warehouses'
+      preLoaderRoute: typeof WarehousesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/masters': {
@@ -465,10 +504,12 @@ const rootRouteChildren: RootRouteChildren = {
   InboundRoute: InboundRoute,
   InventoryRoute: InventoryRoute,
   MastersRoute: MastersRoute,
+  WarehousesRoute: WarehousesRoute,
   EmployeesRoute: EmployeesRoute,
   OrdersRoute: OrdersRoute,
   PalletsRoute: PalletsRoute,
   PicksRoute: PicksRoute,
+  RfRoute: RfRoute,
   RfPutawayRoute: RfPutawayRoute,
   RfMoveRoute: RfMoveRoute,
   RfPickRoute: RfPickRoute,

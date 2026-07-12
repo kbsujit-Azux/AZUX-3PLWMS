@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { RFSessionProvider, useRfSession } from "@/lib/rf-session";
+import { useRfSession } from "@/lib/rf-session";
 import { fetchMovementHistory } from "@/lib/firestore-data";
 import type { MovementHistory } from "@/lib/rf-types";
 
@@ -172,10 +172,6 @@ function HistoryInner() {
 
 export const Route = createFileRoute("/rf/history")({
   component: function HistoryRoute() {
-    return (
-      <RFSessionProvider>
-        <HistoryInner />
-      </RFSessionProvider>
-    );
+    return <HistoryInner />;
   },
 });
