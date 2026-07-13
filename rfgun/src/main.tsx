@@ -13,3 +13,17 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.ts")
+      .then((registration) => {
+        console.log("[PWA] ServiceWorker registered:", registration.scope);
+      })
+      .catch((error) => {
+        console.warn("[PWA] ServiceWorker registration failed:", error);
+      });
+  });
+}
+

@@ -11,8 +11,8 @@ import { LABOR_STANDARDS, computeStandardSec, getAisleFromLocation } from "@shar
  * Record a labor event to Firestore.
  * Computes standard time and efficiency % automatically.
  */
-export async function recordLaborEvent(event: Omit<LaborEvent, "eventId" | "startedAt" | "completedAt">): Promise<string> {
-  const startedAt = new Date(event.startedAt as unknown as number);
+export async function recordLaborEvent(event: Omit<LaborEvent, "eventId" | "completedAt"> & { startedAt: number | Date }): Promise<string> {
+  const startedAt = event.startedAt instanceof Date ? event.startedAt : new Date(event.startedAt);
   const completedAt = new Date();
 
   const actualSec = Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 1000));
