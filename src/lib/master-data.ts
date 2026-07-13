@@ -389,6 +389,12 @@ export type LocationRecord = {
   heightFt?: number;
   /** Pre-computed cubic feet (lengthFt * widthFt * heightFt) */
   cubicFeet?: number;
+  /** Slotting zone classification for dynamic reslotting */
+  zoneType?: "forward_pick" | "reserve" | "staging" | "hazmat" | "cold";
+  /** Velocity score for this location (picks per day) */
+  velocityScore?: number;
+  /** Recommended SKU(s) for this location */
+  recommendedSku?: string;
 };
 
 export const locationMaster: LocationRecord[] = [

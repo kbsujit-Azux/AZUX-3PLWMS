@@ -259,6 +259,28 @@ export {
   type SnapshotJobResult,
 } from "./billing-scheduler";
 
+// ─── Slotting Engine ────────────────────────────────────────────────────
+export {
+  computeSkuVelocity,
+  classifyLocationZone,
+  analyzeSlottingEfficiency,
+  getVelocityColor,
+  getPriorityBadge,
+  type SlottingZone,
+  type SlottingRecommendation,
+  type VelocityProfile,
+} from "./slotting-engine";
+
+// ─── Voice Picking ──────────────────────────────────────────────────────
+export {
+  createVoicePickingEngine,
+  useVoicePicking,
+  type VoiceCommand,
+  type ParsedVoiceCommand,
+  type VoicePickingOptions,
+  type VoicePickingState,
+} from "./voice-picking";
+
 // ─── Carrier Services ───────────────────────────────────────────────────
 export {
   type CarrierServiceRecord,
