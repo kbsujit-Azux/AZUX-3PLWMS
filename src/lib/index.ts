@@ -281,6 +281,15 @@ export {
   type VoicePickingState,
 } from "./voice-picking";
 
+// ─── Smart Glass Bridge ──────────────────────────────────────────────────
+export {
+  createGlassBridge,
+  type GlassBridge,
+  type GlassVendor,
+  type GlassInput,
+  type GlassInputType,
+} from "./glass-bridge";
+
 // ─── Carrier Services ───────────────────────────────────────────────────
 export {
   type CarrierServiceRecord,

@@ -5,8 +5,9 @@ import { collection, getDocs, getDoc, doc, updateDoc, addDoc, query, where, limi
 import { hashPassword, verifyPassword } from "@shared/lib/password-utils";
 import { recordLaborEvent, computeStandardSec, getAisleFromLocation } from "./lib/labor";
 import { useScanner } from "./hooks/useScanner";
+import { useVoicePicking } from "./hooks/useVoicePicking";
 import { enqueue, useOfflineQueue } from "./lib/offline-queue";
-import { PackageSearch, MoveRight, ClipboardList, Container, ScanLine, History, LogOut, ArrowLeft, CheckCircle2, AlertTriangle, MapPin, Boxes, Warehouse, Camera, CameraOff, X, PackageCheck, Tag, Package, Wrench, Truck, Zap, Clock, UserCheck, Download, WifiOff } from "lucide-react";
+import { PackageSearch, MoveRight, ClipboardList, Container, ScanLine, History, LogOut, ArrowLeft, CheckCircle2, AlertTriangle, MapPin, Boxes, Warehouse, Camera, CameraOff, X, PackageCheck, Tag, Package, Wrench, Truck, Zap, Clock, UserCheck, Download, WifiOff, Mic, MicOff } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -376,8 +377,20 @@ function PutawayScreen({ employee }: { employee: Employee }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [locations, setLocations] = useState<Record<string, LocationRecord>>({});
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const palletRef = useRef<HTMLInputElement>(null);
   const taskStartRef = useRef<number>(Date.now());
+
+  const voice = useVoicePicking({
+    enabled: voiceEnabled,
+    onCommand: (cmd) => {
+      if (cmd.command === "confirm" && step === "confirm" && pallet && location) confirm();
+      else if ((cmd.command === "next" || cmd.command === "skip") && step === "scan-location") setStep("scan-pallet");
+      else if (cmd.command === "cancel") { setPallet(null); setLocation(""); setLocInput(""); setStep("scan-pallet"); }
+      else if (cmd.command === "quantity" && typeof cmd.value === "number" && step === "confirm") { /* qty not used in putaway */ }
+    },
+    onError: () => {},
+  });
 
   useEffect(() => {
     taskStartRef.current = Date.now();
@@ -455,7 +468,12 @@ function PutawayScreen({ employee }: { employee: Employee }) {
 
   return (
     <div className="p-3 sm:p-4 space-y-4">
-      <div className="flex items-center gap-2"><PackageSearch className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Directed Putaway</h1></div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2"><PackageSearch className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Directed Putaway</h1></div>
+        <button onClick={() => setVoiceEnabled(!voiceEnabled)} className={`h-8 w-8 rounded flex items-center justify-center ${voiceEnabled ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400"}`} title={voiceEnabled ? "Voice ON" : "Voice OFF"}>
+          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </button>
+      </div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
       {(step === "scan-pallet" || step === "scan-location") && (
         <div className="space-y-3">
@@ -478,7 +496,18 @@ function MoveScreen({ employee }: { employee: Employee }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [locations, setLocations] = useState<Record<string, LocationRecord>>({});
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const taskStartRef = useRef<number>(Date.now());
+
+  const voice = useVoicePicking({
+    enabled: voiceEnabled,
+    onCommand: (cmd) => {
+      if (cmd.command === "confirm" && step === "confirm" && pallet && origin && dest) confirm();
+      else if ((cmd.command === "next" || cmd.command === "skip") && step === "scan-dest") setStep("scan-origin");
+      else if (cmd.command === "cancel") { setPallet(null); setOrigin(""); setDest(""); setStep("scan-origin"); }
+    },
+    onError: () => {},
+  });
 
   useEffect(() => {
     taskStartRef.current = Date.now();
@@ -557,7 +586,12 @@ await logMovement({ type: "MOVE_PALLET", itemCode: pallet.sku, fromLocationId: o
 
   return (
     <div className="p-3 sm:p-4 space-y-4">
-      <div className="flex items-center gap-2"><MoveRight className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Move Pallet</h1></div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2"><MoveRight className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Move Pallet</h1></div>
+        <button onClick={() => setVoiceEnabled(!voiceEnabled)} className={`h-8 w-8 rounded flex items-center justify-center ${voiceEnabled ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400"}`} title={voiceEnabled ? "Voice ON" : "Voice OFF"}>
+          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </button>
+      </div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
       {(step === "scan-origin" || step === "scan-dest") && (
         <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
@@ -575,7 +609,19 @@ function PickScreen({ employee }: { employee: Employee }) {
   const [qty, setQty] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const taskStartRef = useRef<number>(Date.now());
+
+  const voice = useVoicePicking({
+    enabled: voiceEnabled,
+    onCommand: (cmd) => {
+      if (cmd.command === "confirm" && ticket && qty) confirmPick();
+      else if (cmd.command === "cancel" || cmd.command === "skip") { setTicket(null); setQty(""); }
+      else if (cmd.command === "quantity" && typeof cmd.value === "number") setQty(String(cmd.value));
+      else if (cmd.command === "next" || cmd.command === "previous") setTicketId("");
+    },
+    onError: () => {},
+  });
 
   const handleLookup = useCallback(async () => {
     if (busy || !ticketId.trim()) return;
@@ -623,7 +669,12 @@ function PickScreen({ employee }: { employee: Employee }) {
 
   return (
     <div className="p-3 sm:p-4 space-y-4">
-      <div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Directed Pick</h1></div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Directed Pick</h1></div>
+        <button onClick={() => setVoiceEnabled(!voiceEnabled)} className={`h-8 w-8 rounded flex items-center justify-center ${voiceEnabled ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400"}`} title={voiceEnabled ? "Voice ON" : "Voice OFF"}>
+          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </button>
+      </div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
       {!ticket ? (
         <div className="space-y-3">
@@ -642,7 +693,18 @@ function ReceivingScreen({ employee }: { employee: Employee }) {
   const [received, setReceived] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const taskStartRef = useRef<number>(Date.now());
+
+  const voice = useVoicePicking({
+    enabled: voiceEnabled,
+    onCommand: (cmd) => {
+      if (cmd.command === "confirm" && shipment) confirmReceiving();
+      else if (cmd.command === "cancel") { setShipment(null); setShipmentId(""); setLines([]); setReceived({}); }
+      else if (cmd.command === "next" || cmd.command === "previous") setShipmentId("");
+    },
+    onError: () => {},
+  });
 
   const handleLookup = useCallback(async () => {
   if (busy || !shipmentId.trim()) return;
@@ -712,7 +774,12 @@ function ReceivingScreen({ employee }: { employee: Employee }) {
 
   return (
     <div className="p-3 sm:p-4 space-y-4">
-      <div className="flex items-center gap-2"><Container className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Dock Receiving</h1></div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2"><Container className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Dock Receiving</h1></div>
+        <button onClick={() => setVoiceEnabled(!voiceEnabled)} className={`h-8 w-8 rounded flex items-center justify-center ${voiceEnabled ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400"}`} title={voiceEnabled ? "Voice ON" : "Voice OFF"}>
+          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </button>
+      </div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
       {!shipment ? (
         <div className="space-y-3">
@@ -825,7 +892,17 @@ function AccessorialScreen({ employee }: { employee: Employee }) {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const taskStartRef = useRef<number>(Date.now());
+
+  const voice = useVoicePicking({
+    enabled: voiceEnabled,
+    onCommand: (cmd) => {
+      if (cmd.command === "confirm" && qty) confirm();
+      else if (cmd.command === "cancel") { setQty(""); setNotes(""); }
+    },
+    onError: () => {},
+  });
 
   const types: AccessorialType[] = [
     "KITTING",
@@ -885,7 +962,12 @@ function AccessorialScreen({ employee }: { employee: Employee }) {
 
   return (
     <div className="p-3 sm:p-4 space-y-4">
-      <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Accessorial Charges</h1></div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Accessorial Charges</h1></div>
+        <button onClick={() => setVoiceEnabled(!voiceEnabled)} className={`h-8 w-8 rounded flex items-center justify-center ${voiceEnabled ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400"}`} title={voiceEnabled ? "Voice ON" : "Voice OFF"}>
+          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </button>
+      </div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
 {types.map((t) => {

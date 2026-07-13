@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Target,
   Award,
+  ArrowUpRight,
 } from "lucide-react";
 import {
   Sidebar,
@@ -53,6 +54,7 @@ const systems = [
   { title: "EDI Hub", url: "/edi", icon: Cable },
   { title: "Documents (BOL)", url: "/documents", icon: FileText },
   { title: "Billing", url: "/billing", icon: Receipt },
+  { title: "Slotting", url: "/slotting", icon: Target },
   { title: "Settings", url: "/settings", icon: Settings },
 ] as const;
 
