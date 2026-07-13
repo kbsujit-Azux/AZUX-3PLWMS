@@ -383,6 +383,12 @@ export type LocationRecord = {
   pickable: boolean; // If false → excluded from allocation
   allowedItemStyles: string[] | null; // null = any
   notes?: string;
+  /** Location dimensions in feet (for volumetric billing) */
+  lengthFt?: number;
+  widthFt?: number;
+  heightFt?: number;
+  /** Pre-computed cubic feet (lengthFt * widthFt * heightFt) */
+  cubicFeet?: number;
 };
 
 export const locationMaster: LocationRecord[] = [
@@ -397,6 +403,10 @@ export const locationMaster: LocationRecord[] = [
     pickable: false,
     allowedItemStyles: null,
     notes: "Inbound staging",
+    lengthFt: 8,
+    widthFt: 6,
+    heightFt: 4,
+    cubicFeet: 192,
   },
   {
     id: "DROP-AISLE-A",
@@ -408,6 +418,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 4,
     pickable: false,
     allowedItemStyles: null,
+    lengthFt: 8,
+    widthFt: 6,
+    heightFt: 4,
+    cubicFeet: 192,
   },
   {
     id: "A12-03-B",
@@ -419,6 +433,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 1,
     pickable: true,
     allowedItemStyles: ["TENT-2P"],
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
   {
     id: "A12-04-A",
@@ -430,6 +448,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 1,
     pickable: true,
     allowedItemStyles: ["TENT-2P"],
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
   {
     id: "A14-01-C",
@@ -442,6 +464,10 @@ export const locationMaster: LocationRecord[] = [
     pickable: false,
     allowedItemStyles: null,
     notes: "QA hold — pending cycle count",
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
   {
     id: "B03-02-A",
@@ -453,6 +479,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 1,
     pickable: true,
     allowedItemStyles: ["STV-CMP"],
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
   {
     id: "FLR-ATL1-01",
@@ -464,6 +494,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 11,
     pickable: true,
     allowedItemStyles: null,
+    lengthFt: 40,
+    widthFt: 30,
+    heightFt: 8,
+    cubicFeet: 9600,
   },
   {
     id: "G01-01-A",
@@ -475,6 +509,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 1,
     pickable: true,
     allowedItemStyles: ["COLL-PWDR", "MAG-GLY"],
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
 
   {
@@ -487,6 +525,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 3,
     pickable: false,
     allowedItemStyles: null,
+    lengthFt: 8,
+    widthFt: 6,
+    heightFt: 4,
+    cubicFeet: 192,
   },
   {
     id: "D04-01-A",
@@ -498,6 +540,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 1,
     pickable: true,
     allowedItemStyles: ["HOOD-CLASSIC"],
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
   {
     id: "D04-02-B",
@@ -509,6 +555,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 1,
     pickable: true,
     allowedItemStyles: ["HOOD-CLASSIC"],
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
   {
     id: "E05-02-C",
@@ -521,6 +571,10 @@ export const locationMaster: LocationRecord[] = [
     pickable: false,
     allowedItemStyles: null,
     notes: "Lot review hold",
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
   {
     id: "FLR-ORD2-01",
@@ -532,6 +586,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 7,
     pickable: true,
     allowedItemStyles: null,
+    lengthFt: 35,
+    widthFt: 25,
+    heightFt: 8,
+    cubicFeet: 7000,
   },
 
   {
@@ -544,6 +602,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 5,
     pickable: false,
     allowedItemStyles: null,
+    lengthFt: 8,
+    widthFt: 6,
+    heightFt: 4,
+    cubicFeet: 192,
   },
   {
     id: "F02-05-A",
@@ -555,6 +617,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 1,
     pickable: true,
     allowedItemStyles: ["TEE-PREMIUM"],
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
   {
     id: "FLR-LAX3-01",
@@ -566,6 +632,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 22,
     pickable: true,
     allowedItemStyles: null,
+    lengthFt: 45,
+    widthFt: 35,
+    heightFt: 8,
+    cubicFeet: 12600,
   },
 
   {
@@ -578,6 +648,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 1,
     pickable: false,
     allowedItemStyles: null,
+    lengthFt: 8,
+    widthFt: 6,
+    heightFt: 4,
+    cubicFeet: 192,
   },
   {
     id: "C08-02-B",
@@ -589,6 +663,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 1,
     pickable: true,
     allowedItemStyles: ["EARB-PRO"],
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
   {
     id: "C08-03-A",
@@ -600,6 +678,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 1,
     pickable: true,
     allowedItemStyles: ["EARB-PRO"],
+    lengthFt: 10,
+    widthFt: 4,
+    heightFt: 6,
+    cubicFeet: 240,
   },
   {
     id: "FLR-EWR1-01",
@@ -611,6 +693,10 @@ export const locationMaster: LocationRecord[] = [
     occupiedPallets: 4,
     pickable: true,
     allowedItemStyles: null,
+    lengthFt: 30,
+    widthFt: 20,
+    heightFt: 8,
+    cubicFeet: 4800,
   },
 ];
 
@@ -637,4 +723,13 @@ export function updateLocationInMaster(id: string, updates: Partial<LocationReco
 export function deleteLocationFromMaster(id: string) {
   const idx = locationMaster.findIndex((l) => l.id === id);
   if (idx !== -1) locationMaster.splice(idx, 1);
+}
+
+/** Compute cubic feet from location dimensions (feet) */
+export function computeLocationCubicFeet(l: LocationRecord): number {
+  if (l.cubicFeet && l.cubicFeet > 0) return l.cubicFeet;
+  const lFt = l.lengthFt ?? 0;
+  const wFt = l.widthFt ?? 0;
+  const hFt = l.heightFt ?? 0;
+  return lFt * wFt * hFt;
 }

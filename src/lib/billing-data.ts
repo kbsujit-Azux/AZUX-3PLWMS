@@ -53,7 +53,7 @@ export type BillingClient = {
   tenantId: string;
 };
 
-export type RateUnit = "carton" | "pallet" | "container" | "bol" | "location" | "warehouse";
+export type RateUnit = "carton" | "pallet" | "container" | "bol" | "location" | "warehouse" | "cubicFeet";
 export type StorageFrequency = "daily" | "weekly" | "monthly" | "custom";
 
 export type ChargeRule = {
@@ -70,9 +70,39 @@ export type ChargeRule = {
   customCycleDays?: number;
   trigger?: string;
   enabled: boolean;
+  // Tiered pricing
+  priceTiers?: PriceTier[];
+  // Minimum monthly charge
+  minMonthlyCharge?: number;
+  // Peak season surcharge
+  peakSurchargePct?: number;
+  peakStartMonth?: number; // 1-12
+  peakEndMonth?: number;   // 1-12
+  // Effective date range
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  // For accessorial charges
+  accessorialType?: AccessorialType;
 };
 
 export type ActivityType = "Inbound" | "Outbound" | "Storage" | "Custom";
+
+/** Accessorial charge types for unplanned warehouse activities */
+export type AccessorialType =
+  | "KITTING"
+  | "RELABELING"
+  | "MANUAL_WRAPPING"
+  | "CONTAINER_DEVANNING"
+  | "SPECIAL_HANDLING"
+  | "LABOR_STANDBY"
+  | "RUSH_PROCESSING";
+
+/** Volume-based pricing tier */
+export type PriceTier = {
+  minQty: number;           // inclusive lower bound
+  maxQty: number | null;    // inclusive upper bound, null = unlimited
+  rate: number;             // rate for this tier
+};
 
 export type BillableEvent = {
   id: string;
@@ -87,6 +117,12 @@ export type BillableEvent = {
   quantity: number;
   unit: RateUnit | "flat";
   billed: boolean;
+  // Volumetric storage fields
+  cubeCuFt?: number;
+  daysInStorage?: number;
+  // Accessorial fields
+  accessorialType?: AccessorialType;
+  notes?: string;
 };
 
 export type InvoiceLine = {
@@ -311,6 +347,126 @@ export const defaultRules: ChargeRule[] = [
     unit: "pallet",
     rate: 0.55,
     frequency: "daily",
+    enabled: true,
+  },
+
+  // === ADVANCED BILLING: 3D Volumetric Storage ===
+  {
+    id: "r16",
+    clientId: "acme",
+    tenantId: "acme",
+    category: "Storage",
+    description: "Volumetric storage — per cu ft / month",
+    unit: "location",
+    rate: 0.42,
+    ratePerCuFt: 0.42,
+    frequency: "monthly",
+    enabled: true,
+  },
+  {
+    id: "r17",
+    clientId: "northstar",
+    tenantId: "northstar",
+    category: "Storage",
+    description: "Volumetric storage — per cu ft / month",
+    unit: "location",
+    rate: 0.38,
+    ratePerCuFt: 0.38,
+    frequency: "monthly",
+    enabled: true,
+  },
+
+  // === ADVANCED BILLING: Tiered Pricing ===
+  {
+    id: "r18",
+    clientId: "acme",
+    tenantId: "acme",
+    warehouseId: "atl1",
+    category: "Outbound",
+    description: "Pick & pack — tiered (0-100 @ $1.75, 101-500 @ $1.50, 501+ @ $1.25)",
+    unit: "carton",
+    rate: 1.75,
+    priceTiers: [
+      { minQty: 0, maxQty: 100, rate: 1.75 },
+      { minQty: 101, maxQty: 500, rate: 1.50 },
+      { minQty: 501, maxQty: null, rate: 1.25 },
+    ],
+    enabled: true,
+  },
+
+  // === ADVANCED BILLING: Minimum Monthly Commitment ===
+  {
+    id: "r19",
+    clientId: "acme",
+    tenantId: "acme",
+    category: "Storage",
+    description: "Pallet storage — monthly w/ $2,500 minimum",
+    unit: "pallet",
+    rate: 18,
+    frequency: "monthly",
+    minMonthlyCharge: 2500,
+    enabled: true,
+  },
+
+  // === ADVANCED BILLING: Peak Season Surcharge ===
+  {
+    id: "r20",
+    clientId: "northstar",
+    tenantId: "northstar",
+    category: "Storage",
+    description: "Pallet storage — monthly w/ peak surcharge (Oct-Dec +15%)",
+    unit: "pallet",
+    rate: 18,
+    frequency: "monthly",
+    peakSurchargePct: 15,
+    peakStartMonth: 10,
+    peakEndMonth: 12,
+    enabled: true,
+  },
+
+  // === ADVANCED BILLING: Accessorial Charges ===
+  {
+    id: "r21",
+    clientId: "acme",
+    tenantId: "acme",
+    category: "Custom",
+    description: "Kitting & assembly — per unit",
+    unit: "flat",
+    rate: 2.50,
+    accessorialType: "KITTING",
+    enabled: true,
+  },
+  {
+    id: "r22",
+    clientId: "acme",
+    tenantId: "acme",
+    category: "Custom",
+    description: "Re-labeling — per unit",
+    unit: "flat",
+    rate: 0.75,
+    accessorialType: "RELABELING",
+    enabled: true,
+  },
+  {
+    id: "r23",
+    clientId: "acme",
+    tenantId: "acme",
+    category: "Custom",
+    description: "Manual wrapping — per pallet",
+    unit: "flat",
+    rate: 12.00,
+    accessorialType: "MANUAL_WRAPPING",
+    enabled: true,
+  },
+  {
+    id: "r24",
+    clientId: "acme",
+    tenantId: "acme",
+    category: "Custom",
+    description: "Container devanning — per container",
+    unit: "flat",
+    rate: 185.00,
+    accessorialType: "CONTAINER_DEVANNING",
     enabled: true,
   },
 ];
@@ -561,8 +717,29 @@ export function unitLabel(u: RateUnit | "flat"): string {
       return "per location";
     case "warehouse":
       return "per warehouse";
+    case "cubicFeet":
+      return "per cu ft / month";
     case "flat":
       return "flat";
+  }
+}
+
+export function accessorialLabel(a: AccessorialType): string {
+  switch (a) {
+    case "KITTING":
+      return "Kitting";
+    case "RELABELING":
+      return "Re-labeling";
+    case "MANUAL_WRAPPING":
+      return "Manual Wrapping";
+    case "CONTAINER_DEVANNING":
+      return "Container Devanning";
+    case "SPECIAL_HANDLING":
+      return "Special Handling";
+    case "LABOR_STANDBY":
+      return "Labor Standby";
+    case "RUSH_PROCESSING":
+      return "Rush Processing";
   }
 }
 

@@ -35,31 +35,7 @@
  */
 
 import { warehouses, inventoryItems, type InventoryItem } from "./mock-data";
-
-export type PalletStatus = "building" | "staged" | "putaway" | "picking" | "shipped";
-
-export type Pallet = {
-  id: string; // Unique pallet license plate
-  itemStyle: string; // Pallet grouping key
-  tenantId: string;
-  warehouseId: string;
-  sku: string;
-  description: string;
-  units: number;
-  capacityUnits: number; // Max units this pallet config can hold
-  casePack: number; // Units per case (EDI 832 PO4 / item master)
-  weightLbs: number;
-  builtAt: string;
-  builtBy: string;
-  poNumber: string;
-  container?: string; // Optional container reference
-  ediSource: "EDI_943" | "EDI_944" | "CSV" | "MANUAL";
-  status: PalletStatus;
-  location: string | null; // Aisle-Shelf-Bin when putaway complete
-  suggestedLocation: string; // Directed putaway suggestion
-  zone: "A" | "B" | "C" | "D" | "E" | "F" | "G";
-  receivedAt: string; // For LIFO/FIFO ordering
-};
+import { findItem } from "./master-data";
 
 const ts = (d: string) => new Date(d).toISOString();
 
@@ -84,7 +60,7 @@ function buildSeedPallets(): Pallet[] {
       const zoneChar = (suggestPutawayLocation(item.itemStyle, item.warehouseId).split(
         "·",
       )[1]?.[0] ?? "A") as Pallet["zone"];
-      out.push({
+      const basePallet = {
         id: b.palletId,
         itemStyle: item.itemStyle,
         tenantId: item.tenantId,
@@ -99,11 +75,15 @@ function buildSeedPallets(): Pallet[] {
         builtBy: ["R. Alvarez", "M. Chen", "J. Okafor", "S. Patel"][b.qty % 4],
         poNumber: b.poNumber,
         ediSource: b.ediSource,
-        status: "putaway",
+        status: "putaway" as PalletStatus,
         location: b.location,
         suggestedLocation: b.location,
         zone: zoneChar,
         receivedAt: b.receivedAt,
+      };
+      out.push({
+        ...basePallet,
+        cubeCuFt: computePalletCubeCuFt(basePallet),
       });
     }
   }
@@ -152,7 +132,7 @@ function seedPallet(args: {
   ediSource: Pallet["ediSource"];
 }): Pallet {
   const suggested = suggestPutawayLocation(args.item.itemStyle, args.item.warehouseId);
-  return {
+  const basePallet = {
     id: args.id,
     itemStyle: args.item.itemStyle,
     tenantId: args.item.tenantId,
@@ -172,6 +152,10 @@ function seedPallet(args: {
     suggestedLocation: suggested,
     zone: (suggested.split("·")[1]?.[0] ?? "A") as Pallet["zone"],
     receivedAt: ts(args.builtAt),
+  };
+  return {
+    ...basePallet,
+    cubeCuFt: computePalletCubeCuFt(basePallet),
   };
 }
 
@@ -212,7 +196,7 @@ export function createPalletsFromInbound(args: {
   for (let i = 0; i < args.palletCount; i++) {
     const suggested = suggestPutawayLocation(args.itemStyle + i, args.warehouseId);
     const id = `${args.prefix}-${(startSeq + i).toString().padStart(5, "0")}`;
-    created.push({
+    const basePallet = {
       id,
       itemStyle: args.itemStyle,
       tenantId: args.tenantId,
@@ -227,11 +211,15 @@ export function createPalletsFromInbound(args: {
       builtBy: args.builtBy,
       poNumber: args.poNumber,
       ediSource: args.ediSource,
-      status: "staged",
+      status: "staged" as PalletStatus,
       location: null,
       suggestedLocation: suggested,
       zone: (suggested.split("·")[1]?.[0] ?? "A") as Pallet["zone"],
       receivedAt: now,
+    };
+    created.push({
+      ...basePallet,
+      cubeCuFt: computePalletCubeCuFt(basePallet),
     });
   }
   appendPallets(created);

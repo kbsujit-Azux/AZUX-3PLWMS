@@ -217,7 +217,26 @@ export {
   seedInvoices,
   unitLabel,
   fmtUSD,
+  accessorialLabel,
 } from "./billing-data";
+
+// ─── Billing Engine ─────────────────────────────────────────────────────
+export {
+  computeTieredRate,
+  applyPeakSurcharge,
+  enforceMinimumCharge,
+  matchAccessorialRule,
+  matchEventsToRules,
+  computeInvoiceLine,
+  buildVolumetricStorageSnapshots,
+  groupVolumetricByLocation,
+  computeVolumetricStorageTotal,
+  type VolumetricStorageSnapshot,
+  type TieredRateResult,
+  type MinimumChargeResult,
+  type PeakSurchargeResult,
+  type AccessorialMatchResult,
+} from "./billing-engine";
 
 // ─── Carrier Services ───────────────────────────────────────────────────
 export {

@@ -67,6 +67,7 @@ import {
 import {
   fmtUSD,
   unitLabel,
+  accessorialLabel,
   billingClients,
   defaultRules,
   billableEvents,
@@ -79,7 +80,19 @@ import {
   type RateUnit,
   type StorageFrequency,
   type BillableEvent,
+  type PriceTier,
+  type AccessorialType,
 } from "@/lib/billing-data";
+import {
+  matchEventToRule,
+  buildInvoiceLines,
+  computeTieredRate,
+  applyPeakSurcharge,
+  enforceMinimumCharge,
+  billingUnitLabel,
+  matchAccessorialEvent,
+  buildVolumetricStorageLines,
+} from "@/lib/billing-engine";
 import { tenants, warehouses } from "@/lib/mock-data";
 import { locationMaster } from "@/lib/master-data";
 import {
@@ -512,6 +525,7 @@ function SetupTab({
                   <TableHead>Warehouse</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Rate</TableHead>
+                  <TableHead>Advanced</TableHead>
                   <TableHead>Unit / Frequency</TableHead>
                   <TableHead className="text-right">Enabled</TableHead>
                   <TableHead></TableHead>
@@ -533,8 +547,25 @@ function SetupTab({
                       {r.locationId ?? "—"}
                     </TableCell>
                     <TableCell>{fmtUSD(r.rate)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {r.unit === "cubicFeet" && r.ratePerCuFt && (
+                        <span className="text-emerald-400">{fmtUSD(r.ratePerCuFt)} / cu ft / mo</span>
+                      )}
+                      {r.priceTiers && r.priceTiers.length > 0 && (
+                        <span className="text-sky-400">Tiers: {r.priceTiers.length}</span>
+                      )}
+                      {r.minMonthlyCharge && (
+                        <span className="text-amber-400">Min: {fmtUSD(r.minMonthlyCharge)}</span>
+                      )}
+                      {r.peakSurchargePct && (
+                        <span className="text-orange-400">Peak +{r.peakSurchargePct}%</span>
+                      )}
+                      {r.accessorialType && (
+                        <span className="text-violet-400">{accessorialLabel(r.accessorialType)}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {unitLabel(r.unit)}
+                      {billingUnitLabel(r.unit as any)}
                       {r.frequency
                         ? ` · ${r.frequency}${r.customCycleDays ? ` (${r.customCycleDays}d)` : ""}`
                         : ""}
@@ -616,13 +647,21 @@ function RuleDialog({
 }) {
   const [category, setCategory] = useState<ChargeRule["category"]>("Inbound");
   const [description, setDescription] = useState("");
-  const [warehouseId, setWarehouseId] = useState<string>("");
-  const [locationId, setLocationId] = useState<string>("");
+  const [warehouseId, setWarehouseId] = useState<string>("all");
+  const [locationId, setLocationId] = useState<string>("all");
   const [unit, setUnit] = useState<RateUnit | "flat">("pallet");
   const [rate, setRate] = useState<number>(0);
   const [frequency, setFrequency] = useState<StorageFrequency>("daily");
   const [customCycleDays, setCustomCycleDays] = useState<number>(7);
   const [trigger, setTrigger] = useState("");
+  // Advanced billing fields
+  const [ratePerCuFt, setRatePerCuFt] = useState<number>(0);
+  const [priceTiers, setPriceTiers] = useState<PriceTier[]>([]);
+  const [minMonthlyCharge, setMinMonthlyCharge] = useState<number>(0);
+  const [peakSurchargePct, setPeakSurchargePct] = useState<number>(0);
+  const [peakStartMonth, setPeakStartMonth] = useState<number>(10);
+  const [peakEndMonth, setPeakEndMonth] = useState<number>(12);
+  const [accessorialType, setAccessorialType] = useState<AccessorialType | "">("");
 
   const availableLocations = useMemo(() => {
     if (!warehouseId) return locationMaster;
@@ -640,16 +679,23 @@ function RuleDialog({
         id: `r${Date.now()}`,
         clientId,
         tenantId,
-        warehouseId: warehouseId || undefined,
-        locationId: locationId || undefined,
+        warehouseId: warehouseId && warehouseId !== "all" ? warehouseId : undefined,
+        locationId: locationId && locationId !== "all" ? locationId : undefined,
         category,
         description,
         unit,
         rate,
+        ratePerCuFt: unit === "cubicFeet" ? ratePerCuFt : undefined,
         frequency: category === "Storage" ? frequency : undefined,
         customCycleDays:
           category === "Storage" && frequency === "custom" ? customCycleDays : undefined,
         trigger: category === "Custom" ? trigger || undefined : undefined,
+        priceTiers: priceTiers.length > 0 ? priceTiers : undefined,
+        minMonthlyCharge: minMonthlyCharge > 0 ? minMonthlyCharge : undefined,
+        peakSurchargePct: peakSurchargePct > 0 ? peakSurchargePct : undefined,
+        peakStartMonth: peakSurchargePct > 0 ? peakStartMonth : undefined,
+        peakEndMonth: peakSurchargePct > 0 ? peakEndMonth : undefined,
+        accessorialType: accessorialType || undefined,
         enabled: true,
       });
       console.log("[Billing] RuleDialog.save completed");
@@ -694,14 +740,14 @@ function RuleDialog({
               value={warehouseId}
               onValueChange={(v) => {
                 setWarehouseId(v);
-                setLocationId("");
+                setLocationId("all");
               }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="All warehouses" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">ALL Warehouses</SelectItem>
+<SelectContent>
+                <SelectItem value="all">ALL Warehouses</SelectItem>
                 {warehouses
                   .filter((w) => w.id !== "all")
                   .map((w) => (
@@ -722,7 +768,7 @@ function RuleDialog({
                 <SelectValue placeholder="Any location" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">ALL Locations</SelectItem>
+                <SelectItem value="all">ALL Locations</SelectItem>
                 {availableLocations.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
                     {l.id} · {l.zone}
@@ -753,11 +799,23 @@ function RuleDialog({
                 <SelectItem value="bol">per BOL</SelectItem>
                 <SelectItem value="location">per location</SelectItem>
                 <SelectItem value="warehouse">per warehouse</SelectItem>
+                <SelectItem value="cubicFeet">per cu ft / month</SelectItem>
                 <SelectItem value="flat">flat charge</SelectItem>
               </SelectContent>
             </Select>
           </Field>
         </div>
+        {unit === "cubicFeet" && (
+          <Field label="Rate per cu ft / month (USD)">
+            <Input
+              type="number"
+              step="0.01"
+              value={ratePerCuFt}
+              onChange={(e) => setRatePerCuFt(parseFloat(e.target.value) || 0)}
+              placeholder="e.g. 0.42"
+            />
+          </Field>
+        )}
         {category === "Storage" && (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Frequency">
@@ -784,14 +842,137 @@ function RuleDialog({
             )}
           </div>
         )}
+        {/* Tiered Pricing */}
+        <Field label="Volume Tiers (optional)">
+          <div className="space-y-2">
+            {priceTiers.map((tier, idx) => (
+              <div key={idx} className="grid grid-cols-3 gap-2 items-end">
+                <Field label="Min Qty">
+                  <Input
+                    type="number"
+                    value={tier.minQty}
+                    onChange={(e) => {
+                      const newTiers = [...priceTiers];
+                      newTiers[idx] = { ...newTiers[idx], minQty: parseInt(e.target.value) || 0 };
+                      setPriceTiers(newTiers);
+                    }}
+                    placeholder="0"
+                  />
+                </Field>
+                <Field label="Max Qty">
+                  <Input
+                    type="number"
+                    value={tier.maxQty ?? ""}
+                    onChange={(e) => {
+                      const newTiers = [...priceTiers];
+                      newTiers[idx] = { ...newTiers[idx], maxQty: e.target.value ? parseInt(e.target.value) : null };
+                      setPriceTiers(newTiers);
+                    }}
+                    placeholder="unlimited"
+                  />
+                </Field>
+                <Field label="Rate">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={tier.rate}
+                    onChange={(e) => {
+                      const newTiers = [...priceTiers];
+                      newTiers[idx] = { ...newTiers[idx], rate: parseFloat(e.target.value) || 0 };
+                      setPriceTiers(newTiers);
+                    }}
+                    placeholder="0.00"
+                  />
+                </Field>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const lastTier = priceTiers[priceTiers.length - 1];
+                const nextMinQty = lastTier.maxQty
+                  ? lastTier.maxQty + 1
+                  : lastTier.minQty + 1;
+                setPriceTiers([...priceTiers, { minQty: nextMinQty, maxQty: null, rate: 0 }]);
+              }}
+            >
+              <Plus className="h-3 w-3 mr-1" /> Add Tier
+            </Button>
+          </div>
+        </Field>
+        {/* Minimum Monthly Charge */}
+        <Field label="Minimum Monthly Charge (USD)">
+          <Input
+            type="number"
+            step="0.01"
+            value={minMonthlyCharge}
+            onChange={(e) => setMinMonthlyCharge(parseFloat(e.target.value) || 0)}
+            placeholder="e.g. 2500"
+          />
+        </Field>
+        {/* Peak Season Surcharge */}
+        <Field label="Peak Season Surcharge %">
+          <Input
+            type="number"
+            step="0.1"
+            value={peakSurchargePct}
+            onChange={(e) => setPeakSurchargePct(parseFloat(e.target.value) || 0)}
+            placeholder="e.g. 15"
+          />
+        </Field>
+        {peakSurchargePct > 0 && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Peak Start Month">
+              <Select value={String(peakStartMonth)} onValueChange={(v) => setPeakStartMonth(parseInt(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>{new Date(2026, i).toLocaleString("default", { month: "short" })}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Peak End Month">
+              <Select value={String(peakEndMonth)} onValueChange={(v) => setPeakEndMonth(parseInt(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>{new Date(2026, i).toLocaleString("default", { month: "short" })}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        )}
+        {/* Accessorial Type */}
         {category === "Custom" && (
-          <Field label="Trigger condition">
-            <Textarea
-              value={trigger}
-              onChange={(e) => setTrigger(e.target.value)}
-              placeholder="e.g. Container Inbounded AND Putaway"
-            />
-          </Field>
+          <>
+            <Field label="Accessorial Type">
+              <Select value={accessorialType} onValueChange={(v) => setAccessorialType(v as AccessorialType)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select accessorial type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="KITTING">Kitting</SelectItem>
+                  <SelectItem value="RELABELING">Re-labeling</SelectItem>
+                  <SelectItem value="MANUAL_WRAPPING">Manual Wrapping</SelectItem>
+                  <SelectItem value="CONTAINER_DEVANNING">Container Devanning</SelectItem>
+                  <SelectItem value="SPECIAL_HANDLING">Special Handling</SelectItem>
+                  <SelectItem value="LABOR_STANDBY">Labor Standby</SelectItem>
+                  <SelectItem value="RUSH_PROCESSING">Rush Processing</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Trigger condition">
+              <Textarea
+                value={trigger}
+                onChange={(e) => setTrigger(e.target.value)}
+                placeholder="e.g. Container Inbounded AND Putaway"
+              />
+            </Field>
+          </>
         )}
       </div>
       <DialogFooter>
@@ -873,29 +1054,52 @@ function InvoicesTab({
       toast.error("No unbilled activity for this client.");
       return;
     }
-    const lines: InvoiceLine[] = [];
-    const matchedIds: string[] = [];
-    clientEvents.forEach((ev) => {
-      const rule = clientRules.find(
-        (r) =>
-          (r.category === ev.type || (r.category === "Custom" && ev.type === "Custom")) &&
-          r.unit === ev.unit,
-      );
-      if (!rule) return;
-      lines.push({
-        id: `ln-${ev.id}`,
-        activityType: ev.type,
-        description: `${ev.description} (${ev.reference})`,
-        quantity: ev.quantity,
-        rate: rule.rate,
-        total: +(ev.quantity * rule.rate).toFixed(2),
-      });
-      matchedIds.push(ev.id);
-    });
-    if (lines.length === 0) {
+
+    // Use billing engine to match events to rules and compute lines
+    const matched = clientEvents
+      .map((ev) => {
+        const rule = matchEventToRule(ev, clientRules);
+        if (!rule) return null;
+        // Compute tiered rate if applicable
+        let rate = rule.rate;
+        let tierBreakdown: TieredRateResult["breakdown"] | undefined;
+        if (rule.priceTiers && rule.priceTiers.length > 0) {
+          const result = computeTieredRate(ev.quantity, rule.priceTiers);
+          rate = result.effectiveRate;
+          tierBreakdown = result.breakdown;
+        }
+        let total = +(ev.quantity * rate).toFixed(2);
+        // Apply peak surcharge if applicable
+        let peakSurcharge: PeakSurchargeResult | undefined;
+        if (rule.peakSurchargePct && rule.peakSurchargePct > 0) {
+          peakSurcharge = applyPeakSurcharge(total, rule.peakSurchargePct, new Date(), rule.peakStartMonth, rule.peakEndMonth);
+          total = peakSurcharge.totalAmount;
+        }
+        return {
+          event: ev,
+          rule,
+          rate,
+          total,
+          tierBreakdown,
+          peakSurcharge,
+        };
+      })
+      .filter((m): m is NonNullable<typeof m> => m !== null);
+
+    if (matched.length === 0) {
       toast.error("No events matched active rules.");
       return;
     }
+
+    // Build invoice lines with tiered pricing, peak surcharge, and minimums
+    const lines = buildInvoiceLines(matched, clientRules);
+    if (lines.length === 0) {
+      toast.error("No invoice lines generated.");
+      return;
+    }
+
+    const matchedIds = matched.map((m) => m.event.id);
+
     const inv = buildInvoice(
       genClient,
       clients.find((c) => c.id === genClient)?.tenantId ?? genClient,

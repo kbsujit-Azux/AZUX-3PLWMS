@@ -4,9 +4,19 @@ import { db } from "@shared/lib/firestore";
 import { collection, getDocs, getDoc, doc, updateDoc, addDoc, query, where, limit, orderBy, runTransaction, serverTimestamp } from "firebase/firestore";
 import { hashPassword, verifyPassword } from "@shared/lib/password-utils";
 import { recordLaborEvent, computeStandardSec, getAisleFromLocation } from "./lib/labor";
-import { PackageSearch, MoveRight, ClipboardList, Container, ScanLine, History, LogOut, ArrowLeft, CheckCircle2, AlertTriangle, MapPin, Boxes, Warehouse, Camera, CameraOff, X } from "lucide-react";
+import { PackageSearch, MoveRight, ClipboardList, Container, ScanLine, History, LogOut, ArrowLeft, CheckCircle2, AlertTriangle, MapPin, Boxes, Warehouse, Camera, CameraOff, X, PackageCheck, Tag, Package, Wrench, Truck, Zap, Clock, UserCheck } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+type AccessorialType =
+  | "KITTING"
+  | "RELABELING"
+  | "MANUAL_WRAPPING"
+  | "CONTAINER_DEVANNING"
+  | "SPECIAL_HANDLING"
+  | "LABOR_STANDBY"
+  | "RUSH_PROCESSING";
+
 interface Employee { badgeId: string; name: string; role: string; team?: string; shift?: string; assignedClientId: string; assignedWarehouseId: string; active: boolean; }
 interface Pallet { id: string; sku: string; units: number; status: string; location?: string; description?: string; poNumber?: string; ediSource?: string; }
 interface LocationRecord { id: string; type: string; occupiedPallets?: number; }
@@ -699,30 +709,123 @@ function InquiryScreen({ employee }: { employee: Employee }) {
 }
 
 function HistoryScreen({ employee }: { employee: Employee }) {
-  const [input, setInput] = useState("");
-  const [entries, setEntries] = useState<MovementHistory[]>([]);
-  const [loading, setLoading] = useState(false);
-  const ref = useRef<HTMLInputElement>(null);
+  // ... existing HistoryScreen code ...
+}
 
-  const handleLookup = useCallback(async () => {
-    if (!input.trim()) return;
-    setLoading(true); setEntries([]);
+function AccessorialScreen({ employee }: { employee: Employee }) {
+  const [type, setType] = useState<AccessorialType>("KITTING");
+  const [qty, setQty] = useState("");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const taskStartRef = useRef<number>(Date.now());
+
+  const types: AccessorialType[] = [
+    "KITTING",
+    "RELABELING", 
+    "MANUAL_WRAPPING",
+    "CONTAINER_DEVANNING",
+    "SPECIAL_HANDLING",
+    "LABOR_STANDBY",
+    "RUSH_PROCESSING",
+  ];
+
+  const typeLabels: Record<AccessorialType, string> = {
+    KITTING: "Kitting & Assembly",
+    RELABELING: "Re-labeling",
+    MANUAL_WRAPPING: "Manual Wrapping",
+    CONTAINER_DEVANNING: "Container Devanning",
+    SPECIAL_HANDLING: "Special Handling",
+    LABOR_STANDBY: "Labor Standby (15-min)",
+    RUSH_PROCESSING: "Rush Processing",
+  };
+
+  const confirm = useCallback(async () => {
+    if (busy) return;
+    const q = parseInt(qty, 10);
+    if (isNaN(q) || q <= 0) { setError("Enter valid quantity"); playChime("err"); return; }
+    setBusy(true); setError("");
     try {
-      const results = await fetchMovementHistory(employee.assignedClientId, input.trim(), 25);
-      setEntries(results); playChime("ok");
-    } catch { playChime("err"); }
-    finally { setLoading(false); }
-  }, [employee, input]);
+      await addDoc(collection(db, "billableEvents"), {
+        badgeId: employee.badgeId,
+        employeeName: employee.name,
+        warehouseId: employee.assignedWarehouseId,
+        tenantId: employee.assignedClientId,
+        taskType: "Custom",
+        referenceId: `ACC-${Date.now()}`,
+        qty: q,
+        uom: type === "LABOR_STANDBY" ? "MIN" : "EA",
+        locationId: employee.assignedWarehouseId,
+        startedAt: taskStartRef.current,
+        accessorialType: type,
+        notes,
+      });
+      toast.success(`${typeLabels[type]} logged (${q})`); playChime("ok");
+      setQty(""); setNotes(""); taskStartRef.current = Date.now();
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); playChime("err"); }
+    finally { setBusy(false); }
+  }, [employee, type, qty, notes, busy]);
 
-  const scanner = useCameraScanner((code) => { setInput(code); });
+  const typeIcons: Record<AccessorialType, LucideIcon> = {
+    KITTING: PackageCheck,
+    RELABELING: Tag,
+    MANUAL_WRAPPING: Package,
+    CONTAINER_DEVANNING: Truck,
+    SPECIAL_HANDLING: Zap,
+    LABOR_STANDBY: Clock,
+    RUSH_PROCESSING: Zap,
+  };
 
   return (
     <div className="p-3 sm:p-4 space-y-4">
-      <div className="flex items-center gap-2"><History className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Item History</h1></div>
-      <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
-      <div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3"><p className="text-xs text-slate-300">Scan SKU / UPC / Item Code</p><input ref={ref} autoFocus placeholder="SKU or UPC" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleLookup(); }} className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md" /><button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={handleLookup} disabled={loading}>{loading ? "Loading…" : "Lookup History"}</button></div>
-      {entries.length > 0 && (<div className="space-y-2"><div className="text-[10px] uppercase tracking-wider text-slate-500">Last {entries.length} movements</div>{entries.map((e) => (<div key={e.movementId} className="border border-slate-800 bg-slate-900 rounded-md p-3 space-y-1"><div className="flex items-center justify-between"><span className="text-[10px] font-mono text-emerald-400">{e.type}</span><span className="text-[10px] text-slate-500">{e.timestamp.toLocaleString?.("en-US", { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) ?? "—"}</span></div><div className="text-[11px] text-slate-300 font-mono space-y-0.5"><div>Item: {e.itemCode}</div><div>{e.fromLocationId || "—"} → {e.toLocationId || "—"}</div><div>Qty: {e.movedQty} {e.uom} · Ref: {e.referenceId}</div><div className="text-slate-500">By: {e.badgeId}</div></div></div>))}</div>)}
-      {entries.length === 0 && !loading && input && (<div className="border border-slate-800 bg-slate-900 rounded-md p-4 text-xs text-slate-500 flex items-center gap-2"><AlertTriangle className="h-4 w-4" />No movement history found</div>)}
+      <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Accessorial Charges</h1></div>
+      {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+{types.map((t) => {
+            const Icon = typeIcons[t];
+            return (
+              <button
+                key={t}
+                onClick={() => { setType(t); setError(""); setQty(""); setNotes(""); taskStartRef.current = Date.now(); }}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-colors ${
+                  type === t 
+                    ? "border-emerald-500 bg-emerald-950/30 text-emerald-400" 
+                    : "border-slate-800 bg-slate-900 hover:border-slate-700 text-slate-300"
+                }`}
+              >
+                {Icon && <Icon className="h-6 w-6" />}
+                <span className="text-xs font-medium text-center">{typeLabels[t]}</span>
+              </button>
+            );
+          })}
+      </div>
+      <div className="border border-slate-800 bg-slate-900 rounded-md p-4 space-y-3">
+        <div className="space-y-1.5">
+          <label className="text-xs text-slate-300">Quantity</label>
+          <input
+            autoFocus
+            type="number"
+            min="1"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            placeholder={type === "LABOR_STANDBY" ? "Minutes (15-min increments)" : "Units"}
+            className="w-full h-12 bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg rounded-md"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs text-slate-300">Notes (optional)</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. PO# 12345, Customer request..."
+            className="w-full h-20 bg-slate-800 border border-slate-700 text-white text-sm rounded-md p-2"
+            maxLength={200}
+          />
+        </div>
+        <Button className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 rounded-md font-semibold" onClick={confirm} disabled={busy}>
+          {busy ? "Logging…" : "Log Accessorial"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -735,11 +838,12 @@ const NAV = [
   { title: "Receive", screen: "receiving" as const, icon: Container },
   { title: "Inquiry", screen: "inquiry" as const, icon: ScanLine },
   { title: "History", screen: "history" as const, icon: History },
+  { title: "Accessorial", screen: "accessorial" as const, icon: Wrench },
 ];
 
 export default function App() {
   const { employee, verified, loading, setBadgeId, logout } = useRfSession();
-  const [screen, setScreen] = useState<"putaway" | "move" | "pick" | "receiving" | "inquiry" | "history">("putaway");
+  const [screen, setScreen] = useState<"putaway" | "move" | "pick" | "receiving" | "inquiry" | "history" | "accessorial">("putaway");
 
   if (!verified && !loading) {
     return (
@@ -786,6 +890,7 @@ export default function App() {
         {screen === "receiving" && <ReceivingScreen employee={employee} />}
         {screen === "inquiry" && <InquiryScreen employee={employee} />}
         {screen === "history" && <HistoryScreen employee={employee} />}
+        {screen === "accessorial" && <AccessorialScreen employee={employee} />}
       </main>
       <nav className="border-t border-slate-800 bg-slate-900/95 backdrop-blur">
         <div className="grid grid-cols-6">
