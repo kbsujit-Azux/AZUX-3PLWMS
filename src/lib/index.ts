@@ -290,6 +290,19 @@ export {
   type GlassInputType,
 } from "./glass-bridge";
 
+export {
+  createGlassSDK,
+  type GlassSDK,
+} from "./glass-sdk";
+
+// ─── Text-to-Speech ──────────────────────────────────────────────────────
+export {
+  ttsSpeak,
+  ttsStop,
+  ttsAvailable,
+  useTTS,
+} from "./tts";
+
 // ─── Carrier Services ───────────────────────────────────────────────────
 export {
   type CarrierServiceRecord,

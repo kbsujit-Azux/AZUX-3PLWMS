@@ -5,8 +5,9 @@ import { collection, getDocs, getDoc, doc, updateDoc, addDoc, query, where, limi
 import { hashPassword, verifyPassword } from "@shared/lib/password-utils";
 import { recordLaborEvent, computeStandardSec, getAisleFromLocation } from "./lib/labor";
 import { useScanner } from "./hooks/useScanner";
-import { useVoicePicking } from "./hooks/useVoicePicking";
+import { useVoicePicking } from "@shared/hooks/useVoicePicking";
 import { enqueue, useOfflineQueue } from "./lib/offline-queue";
+import { ttsSpeak, ttsAvailable, useTTS } from "@shared/lib/tts";
 import { PackageSearch, MoveRight, ClipboardList, Container, ScanLine, History, LogOut, ArrowLeft, CheckCircle2, AlertTriangle, MapPin, Boxes, Warehouse, Camera, CameraOff, X, PackageCheck, Tag, Package, Wrench, Truck, Zap, Clock, UserCheck, Download, WifiOff, Mic, MicOff } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -292,7 +293,7 @@ function useCameraScanner(onScan: (code: string) => void) {
 }
 
 // ─── Shared UI ──────────────────────────────────────────────────────────────
-function CameraOverlay({ videoRef, canvasRef, stream, scanning, flash, scannerSource, onStart, onStop, error }: { videoRef: React.RefObject<HTMLVideoElement | null>; canvasRef: React.RefObject<HTMLCanvasElement | null>; stream: MediaStream | null; scanning: boolean; flash: boolean; scannerSource: "camera" | "datwedge" | "keyboard"; onStart: () => void; onStop: () => void; error: string; }) {
+function CameraOverlay({ videoRef, canvasRef, stream, scanning, flash, scannerSource, onStart, onStop, error, arMode, arLocation, arSku, arQty, arStatus, onArConfirm }: { videoRef: React.RefObject<HTMLVideoElement | null>; canvasRef: React.RefObject<HTMLCanvasElement | null>; stream: MediaStream | null; scanning: boolean; flash: boolean; scannerSource: "camera" | "datwedge" | "keyboard"; onStart: () => void; onStop: () => void; error: string; arMode?: "pick" | "putaway" | "move" | "receive"; arLocation?: string; arSku?: string; arQty?: number; arStatus?: "pending" | "confirmed" | "error"; onArConfirm?: () => void; }) {
   const sourceLabel = scannerSource === "datwedge" ? "DataWedge" : scannerSource === "keyboard" ? "Keyboard Wedge" : "Camera";
   return (
     <div className="relative rounded-lg overflow-hidden bg-black aspect-[3/4] sm:aspect-video">
@@ -329,15 +330,44 @@ function CameraOverlay({ videoRef, canvasRef, stream, scanning, flash, scannerSo
           <div className="absolute top-4 right-4 px-2 py-1 bg-slate-800/80 text-emerald-400 text-[10px] rounded font-mono">{sourceLabel}</div>
         </div>
       )}
+      {arMode && arLocation && (
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
+            <span className="px-2 py-1 bg-indigo-600 text-white text-[10px] rounded font-bold">AR VISION</span>
+            <span className="px-2 py-1 bg-slate-800/90 text-white text-[10px] rounded font-mono">{arLocation}</span>
+          </div>
+          <div className="absolute inset-x-0 top-0 bottom-0 flex items-center justify-center">
+            <div className="relative w-[80%] h-[28%]">
+              <div className="absolute inset-0 border-2 border-indigo-400/70 rounded-md" />
+              <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-indigo-400 rounded-tl-md" />
+              <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-indigo-400 rounded-tr-md" />
+              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-indigo-400 rounded-bl-md" />
+              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-indigo-400 rounded-br-md" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="px-3 py-1.5 bg-black/80 text-white text-sm font-mono rounded border border-indigo-400">{arLocation}</span>
+              </div>
+            </div>
+          </div>
+          {arSku && (
+            <div className="absolute bottom-8 left-4 right-4 flex items-center justify-between text-[10px] text-slate-300">
+              <div>SKU: <span className="font-mono text-white">{arSku}</span></div>
+              {arQty !== undefined && <div>Qty: <span className="font-mono text-white">{arQty}</span></div>}
+            </div>
+          )}
+          {onArConfirm && (
+            <button onClick={onArConfirm} className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-indigo-600 text-white rounded-md text-xs font-semibold">Confirm AR Pick</button>
+          )}
+        </div>
+      )}
       {flash && (
         <div className="absolute inset-0 bg-emerald-400/20 pointer-events-none" />
       )}
-      {stream && !scanning && (
+      {stream && !scanning && !arMode && (
         <button onClick={onStart} className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-emerald-600 text-white rounded-md text-xs font-semibold flex items-center gap-2">
           <ScanLine className="h-3 w-3" /> Start Scanner
         </button>
       )}
-      {scanning && (
+      {scanning && !arMode && (
         <button onClick={onStop} className="absolute top-4 right-4 p-2 bg-red-600 text-white rounded-full">
           <X className="h-4 w-4" />
         </button>
@@ -378,8 +408,10 @@ function PutawayScreen({ employee }: { employee: Employee }) {
   const [busy, setBusy] = useState(false);
   const [locations, setLocations] = useState<Record<string, LocationRecord>>({});
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [arMode, setArMode] = useState(false);
   const palletRef = useRef<HTMLInputElement>(null);
   const taskStartRef = useRef<number>(Date.now());
+  const tts = useTTS();
 
   const voice = useVoicePicking({
     enabled: voiceEnabled,
@@ -454,6 +486,7 @@ function PutawayScreen({ employee }: { employee: Employee }) {
         locationId: location,
         startedAt: taskStartRef.current,
       });
+      ttsSpeak(`Putaway confirmed. ${pallet.id} to ${location}`);
       toast.success(`${pallet.id} → ${location}`); playChime("ok");
       setPallet(null); setLocation(""); setLocInput(""); setStep("scan-pallet");
       taskStartRef.current = Date.now();
@@ -470,14 +503,19 @@ function PutawayScreen({ employee }: { employee: Employee }) {
     <div className="p-3 sm:p-4 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2"><PackageSearch className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Directed Putaway</h1></div>
-        <button onClick={() => setVoiceEnabled(!voiceEnabled)} className={`h-8 w-8 rounded flex items-center justify-center ${voiceEnabled ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400"}`} title={voiceEnabled ? "Voice ON" : "Voice OFF"}>
-          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setArMode(!arMode)} className={`h-8 w-8 rounded flex items-center justify-center ${arMode ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-400"}`} title={arMode ? "AR Vision ON" : "AR Vision OFF"}>
+            <Camera className="h-4 w-4" />
+          </button>
+          <button onClick={() => setVoiceEnabled(!voiceEnabled)} className={`h-8 w-8 rounded flex items-center justify-center ${voiceEnabled ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400"}`} title={voiceEnabled ? "Voice ON" : "Voice OFF"}>
+            {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
       {(step === "scan-pallet" || step === "scan-location") && (
         <div className="space-y-3">
-          <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} scannerSource={scanner.scannerSource} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
+          <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} scannerSource={scanner.scannerSource} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} arMode={arMode ? "putaway" : undefined} arLocation={arMode ? location : undefined} arSku={arMode ? pallet?.sku : undefined} arQty={arMode ? pallet?.units : undefined} arStatus={arMode && location ? "pending" : undefined} />
           <div className="text-center text-[10px] text-slate-500">or use manual input below</div>
         </div>
       )}
@@ -559,7 +597,7 @@ function MoveScreen({ employee }: { employee: Employee }) {
         const newSnap = await txn.get(newLocRef);
         if (newSnap.exists()) txn.update(newLocRef, { occupiedPallets: ((newSnap.data() as Record<string, unknown>)?.occupiedPallets ?? 0) as number + 1 });
       });
-await logMovement({ type: "MOVE_PALLET", itemCode: pallet.sku, fromLocationId: origin, toLocationId: dest, movedQty: pallet.units, uom: "EA", referenceId: pallet.id, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
+      await logMovement({ type: "MOVE_PALLET", itemCode: pallet.sku, fromLocationId: origin, toLocationId: dest, movedQty: pallet.units, uom: "EA", referenceId: pallet.id, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
       await recordLaborEvent({
         badgeId: employee.badgeId,
         employeeName: employee.name,
@@ -572,6 +610,7 @@ await logMovement({ type: "MOVE_PALLET", itemCode: pallet.sku, fromLocationId: o
         locationId: dest,
         startedAt: taskStartRef.current,
       });
+      ttsSpeak(`Move confirmed. ${pallet.id} from ${origin} to ${dest}`);
       toast.success(`${pallet.id}: ${origin} → ${dest}`); playChime("ok");
       setPallet(null); setOrigin(""); setDest(""); setStep("scan-origin");
       taskStartRef.current = Date.now();
@@ -658,6 +697,7 @@ function PickScreen({ employee }: { employee: Employee }) {
         locationId: ticket.locationId || "DROP001",
         startedAt: taskStartRef.current,
       });
+      ttsSpeak(`Pick confirmed. ${picked} units of ${ticket.sku} from ${ticket.locationId}`);
       toast.success(`Picked ${picked} units`); playChime("ok");
       setTicket(null); setTicketId(""); setQty("");
       taskStartRef.current = Date.now();
@@ -763,6 +803,7 @@ function ReceivingScreen({ employee }: { employee: Employee }) {
         });
       }
       await updateDoc(doc(db, "inboundShipments", shipment.id), { status: "RECEIVED", receivedAt: now });
+      ttsSpeak(`Receiving complete for shipment ${shipment.id}`);
       toast.success("Receiving complete"); playChime("ok");
       setShipment(null); setShipmentId(""); setLines([]); setReceived({});
       taskStartRef.current = Date.now();

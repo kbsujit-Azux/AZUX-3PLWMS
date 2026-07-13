@@ -12,10 +12,11 @@ import {
   getVelocityColor,
   getPriorityBadge,
 } from "@/lib/slotting-engine";
-import { pallets, locationMaster } from "@/lib/pallet-data";
+import { pallets, locationMaster, updateLocationInMaster } from "@/lib/pallet-data";
 import { movementHistory } from "@/lib/firestore-data";
 import { itemMaster } from "@/lib/master-data";
 import { warehouses } from "@/lib/mock-data";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/slotting")({
   head: () => ({
@@ -33,6 +34,8 @@ function SlottingPage() {
   const [velocityBySku, setVelocityBySku] = useState<Map<string, VelocityProfile>>(new Map());
   const [loading, setLoading] = useState(true);
   const [executing, setExecuting] = useState(false);
+  const [selectedRec, setSelectedRec] = useState<SlottingRecommendation | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -51,13 +54,33 @@ function SlottingPage() {
   const highPriority = useMemo(() => recommendations.filter((r) => r.priority === "high"), [recommendations]);
   const mediumPriority = useMemo(() => recommendations.filter((r) => r.priority === "medium"), [recommendations]);
 
-  const handleReslot = async (rec: SlottingRecommendation) => {
+  const handleReslotClick = (rec: SlottingRecommendation) => {
+    setSelectedRec(rec);
+    setConfirmOpen(true);
+  };
+
+  const handleReslotConfirm = async () => {
+    if (!selectedRec || !selectedRec.suggestedLocationId) return;
     setExecuting(true);
+    setConfirmOpen(false);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setRecommendations((prev) => prev.filter((r) => r.suggestedLocationId !== rec.suggestedLocationId || r.sku !== rec.sku));
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      const pallet = pallets.find((p) => p.sku === selectedRec.sku && p.location === selectedRec.currentLocationId);
+      if (pallet) {
+        updateLocationInMaster(pallet.id, { location: selectedRec.suggestedLocationId });
+      }
+      updateLocationInMaster(selectedRec.currentLocationId, { occupiedPallets: Math.max(0, (locationMaster.find((l) => l.id === selectedRec.currentLocationId)?.occupiedPallets ?? 0) - 1) });
+      const newLoc = locationMaster.find((l) => l.id === selectedRec.suggestedLocationId);
+      if (newLoc) {
+        updateLocationInMaster(selectedRec.suggestedLocationId, { occupiedPallets: (newLoc.occupiedPallets ?? 0) + 1 });
+      }
+      setRecommendations((prev) => prev.filter((r) => !(r.sku === selectedRec.sku && r.currentLocationId === selectedRec.currentLocationId)));
+      toast.success(`Reslotted ${selectedRec.sku} to ${selectedRec.suggestedLocationId}`);
+    } catch (e: unknown) {
+      toast.error("Reslot failed: " + (e instanceof Error ? e.message : "unknown error"));
     } finally {
       setExecuting(false);
+      setSelectedRec(null);
     }
   };
 
@@ -174,7 +197,7 @@ function SlottingPage() {
                               size="sm"
                               variant="outline"
                               className="h-7 text-[10px]"
-                              onClick={() => handleReslot(rec)}
+                              onClick={() => handleReslotClick(rec)}
                               disabled={executing}
                             >
                               {executing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Reslot"}
@@ -192,6 +215,26 @@ function SlottingPage() {
           )}
         </CardContent>
       </Card>
+
+      {confirmOpen && selectedRec && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 space-y-4">
+            <h3 className="text-lg font-semibold">Confirm Reslot</h3>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <div>SKU: <span className="font-mono text-foreground">{selectedRec.sku}</span></div>
+              <div>From: <span className="font-mono text-foreground">{selectedRec.currentLocationId}</span></div>
+              <div>To: <span className="font-mono text-foreground">{selectedRec.suggestedLocationId}</span></div>
+              <div>Reason: <span className="text-foreground">{selectedRec.impact}</span></div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => { setConfirmOpen(false); setSelectedRec(null); }} disabled={executing}>Cancel</Button>
+              <Button onClick={handleReslotConfirm} disabled={executing}>
+                {executing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Reslot"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
