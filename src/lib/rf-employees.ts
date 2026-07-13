@@ -35,6 +35,9 @@ export const employees: WarehouseEmployee[] = [
     isActive: true,
     createdAt: new Date().toISOString(),
     passwordHash: "a3558c02f2483fe4598698057990faabf3447f5500b863269fb3432e1261052a",
+    role: "Admin",
+    team: "All",
+    shift: "A",
   },
   {
     badgeId: "WH-1002",
@@ -45,6 +48,9 @@ export const employees: WarehouseEmployee[] = [
     isActive: true,
     createdAt: new Date().toISOString(),
     passwordHash: "6b40a76a260e025828e88ecd922004a93b1a1c422d2d90ef89b87422179680bc",
+    role: "Operations Manager",
+    team: "Operations",
+    shift: "A",
   },
   {
     badgeId: "WH-1003",
@@ -55,6 +61,9 @@ export const employees: WarehouseEmployee[] = [
     isActive: true,
     createdAt: new Date().toISOString(),
     passwordHash: "9b852d37a4a30b5750511e023d50c336424ff358572adfe6939ff9e4e89b1e9e",
+    role: "Warehouse Lead",
+    team: "Putaway",
+    shift: "A",
   },
   {
     badgeId: "WH-1004",
@@ -65,6 +74,9 @@ export const employees: WarehouseEmployee[] = [
     isActive: true,
     createdAt: new Date().toISOString(),
     passwordHash: "9b852d37a4a30b5750511e023d50c336424ff358572adfe6939ff9e4e89b1e9e",
+    role: "Warehouse Lead",
+    team: "Move",
+    shift: "B",
   },
   {
     badgeId: "WH-1005",
@@ -75,6 +87,9 @@ export const employees: WarehouseEmployee[] = [
     isActive: true,
     createdAt: new Date().toISOString(),
     passwordHash: "6d0ff6f95ffd82b6af1a27c7acb869a291b3df24b654ef2d3181f1f0152fa7cf",
+    role: "Receiver",
+    team: "Receiving",
+    shift: "A",
   },
   {
     badgeId: "WH-1006",
@@ -85,6 +100,9 @@ export const employees: WarehouseEmployee[] = [
     isActive: true,
     createdAt: new Date().toISOString(),
     passwordHash: "8643005c351ad4a2c2128c5967ad13bc87a17f293ebad4cc44b4543832a21979",
+    role: "Picker",
+    team: "Picking",
+    shift: "B",
   },
   {
     badgeId: "WH-1007",
@@ -95,5 +113,8 @@ export const employees: WarehouseEmployee[] = [
     isActive: true,
     createdAt: new Date().toISOString(),
     passwordHash: "efc09ad7e7bfe1808c05b91d4672fe334b3576a3e3486057f560b1a405977503",
+    role: "Billing",
+    team: "Admin",
+    shift: "A",
   },
 ];

@@ -45,29 +45,51 @@ async function migrate() {
     "WH-1007": "bill123",
   };
 
+  const defaultRoles: Record<string, { role: string; team: string; shift: string }> = {
+    "WH-1001": { role: "Admin", team: "All", shift: "A" },
+    "WH-1002": { role: "Operations Manager", team: "Operations", shift: "A" },
+    "WH-1003": { role: "Warehouse Lead", team: "Putaway", shift: "A" },
+    "WH-1004": { role: "Warehouse Lead", team: "Move", shift: "B" },
+    "WH-1005": { role: "Receiver", team: "Receiving", shift: "A" },
+    "WH-1006": { role: "Picker", team: "Picking", shift: "B" },
+    "WH-1007": { role: "Billing", team: "Admin", shift: "A" },
+  };
+
   const snap = await getDocs(collection(db, "employees"));
-  console.log(`Found ${snap.docs.length} employees. Migrating passwords...`);
+  console.log(`Found ${snap.docs.length} employees. Migrating passwords and roles...`);
 
   let updated = 0;
   for (const docSnap of snap.docs) {
     const data = docSnap.data();
     const badgeId = data.badgeId as string;
     
+    const updates: Record<string, unknown> = {};
+    let hasUpdates = false;
+    
     // Skip if already has passwordHash
-    if (data.passwordHash) {
-      console.log(`  ${badgeId}: already has passwordHash, skipping`);
-      continue;
+    if (!data.passwordHash) {
+      const defaultPassword = defaultPasswords[badgeId] || "changeme123";
+      const passwordHash = await hashPassword(defaultPassword);
+      updates.passwordHash = passwordHash;
+      hasUpdates = true;
     }
 
-    const defaultPassword = defaultPasswords[badgeId] || "changeme123";
-    const passwordHash = await hashPassword(defaultPassword);
-    
-    await updateDoc(doc(db, "employees", docSnap.id), {
-      passwordHash,
-    });
-    
-    console.log(`  ${badgeId}: updated with default password`);
-    updated++;
+    // Add role/team/shift if missing
+    if (!data.role) {
+      const defaults = defaultRoles[badgeId] || { role: "Picker", team: "Picking", shift: "A" };
+      updates.role = defaults.role;
+      updates.team = defaults.team;
+      updates.shift = defaults.shift;
+      hasUpdates = true;
+    }
+
+    if (hasUpdates) {
+      await updateDoc(doc(db, "employees", docSnap.id), updates);
+      console.log(`  ${badgeId}: updated with defaults`);
+      updated++;
+    } else {
+      console.log(`  ${badgeId}: already up to date`);
+    }
   }
 
   console.log(`\nMigration complete! Updated ${updated} employees.`);

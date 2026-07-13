@@ -3,10 +3,11 @@ import { toast } from "sonner";
 import { db } from "@shared/lib/firestore";
 import { collection, getDocs, getDoc, doc, updateDoc, addDoc, query, where, limit, orderBy, runTransaction, serverTimestamp } from "firebase/firestore";
 import { hashPassword, verifyPassword } from "@shared/lib/password-utils";
+import { recordLaborEvent, computeStandardSec, getAisleFromLocation } from "./lib/labor";
 import { PackageSearch, MoveRight, ClipboardList, Container, ScanLine, History, LogOut, ArrowLeft, CheckCircle2, AlertTriangle, MapPin, Boxes, Warehouse, Camera, CameraOff, X } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-interface Employee { badgeId: string; name: string; role: string; assignedClientId: string; assignedWarehouseId: string; active: boolean; }
+interface Employee { badgeId: string; name: string; role: string; team?: string; shift?: string; assignedClientId: string; assignedWarehouseId: string; active: boolean; }
 interface Pallet { id: string; sku: string; units: number; status: string; location?: string; description?: string; poNumber?: string; ediSource?: string; }
 interface LocationRecord { id: string; type: string; occupiedPallets?: number; }
 interface MovementHistory { movementId: string; type: string; itemCode: string; fromLocationId?: string; toLocationId?: string; movedQty: number; uom: string; referenceId: string; badgeId: string; tenantId: string; timestamp: Date; }
@@ -302,8 +303,16 @@ function PutawayScreen({ employee }: { employee: Employee }) {
   const [busy, setBusy] = useState(false);
   const [locations, setLocations] = useState<Record<string, LocationRecord>>({});
   const palletRef = useRef<HTMLInputElement>(null);
+  const taskStartRef = useRef<number>(Date.now());
 
-  useEffect(() => { fetchLocations(employee.assignedClientId, employee.assignedWarehouseId).then((locs) => { const m: Record<string, LocationRecord> = {}; for (const l of locs) m[l.id] = l; setLocations(m); }); }, [employee]);
+  useEffect(() => {
+    taskStartRef.current = Date.now();
+    fetchLocations(employee.assignedClientId, employee.assignedWarehouseId).then((locs) => {
+      const m: Record<string, LocationRecord> = {};
+      for (const l of locs) m[l.id] = l;
+      setLocations(m);
+    });
+  }, [employee]);
 
   const handlePallet = useCallback(async (id: string) => {
     if (busy) return; setBusy(true); setError("");
@@ -346,8 +355,21 @@ function PutawayScreen({ employee }: { employee: Employee }) {
         if (locSnap.exists()) txn.update(locRef, { occupiedPallets: ((locSnap.data() as Record<string, unknown>)?.occupiedPallets ?? 0) as number + 1 });
       });
       await logMovement({ type: "PUTAWAY", itemCode: pallet.sku, toLocationId: location, movedQty: pallet.units, uom: "EA", referenceId: pallet.id, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
+      await recordLaborEvent({
+        badgeId: employee.badgeId,
+        employeeName: employee.name,
+        warehouseId: employee.assignedWarehouseId,
+        tenantId: employee.assignedClientId,
+        taskType: "PUTAWAY",
+        referenceId: pallet.id,
+        qty: pallet.units,
+        uom: "EA",
+        locationId: location,
+        startedAt: taskStartRef.current,
+      });
       toast.success(`${pallet.id} → ${location}`); playChime("ok");
       setPallet(null); setLocation(""); setLocInput(""); setStep("scan-pallet");
+      taskStartRef.current = Date.now();
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Putaway failed"); playChime("err"); }
     finally { setBusy(false); }
   }, [pallet, location, employee, busy]);
@@ -382,8 +404,16 @@ function MoveScreen({ employee }: { employee: Employee }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [locations, setLocations] = useState<Record<string, LocationRecord>>({});
+  const taskStartRef = useRef<number>(Date.now());
 
-  useEffect(() => { fetchLocations(employee.assignedClientId, employee.assignedWarehouseId).then((locs) => { const m: Record<string, LocationRecord> = {}; for (const l of locs) m[l.id] = l; setLocations(m); }); }, [employee]);
+  useEffect(() => {
+    taskStartRef.current = Date.now();
+    fetchLocations(employee.assignedClientId, employee.assignedWarehouseId).then((locs) => {
+      const m: Record<string, LocationRecord> = {};
+      for (const l of locs) m[l.id] = l;
+      setLocations(m);
+    });
+  }, [employee]);
 
   const handleOrigin = useCallback(async (locId: string) => {
     if (busy) return; setBusy(true); setError("");
@@ -426,9 +456,22 @@ function MoveScreen({ employee }: { employee: Employee }) {
         const newSnap = await txn.get(newLocRef);
         if (newSnap.exists()) txn.update(newLocRef, { occupiedPallets: ((newSnap.data() as Record<string, unknown>)?.occupiedPallets ?? 0) as number + 1 });
       });
-      await logMovement({ type: "MOVE_PALLET", itemCode: pallet.sku, fromLocationId: origin, toLocationId: dest, movedQty: pallet.units, uom: "EA", referenceId: pallet.id, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
+await logMovement({ type: "MOVE_PALLET", itemCode: pallet.sku, fromLocationId: origin, toLocationId: dest, movedQty: pallet.units, uom: "EA", referenceId: pallet.id, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
+      await recordLaborEvent({
+        badgeId: employee.badgeId,
+        employeeName: employee.name,
+        warehouseId: employee.assignedWarehouseId,
+        tenantId: employee.assignedClientId,
+        taskType: "MOVE_PALLET",
+        referenceId: pallet.id,
+        qty: pallet.units,
+        uom: "EA",
+        locationId: dest,
+        startedAt: taskStartRef.current,
+      });
       toast.success(`${pallet.id}: ${origin} → ${dest}`); playChime("ok");
       setPallet(null); setOrigin(""); setDest(""); setStep("scan-origin");
+      taskStartRef.current = Date.now();
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Move failed"); playChime("err"); }
     finally { setBusy(false); }
   }, [pallet, origin, dest, employee, busy]);
@@ -458,6 +501,7 @@ function PickScreen({ employee }: { employee: Employee }) {
   const [qty, setQty] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const taskStartRef = useRef<number>(Date.now());
 
   const handleLookup = useCallback(async () => {
     if (busy || !ticketId.trim()) return;
@@ -482,8 +526,21 @@ function PickScreen({ employee }: { employee: Employee }) {
       const status = newQtyPicked >= ticket.qtyOrdered ? "PICKED" : "PARTIAL";
       await updateDoc(doc(db, "pickTickets", ticket.number), { qtyPicked: newQtyPicked, status, pickedAt: new Date().toISOString() });
       await logMovement({ type: "DIRECTED_PICK", itemCode: ticket.sku, fromLocationId: ticket.locationId, toLocationId: "DROP001", movedQty: picked, uom: "EA", referenceId: ticket.number, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
+      await recordLaborEvent({
+        badgeId: employee.badgeId,
+        employeeName: employee.name,
+        warehouseId: employee.assignedWarehouseId,
+        tenantId: employee.assignedClientId,
+        taskType: "DIRECTED_PICK",
+        referenceId: ticket.number,
+        qty: picked,
+        uom: "EA",
+        locationId: ticket.locationId || "DROP001",
+        startedAt: taskStartRef.current,
+      });
       toast.success(`Picked ${picked} units`); playChime("ok");
       setTicket(null); setTicketId(""); setQty("");
+      taskStartRef.current = Date.now();
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Pick failed"); playChime("err"); }
     finally { setBusy(false); }
   }, [ticket, qty, employee, busy]);
@@ -511,24 +568,30 @@ function ReceivingScreen({ employee }: { employee: Employee }) {
   const [received, setReceived] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const taskStartRef = useRef<number>(Date.now());
 
   const handleLookup = useCallback(async () => {
-    if (busy || !shipmentId.trim()) return;
-    setBusy(true); setError("");
-    try {
-      const list = await fetchInboundShipments(employee.assignedClientId, employee.assignedWarehouseId);
-      const found = list.find((s) => s.id.toLowerCase() === shipmentId.trim().toLowerCase());
-      if (!found) { setError(`Shipment ${shipmentId} not found`); playChime("err"); setBusy(false); return; }
-      setShipment(found);
-      const shipmentLines = (found.lines || []) as any[];
-      setLines(shipmentLines);
-      const init: Record<string, number> = {};
-      for (const l of shipmentLines) init[l.sku || l.itemCode] = 0;
-      setReceived(init);
-      playChime("ok");
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Lookup failed"); playChime("err"); }
-    finally { setBusy(false); }
-  }, [employee, shipmentId, busy]);
+  if (busy || !shipmentId.trim()) return;
+  setBusy(true); setError("");
+  try {
+    const list = await fetchInboundShipments(employee.assignedClientId, employee.assignedWarehouseId);
+    const found = list.find((s) => s.id.toLowerCase() === shipmentId.trim().toLowerCase());
+    if (!found) { setError(`Shipment ${shipmentId} not found`); playChime("err"); setBusy(false); return; }
+    setShipment(found);
+    const shipmentLines = (found.lines || []) as any[];
+    setLines(shipmentLines);
+    const init: Record<string, number> = {};
+    for (const l of shipmentLines) init[l.sku || l.itemCode] = 0;
+    setReceived(init);
+    playChime("ok");
+    taskStartRef.current = Date.now();
+  } catch (e: unknown) { setError(e instanceof Error ? e.message : "Lookup failed"); playChime("err"); }
+  finally { setBusy(false); }
+}, [employee, shipmentId, busy]);
+
+  useEffect(() => {
+    taskStartRef.current = Date.now();
+  }, [shipmentId]);
 
   const updateReceived = (sku: string, delta: number) => {
     setReceived((prev) => {
@@ -550,10 +613,23 @@ function ReceivingScreen({ employee }: { employee: Employee }) {
         if (qty <= 0) continue;
         await addDoc(collection(db, "pallets"), { sku, units: qty, status: "NEW", clientId: employee.assignedClientId, warehouseId: employee.assignedWarehouseId, poNumber: shipment.poNumber, ediSource: shipment.ediSource, createdAt: now, updatedAt: now });
         await logMovement({ type: "DOCK_RECEIVING", itemCode: sku, toLocationId: "RECEIVING", movedQty: qty, uom: "EA", referenceId: shipment.id, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
+        await recordLaborEvent({
+          badgeId: employee.badgeId,
+          employeeName: employee.name,
+          warehouseId: employee.assignedWarehouseId,
+          tenantId: employee.assignedClientId,
+          taskType: "DOCK_RECEIVING",
+          referenceId: shipment.id,
+          qty,
+          uom: "EA",
+          locationId: "RECEIVING",
+          startedAt: taskStartRef.current,
+        });
       }
       await updateDoc(doc(db, "inboundShipments", shipment.id), { status: "RECEIVED", receivedAt: now });
       toast.success("Receiving complete"); playChime("ok");
       setShipment(null); setShipmentId(""); setLines([]); setReceived({});
+      taskStartRef.current = Date.now();
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Receiving failed"); playChime("err"); }
     finally { setBusy(false); }
   }, [shipment, lines, received, employee, busy]);

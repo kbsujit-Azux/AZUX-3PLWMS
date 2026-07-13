@@ -32,6 +32,8 @@ import { Route as RfPickRouteImport } from './routes/rf/pick'
 import { Route as RfReceivingRouteImport } from './routes/rf/receiving'
 import { Route as RfInquiryRouteImport } from './routes/rf/inquiry'
 import { Route as RfHistoryRouteImport } from './routes/rf/history'
+import { Route as WorkforceRouteImport } from './routes/workforce'
+import { Route as ScoreboardRouteImport } from './routes/scoreboard'
 
 const ShipmentsRoute = ShipmentsRouteImport.update({
   id: '/shipments',
@@ -148,6 +150,16 @@ const EmployeesRoute = EmployeesRouteImport.update({
   path: '/masters/employees',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WorkforceRoute = WorkforceRouteImport.update({
+  id: '/workforce',
+  path: '/workforce',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScoreboardRoute = ScoreboardRouteImport.update({
+  id: '/scoreboard',
+  path: '/scoreboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -170,8 +182,10 @@ export interface FileRoutesByFullPath {
   '/rf/receiving': typeof RfReceivingRoute
   '/rf/inquiry': typeof RfInquiryRoute
   '/rf/history': typeof RfHistoryRoute
+  '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
+  '/workforce': typeof WorkforceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -195,8 +209,10 @@ export interface FileRoutesByTo {
   '/rf/receiving': typeof RfReceivingRoute
   '/rf/inquiry': typeof RfInquiryRoute
   '/rf/history': typeof RfHistoryRoute
+  '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
+  '/workforce': typeof WorkforceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -221,8 +237,10 @@ export interface FileRoutesById {
   '/rf/receiving': typeof RfReceivingRoute
   '/rf/inquiry': typeof RfInquiryRoute
   '/rf/history': typeof RfHistoryRoute
+  '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
+  '/workforce': typeof WorkforceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -248,8 +266,10 @@ export interface FileRouteTypes {
     | '/rf/receiving'
     | '/rf/inquiry'
     | '/rf/history'
+    | '/scoreboard'
     | '/settings'
     | '/shipments'
+    | '/workforce'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -273,8 +293,10 @@ export interface FileRouteTypes {
     | '/rf/receiving'
     | '/rf/inquiry'
     | '/rf/history'
+    | '/scoreboard'
     | '/settings'
     | '/shipments'
+    | '/workforce'
   id:
     | '__root__'
     | '/'
@@ -298,8 +320,10 @@ export interface FileRouteTypes {
     | '/rf/receiving'
     | '/rf/inquiry'
     | '/rf/history'
+    | '/scoreboard'
     | '/settings'
     | '/shipments'
+    | '/workforce'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -324,8 +348,10 @@ export interface RootRouteChildren {
   RfReceivingRoute: typeof RfReceivingRoute
   RfInquiryRoute: typeof RfInquiryRoute
   RfHistoryRoute: typeof RfHistoryRoute
+  ScoreboardRoute: typeof ScoreboardRoute
   SettingsRoute: typeof SettingsRoute
   ShipmentsRoute: typeof ShipmentsRoute
+  WorkforceRoute: typeof WorkforceRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -335,6 +361,20 @@ declare module '@tanstack/react-router' {
       path: '/shipments'
       fullPath: '/shipments'
       preLoaderRoute: typeof ShipmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workforce': {
+      id: '/workforce'
+      path: '/workforce'
+      fullPath: '/workforce'
+      preLoaderRoute: typeof WorkforceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scoreboard': {
+      id: '/scoreboard'
+      path: '/scoreboard'
+      fullPath: '/scoreboard'
+      preLoaderRoute: typeof ScoreboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -516,8 +556,10 @@ const rootRouteChildren: RootRouteChildren = {
   RfReceivingRoute: RfReceivingRoute,
   RfInquiryRoute: RfInquiryRoute,
   RfHistoryRoute: RfHistoryRoute,
+  ScoreboardRoute: ScoreboardRoute,
   SettingsRoute: SettingsRoute,
   ShipmentsRoute: ShipmentsRoute,
+  WorkforceRoute: WorkforceRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

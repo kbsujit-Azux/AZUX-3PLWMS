@@ -67,6 +67,9 @@ const EMPTY: WarehouseEmployee = {
   isActive: true,
   createdAt: new Date().toISOString(),
   passwordHash: "",
+  role: "Picker",
+  team: "",
+  shift: "",
 };
 
 function EmployeesPage() {
@@ -365,6 +368,60 @@ function EmployeesPage() {
                         {w.name}
                       </SelectItem>
                     ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-300">Role</Label>
+              <Select
+                value={form.role}
+                onValueChange={(v) => setForm({ ...form, role: v })}
+              >
+                <SelectTrigger className="h-9 bg-slate-800 border-slate-700 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["Picker", "Packer", "Receiver", "Putaway", "Warehouse Lead", "Operations Manager", "Admin", "Billing"].map((r) => (
+                    <SelectItem key={r} value={r} className="text-xs">
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-300">Team</Label>
+              <Select
+                value={form.team || ""}
+                onValueChange={(v) => setForm({ ...form, team: v })}
+              >
+                <SelectTrigger className="h-9 bg-slate-800 border-slate-700 text-sm">
+                  <SelectValue placeholder="Select team" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["Picking", "Packing", "Receiving", "Putaway", "Move", "Operations", "Admin", "All"].map((t) => (
+                    <SelectItem key={t} value={t} className="text-xs">
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-300">Shift</Label>
+              <Select
+                value={form.shift || ""}
+                onValueChange={(v) => setForm({ ...form, shift: v })}
+              >
+                <SelectTrigger className="h-9 bg-slate-800 border-slate-700 text-sm">
+                  <SelectValue placeholder="Select shift" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["A", "B", "C", "Day", "Night", "Swing"].map((s) => (
+                    <SelectItem key={s} value={s} className="text-xs">
+                      {s}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -243,6 +243,31 @@ export {
   employees,
 } from "./rf-employees";
 
+// ─── Labor Management (LMS) ────────────────────────────────────────────
+export {
+  type LaborStandard,
+  type LaborEvent,
+  type LaborTaskType,
+  LABOR_STANDARDS,
+  getLaborStandard,
+  computeStandardSec,
+  computeEfficiencyPct,
+  getAisleFromLocation,
+} from "./labor-data";
+
+// ─── Task Interleaving ──────────────────────────────────────────────────
+export {
+  getAisleFromLocation,
+  buildTaskQueue,
+  assignNextTask,
+  getWorkerCurrentAisle,
+  formatTaskSuggestion,
+} from "./interleaving-engine";
+
+export type { Task, TaskType } from "./interleaving-types";
+
+export { RFSessionProvider, useRfSession } from "./rf-session";
+
 // ─── Firestore Data-Access Layer (DAL) ──────────────────────────────────
 // Every Firestore collection operation lives here. Add new collection
 // functions following the established naming convention:
@@ -346,6 +371,15 @@ export {
   fetchMovementHistory,
   subscribeMovementHistory,
   seedEmployees,
+  // Labor Management (LMS)
+  fetchLaborStandards,
+  subscribeLaborStandards,
+  createLaborStandard,
+  updateLaborStandard,
+  deleteLaborStandard,
+  recordLaborEvent,
+  fetchLaborEvents,
+  subscribeLaborEvents,
 } from "./firestore-data";
 
 // ─── Re-export db-context (React data provider) ─────────────────────────

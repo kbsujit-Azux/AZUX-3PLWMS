@@ -12,6 +12,8 @@ import { shipments as carrierDispatches } from "./shipment-data";
 import { seedBols as bols } from "./bol-data";
 import { defaultRules as billingRates, seedInvoices as billingRuns } from "./billing-data";
 import { employees } from "./rf-employees";
+import { LABOR_STANDARDS } from "./labor-data";
+import { seedLaborStandards } from "./firestore-data";
 
 export type WmsDataContextType = {
   tenants: any[];
@@ -126,6 +128,7 @@ async function seedDatabaseIfEmpty() {
       locationMaster,
       ediLogs,
       employees,
+      laborStandards: LABOR_STANDARDS,
     };
 
     for (const [colName, items] of Object.entries(seedData)) {
@@ -151,6 +154,7 @@ async function seedDatabaseIfEmpty() {
         await setDoc(docRef, item);
       }
     }
+    await seedLaborStandards();
     console.log("Database seeded.");
   } catch (err) {
     console.error("Error seeding DB", err);

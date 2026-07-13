@@ -118,7 +118,15 @@ import type { InboundShipment, InboundLine } from "./inbound-data";
 import type { Order, EdiLog } from "./edi-data";
 import type { OutboundPallet } from "./outbound-pallet-data";
 import type { BillingClient, ChargeRule, BillableEvent, Invoice } from "./billing-data";
-import type { WarehouseEmployee, MovementHistory } from "./rf-types";
+import {
+  type LaborStandard,
+  type LaborEvent,
+  type LaborTaskType,
+  LABOR_STANDARDS,
+  getLaborStandard,
+  computeStandardSec,
+  getAisleFromLocation,
+} from "./labor-data";
 
 // ============================================================
 // Tenants
@@ -1768,4 +1776,116 @@ export async function seedEmployees(employees: WarehouseEmployee[]): Promise<voi
     batch.set(doc(db, "employees", emp.badgeId), emp);
   }
   await batch.commit();
+}
+
+// ============================================================
+// Labor Management System (LMS) — Engineered Labor Standards & Events
+// ============================================================
+
+export async function fetchLaborStandards(): Promise<LaborStandard[]> {
+  const snap = await getDocs(collection(db, "laborStandards"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as LaborStandard);
+}
+
+export function subscribeLaborStandards(
+  callback: (standards: LaborStandard[]) => void,
+): Unsubscribe {
+  return onSnapshot(collection(db, "laborStandards"), (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as LaborStandard));
+  });
+}
+
+export async function createLaborStandard(standard: LaborStandard): Promise<string> {
+  const ref = doc(collection(db, "laborStandards"));
+  await setDoc(ref, standard);
+  return ref.id;
+}
+
+export async function updateLaborStandard(id: string, updates: Partial<LaborStandard>): Promise<void> {
+  await updateDoc(doc(db, "laborStandards", id), updates);
+}
+
+export async function deleteLaborStandard(id: string): Promise<void> {
+  await deleteDoc(doc(db, "laborStandards", id));
+}
+
+export async function seedLaborStandards(): Promise<void> {
+  const existing = await fetchLaborStandards();
+  if (existing.length > 0) return;
+
+  const batch = writeBatch(db);
+  for (const std of LABOR_STANDARDS) {
+    const ref = doc(collection(db, "laborStandards"));
+    batch.set(ref, std);
+  }
+  await batch.commit();
+}
+
+export async function recordLaborEvent(event: Omit<LaborEvent, "eventId" | "startedAt" | "completedAt">): Promise<string> {
+  const startedAt = new Date(event.startedAt as unknown as number);
+  const completedAt = new Date();
+
+  const actualSec = Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 1000));
+  const standardSec = computeStandardSec(event.taskType, event.qty);
+  const efficiencyPct = actualSec > 0 && standardSec > 0
+    ? Math.round((standardSec / actualSec) * 100)
+    : 100;
+
+  const aisle = getAisleFromLocation(event.locationId);
+
+  const eventData: LaborEvent = {
+    ...event,
+    eventId: "", // will be set by Firestore
+    startedAt,
+    completedAt,
+    durationSec: actualSec,
+    standardSec,
+    efficiencyPct,
+    aisle,
+  };
+
+  const ref = await addDoc(collection(db, "laborEvents"), eventData);
+  return ref.id;
+}
+
+export async function fetchLaborEvents(
+  filters?: { badgeId?: string; tenantId?: string; warehouseId?: string; dateFrom?: Date; dateTo?: Date; taskType?: string },
+  limitCount = 100,
+): Promise<LaborEvent[]> {
+  let q: any = query(collection(db, "laborEvents"), orderBy("completedAt", "desc"), limit(limitCount));
+  const conditions: any[] = [];
+
+  if (filters?.badgeId) conditions.push(where("badgeId", "==", filters.badgeId));
+  if (filters?.tenantId) conditions.push(where("tenantId", "==", filters.tenantId));
+  if (filters?.warehouseId) conditions.push(where("warehouseId", "==", filters.warehouseId));
+  if (filters?.dateFrom) conditions.push(where("completedAt", ">=", filters.dateFrom));
+  if (filters?.dateTo) conditions.push(where("completedAt", "<=", filters.dateTo));
+  if (filters?.taskType) conditions.push(where("taskType", "==", filters.taskType));
+
+  if (conditions.length > 0) {
+    q = query(collection(db, "laborEvents"), ...conditions, orderBy("completedAt", "desc"), limit(limitCount));
+  }
+
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ eventId: d.id, ...(d.data() ?? {}) }) as LaborEvent);
+}
+
+export function subscribeLaborEvents(
+  callback: (events: LaborEvent[]) => void,
+  filters?: { badgeId?: string; tenantId?: string; warehouseId?: string },
+): Unsubscribe {
+  let q: any = query(collection(db, "laborEvents"), orderBy("completedAt", "desc"));
+  const conditions: any[] = [];
+
+  if (filters?.badgeId) conditions.push(where("badgeId", "==", filters.badgeId));
+  if (filters?.tenantId) conditions.push(where("tenantId", "==", filters.tenantId));
+  if (filters?.warehouseId) conditions.push(where("warehouseId", "==", filters.warehouseId));
+
+  if (conditions.length > 0) {
+    q = query(collection(db, "laborEvents"), ...conditions, orderBy("completedAt", "desc"));
+  }
+
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ eventId: d.id, ...(d.data() ?? {}) }) as LaborEvent));
+  });
 }
