@@ -309,9 +309,6 @@ export function buildInvoiceLines(
         quantity: item.event.quantity,
         rate: item.rate,
         total: item.total,
-        ruleId: item.rule?.id || "unknown",
-        tierBreakdown: item.tierBreakdown,
-        peakSurcharge: item.peakSurcharge,
       });
       categoryTotal += item.total;
     }
@@ -326,8 +323,6 @@ export function buildInvoiceLines(
         quantity: 1,
         rate: adjustment,
         total: adjustment,
-        ruleId: minRule.id,
-        minimumAdjustment: adjustment,
       });
     }
   }
