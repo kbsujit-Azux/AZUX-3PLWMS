@@ -119,6 +119,7 @@ import type { InboundShipment, InboundLine } from "./inbound-data";
 import type { Order, EdiLog } from "./edi-data";
 import type { OutboundPallet } from "./outbound-pallet-data";
 import type { BillingClient, ChargeRule, BillableEvent, Invoice } from "./billing-data";
+import { maybeCaptureBillableEvent } from "./billing-engine";
 import {
   type LaborStandard,
   type LaborEvent,
@@ -276,6 +277,11 @@ export async function receiveInboundShipment(
   palletIds: string[],
 ) {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
+  const shipmentSnap = await getDoc(shipmentRef);
+  const shipmentData = shipmentSnap.data() as any;
+  const clientId = shipmentData?.clientId || shipmentData?.tenantId;
+  const tenantId = shipmentData?.tenantId || clientId;
+  const warehouseId = shipmentData?.warehouseId;
 
   await updateDoc(shipmentRef, {
     [`lines.${lineNo}.receivedQty`]: increment(receivedQty),
@@ -283,6 +289,17 @@ export async function receiveInboundShipment(
     status: "received",
     receivedAt: new Date().toISOString(),
   });
+
+  if (clientId && receivedQty > 0) {
+    await captureBillableEventForInboundReceive({
+      clientId,
+      tenantId,
+      warehouseId,
+      shipmentId,
+      lineNo,
+      receivedQty,
+    }).catch(() => {});
+  }
 }
 
 // ============================================================
@@ -1889,5 +1906,127 @@ export function subscribeLaborEvents(
 
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ eventId: d.id, ...(d.data() ?? {}) }) as LaborEvent));
+  });
+}
+
+// ============================================================
+// Automated Billing Event Capture Hooks
+// ============================================================
+// These helpers allow operation modules to automatically create
+// BillableEvent records when enabled ChargeRule.autoCapture rules
+// match. Call these after successful operations.
+
+async function getAutoCaptureRules(clientId: string, warehouseId?: string): Promise<ChargeRule[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, "chargeRules"),
+      where("clientId", "==", clientId),
+      where("enabled", "==", true),
+      where("autoCapture", "==", true),
+    ),
+  );
+  let rules = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ChargeRule));
+  if (warehouseId) {
+    rules = rules.filter((r) => !r.warehouseId || r.warehouseId === warehouseId);
+  }
+  return rules;
+}
+
+export async function captureBillableEventForInboundReceive(params: {
+  clientId: string;
+  tenantId: string;
+  warehouseId?: string;
+  shipmentId: string;
+  lineNo: number;
+  receivedQty: number;
+}): Promise<void> {
+  const { clientId, tenantId, warehouseId, shipmentId, lineNo, receivedQty } = params;
+  const rules = await getAutoCaptureRules(clientId, warehouseId);
+  if (rules.length === 0) return;
+  await maybeCaptureBillableEvent({
+    clientId,
+    tenantId,
+    warehouseId,
+    type: "Inbound",
+    reference: shipmentId,
+    description: `Inbound receive line ${lineNo} — ${receivedQty} units`,
+    quantity: receivedQty,
+    unit: "carton",
+    rules,
+    createEvent: (evt) => createBillableEvent(evt),
+  });
+}
+
+export async function captureBillableEventForPick(params: {
+  clientId: string;
+  tenantId: string;
+  warehouseId?: string;
+  orderId: string;
+  pickTicketNum: number;
+  qtyPicked: number;
+}): Promise<void> {
+  const { clientId, tenantId, warehouseId, orderId, pickTicketNum, qtyPicked } = params;
+  const rules = await getAutoCaptureRules(clientId, warehouseId);
+  if (rules.length === 0) return;
+  await maybeCaptureBillableEvent({
+    clientId,
+    tenantId,
+    warehouseId,
+    type: "Outbound",
+    reference: orderId,
+    description: `Pick ticket ${pickTicketNum} — ${qtyPicked} units`,
+    quantity: qtyPicked,
+    unit: "carton",
+    rules,
+    createEvent: (evt) => createBillableEvent(evt),
+  });
+}
+
+export async function captureBillableEventForShip(params: {
+  clientId: string;
+  tenantId: string;
+  warehouseId?: string;
+  orderId: string;
+  bolNumber: string;
+  qtyShipped: number;
+}): Promise<void> {
+  const { clientId, tenantId, warehouseId, orderId, bolNumber, qtyShipped } = params;
+  const rules = await getAutoCaptureRules(clientId, warehouseId);
+  if (rules.length === 0) return;
+  await maybeCaptureBillableEvent({
+    clientId,
+    tenantId,
+    warehouseId,
+    type: "Outbound",
+    reference: bolNumber,
+    description: `Ship order ${orderId} — ${qtyShipped} units`,
+    quantity: qtyShipped,
+    unit: "bol",
+    rules,
+    createEvent: (evt) => createBillableEvent(evt),
+  });
+}
+
+export async function captureBillableEventForPutaway(params: {
+  clientId: string;
+  tenantId: string;
+  warehouseId?: string;
+  palletId: string;
+  qtyPutAway: number;
+}): Promise<void> {
+  const { clientId, tenantId, warehouseId, palletId, qtyPutAway } = params;
+  const rules = await getAutoCaptureRules(clientId, warehouseId);
+  if (rules.length === 0) return;
+  await maybeCaptureBillableEvent({
+    clientId,
+    tenantId,
+    warehouseId,
+    type: "Inbound",
+    reference: palletId,
+    description: `Putaway pallet ${palletId} — ${qtyPutAway} units`,
+    quantity: qtyPutAway,
+    unit: "pallet",
+    rules,
+    createEvent: (evt) => createBillableEvent(evt),
   });
 }

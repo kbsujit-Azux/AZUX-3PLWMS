@@ -37,6 +37,15 @@ import type { Pallet } from "./pallet-data";
 import type { LocationRecord } from "./master-data";
 import { computePalletCubeCuFt } from "./pallet-data";
 
+export interface MatchedBillableEvent {
+  event: BillableEvent;
+  rule: ChargeRule;
+  rate: number;
+  total: number;
+  tierBreakdown?: { effectiveRate: number; breakdown: { minQty: number; maxQty: number | null; rate: number }[] };
+  peakSurcharge?: { baseAmount: number; surchargePct: number; totalAmount: number };
+}
+
 /** Compute which PriceTier applies for a given quantity */
 export function computeTieredRate(qty: number, tiers: PriceTier[]): number {
   if (!tiers || tiers.length === 0) return 0;
@@ -282,7 +291,7 @@ export function buildVolumetricStorageLines(
 
 /** Build complete invoice lines from matched events, applying minimums per category */
 export function buildInvoiceLines(
-  matched: ReturnType<typeof matchEventsToRules>,
+  matched: MatchedBillableEvent[],
   rules: ChargeRule[],
 ): InvoiceLine[] {
   // Group by rule category to apply minimums
@@ -339,6 +348,55 @@ export function matchAccessorialEvent(
   return matchEventToRule(event, rules);
 }
 
+/** Attempt to auto-capture a billable event if an enabled autoCapture rule matches.
+ *  Returns the created BillableEvent or undefined if no rule matched / capture disabled.
+ */
+export async function maybeCaptureBillableEvent(params: {
+  clientId: string;
+  tenantId: string;
+  warehouseId?: string;
+  type: BillableEvent["type"];
+  reference: string;
+  description: string;
+  quantity: number;
+  unit: BillableEvent["unit"];
+  accessorialType?: BillableEvent["accessorialType"];
+  rules: ChargeRule[];
+  createEvent: (evt: BillableEvent) => Promise<string | void>;
+}): Promise<BillableEvent | undefined> {
+  const { clientId, tenantId, warehouseId, type, reference, description, quantity, unit, accessorialType, rules, createEvent } = params;
+
+  const mockEvent: BillableEvent = {
+    id: `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    clientId,
+    tenantId,
+    warehouseId,
+    date: new Date().toISOString().slice(0, 10),
+    type,
+    reference,
+    description,
+    quantity,
+    unit,
+    billed: false,
+    accessorialType,
+  };
+
+  const rule = rules.find((r) => {
+    if (!r.enabled || !r.autoCapture) return false;
+    if (r.clientId !== clientId) return false;
+    if (r.category !== type && !(r.category === "Custom" && type === "Custom")) return false;
+    if (r.unit !== unit && !(r.unit === "flat" && unit === "flat")) return false;
+    if (r.warehouseId && warehouseId && r.warehouseId !== warehouseId) return false;
+    if (r.accessorialType && accessorialType && r.accessorialType !== accessorialType) return false;
+    return true;
+  });
+
+  if (!rule) return undefined;
+
+  await createEvent(mockEvent);
+  return mockEvent;
+}
+
 /** Format rate unit for display including volumetric */
 export function billingUnitLabel(unit: RateUnit | "flat"): string {
   switch (unit) {
@@ -359,4 +417,63 @@ export function billingUnitLabel(unit: RateUnit | "flat"): string {
     case "flat":
       return "flat";
   }
+}
+
+// ============================================================
+// Accrual Accounting — Unbilled Period Tracking
+// ============================================================
+
+export type BillableAccrual = {
+  id: string;
+  clientId: string;
+  tenantId: string;
+  warehouseId?: string;
+  category: ChargeRule["category"];
+  description: string;
+  amount: number;
+  accrualDate: string;
+  billableEventId?: string;
+  status: "open" | "billed" | "adjusted";
+  notes?: string;
+};
+
+export function buildAccrualsFromEvents(events: BillableEvent[], rules: ChargeRule[]): BillableAccrual[] {
+  const accruals: BillableAccrual[] = [];
+  for (const event of events) {
+    if (event.billed) continue;
+    const rule = matchEventToRule(event, rules);
+    if (!rule) continue;
+
+    let rate = rule.rate;
+    if (rule.priceTiers && rule.priceTiers.length > 0) {
+      rate = computeTieredRate(event.quantity, rule.priceTiers);
+    }
+    let total = +(event.quantity * rate).toFixed(2);
+    if (rule.peakSurchargePct && rule.peakSurchargePct > 0) {
+      total = applyPeakSurcharge(total, rule.peakSurchargePct, event.date, rule.peakStartMonth, rule.peakEndMonth);
+    }
+
+    accruals.push({
+      id: `accr-${event.id}`,
+      clientId: event.clientId,
+      tenantId: event.tenantId,
+      warehouseId: event.warehouseId,
+      category: event.type,
+      description: `${event.description} (${event.reference})`,
+      amount: total,
+      accrualDate: event.date,
+      billableEventId: event.id,
+      status: "open",
+    });
+  }
+  return accruals;
+}
+
+export function summarizeAccrualsByClient(accruals: BillableAccrual[]): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const a of accruals) {
+    if (a.status !== "open") continue;
+    totals.set(a.clientId, (totals.get(a.clientId) || 0) + a.amount);
+  }
+  return totals;
 }

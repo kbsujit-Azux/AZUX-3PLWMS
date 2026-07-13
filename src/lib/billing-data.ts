@@ -70,6 +70,7 @@ export type ChargeRule = {
   customCycleDays?: number;
   trigger?: string;
   enabled: boolean;
+  autoCapture?: boolean;
   // Tiered pricing
   priceTiers?: PriceTier[];
   // Minimum monthly charge

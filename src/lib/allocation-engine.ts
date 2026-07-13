@@ -61,6 +61,8 @@ import {
   logInventoryTransaction,
   getNextOrderSeq,
   createOrder,
+  captureBillableEventForPick,
+  captureBillableEventForShip,
 } from "./firestore-data";
 import {
   DROP001_LOCATION,
@@ -564,9 +566,21 @@ export async function pick_pick_ticket(orderId: string): Promise<PickResult> {
     return {
       success: false,
       pickTicketNum: firstTicketNum,
-      pickedLines: [],
+      pickedLines,
       error: `Firestore write failed: ${(e as Error).message}`,
     };
+  }
+
+  const totalPicked = pickedLines.reduce((s, l) => s + l.qtyPicked, 0);
+  if (totalPicked > 0) {
+    await captureBillableEventForPick({
+      clientId: order.tenantId,
+      tenantId: order.tenantId,
+      warehouseId: order.warehouseId,
+      orderId: order.id,
+      pickTicketNum: firstTicketNum,
+      qtyPicked: totalPicked,
+    }).catch(() => {});
   }
 
   return {
@@ -809,6 +823,18 @@ export async function ship_order(orderId: string): Promise<ShipResult> {
       shippedLines,
       error: `Firestore write failed: ${(e as Error).message}`,
     };
+  }
+
+  const totalShipped = shippedLines.reduce((s, l) => s + l.qtyShipped, 0);
+  if (totalShipped > 0) {
+    await captureBillableEventForShip({
+      clientId: order.tenantId,
+      tenantId: order.tenantId,
+      warehouseId: order.warehouseId,
+      orderId: order.id,
+      bolNumber: bol.bolNumber,
+      qtyShipped: totalShipped,
+    }).catch(() => {});
   }
 
   return {

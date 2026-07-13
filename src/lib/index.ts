@@ -226,18 +226,30 @@ export {
   computeTieredRate,
   applyPeakSurcharge,
   enforceMinimumCharge,
-  matchAccessorialRule,
-  matchEventsToRules,
-  computeInvoiceLine,
+  matchEventToRule,
+  buildInvoiceLines,
+  buildInvoiceLinesFromEvents,
+  applyMinimumCharges,
   buildVolumetricStorageSnapshots,
-  groupVolumetricByLocation,
-  computeVolumetricStorageTotal,
+  buildVolumetricStorageLines,
+  maybeCaptureBillableEvent,
+  buildAccrualsFromEvents,
+  summarizeAccrualsByClient,
   type VolumetricStorageSnapshot,
-  type TieredRateResult,
-  type MinimumChargeResult,
-  type PeakSurchargeResult,
-  type AccessorialMatchResult,
+  type MatchedBillableEvent,
+  type BillableAccrual,
 } from "./billing-engine";
+
+// ─── Billing Scheduler ──────────────────────────────────────────────────
+export {
+  startBillingScheduler,
+  stopBillingScheduler,
+  isBillingSchedulerRunning,
+  runVolumetricSnapshots,
+  runAutomatedBillingPass,
+  type BillingSchedulerConfig,
+  type SnapshotJobResult,
+} from "./billing-scheduler";
 
 // ─── Carrier Services ───────────────────────────────────────────────────
 export {
@@ -376,6 +388,10 @@ export {
   subscribeBillableEvents,
   createBillableEvent,
   updateBillableEvent,
+  captureBillableEventForInboundReceive,
+  captureBillableEventForPick,
+  captureBillableEventForShip,
+  captureBillableEventForPutaway,
   subscribeInvoices,
   createInvoice,
   updateInvoice,
