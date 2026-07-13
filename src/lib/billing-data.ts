@@ -51,6 +51,13 @@ export type BillingClient = {
   billToAddress: string[];
   email: string;
   tenantId: string;
+  // Enterprise billing configuration
+  billingAddress?: string[];
+  taxId?: string;
+  paymentTerms?: string;
+  creditLimit?: number;
+  currency?: string;
+  billingCycle?: "weekly" | "monthly" | "quarterly";
 };
 
 export type RateUnit = "carton" | "pallet" | "container" | "bol" | "location" | "warehouse" | "cubicFeet";
@@ -142,11 +149,41 @@ export type Invoice = {
   tenantId: string;
   issueDate: string;
   dueDate: string;
-  status: "Draft" | "Sent" | "Paid";
+  status: "Draft" | "Sent" | "Paid" | "Overdue" | "Void";
   lines: InvoiceLine[];
   taxRate: number;
   notes?: string;
   source: "Automated" | "Manual";
+  paymentTerms?: string;
+  paidDate?: string;
+  paymentMethod?: string;
+  creditMemoIds?: string[];
+  disputeStatus?: "none" | "disputed" | "resolved";
+  disputeNotes?: string;
+};
+
+export type InvoicePayment = {
+  id: string;
+  invoiceId: string;
+  clientId: string;
+  tenantId: string;
+  amount: number;
+  paymentDate: string;
+  paymentMethod: string;
+  reference?: string;
+  notes?: string;
+};
+
+export type BillingAuditLog = {
+  id: string;
+  tenantId: string;
+  actor: string;
+  action: "create" | "update" | "delete" | "payment" | "dispute" | "credit";
+  entityType: "chargeRule" | "invoice" | "payment" | "client";
+  entityId: string;
+  changes?: Record<string, { before: any; after: any }>;
+  notes?: string;
+  timestamp: string;
 };
 
 export const billingClients: BillingClient[] = [

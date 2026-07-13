@@ -23,6 +23,9 @@ import {
   MapPin,
   Warehouse,
   RefreshCw,
+  DollarSign,
+  AlertTriangle,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,6 +95,12 @@ import {
   billingUnitLabel,
   matchAccessorialEvent,
   buildVolumetricStorageLines,
+  recordPayment,
+  issueCreditMemo,
+  markInvoiceDisputed,
+  resolveDispute,
+  lineTotal,
+  buildAuditLogEntry,
 } from "@/lib/billing-engine";
 import { tenants, warehouses } from "@/lib/mock-data";
 import { locationMaster } from "@/lib/master-data";
@@ -100,6 +109,8 @@ import {
   subscribeChargeRules,
   subscribeBillableEvents,
   subscribeInvoices,
+  subscribeInvoicePayments,
+  subscribeBillingAuditLog,
   createBillingClient,
   updateBillingClient,
   deleteBillingClient,
@@ -111,6 +122,8 @@ import {
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  createInvoicePayment,
+  createBillingAuditLog,
   seedBillingData,
 } from "@/lib/firestore-data";
 import { db } from "@/lib/firestore";
@@ -139,7 +152,13 @@ function BillingPage() {
   const [clients, setClients] = useState<BillingClient[]>([]);
   const [activeClientId, setActiveClientId] = useState<ClientId | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [payments, setPayments] = useState<InvoicePayment[]>([]);
+  const [auditLogs, setAuditLogs] = useState<BillingAuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [disputeOpen, setDisputeOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
   const [pageError, setPageError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string>("");
 
@@ -185,6 +204,8 @@ function BillingPage() {
     let unsubRules: (() => void) | undefined;
     let unsubEvents: (() => void) | undefined;
     let unsubInvoices: (() => void) | undefined;
+    let unsubPayments: (() => void) | undefined;
+    let unsubAuditLog: (() => void) | undefined;
 
     async function init() {
       setLoading(true);
@@ -252,6 +273,8 @@ function BillingPage() {
       });
       unsubEvents = subscribeBillableEvents(setEvents);
       unsubInvoices = subscribeInvoices(setInvoices);
+      unsubPayments = subscribeInvoicePayments(setPayments);
+      unsubAuditLog = subscribeBillingAuditLog(setAuditLogs);
       initRef.current = undefined;
     }
 
@@ -262,6 +285,8 @@ function BillingPage() {
       unsubRules?.();
       unsubEvents?.();
       unsubInvoices?.();
+      unsubPayments?.();
+      unsubAuditLog?.();
     };
   }, []);
 
@@ -310,6 +335,104 @@ function BillingPage() {
       }
     } catch (e: any) {
       toast.error("Reset error: " + (e?.message ?? "unknown error"));
+    }
+  };
+
+  const handleRecordPayment = async (invoiceId: string, amount: number, paymentDate: string, paymentMethod: string, reference?: string, notes?: string) => {
+    try {
+      const invoice = invoices.find((i) => i.id === invoiceId);
+      if (!invoice) return;
+      const updated = recordPayment(invoice, { amount, paymentDate, paymentMethod, reference, notes });
+      await updateInvoice(invoiceId, updated);
+      await createInvoicePayment({
+        id: `pmt-${Date.now()}`,
+        invoiceId,
+        clientId: invoice.clientId,
+        tenantId: invoice.tenantId,
+        amount,
+        paymentDate,
+        paymentMethod,
+        reference,
+        notes,
+      });
+      await createBillingAuditLog(buildAuditLogEntry({
+        tenantId: invoice.tenantId,
+        actor: user?.email || "system",
+        action: "payment",
+        entityType: "invoice",
+        entityId: invoiceId,
+        notes: `Payment of ${fmtUSD(amount)} recorded`,
+      }));
+      setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? updated : i)));
+      setPaymentOpen(false);
+      toast.success("Payment recorded");
+    } catch (e: any) {
+      toast.error("Failed to record payment: " + (e?.message ?? "unknown error"));
+    }
+  };
+
+  const handleIssueCredit = async (invoiceId: string, creditLines: { description: string; amount: number }[]) => {
+    try {
+      const invoice = invoices.find((i) => i.id === invoiceId);
+      if (!invoice) return;
+      const updated = issueCreditMemo(invoice, creditLines);
+      await updateInvoice(invoiceId, updated);
+      await createBillingAuditLog(buildAuditLogEntry({
+        tenantId: invoice.tenantId,
+        actor: user?.email || "system",
+        action: "credit",
+        entityType: "invoice",
+        entityId: invoiceId,
+        notes: `Credit memo issued: ${creditLines.map((l) => l.description).join(", ")}`,
+      }));
+      setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? updated : i)));
+      toast.success("Credit memo issued");
+    } catch (e: any) {
+      toast.error("Failed to issue credit: " + (e?.message ?? "unknown error"));
+    }
+  };
+
+  const handleMarkDisputed = async (invoiceId: string, notes: string) => {
+    try {
+      const invoice = invoices.find((i) => i.id === invoiceId);
+      if (!invoice) return;
+      const updated = markInvoiceDisputed(invoice, notes);
+      await updateInvoice(invoiceId, updated);
+      await createBillingAuditLog(buildAuditLogEntry({
+        tenantId: invoice.tenantId,
+        actor: user?.email || "system",
+        action: "dispute",
+        entityType: "invoice",
+        entityId: invoiceId,
+        notes,
+      }));
+      setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? updated : i)));
+      setDisputeOpen(false);
+      toast.success("Invoice marked as disputed");
+    } catch (e: any) {
+      toast.error("Failed to mark dispute: " + (e?.message ?? "unknown error"));
+    }
+  };
+
+  const handleResolveDispute = async (invoiceId: string, resolutionNotes: string) => {
+    try {
+      const invoice = invoices.find((i) => i.id === invoiceId);
+      if (!invoice) return;
+      const updated = resolveDispute(invoice, resolutionNotes);
+      await updateInvoice(invoiceId, updated);
+      await createBillingAuditLog(buildAuditLogEntry({
+        tenantId: invoice.tenantId,
+        actor: user?.email || "system",
+        action: "update",
+        entityType: "invoice",
+        entityId: invoiceId,
+        notes: `Dispute resolved: ${resolutionNotes}`,
+      }));
+      setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? updated : i)));
+      setDisputeOpen(false);
+      toast.success("Dispute resolved");
+    } catch (e: any) {
+      toast.error("Failed to resolve dispute: " + (e?.message ?? "unknown error"));
     }
   };
 
@@ -1222,6 +1345,9 @@ function InvoicesTab({
             clients={clients}
             onDelete={handleDeleteInvoice}
             onUpdateStatus={handleUpdateInvoice}
+            onRecordPayment={() => setPaymentOpen(true)}
+            onMarkDisputed={() => setDisputeOpen(true)}
+            onViewAuditLog={() => setAuditOpen(true)}
           />
         ) : (
           <Card className="h-full">
@@ -1519,11 +1645,17 @@ function InvoicePreview({
   clients,
   onDelete,
   onUpdateStatus,
+  onRecordPayment,
+  onMarkDisputed,
+  onViewAuditLog,
 }: {
   invoice: Invoice;
   clients: BillingClient[];
   onDelete?: (id: string) => void;
   onUpdateStatus?: (id: string, status: Invoice["status"]) => void;
+  onRecordPayment?: () => void;
+  onMarkDisputed?: () => void;
+  onViewAuditLog?: () => void;
 }) {
   const client = clients.find((c) => c.id === invoice.clientId) as BillingClient | undefined;
   const sub = invoice.lines.reduce((s, l) => s + l.total, 0);
@@ -1576,6 +1708,21 @@ function InvoicePreview({
           <Button size="sm" onClick={email}>
             <Mail className="h-4 w-4" /> Email Client
           </Button>
+          {onRecordPayment && (
+            <Button size="sm" variant="outline" onClick={onRecordPayment}>
+              <DollarSign className="h-4 w-4" /> Record Payment
+            </Button>
+          )}
+          {onMarkDisputed && invoice.disputeStatus !== "disputed" && (
+            <Button size="sm" variant="outline" onClick={onMarkDisputed}>
+              <AlertTriangle className="h-4 w-4" /> Dispute
+            </Button>
+          )}
+          {onViewAuditLog && (
+            <Button size="sm" variant="ghost" onClick={onViewAuditLog}>
+              <History className="h-4 w-4" /> Audit
+            </Button>
+          )}
           {onDelete && (
             <Button
               size="sm"
@@ -1777,5 +1924,154 @@ function TransactionsTab({
         </Table>
       </CardContent>
     </Card>
+  );
+
+  // Payment Dialog
+  if (paymentOpen && selectedInvoiceId) {
+    const inv = invoices.find((i) => i.id === selectedInvoiceId);
+    if (inv) {
+      const remaining = lineTotal(inv) - (payments.filter((p) => p.invoiceId === inv.id).reduce((s, p) => s + p.amount, 0));
+      return (
+        <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Record Payment — {inv.number}</DialogTitle>
+              <DialogDescription>Record a payment against this invoice.</DialogDescription>
+            </DialogHeader>
+            <PaymentForm
+              invoice={inv}
+              remaining={remaining}
+              onSubmit={(data) => handleRecordPayment(inv.id, data.amount, data.paymentDate, data.paymentMethod, data.reference, data.notes)}
+              onCancel={() => setPaymentOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      );
+    }
+  }
+
+  // Dispute Dialog
+  if (disputeOpen && selectedInvoiceId) {
+    const inv = invoices.find((i) => i.id === selectedInvoiceId);
+    if (inv) {
+      return (
+        <Dialog open={disputeOpen} onOpenChange={setDisputeOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{inv.disputeStatus === "disputed" ? "Resolve Dispute" : "Mark as Disputed"} — {inv.number}</DialogTitle>
+              <DialogDescription>{inv.disputeStatus === "disputed" ? "Resolve the current dispute." : "Mark this invoice as disputed."}</DialogDescription>
+            </DialogHeader>
+            <DisputeForm
+              invoice={inv}
+              onSubmit={(notes) => inv.disputeStatus === "disputed" ? handleResolveDispute(inv.id, notes) : handleMarkDisputed(inv.id, notes)}
+              onCancel={() => setDisputeOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      );
+    }
+  }
+
+  // Audit Log Dialog
+  if (auditOpen) {
+    return (
+      <Dialog open={auditOpen} onOpenChange={setAuditOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Billing Audit Log</DialogTitle>
+            <DialogDescription>Recent billing changes and actions.</DialogDescription>
+          </DialogHeader>
+          <AuditLogTable logs={auditLogs} />
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return null;
+}
+
+function PaymentForm({ invoice, remaining, onSubmit, onCancel }: { invoice: Invoice; remaining: number; onSubmit: (data: { amount: number; paymentDate: string; paymentMethod: string; reference?: string; notes?: string }) => void; onCancel: () => void }) {
+  const [amount, setAmount] = useState(remaining.toFixed(2));
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentMethod, setPaymentMethod] = useState("wire");
+  const [reference, setReference] = useState("");
+  const [notes, setNotes] = useState("");
+
+  return (
+    <div className="grid gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Payment Amount">
+          <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </Field>
+        <Field label="Payment Date">
+          <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+        </Field>
+      </div>
+      <Field label="Payment Method">
+        <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="wire">Wire Transfer</SelectItem>
+            <SelectItem value="ach">ACH</SelectItem>
+            <SelectItem value="check">Check</SelectItem>
+            <SelectItem value="card">Credit Card</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label="Reference (optional)">
+        <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. TXN-12345" />
+      </Field>
+      <Field label="Notes (optional)">
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </Field>
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button onClick={() => onSubmit({ amount: parseFloat(amount) || 0, paymentDate, paymentMethod, reference, notes })}>Record Payment</Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
+function DisputeForm({ invoice, onSubmit, onCancel }: { invoice: Invoice; onSubmit: (notes: string) => void; onCancel: () => void }) {
+  const [notes, setNotes] = useState("");
+
+  return (
+    <div className="grid gap-3">
+      <Field label="Notes">
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason for dispute..." />
+      </Field>
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button variant="destructive" onClick={() => onSubmit(notes)}>{invoice.disputeStatus === "disputed" ? "Resolve Dispute" : "Mark as Disputed"}</Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
+function AuditLogTable({ logs }: { logs: BillingAuditLog[] }) {
+  const sorted = useMemo(() => [...logs].sort((a, b) => b.timestamp.localeCompare(a.timestamp)), [logs]);
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Timestamp</TableHead>
+          <TableHead>Actor</TableHead>
+          <TableHead>Action</TableHead>
+          <TableHead>Entity</TableHead>
+          <TableHead>Notes</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {sorted.map((log) => (
+          <TableRow key={log.id}>
+            <TableCell className="text-xs text-muted-foreground">{new Date(log.timestamp).toLocaleString()}</TableCell>
+            <TableCell className="text-xs">{log.actor}</TableCell>
+            <TableCell><Badge variant="outline" className="text-xs">{log.action}</Badge></TableCell>
+            <TableCell className="text-xs">{log.entityType} / {log.entityId}</TableCell>
+            <TableCell className="text-xs">{log.notes || "—"}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }

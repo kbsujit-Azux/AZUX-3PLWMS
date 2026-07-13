@@ -235,9 +235,17 @@ export {
   maybeCaptureBillableEvent,
   buildAccrualsFromEvents,
   summarizeAccrualsByClient,
+  recordPayment,
+  issueCreditMemo,
+  markInvoiceDisputed,
+  resolveDispute,
+  lineTotal,
+  buildAuditLogEntry,
   type VolumetricStorageSnapshot,
   type MatchedBillableEvent,
   type BillableAccrual,
+  type InvoicePayment,
+  type BillingAuditLog,
 } from "./billing-engine";
 
 // ─── Billing Scheduler ──────────────────────────────────────────────────
@@ -396,6 +404,13 @@ export {
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  subscribeInvoicePayments,
+  createInvoicePayment,
+  updateInvoicePayment,
+  deleteInvoicePayment,
+  subscribeBillingAuditLog,
+  createBillingAuditLog,
+  deleteBillingAuditLog,
   seedBillingData,
   // RF Gun / Employee CRUD
   fetchEmployees,

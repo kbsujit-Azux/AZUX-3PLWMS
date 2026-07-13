@@ -477,3 +477,87 @@ export function summarizeAccrualsByClient(accruals: BillableAccrual[]): Map<stri
   }
   return totals;
 }
+
+// ============================================================
+// Payments, Credits, Disputes
+// ============================================================
+
+export function recordPayment(invoice: Invoice, payment: { amount: number; paymentDate: string; paymentMethod: string; reference?: string; notes?: string }): Invoice {
+  const total = lineTotal(invoice);
+  const newPaidTotal = (invoice.paidDate ? total : 0) + payment.amount;
+  const isPaid = newPaidTotal >= total;
+
+  return {
+    ...invoice,
+    status: isPaid ? "Paid" : "Sent",
+    paidDate: isPaid ? payment.paymentDate : invoice.paidDate,
+    paymentMethod: payment.paymentMethod,
+    notes: payment.notes ? `${invoice.notes ? invoice.notes + "; " : ""}Payment: ${payment.notes}` : invoice.notes,
+  };
+}
+
+export function issueCreditMemo(invoice: Invoice, creditLines: { description: string; amount: number }[]): Invoice {
+  const creditTotal = creditLines.reduce((s, l) => s + l.amount, 0);
+  const newLines = [
+    ...invoice.lines,
+    ...creditLines.map((l, i) => ({
+      id: `credit-${Date.now()}-${i}`,
+      activityType: "Custom" as const,
+      description: `Credit memo: ${l.description}`,
+      quantity: 1,
+      rate: l.amount,
+      total: l.amount,
+    })),
+  ];
+
+  return {
+    ...invoice,
+    lines: newLines,
+    creditMemoIds: [...(invoice.creditMemoIds || []), `credit-${Date.now()}`],
+    notes: `${invoice.notes ? invoice.notes + "; " : ""}Credit memo issued: ${creditTotal}`,
+  };
+}
+
+export function markInvoiceDisputed(invoice: Invoice, notes: string): Invoice {
+  return {
+    ...invoice,
+    disputeStatus: "disputed",
+    disputeNotes: notes,
+    status: "Disputed" as const,
+  };
+}
+
+export function resolveDispute(invoice: Invoice, resolutionNotes: string): Invoice {
+  return {
+    ...invoice,
+    disputeStatus: "resolved",
+    notes: `${invoice.notes ? invoice.notes + "; " : ""}Dispute resolved: ${resolutionNotes}`,
+  };
+}
+
+export function lineTotal(inv: Invoice): number {
+  const sub = inv.lines.reduce((s, l) => s + l.total, 0);
+  return +(sub * (1 + inv.taxRate)).toFixed(2);
+}
+
+export function buildAuditLogEntry(params: {
+  tenantId: string;
+  actor: string;
+  action: BillingAuditLog["action"];
+  entityType: BillingAuditLog["entityType"];
+  entityId: string;
+  changes?: Record<string, { before: any; after: any }>;
+  notes?: string;
+}): BillingAuditLog {
+  return {
+    id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    tenantId: params.tenantId,
+    actor: params.actor,
+    action: params.action,
+    entityType: params.entityType,
+    entityId: params.entityId,
+    changes: params.changes,
+    notes: params.notes,
+    timestamp: new Date().toISOString(),
+  };
+}

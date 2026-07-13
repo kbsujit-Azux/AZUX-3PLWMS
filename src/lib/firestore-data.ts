@@ -118,7 +118,7 @@ import type { ItemMasterRecord, LocationRecord, LocationType } from "./master-da
 import type { InboundShipment, InboundLine } from "./inbound-data";
 import type { Order, EdiLog } from "./edi-data";
 import type { OutboundPallet } from "./outbound-pallet-data";
-import type { BillingClient, ChargeRule, BillableEvent, Invoice } from "./billing-data";
+import type { BillingClient, ChargeRule, BillableEvent, Invoice, InvoicePayment, BillingAuditLog } from "./billing-data";
 import { maybeCaptureBillableEvent } from "./billing-engine";
 import {
   type LaborStandard,
@@ -1667,6 +1667,56 @@ export async function updateInvoice(invoiceId: string, updates: Partial<Invoice>
 
 export async function deleteInvoice(invoiceId: string): Promise<void> {
   await deleteDoc(doc(db, "invoices", invoiceId));
+}
+
+// ============================================================
+// Invoice Payments
+// ============================================================
+export function subscribeInvoicePayments(callback: (payments: InvoicePayment[]) => void, invoiceId?: string): Unsubscribe {
+  let q: Query = collection(db, "invoicePayments");
+  const conditions: any[] = [];
+  if (invoiceId) conditions.push(where("invoiceId", "==", invoiceId));
+  if (conditions.length > 0) q = query(q, ...conditions);
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    let items = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as InvoicePayment));
+    if (invoiceId) items = items.filter((p) => p.invoiceId === invoiceId);
+    callback(items);
+  });
+}
+
+export async function createInvoicePayment(payment: InvoicePayment) {
+  await setDoc(doc(db, "invoicePayments", payment.id), payment);
+}
+
+export async function updateInvoicePayment(paymentId: string, updates: Partial<InvoicePayment>) {
+  await updateDoc(doc(db, "invoicePayments", paymentId), updates);
+}
+
+export async function deleteInvoicePayment(paymentId: string): Promise<void> {
+  await deleteDoc(doc(db, "invoicePayments", paymentId));
+}
+
+// ============================================================
+// Billing Audit Log
+// ============================================================
+export function subscribeBillingAuditLog(callback: (logs: BillingAuditLog[]) => void, tenantId?: string): Unsubscribe {
+  let q: Query = collection(db, "billingAuditLog");
+  const conditions: any[] = [];
+  if (tenantId) conditions.push(where("tenantId", "==", tenantId));
+  if (conditions.length > 0) q = query(q, ...conditions);
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    let items = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as BillingAuditLog));
+    if (tenantId) items = items.filter((l) => l.tenantId === tenantId);
+    callback(items);
+  });
+}
+
+export async function createBillingAuditLog(log: BillingAuditLog) {
+  await setDoc(doc(db, "billingAuditLog", log.id), log);
+}
+
+export async function deleteBillingAuditLog(logId: string): Promise<void> {
+  await deleteDoc(doc(db, "billingAuditLog", logId));
 }
 
 export async function seedBillingData(): Promise<{ success: boolean; error?: string }> {
