@@ -135,6 +135,7 @@ export {
   removePallets,
   createPalletsFromInbound,
   suggestPutawayLocation,
+  computePalletCubeCuFt,
   type PickInstruction,
   type PickWave,
   buildPickWave,

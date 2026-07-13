@@ -39,6 +39,13 @@ import { findItem } from "./master-data";
 
 const ts = (d: string) => new Date(d).toISOString();
 
+export function computePalletCubeCuFt(pallet: Pallet): number {
+  const item = findItem(pallet.sku);
+  if (!item || !item.cbmPerCase || item.cbmPerCase <= 0) return 0;
+  const cases = pallet.units / (pallet.casePack || 1);
+  return +(item.cbmPerCase * cases * 35.3147).toFixed(2);
+}
+
 /** Directed putaway: pick the best slot for an inbound pallet */
 export function suggestPutawayLocation(itemStyle: string, warehouseId: string): string {
   // In production this consults the warehouse slotting map (velocity, weight,

@@ -35,7 +35,7 @@ import type {
 } from "./billing-data";
 import type { Pallet } from "./pallet-data";
 import type { LocationRecord } from "./master-data";
-import { findItem } from "./master-data";
+import { computePalletCubeCuFt } from "./pallet-data";
 
 /** Compute which PriceTier applies for a given quantity */
 export function computeTieredRate(qty: number, tiers: PriceTier[]): number {
@@ -194,13 +194,6 @@ export type VolumetricStorageSnapshot = {
   ratePerCuFtPerMonth: number;
   lineTotal: number;
 };
-
-export function computePalletCubeCuFt(pallet: Pallet): number {
-  const item = findItem(pallet.sku);
-  if (!item || !item.cbmPerCase || item.cbmPerCase <= 0) return 0;
-  const cases = pallet.units / (pallet.casePack || 1);
-  return +(item.cbmPerCase * cases * 35.3147).toFixed(2);
-}
 
 export function computeLocationUtilizationCubicFeet(
   pallets: Pallet[],
