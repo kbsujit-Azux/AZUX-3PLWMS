@@ -60,7 +60,8 @@ function ScoreboardPage() {
           setEvents(filtered);
         }
       },
-      {}
+      {},
+      200
     );
 
     const unsubEmployees = subscribeEmployees(
@@ -156,6 +157,23 @@ function ScoreboardPage() {
         <div className="text-center space-y-4">
           <Trophy className="h-16 w-16 mx-auto text-amber-400 animate-pulse" />
           <h1 className="text-3xl font-bold text-white">Loading Scoreboard...</h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-center space-y-4 max-w-md">
+          <Trophy className="h-16 w-16 mx-auto text-slate-600" />
+          <h1 className="text-3xl font-bold text-white">No Scoreboard Data</h1>
+          <p className="text-sm text-slate-400">
+            Labor events will appear here once workers start completing tasks on the RF Gun terminal.
+          </p>
+          <p className="text-xs text-slate-500">
+            Make sure RF Gun sessions are recording labor events for picks, putaways, moves, and receiving.
+          </p>
         </div>
       </div>
     );
@@ -299,7 +317,7 @@ function ScoreboardPage() {
         />
         <StatCard
           title="TOP STREAK"
-          value={Math.max(...scorecards.map((s) => s.streak), 0)} day
+          value={`${Math.max(...scorecards.map((s) => s.streak), 0)} day`}
           icon={<Flame className="h-6 w-6 text-orange-400" />}
           color="text-orange-400"
         />

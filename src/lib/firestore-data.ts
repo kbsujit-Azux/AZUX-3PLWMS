@@ -1873,8 +1873,9 @@ export async function fetchLaborEvents(
 export function subscribeLaborEvents(
   callback: (events: LaborEvent[]) => void,
   filters?: { badgeId?: string; tenantId?: string; warehouseId?: string },
+  limitCount = 200,
 ): Unsubscribe {
-  let q: any = query(collection(db, "laborEvents"), orderBy("completedAt", "desc"));
+  let q: any = query(collection(db, "laborEvents"), orderBy("completedAt", "desc"), limit(limitCount));
   const conditions: any[] = [];
 
   if (filters?.badgeId) conditions.push(where("badgeId", "==", filters.badgeId));
@@ -1882,7 +1883,7 @@ export function subscribeLaborEvents(
   if (filters?.warehouseId) conditions.push(where("warehouseId", "==", filters.warehouseId));
 
   if (conditions.length > 0) {
-    q = query(collection(db, "laborEvents"), ...conditions, orderBy("completedAt", "desc"));
+    q = query(collection(db, "laborEvents"), ...conditions, orderBy("completedAt", "desc"), limit(limitCount));
   }
 
   return onSnapshot(q, (snap) => {

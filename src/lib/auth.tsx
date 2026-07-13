@@ -125,6 +125,8 @@ export const ROLE_ROUTES: Record<Role, string[]> = {
     "/masters",
     "/masters/warehouses",
     "/masters/employees",
+    "/workforce",
+    "/scoreboard",
     "/rf/putaway",
     "/rf/move",
     "/rf/pick",

@@ -70,7 +70,8 @@ function WorkforcePage() {
           setEvents(filtered);
         }
       },
-      { tenantId, warehouseId }
+      { tenantId, warehouseId },
+      500
     );
 
     const unsubEmployees = subscribeEmployees(
@@ -176,6 +177,24 @@ function WorkforcePage() {
   filteredScorecards.sort((a, b) => b.avgEfficiency - a.avgEfficiency);
 
   if (loading) return <div className="p-6 text-center text-slate-400">Loading workforce data...</div>;
+
+  if (events.length === 0) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Workforce Management</h1>
+          <p className="text-xs text-slate-400 mt-0.5">Labor efficiency, task interleaving & gamification</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
+          <Users className="h-12 w-12 text-slate-600" />
+          <div className="text-sm text-slate-400">No labor events recorded yet.</div>
+          <div className="text-xs text-slate-500 max-w-md">
+            Start completing tasks from the RF Gun terminal — picks, putaways, moves, and receiving will appear here automatically.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const allTeams = ["all", ...Array.from(new Set(scorecards.map((s) => s.team))).sort()];
   const allShifts = ["all", ...Array.from(new Set(scorecards.map((s) => s.shift))).sort()];

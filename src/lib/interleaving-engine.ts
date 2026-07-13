@@ -27,8 +27,6 @@
 import type { Pallet } from "./pallet-data";
 import type { PickTicket } from "./edi-data";
 import { getAisleFromLocation } from "./labor-data";
-import type { Pallet } from "./pallet-data";
-import type { PickTicket } from "./edi-data";
 import type { Task } from "./interleaving-types";
 
 /**
@@ -36,18 +34,7 @@ import type { Task } from "./interleaving-types";
  * Handles formats: "A12-03-B", "ATL1·A12-03-B", "DROP-AISLE-A"
  * Returns aisle identifier (e.g., "12" or "DROP-AISLE-A")
  */
-export function getAisleFromLocation(locId: string): string {
-  return getAisleFromLocation(locId);
-}
-
-/**
- * Parse aisle from location ID.
- * Handles formats: "A12-03-B", "ATL1·A12-03-B", "DROP-AISLE-A"
- * Returns aisle identifier (e.g., "12" or "DROP-AISLE-A")
- */
-export function parseAisle(locId: string): string {
-  return getAisleFromLocation(locId);
-}
+export { getAisleFromLocation } from "./labor-data";
 
 /**
  * Build the combined task queue from open picks and open putaways.
