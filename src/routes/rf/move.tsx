@@ -21,7 +21,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { MoveRight, ScanLine, MapPin, AlertTriangle, ArrowLeft, CheckCircle2, Mic, MicOff } from "lucide-react";
+import { MoveRight, ScanLine, MapPin, AlertTriangle, ArrowLeft, CheckCircle2, Mic, MicOff, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,7 @@ function MoveInner() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [arMode, setArMode] = useState(false);
   const [locations, setLocations] = useState<Record<string, { type: string }>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -260,24 +261,55 @@ function MoveInner() {
           <MoveRight className="h-5 w-5 text-emerald-400" />
           <h1 className="text-lg font-semibold">Move Pallet</h1>
         </div>
-        <Button
-          variant={voiceEnabled ? "default" : "ghost"}
-          size="sm"
-          onClick={() => {
-            setVoiceEnabled((v) => !v);
-            if (!voiceEnabled) {
-              tts.speak("Voice enabled");
-            } else {
-              tts.speak("Voice disabled");
-            }
-          }}
-        >
-          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant={arMode ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setArMode((v) => !v)}
+            title={arMode ? "AR Vision ON" : "AR Vision OFF"}
+          >
+            <Camera className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={voiceEnabled ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              setVoiceEnabled((v) => !v);
+              if (!voiceEnabled) {
+                tts.speak("Voice enabled");
+              } else {
+                tts.speak("Voice disabled");
+              }
+            }}
+          >
+            {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
       {voice.listening && (
         <div className="text-xs text-emerald-400 animate-pulse">Listening...</div>
+      )}
+
+      {arMode && step !== "scan-origin" && pallet && (
+        <Card className="border-indigo-500/50 bg-indigo-950/20 p-4 space-y-2">
+          <div className="flex items-center gap-2 text-indigo-400 text-xs font-semibold">
+            <Camera className="h-4 w-4" />
+            AR VISION
+          </div>
+          <div className="text-xs text-slate-300 space-y-1 font-mono">
+            <div>
+              From: <span className="text-amber-400">{pallet.location}</span>
+            </div>
+            <div>
+              To: <span className="text-indigo-400">{newLocation || "scan destination"}</span>
+            </div>
+            <div>SKU: <span className="text-white">{pallet.sku}</span></div>
+            {step === "confirm" && (
+              <div className="text-emerald-400">Ready to confirm move</div>
+            )}
+          </div>
+        </Card>
       )}
 
       {error && (

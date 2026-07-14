@@ -34,6 +34,7 @@ import {
   Boxes,
   Mic,
   MicOff,
+  Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,7 @@ function PutawayInner() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [arMode, setArMode] = useState(false);
   const [locations, setLocations] = useState<
     Record<string, { type: string; occupiedPallets?: number }>
   >({});
@@ -276,24 +278,51 @@ function PutawayInner() {
           <PackageSearch className="h-5 w-5 text-emerald-400" />
           <h1 className="text-lg font-semibold">Directed Putaway</h1>
         </div>
-        <Button
-          variant={voiceEnabled ? "default" : "ghost"}
-          size="sm"
-          onClick={() => {
-            setVoiceEnabled((v) => !v);
-            if (!voiceEnabled) {
-              tts.speak("Voice enabled");
-            } else {
-              tts.speak("Voice disabled");
-            }
-          }}
-        >
-          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant={arMode ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setArMode((v) => !v)}
+            title={arMode ? "AR Vision ON" : "AR Vision OFF"}
+          >
+            <Camera className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={voiceEnabled ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              setVoiceEnabled((v) => !v);
+              if (!voiceEnabled) {
+                tts.speak("Voice enabled");
+              } else {
+                tts.speak("Voice disabled");
+              }
+            }}
+          >
+            {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
       {voice.listening && (
         <div className="text-xs text-emerald-400 animate-pulse">Listening...</div>
+      )}
+
+      {arMode && step !== "scan-pallet" && pallet && (
+        <Card className="border-indigo-500/50 bg-indigo-950/20 p-4 space-y-2">
+          <div className="flex items-center gap-2 text-indigo-400 text-xs font-semibold">
+            <Camera className="h-4 w-4" />
+            AR VISION
+          </div>
+          <div className="text-xs text-slate-300 space-y-1 font-mono">
+            <div>Target: <span className="text-indigo-400">{location}</span></div>
+            <div>SKU: <span className="text-white">{pallet.sku}</span></div>
+            <div>Units: <span className="text-white">{pallet.units}</span></div>
+            {step === "confirm" && (
+              <div className="text-emerald-400">Ready to confirm putaway</div>
+            )}
+          </div>
+        </Card>
       )}
 
       {error && (
