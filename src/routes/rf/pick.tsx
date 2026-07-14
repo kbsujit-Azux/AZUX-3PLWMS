@@ -32,6 +32,8 @@ import {
   CheckCircle2,
   ArrowLeft,
   RefreshCw,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -49,6 +51,8 @@ import {
   type PickTicket,
   type InventoryItem,
 } from "@/lib/mock-data";
+import { useVoicePicking } from "@/hooks/useVoicePicking";
+import { useTTS, ttsSpeak } from "@/lib/tts";
 
 type Step = "enter-pick" | "verify" | "pick-qty" | "complete";
 
@@ -60,7 +64,65 @@ function PickInner() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [pickedTotal, setPickedTotal] = useState(0);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const pickInputRef = useRef<HTMLInputElement>(null);
+
+  const tts = useTTS();
+
+  const voice = useVoicePicking({
+    enabled: voiceEnabled,
+    locale: "en-US",
+    continuous: true,
+    onCommand: (cmd) => {
+      if (!verified || busy) return;
+      switch (cmd.command) {
+        case "confirm":
+          if (step === "enter-pick") {
+            handlePickSubmit();
+            tts.speak("Loading pick ticket");
+          } else if (step === "verify") {
+            setStep("pick-qty");
+            tts.speak("Enter quantity");
+          } else if (step === "pick-qty") {
+            handlePickQty();
+            tts.speak("Pick submitted");
+          }
+          break;
+        case "next":
+          if (step === "pick-qty" && pickedTotal < ticket?.quantityToPick!) {
+            handleShortage();
+            tts.speak("Finding alternate");
+          }
+          break;
+        case "quantity":
+          if (step === "pick-qty" && typeof cmd.value === "number") {
+            setPickQty(String(cmd.value));
+            tts.speak(`Quantity ${cmd.value}`);
+          }
+          break;
+        case "cancel":
+          if (step === "enter-pick") {
+            setError("");
+          } else {
+            setStep("enter-pick");
+            setTicket(null);
+            setPickQty("");
+            setPickedTotal(0);
+            setError("");
+            tts.speak("Cancelled");
+          }
+          break;
+        case "help":
+          tts.speak("Say confirm to continue, quantity 5 to set quantity, cancel to go back");
+          break;
+        default:
+          break;
+      }
+    },
+    onError: (err) => {
+      console.error("Voice picking error:", err);
+    },
+  });
 
   const playChime = useCallback((type: "ok" | "err") => {
     try {
@@ -237,10 +299,30 @@ function PickInner() {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <ClipboardList className="h-5 w-5 text-emerald-400" />
-        <h1 className="text-lg font-semibold">Directed Pick</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="h-5 w-5 text-emerald-400" />
+          <h1 className="text-lg font-semibold">Directed Pick</h1>
+        </div>
+        <Button
+          variant={voiceEnabled ? "default" : "ghost"}
+          size="sm"
+          onClick={() => {
+            setVoiceEnabled((v) => !v);
+            if (!voiceEnabled) {
+              tts.speak("Voice enabled");
+            } else {
+              tts.speak("Voice disabled");
+            }
+          }}
+        >
+          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </Button>
       </div>
+
+      {voice.listening && (
+        <div className="text-xs text-emerald-400 animate-pulse">Listening...</div>
+      )}
 
       {error && (
         <Card className="border-amber-500/50 bg-amber-950/30 p-3">

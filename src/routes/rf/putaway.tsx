@@ -32,6 +32,8 @@ import {
   CheckCircle2,
   ArrowLeft,
   Boxes,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -55,6 +57,8 @@ import {
 } from "@/lib/mock-data";
 import { type Pallet } from "@/lib/pallet-data";
 import { type LocationRecord } from "@/lib/master-data";
+import { useVoicePicking } from "@/hooks/useVoicePicking";
+import { useTTS, ttsSpeak } from "@/lib/tts";
 
 type Step = "scan-pallet" | "scan-location" | "confirm";
 
@@ -66,10 +70,58 @@ function PutawayInner() {
   const [locInput, setLocInput] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [locations, setLocations] = useState<
     Record<string, { type: string; occupiedPallets?: number }>
   >({});
   const palletInputRef = useRef<HTMLInputElement>(null);
+
+  const tts = useTTS();
+
+  const voice = useVoicePicking({
+    enabled: voiceEnabled,
+    locale: "en-US",
+    continuous: true,
+    onCommand: (cmd) => {
+      if (!verified || busy) return;
+      switch (cmd.command) {
+        case "confirm":
+          if (step === "scan-location" && location) {
+            confirmPutaway();
+            tts.speak("Confirming putaway");
+          } else if (step === "confirm") {
+            confirmPutaway();
+            tts.speak("Confirming putaway");
+          }
+          break;
+        case "next":
+          if (step === "scan-pallet") {
+            tts.speak("Scan pallet first");
+          } else if (step === "scan-location" && pallet) {
+            tts.speak("Scan destination location");
+          }
+          break;
+        case "cancel":
+          if (step === "scan-location" || step === "confirm") {
+            setStep("scan-pallet");
+            setPallet(null);
+            setLocation("");
+            setLocInput("");
+            setError("");
+            tts.speak("Cancelled");
+          }
+          break;
+        case "help":
+          tts.speak("Say confirm to complete putaway, cancel to go back");
+          break;
+        default:
+          break;
+      }
+    },
+    onError: (err) => {
+      console.error("Voice picking error:", err);
+    },
+  });
 
   useEffect(() => {
     if (!verified) return;
@@ -219,10 +271,30 @@ function PutawayInner() {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <PackageSearch className="h-5 w-5 text-emerald-400" />
-        <h1 className="text-lg font-semibold">Directed Putaway</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <PackageSearch className="h-5 w-5 text-emerald-400" />
+          <h1 className="text-lg font-semibold">Directed Putaway</h1>
+        </div>
+        <Button
+          variant={voiceEnabled ? "default" : "ghost"}
+          size="sm"
+          onClick={() => {
+            setVoiceEnabled((v) => !v);
+            if (!voiceEnabled) {
+              tts.speak("Voice enabled");
+            } else {
+              tts.speak("Voice disabled");
+            }
+          }}
+        >
+          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </Button>
       </div>
+
+      {voice.listening && (
+        <div className="text-xs text-emerald-400 animate-pulse">Listening...</div>
+      )}
 
       {error && (
         <Card className="border-amber-500/50 bg-amber-950/30 p-3">

@@ -21,7 +21,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useCallback, useRef } from "react";
-import { ScanLine, Package, MapPin, Boxes, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ScanLine, Package, MapPin, Boxes, AlertTriangle, CheckCircle2, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useRfSession } from "@/lib/rf-session";
 import { fetchPallets, fetchInventoryItems, fetchLocations } from "@/lib/firestore-data";
+import { useVoicePicking } from "@/hooks/useVoicePicking";
+import { useTTS, ttsSpeak } from "@/lib/tts";
 
 type ScanMode = "pallet" | "location" | "sku";
 
@@ -38,7 +40,41 @@ function InquiryInner() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<string | null>(null);
   const [detail, setDetail] = useState<string[]>([]);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const tts = useTTS();
+
+  const voice = useVoicePicking({
+    enabled: voiceEnabled,
+    locale: "en-US",
+    continuous: true,
+    onCommand: (cmd) => {
+      if (!verified) return;
+      switch (cmd.command) {
+        case "confirm":
+          if (input.trim()) {
+            handleScan();
+            tts.speak("Looking up");
+          }
+          break;
+        case "cancel":
+          setInput("");
+          setResult(null);
+          setDetail([]);
+          tts.speak("Cleared");
+          break;
+        case "help":
+          tts.speak("Say confirm to scan, cancel to clear");
+          break;
+        default:
+          break;
+      }
+    },
+    onError: (err) => {
+      console.error("Voice picking error:", err);
+    },
+  });
 
   const playChime = useCallback((type: "ok" | "err") => {
     try {
@@ -143,10 +179,30 @@ function InquiryInner() {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <ScanLine className="h-5 w-5 text-emerald-400" />
-        <h1 className="text-lg font-semibold">Inquiry Terminal</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ScanLine className="h-5 w-5 text-emerald-400" />
+          <h1 className="text-lg font-semibold">Inquiry Terminal</h1>
+        </div>
+        <Button
+          variant={voiceEnabled ? "default" : "ghost"}
+          size="sm"
+          onClick={() => {
+            setVoiceEnabled((v) => !v);
+            if (!voiceEnabled) {
+              tts.speak("Voice enabled");
+            } else {
+              tts.speak("Voice disabled");
+            }
+          }}
+        >
+          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </Button>
       </div>
+
+      {voice.listening && (
+        <div className="text-xs text-emerald-400 animate-pulse">Listening...</div>
+      )}
 
       <div className="flex gap-2">
         {(["pallet", "location", "sku"] as ScanMode[]).map((m) => (

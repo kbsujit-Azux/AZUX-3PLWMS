@@ -21,7 +21,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { MoveRight, ScanLine, MapPin, AlertTriangle, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { MoveRight, ScanLine, MapPin, AlertTriangle, ArrowLeft, CheckCircle2, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,8 @@ import {
 import { runTransaction, doc } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 import { inventoryItems, type InventoryItem } from "@/lib/mock-data";
+import { useVoicePicking } from "@/hooks/useVoicePicking";
+import { useTTS, ttsSpeak } from "@/lib/tts";
 
 type Step = "scan-origin" | "scan-dest" | "confirm";
 
@@ -54,8 +56,56 @@ function MoveInner() {
   const [locInput, setLocInput] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [locations, setLocations] = useState<Record<string, { type: string }>>({});
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const tts = useTTS();
+
+  const voice = useVoicePicking({
+    enabled: voiceEnabled,
+    locale: "en-US",
+    continuous: true,
+    onCommand: (cmd) => {
+      if (!verified || busy) return;
+      switch (cmd.command) {
+        case "confirm":
+          if (step === "scan-dest" && newLocation) {
+            confirmMove();
+            tts.speak("Confirming move");
+          } else if (step === "confirm") {
+            confirmMove();
+            tts.speak("Confirming move");
+          }
+          break;
+        case "next":
+          if (step === "scan-origin") {
+            tts.speak("Scan origin pallet first");
+          } else if (step === "scan-dest" && pallet) {
+            tts.speak("Scan destination location");
+          }
+          break;
+        case "cancel":
+          if (step === "scan-dest" || step === "confirm") {
+            setStep("scan-origin");
+            setPallet(null);
+            setNewLocation("");
+            setLocInput("");
+            setError("");
+            tts.speak("Cancelled");
+          }
+          break;
+        case "help":
+          tts.speak("Say confirm to complete move, cancel to go back");
+          break;
+        default:
+          break;
+      }
+    },
+    onError: (err) => {
+      console.error("Voice picking error:", err);
+    },
+  });
 
   useEffect(() => {
     if (!verified) return;
@@ -205,10 +255,30 @@ function MoveInner() {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <MoveRight className="h-5 w-5 text-emerald-400" />
-        <h1 className="text-lg font-semibold">Move Pallet</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <MoveRight className="h-5 w-5 text-emerald-400" />
+          <h1 className="text-lg font-semibold">Move Pallet</h1>
+        </div>
+        <Button
+          variant={voiceEnabled ? "default" : "ghost"}
+          size="sm"
+          onClick={() => {
+            setVoiceEnabled((v) => !v);
+            if (!voiceEnabled) {
+              tts.speak("Voice enabled");
+            } else {
+              tts.speak("Voice disabled");
+            }
+          }}
+        >
+          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </Button>
       </div>
+
+      {voice.listening && (
+        <div className="text-xs text-emerald-400 animate-pulse">Listening...</div>
+      )}
 
       {error && (
         <Card className="border-amber-500/50 bg-amber-950/30 p-3">

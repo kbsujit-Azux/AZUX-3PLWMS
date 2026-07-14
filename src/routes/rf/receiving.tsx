@@ -32,6 +32,8 @@ import {
   CheckCircle2,
   ArrowLeft,
   Plus,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -43,6 +45,8 @@ import { fetchInboundShipments, receiveInboundShipment } from "@/lib/firestore-d
 import { createPalletsFromInbound } from "@/lib/pallet-data";
 import { DROP001_LOCATION } from "@/lib/mock-data";
 import { type InboundShipment, type InboundLine } from "@/lib/inbound-data";
+import { useVoicePicking } from "@/hooks/useVoicePicking";
+import { useTTS, ttsSpeak } from "@/lib/tts";
 
 type Step = "scan-container" | "manifest" | "pallet-split" | "complete";
 
@@ -55,7 +59,56 @@ function ReceivingInner() {
   const [splits, setSplits] = useState<{ palletSeq: number; units: number; cases: number }[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const containerRef = useRef<HTMLInputElement>(null);
+
+  const tts = useTTS();
+
+  const voice = useVoicePicking({
+    enabled: voiceEnabled,
+    locale: "en-US",
+    continuous: true,
+    onCommand: (cmd) => {
+      if (!verified || busy) return;
+      switch (cmd.command) {
+        case "confirm":
+          if (step === "manifest" && shipment && shipment.lines[lineIdx]) {
+            const qtyInput = document.querySelector<HTMLInputElement>('input[type="number"]');
+            const qty = parseInt(qtyInput?.value ?? "", 10);
+            if (!isNaN(qty)) {
+              recordCount(shipment.lines[lineIdx], qty);
+              tts.speak("Count recorded");
+            }
+          } else if (step === "pallet-split" && splits.length > 0) {
+            commitReceiving();
+            tts.speak("Creating pallets");
+          }
+          break;
+        case "next":
+          if (step === "manifest" && shipment && lineIdx < shipment.lines.length - 1) {
+            setLineIdx((i) => i + 1);
+            tts.speak(`Line ${lineIdx + 2}`);
+          }
+          break;
+        case "cancel":
+          setStep("scan-container");
+          setShipment(null);
+          setReceivedMap({});
+          setSplits([]);
+          setError("");
+          tts.speak("Cancelled");
+          break;
+        case "help":
+          tts.speak("Say confirm to record count or create pallets, next for next line, cancel to start over");
+          break;
+        default:
+          break;
+      }
+    },
+    onError: (err) => {
+      console.error("Voice picking error:", err);
+    },
+  });
 
   const playChime = useCallback((type: "ok" | "err") => {
     try {
@@ -198,10 +251,30 @@ function ReceivingInner() {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <Container className="h-5 w-5 text-emerald-400" />
-        <h1 className="text-lg font-semibold">Dock Receiving</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Container className="h-5 w-5 text-emerald-400" />
+          <h1 className="text-lg font-semibold">Dock Receiving</h1>
+        </div>
+        <Button
+          variant={voiceEnabled ? "default" : "ghost"}
+          size="sm"
+          onClick={() => {
+            setVoiceEnabled((v) => !v);
+            if (!voiceEnabled) {
+              tts.speak("Voice enabled");
+            } else {
+              tts.speak("Voice disabled");
+            }
+          }}
+        >
+          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </Button>
       </div>
+
+      {voice.listening && (
+        <div className="text-xs text-emerald-400 animate-pulse">Listening...</div>
+      )}
 
       {error && (
         <Card className="border-amber-500/50 bg-amber-950/30 p-3">
