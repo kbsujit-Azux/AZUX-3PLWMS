@@ -157,24 +157,22 @@ export async function runAutomatedBillingPass(config: BillingSchedulerConfig): P
 
     if (events.length === 0 || clientRules.length === 0) continue;
 
-    const matched = events
-      .map((ev) => {
-        const { matchEventToRule } = await import("./billing-engine");
-        const rule = matchEventToRule(ev, clientRules);
-        if (!rule) return null;
-        let rate = rule.rate;
-        if (rule.priceTiers && rule.priceTiers.length > 0) {
-          const { computeTieredRate } = await import("./billing-engine");
-          rate = computeTieredRate(ev.quantity, rule.priceTiers);
-        }
-        let total = +(ev.quantity * rate).toFixed(2);
-        if (rule.peakSurchargePct && rule.peakSurchargePct > 0) {
-          const { applyPeakSurcharge } = await import("./billing-engine");
-          total = applyPeakSurcharge(total, rule.peakSurchargePct, new Date(), rule.peakStartMonth, rule.peakEndMonth);
-        }
-        return { event: ev, rule, rate, total };
-      })
-      .filter((m): m is NonNullable<typeof m> => m !== null);
+    const { matchEventToRule, computeTieredRate, applyPeakSurcharge } = await import("./billing-engine");
+
+    const matched: { event: any; rule: any; rate: number; total: number }[] = [];
+    for (const ev of events) {
+      const rule = matchEventToRule(ev, clientRules);
+      if (!rule) continue;
+      let rate = rule.rate;
+      if (rule.priceTiers && rule.priceTiers.length > 0) {
+        rate = computeTieredRate(ev.quantity, rule.priceTiers);
+      }
+      let total = +(ev.quantity * rate).toFixed(2);
+      if (rule.peakSurchargePct && rule.peakSurchargePct > 0) {
+        total = applyPeakSurcharge(total, rule.peakSurchargePct, new Date(), rule.peakStartMonth, rule.peakEndMonth);
+      }
+      matched.push({ event: ev, rule, rate, total });
+    }
 
     if (matched.length === 0) continue;
 

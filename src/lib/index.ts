@@ -211,8 +211,15 @@ export {
   type ComplianceAuditLog,
   type ComplianceAction,
   type ComplianceEntityType,
-  validateItemForLocation,
-  getValidationBadge,
+  type ComplianceDocument,
+  type ComplianceDocumentType,
+  type DocumentStatus,
+  type Recall,
+  type RecallStatus,
+  type QuarantineOrder,
+  type TempUnit,
+  normalizeTemp,
+  isTempCompatible,
 } from "./compliance-types";
 
 export {
@@ -243,7 +250,7 @@ export {
 export {
   computeTieredRate,
   applyPeakSurcharge,
-  enforceMinimumCharge,
+  enforceMinimum,
   matchEventToRule,
   buildInvoiceLines,
   buildInvoiceLinesFromEvents,
@@ -308,11 +315,6 @@ export {
   type GlassInputType,
 } from "./glass-bridge";
 
-export {
-  createGlassSDK,
-  type GlassSDK,
-} from "./glass-sdk";
-
 // ─── Text-to-Speech ──────────────────────────────────────────────────────
 export {
   ttsSpeak,
@@ -354,12 +356,10 @@ export {
   getLaborStandard,
   computeStandardSec,
   computeEfficiencyPct,
-  getAisleFromLocation,
 } from "./labor-data";
 
 // ─── Task Interleaving ──────────────────────────────────────────────────
 export {
-  getAisleFromLocation,
   buildTaskQueue,
   assignNextTask,
   getWorkerCurrentAisle,
@@ -367,8 +367,6 @@ export {
 } from "./interleaving-engine";
 
 export type { Task, TaskType } from "./interleaving-types";
-
-export { RFSessionProvider, useRfSession } from "./rf-session";
 
 // ─── Firestore Data-Access Layer (DAL) ──────────────────────────────────
 // Every Firestore collection operation lives here. Add new collection
@@ -492,8 +490,6 @@ export {
   type ComplianceAuditLog,
   type ComplianceAction,
   type ComplianceEntityType,
-  validateItemForLocation,
-  getValidationBadge,
   // RF Gun / Employee CRUD
   fetchEmployees,
   subscribeEmployees,
@@ -513,6 +509,22 @@ export {
   recordLaborEvent,
   fetchLaborEvents,
   subscribeLaborEvents,
+  // Compliance Documents
+  createComplianceDocument,
+  updateComplianceDocument,
+  deleteComplianceDocument,
+  subscribeComplianceDocuments,
+  fetchExpiringDocuments,
+  // Recalls
+  createRecall,
+  updateRecall,
+  deleteRecall,
+  subscribeRecalls,
+  // Quarantine Orders
+  createQuarantineOrder,
+  updateQuarantineOrder,
+  releaseQuarantineOrder,
+  subscribeQuarantineOrders,
 } from "./firestore-data";
 
 // ─── Re-export db-context (React data provider) ─────────────────────────

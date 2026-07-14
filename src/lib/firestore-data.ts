@@ -119,7 +119,7 @@ import type { InboundShipment, InboundLine } from "./inbound-data";
 import type { Order, EdiLog } from "./edi-data";
 import type { OutboundPallet } from "./outbound-pallet-data";
 import type { BillingClient, ChargeRule, BillableEvent, Invoice, InvoicePayment, BillingAuditLog } from "./billing-data";
-import type { SerialInventoryRecord, SerialStatus, ComplianceAuditLog } from "./compliance-types";
+import type { SerialInventoryRecord, SerialStatus, ComplianceAuditLog, ComplianceDocument, Recall, QuarantineOrder, ComplianceDocumentType, DocumentStatus, RecallStatus } from "./compliance-types";
 import { maybeCaptureBillableEvent } from "./billing-engine";
 import {
   type LaborStandard,
@@ -2166,5 +2166,123 @@ export async function fetchComplianceAuditLog(tenantId: string, limitCount = 100
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ComplianceAuditLog));
+}
+
+// ============================================================
+// Compliance Documents (Certificates, SDS, ISO, FDA, etc.)
+// ============================================================
+export async function createComplianceDocument(doc: ComplianceDocument): Promise<void> {
+  await setDoc(doc(db, "complianceDocuments", doc.id), {
+    ...doc,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateComplianceDocument(id: string, updates: Partial<ComplianceDocument>): Promise<void> {
+  await updateDoc(doc(db, "complianceDocuments", id), { ...updates, updatedAt: serverTimestamp() });
+}
+
+export async function deleteComplianceDocument(id: string): Promise<void> {
+  await deleteDoc(doc(db, "complianceDocuments", id));
+}
+
+export function subscribeComplianceDocuments(
+  callback: (docs: ComplianceDocument[]) => void,
+  filters?: { tenantId?: string; sku?: string; documentType?: ComplianceDocumentType; status?: DocumentStatus },
+): Unsubscribe {
+  let q: Query = collection(db, "complianceDocuments");
+  const conditions: any[] = [];
+  if (filters?.tenantId) conditions.push(where("tenantId", "==", filters.tenantId));
+  if (filters?.sku) conditions.push(where("sku", "==", filters.sku));
+  if (filters?.documentType) conditions.push(where("documentType", "==", filters.documentType));
+  if (filters?.status) conditions.push(where("status", "==", filters.status));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("issuedAt", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ComplianceDocument)));
+  });
+}
+
+export async function fetchExpiringDocuments(tenantId: string, daysAhead = 90): Promise<ComplianceDocument[]> {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() + daysAhead);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  const q = query(
+    collection(db, "complianceDocuments"),
+    where("tenantId", "==", tenantId),
+    where("expiresAt", "<=", cutoffStr),
+    where("status", "==", "active"),
+    orderBy("expiresAt", "asc"),
+  );
+
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ComplianceDocument));
+}
+
+// ============================================================
+// Recalls
+// ============================================================
+export async function createRecall(recall: Recall): Promise<void> {
+  await setDoc(doc(db, "recalls", recall.id), recall);
+}
+
+export async function updateRecall(id: string, updates: Partial<Recall>): Promise<void> {
+  await updateDoc(doc(db, "recalls", id), { ...updates, updatedAt: serverTimestamp() });
+}
+
+export async function deleteRecall(id: string): Promise<void> {
+  await deleteDoc(doc(db, "recalls", id));
+}
+
+export function subscribeRecalls(
+  callback: (recalls: Recall[]) => void,
+  filters?: { tenantId?: string; status?: RecallStatus },
+): Unsubscribe {
+  let q: Query = collection(db, "recalls");
+  const conditions: any[] = [];
+  if (filters?.tenantId) conditions.push(where("tenantId", "==", filters.tenantId));
+  if (filters?.status) conditions.push(where("status", "==", filters.status));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("issuedAt", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as Recall)));
+  });
+}
+
+// ============================================================
+// Quarantine Orders
+// ============================================================
+export async function createQuarantineOrder(order: QuarantineOrder): Promise<void> {
+  await setDoc(doc(db, "quarantineOrders", order.id), {
+    ...order,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateQuarantineOrder(id: string, updates: Partial<QuarantineOrder>): Promise<void> {
+  await updateDoc(doc(db, "quarantineOrders", id), { ...updates, updatedAt: serverTimestamp() });
+}
+
+export async function releaseQuarantineOrder(id: string): Promise<void> {
+  await updateDoc(doc(db, "quarantineOrders", id), {
+    status: "released",
+    releasedAt: new Date().toISOString(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export function subscribeQuarantineOrders(
+  callback: (orders: QuarantineOrder[]) => void,
+  filters?: { tenantId?: string; status?: "active" | "released" | "cancelled" },
+): Unsubscribe {
+  let q: Query = collection(db, "quarantineOrders");
+  const conditions: any[] = [];
+  if (filters?.tenantId) conditions.push(where("tenantId", "==", filters.tenantId));
+  if (filters?.status) conditions.push(where("status", "==", filters.status));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("issuedAt", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as QuarantineOrder)));
+  });
 }
 

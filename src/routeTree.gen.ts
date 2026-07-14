@@ -35,6 +35,7 @@ import { Route as RfHistoryRouteImport } from './routes/rf/history'
 import { Route as WorkforceRouteImport } from './routes/workforce'
 import { Route as ScoreboardRouteImport } from './routes/scoreboard'
 import { Route as SlottingRouteImport } from './routes/slotting'
+import { Route as ComplianceRouteImport } from './routes/compliance'
 
 const ShipmentsRoute = ShipmentsRouteImport.update({
   id: '/shipments',
@@ -166,12 +167,18 @@ const SlottingRoute = SlottingRouteImport.update({
   path: '/slotting',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ComplianceRoute = ComplianceRouteImport.update({
+  id: '/compliance',
+  path: '/compliance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/allocation': typeof AllocationRoute
   '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
+  '/compliance': typeof ComplianceRoute
   '/documents': typeof DocumentsRoute
   '/edi': typeof EdiRoute
   '/inbound': typeof InboundRoute
@@ -199,6 +206,7 @@ export interface FileRoutesByTo {
   '/allocation': typeof AllocationRoute
   '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
+  '/compliance': typeof ComplianceRoute
   '/documents': typeof DocumentsRoute
   '/edi': typeof EdiRoute
   '/inbound': typeof InboundRoute
@@ -228,6 +236,7 @@ export interface FileRoutesById {
   '/allocation': typeof AllocationRoute
   '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
+  '/compliance': typeof ComplianceRoute
   '/documents': typeof DocumentsRoute
   '/edi': typeof EdiRoute
   '/inbound': typeof InboundRoute
@@ -258,6 +267,7 @@ export interface FileRouteTypes {
     | '/allocation'
     | '/allocation_backup'
     | '/billing'
+    | '/compliance'
     | '/documents'
     | '/edi'
     | '/inbound'
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | '/allocation'
     | '/allocation_backup'
     | '/billing'
+    | '/compliance'
     | '/documents'
     | '/edi'
     | '/inbound'
@@ -314,6 +325,7 @@ export interface FileRouteTypes {
     | '/allocation'
     | '/allocation_backup'
     | '/billing'
+    | '/compliance'
     | '/documents'
     | '/edi'
     | '/inbound'
@@ -343,6 +355,7 @@ export interface RootRouteChildren {
   AllocationRoute: typeof AllocationRoute
   Allocation_backupRoute: typeof Allocation_backupRoute
   BillingRoute: typeof BillingRoute
+  ComplianceRoute: typeof ComplianceRoute
   DocumentsRoute: typeof DocumentsRoute
   EdiRoute: typeof EdiRoute
   InboundRoute: typeof InboundRoute
@@ -363,6 +376,7 @@ export interface RootRouteChildren {
   ScoreboardRoute: typeof ScoreboardRoute
   SettingsRoute: typeof SettingsRoute
   ShipmentsRoute: typeof ShipmentsRoute
+  SlottingRoute: typeof SlottingRoute
   WorkforceRoute: typeof WorkforceRoute
 }
 
@@ -529,6 +543,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BillingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/compliance': {
+      id: '/compliance'
+      path: '/compliance'
+      fullPath: '/compliance'
+      preLoaderRoute: typeof ComplianceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/allocation_backup': {
       id: '/allocation_backup'
       path: '/allocation_backup'
@@ -558,6 +579,7 @@ const rootRouteChildren: RootRouteChildren = {
   AllocationRoute: AllocationRoute,
   Allocation_backupRoute: Allocation_backupRoute,
   BillingRoute: BillingRoute,
+  ComplianceRoute: ComplianceRoute,
   DocumentsRoute: DocumentsRoute,
   EdiRoute: EdiRoute,
   InboundRoute: InboundRoute,

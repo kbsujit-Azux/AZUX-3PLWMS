@@ -114,6 +114,68 @@ export type ComplianceAuditLog = {
   hashChain?: string; // SHA-256(prevEntry.id + prevEntry.timestamp + prevEntry.action + prevEntry.entityId)
 };
 
+export type ComplianceDocumentType =
+  | "certificate_of_analysis"
+  | "sds"
+  | "iso_cert"
+  | "fda_registration"
+  | "hazmat_cert"
+  | "cold_chain_cert"
+  | "organic_cert"
+  | "customs_bond";
+
+export type DocumentStatus = "active" | "expired" | "revoked" | "pending_review";
+
+export type ComplianceDocument = {
+  id: string;
+  tenantId: string;
+  sku?: string;
+  warehouseId?: string;
+  documentType: ComplianceDocumentType;
+  title: string;
+  issuer: string;
+  issuedAt: string; // ISO date
+  expiresAt?: string;
+  status: DocumentStatus;
+  storageUrl?: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RecallStatus = "draft" | "active" | "resolved" | "cancelled";
+
+export type Recall = {
+  id: string;
+  tenantId: string;
+  recallNumber: string;
+  title: string;
+  description: string;
+  skus: string[];
+  lotNumbers?: string[];
+  status: RecallStatus;
+  severity: "low" | "medium" | "high" | "critical";
+  issuedAt: string;
+  resolvedAt?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type QuarantineOrder = {
+  id: string;
+  tenantId: string;
+  serialInventoryIds: string[];
+  reason: string;
+  issuedBy: string;
+  issuedAt: string;
+  releasedAt?: string;
+  status: "active" | "released" | "cancelled";
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 // ============================================================
 // Temperature Units
 // ============================================================
