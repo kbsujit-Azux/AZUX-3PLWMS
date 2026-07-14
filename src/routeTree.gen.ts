@@ -9,34 +9,45 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkforceRouteImport } from './routes/workforce'
+import { Route as SlottingRouteImport } from './routes/slotting'
 import { Route as ShipmentsRouteImport } from './routes/shipments'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ScoreboardRouteImport } from './routes/scoreboard'
 import { Route as PicksRouteImport } from './routes/picks'
 import { Route as PalletsRouteImport } from './routes/pallets'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as MastersRouteImport } from './routes/masters'
-import { Route as WarehousesRouteImport } from './routes/masters/warehouses'
-import { Route as EmployeesRouteImport } from './routes/masters/employees'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InboundRouteImport } from './routes/inbound'
 import { Route as EdiRouteImport } from './routes/edi'
 import { Route as DocumentsRouteImport } from './routes/documents'
+import { Route as ComplianceRouteImport } from './routes/compliance'
 import { Route as BillingRouteImport } from './routes/billing'
 import { Route as Allocation_backupRouteImport } from './routes/allocation_backup'
 import { Route as AllocationRouteImport } from './routes/allocation'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as RfRouteImport } from './routes/rf/index'
-import { Route as RfPutawayRouteImport } from './routes/rf/putaway'
-import { Route as RfMoveRouteImport } from './routes/rf/move'
-import { Route as RfPickRouteImport } from './routes/rf/pick'
+import { Route as TenantPortalIndexRouteImport } from './routes/tenant-portal/index'
+import { Route as RfIndexRouteImport } from './routes/rf/index'
 import { Route as RfReceivingRouteImport } from './routes/rf/receiving'
+import { Route as RfPutawayRouteImport } from './routes/rf/putaway'
+import { Route as RfPickRouteImport } from './routes/rf/pick'
+import { Route as RfMoveRouteImport } from './routes/rf/move'
 import { Route as RfInquiryRouteImport } from './routes/rf/inquiry'
 import { Route as RfHistoryRouteImport } from './routes/rf/history'
-import { Route as WorkforceRouteImport } from './routes/workforce'
-import { Route as ScoreboardRouteImport } from './routes/scoreboard'
-import { Route as SlottingRouteImport } from './routes/slotting'
-import { Route as ComplianceRouteImport } from './routes/compliance'
+import { Route as MastersWarehousesRouteImport } from './routes/masters/warehouses'
+import { Route as MastersEmployeesRouteImport } from './routes/masters/employees'
 
+const WorkforceRoute = WorkforceRouteImport.update({
+  id: '/workforce',
+  path: '/workforce',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SlottingRoute = SlottingRouteImport.update({
+  id: '/slotting',
+  path: '/slotting',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShipmentsRoute = ShipmentsRouteImport.update({
   id: '/shipments',
   path: '/shipments',
@@ -45,6 +56,11 @@ const ShipmentsRoute = ShipmentsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScoreboardRoute = ScoreboardRouteImport.update({
+  id: '/scoreboard',
+  path: '/scoreboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PicksRoute = PicksRouteImport.update({
@@ -87,6 +103,11 @@ const DocumentsRoute = DocumentsRouteImport.update({
   path: '/documents',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ComplianceRoute = ComplianceRouteImport.update({
+  id: '/compliance',
+  path: '/compliance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BillingRoute = BillingRouteImport.update({
   id: '/billing',
   path: '/billing',
@@ -107,70 +128,55 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RfRoute = RfRouteImport.update({
-  id: '/rf',
-  path: '/rf',
+const TenantPortalIndexRoute = TenantPortalIndexRouteImport.update({
+  id: '/tenant-portal/',
+  path: '/tenant-portal/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RfIndexRoute = RfIndexRouteImport.update({
+  id: '/rf/',
+  path: '/rf/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RfReceivingRoute = RfReceivingRouteImport.update({
+  id: '/rf/receiving',
+  path: '/rf/receiving',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RfPutawayRoute = RfPutawayRouteImport.update({
   id: '/rf/putaway',
   path: '/rf/putaway',
-  getParentRoute: () => RfRoute,
-} as any)
-const RfMoveRoute = RfMoveRouteImport.update({
-  id: '/rf/move',
-  path: '/rf/move',
-  getParentRoute: () => RfRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const RfPickRoute = RfPickRouteImport.update({
   id: '/rf/pick',
   path: '/rf/pick',
-  getParentRoute: () => RfRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-const RfReceivingRoute = RfReceivingRouteImport.update({
-  id: '/rf/receiving',
-  path: '/rf/receiving',
-  getParentRoute: () => RfRoute,
+const RfMoveRoute = RfMoveRouteImport.update({
+  id: '/rf/move',
+  path: '/rf/move',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const RfInquiryRoute = RfInquiryRouteImport.update({
   id: '/rf/inquiry',
   path: '/rf/inquiry',
-  getParentRoute: () => RfRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const RfHistoryRoute = RfHistoryRouteImport.update({
   id: '/rf/history',
   path: '/rf/history',
-  getParentRoute: () => RfRoute,
-} as any)
-const WarehousesRoute = WarehousesRouteImport.update({
-  id: '/masters/warehouses',
-  path: '/masters/warehouses',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EmployeesRoute = EmployeesRouteImport.update({
-  id: '/masters/employees',
-  path: '/masters/employees',
-  getParentRoute: () => rootRouteImport,
+const MastersWarehousesRoute = MastersWarehousesRouteImport.update({
+  id: '/warehouses',
+  path: '/warehouses',
+  getParentRoute: () => MastersRoute,
 } as any)
-const WorkforceRoute = WorkforceRouteImport.update({
-  id: '/workforce',
-  path: '/workforce',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScoreboardRoute = ScoreboardRouteImport.update({
-  id: '/scoreboard',
-  path: '/scoreboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SlottingRoute = SlottingRouteImport.update({
-  id: '/slotting',
-  path: '/slotting',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ComplianceRoute = ComplianceRouteImport.update({
-  id: '/compliance',
-  path: '/compliance',
-  getParentRoute: () => rootRouteImport,
+const MastersEmployeesRoute = MastersEmployeesRouteImport.update({
+  id: '/employees',
+  path: '/employees',
+  getParentRoute: () => MastersRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -183,23 +189,25 @@ export interface FileRoutesByFullPath {
   '/edi': typeof EdiRoute
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
-  '/masters': typeof MastersRoute
-  '/masters/warehouses': typeof WarehousesRoute
-  '/masters/employees': typeof EmployeesRoute
+  '/masters': typeof MastersRouteWithChildren
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
-  '/rf/putaway': typeof RfPutawayRoute
-  '/rf/move': typeof RfMoveRoute
-  '/rf/pick': typeof RfPickRoute
-  '/rf/receiving': typeof RfReceivingRoute
-  '/rf/inquiry': typeof RfInquiryRoute
-  '/rf/history': typeof RfHistoryRoute
   '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/workforce': typeof WorkforceRoute
+  '/masters/employees': typeof MastersEmployeesRoute
+  '/masters/warehouses': typeof MastersWarehousesRoute
+  '/rf/history': typeof RfHistoryRoute
+  '/rf/inquiry': typeof RfInquiryRoute
+  '/rf/move': typeof RfMoveRoute
+  '/rf/pick': typeof RfPickRoute
+  '/rf/putaway': typeof RfPutawayRoute
+  '/rf/receiving': typeof RfReceivingRoute
+  '/rf/': typeof RfIndexRoute
+  '/tenant-portal/': typeof TenantPortalIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -211,24 +219,25 @@ export interface FileRoutesByTo {
   '/edi': typeof EdiRoute
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
-  '/masters': typeof MastersRoute
-  '/masters/warehouses': typeof WarehousesRoute
-  '/masters/employees': typeof EmployeesRoute
+  '/masters': typeof MastersRouteWithChildren
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
-  '/rf': typeof RfRoute
-  '/rf/putaway': typeof RfPutawayRoute
-  '/rf/move': typeof RfMoveRoute
-  '/rf/pick': typeof RfPickRoute
-  '/rf/receiving': typeof RfReceivingRoute
-  '/rf/inquiry': typeof RfInquiryRoute
-  '/rf/history': typeof RfHistoryRoute
   '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/workforce': typeof WorkforceRoute
+  '/masters/employees': typeof MastersEmployeesRoute
+  '/masters/warehouses': typeof MastersWarehousesRoute
+  '/rf/history': typeof RfHistoryRoute
+  '/rf/inquiry': typeof RfInquiryRoute
+  '/rf/move': typeof RfMoveRoute
+  '/rf/pick': typeof RfPickRoute
+  '/rf/putaway': typeof RfPutawayRoute
+  '/rf/receiving': typeof RfReceivingRoute
+  '/rf': typeof RfIndexRoute
+  '/tenant-portal': typeof TenantPortalIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -241,24 +250,25 @@ export interface FileRoutesById {
   '/edi': typeof EdiRoute
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
-  '/masters': typeof MastersRoute
-  '/masters/warehouses': typeof WarehousesRoute
-  '/masters/employees': typeof EmployeesRoute
+  '/masters': typeof MastersRouteWithChildren
   '/orders': typeof OrdersRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
-  '/rf': typeof RfRoute
-  '/rf/putaway': typeof RfPutawayRoute
-  '/rf/move': typeof RfMoveRoute
-  '/rf/pick': typeof RfPickRoute
-  '/rf/receiving': typeof RfReceivingRoute
-  '/rf/inquiry': typeof RfInquiryRoute
-  '/rf/history': typeof RfHistoryRoute
   '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/workforce': typeof WorkforceRoute
+  '/masters/employees': typeof MastersEmployeesRoute
+  '/masters/warehouses': typeof MastersWarehousesRoute
+  '/rf/history': typeof RfHistoryRoute
+  '/rf/inquiry': typeof RfInquiryRoute
+  '/rf/move': typeof RfMoveRoute
+  '/rf/pick': typeof RfPickRoute
+  '/rf/putaway': typeof RfPutawayRoute
+  '/rf/receiving': typeof RfReceivingRoute
+  '/rf/': typeof RfIndexRoute
+  '/tenant-portal/': typeof TenantPortalIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -273,23 +283,24 @@ export interface FileRouteTypes {
     | '/inbound'
     | '/inventory'
     | '/masters'
-    | '/masters/warehouses'
-    | '/masters/employees'
     | '/orders'
     | '/pallets'
     | '/picks'
-    | '/rf'
-    | '/rf/putaway'
-    | '/rf/move'
-    | '/rf/pick'
-    | '/rf/receiving'
-    | '/rf/inquiry'
-    | '/rf/history'
     | '/scoreboard'
     | '/settings'
     | '/shipments'
     | '/slotting'
     | '/workforce'
+    | '/masters/employees'
+    | '/masters/warehouses'
+    | '/rf/history'
+    | '/rf/inquiry'
+    | '/rf/move'
+    | '/rf/pick'
+    | '/rf/putaway'
+    | '/rf/receiving'
+    | '/rf/'
+    | '/tenant-portal/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -302,23 +313,24 @@ export interface FileRouteTypes {
     | '/inbound'
     | '/inventory'
     | '/masters'
-    | '/masters/warehouses'
-    | '/masters/employees'
     | '/orders'
     | '/pallets'
     | '/picks'
-    | '/rf'
-    | '/rf/putaway'
-    | '/rf/move'
-    | '/rf/pick'
-    | '/rf/receiving'
-    | '/rf/inquiry'
-    | '/rf/history'
     | '/scoreboard'
     | '/settings'
     | '/shipments'
     | '/slotting'
     | '/workforce'
+    | '/masters/employees'
+    | '/masters/warehouses'
+    | '/rf/history'
+    | '/rf/inquiry'
+    | '/rf/move'
+    | '/rf/pick'
+    | '/rf/putaway'
+    | '/rf/receiving'
+    | '/rf'
+    | '/tenant-portal'
   id:
     | '__root__'
     | '/'
@@ -331,23 +343,24 @@ export interface FileRouteTypes {
     | '/inbound'
     | '/inventory'
     | '/masters'
-    | '/masters/warehouses'
-    | '/masters/employees'
     | '/orders'
     | '/pallets'
     | '/picks'
-    | '/rf'
-    | '/rf/putaway'
-    | '/rf/move'
-    | '/rf/pick'
-    | '/rf/receiving'
-    | '/rf/inquiry'
-    | '/rf/history'
     | '/scoreboard'
     | '/settings'
     | '/shipments'
     | '/slotting'
     | '/workforce'
+    | '/masters/employees'
+    | '/masters/warehouses'
+    | '/rf/history'
+    | '/rf/inquiry'
+    | '/rf/move'
+    | '/rf/pick'
+    | '/rf/putaway'
+    | '/rf/receiving'
+    | '/rf/'
+    | '/tenant-portal/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -360,47 +373,32 @@ export interface RootRouteChildren {
   EdiRoute: typeof EdiRoute
   InboundRoute: typeof InboundRoute
   InventoryRoute: typeof InventoryRoute
-  MastersRoute: typeof MastersRoute
-  WarehousesRoute: typeof WarehousesRoute
-  EmployeesRoute: typeof EmployeesRoute
+  MastersRoute: typeof MastersRouteWithChildren
   OrdersRoute: typeof OrdersRoute
   PalletsRoute: typeof PalletsRoute
   PicksRoute: typeof PicksRoute
-  RfRoute: typeof RfRoute
-  RfPutawayRoute: typeof RfPutawayRoute
-  RfMoveRoute: typeof RfMoveRoute
-  RfPickRoute: typeof RfPickRoute
-  RfReceivingRoute: typeof RfReceivingRoute
-  RfInquiryRoute: typeof RfInquiryRoute
-  RfHistoryRoute: typeof RfHistoryRoute
   ScoreboardRoute: typeof ScoreboardRoute
   SettingsRoute: typeof SettingsRoute
   ShipmentsRoute: typeof ShipmentsRoute
   SlottingRoute: typeof SlottingRoute
   WorkforceRoute: typeof WorkforceRoute
+  RfHistoryRoute: typeof RfHistoryRoute
+  RfInquiryRoute: typeof RfInquiryRoute
+  RfMoveRoute: typeof RfMoveRoute
+  RfPickRoute: typeof RfPickRoute
+  RfPutawayRoute: typeof RfPutawayRoute
+  RfReceivingRoute: typeof RfReceivingRoute
+  RfIndexRoute: typeof RfIndexRoute
+  TenantPortalIndexRoute: typeof TenantPortalIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/shipments': {
-      id: '/shipments'
-      path: '/shipments'
-      fullPath: '/shipments'
-      preLoaderRoute: typeof ShipmentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/workforce': {
       id: '/workforce'
       path: '/workforce'
       fullPath: '/workforce'
       preLoaderRoute: typeof WorkforceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scoreboard': {
-      id: '/scoreboard'
-      path: '/scoreboard'
-      fullPath: '/scoreboard'
-      preLoaderRoute: typeof ScoreboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/slotting': {
@@ -410,6 +408,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SlottingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shipments': {
+      id: '/shipments'
+      path: '/shipments'
+      fullPath: '/shipments'
+      preLoaderRoute: typeof ShipmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -417,53 +422,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/rf/history': {
-      id: '/rf/history'
-      path: '/rf/history'
-      fullPath: '/rf/history'
-      preLoaderRoute: typeof RfHistoryRouteImport
-      parentRoute: typeof RfRouteImport
-    }
-    '/rf/inquiry': {
-      id: '/rf/inquiry'
-      path: '/rf/inquiry'
-      fullPath: '/rf/inquiry'
-      preLoaderRoute: typeof RfInquiryRouteImport
-      parentRoute: typeof RfRouteImport
-    }
-    '/rf/receiving': {
-      id: '/rf/receiving'
-      path: '/rf/receiving'
-      fullPath: '/rf/receiving'
-      preLoaderRoute: typeof RfReceivingRouteImport
-      parentRoute: typeof RfRouteImport
-    }
-    '/rf/pick': {
-      id: '/rf/pick'
-      path: '/rf/pick'
-      fullPath: '/rf/pick'
-      preLoaderRoute: typeof RfPickRouteImport
-      parentRoute: typeof RfRouteImport
-    }
-    '/rf/move': {
-      id: '/rf/move'
-      path: '/rf/move'
-      fullPath: '/rf/move'
-      preLoaderRoute: typeof RfMoveRouteImport
-      parentRoute: typeof RfRouteImport
-    }
-    '/rf/putaway': {
-      id: '/rf/putaway'
-      path: '/rf/putaway'
-      fullPath: '/rf/putaway'
-      preLoaderRoute: typeof RfPutawayRouteImport
-      parentRoute: typeof RfRouteImport
-    }
-    '/rf': {
-      id: '/rf'
-      path: '/rf'
-      fullPath: '/rf'
-      preLoaderRoute: typeof RfRouteImport
+    '/scoreboard': {
+      id: '/scoreboard'
+      path: '/scoreboard'
+      fullPath: '/scoreboard'
+      preLoaderRoute: typeof ScoreboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/picks': {
@@ -485,20 +448,6 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/orders'
       preLoaderRoute: typeof OrdersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/masters/employees': {
-      id: '/masters/employees'
-      path: '/masters/employees'
-      fullPath: '/masters/employees'
-      preLoaderRoute: typeof EmployeesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/masters/warehouses': {
-      id: '/masters/warehouses'
-      path: '/masters/warehouses'
-      fullPath: '/masters/warehouses'
-      preLoaderRoute: typeof WarehousesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/masters': {
@@ -536,18 +485,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocumentsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/billing': {
-      id: '/billing'
-      path: '/billing'
-      fullPath: '/billing'
-      preLoaderRoute: typeof BillingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/compliance': {
       id: '/compliance'
       path: '/compliance'
       fullPath: '/compliance'
       preLoaderRoute: typeof ComplianceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/billing': {
+      id: '/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof BillingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/allocation_backup': {
@@ -571,8 +520,91 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tenant-portal/': {
+      id: '/tenant-portal/'
+      path: '/tenant-portal'
+      fullPath: '/tenant-portal/'
+      preLoaderRoute: typeof TenantPortalIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/': {
+      id: '/rf/'
+      path: '/rf'
+      fullPath: '/rf/'
+      preLoaderRoute: typeof RfIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/receiving': {
+      id: '/rf/receiving'
+      path: '/rf/receiving'
+      fullPath: '/rf/receiving'
+      preLoaderRoute: typeof RfReceivingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/putaway': {
+      id: '/rf/putaway'
+      path: '/rf/putaway'
+      fullPath: '/rf/putaway'
+      preLoaderRoute: typeof RfPutawayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/pick': {
+      id: '/rf/pick'
+      path: '/rf/pick'
+      fullPath: '/rf/pick'
+      preLoaderRoute: typeof RfPickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/move': {
+      id: '/rf/move'
+      path: '/rf/move'
+      fullPath: '/rf/move'
+      preLoaderRoute: typeof RfMoveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/inquiry': {
+      id: '/rf/inquiry'
+      path: '/rf/inquiry'
+      fullPath: '/rf/inquiry'
+      preLoaderRoute: typeof RfInquiryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rf/history': {
+      id: '/rf/history'
+      path: '/rf/history'
+      fullPath: '/rf/history'
+      preLoaderRoute: typeof RfHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/masters/warehouses': {
+      id: '/masters/warehouses'
+      path: '/warehouses'
+      fullPath: '/masters/warehouses'
+      preLoaderRoute: typeof MastersWarehousesRouteImport
+      parentRoute: typeof MastersRoute
+    }
+    '/masters/employees': {
+      id: '/masters/employees'
+      path: '/employees'
+      fullPath: '/masters/employees'
+      preLoaderRoute: typeof MastersEmployeesRouteImport
+      parentRoute: typeof MastersRoute
+    }
   }
 }
+
+interface MastersRouteChildren {
+  MastersEmployeesRoute: typeof MastersEmployeesRoute
+  MastersWarehousesRoute: typeof MastersWarehousesRoute
+}
+
+const MastersRouteChildren: MastersRouteChildren = {
+  MastersEmployeesRoute: MastersEmployeesRoute,
+  MastersWarehousesRoute: MastersWarehousesRoute,
+}
+
+const MastersRouteWithChildren =
+  MastersRoute._addFileChildren(MastersRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -584,24 +616,23 @@ const rootRouteChildren: RootRouteChildren = {
   EdiRoute: EdiRoute,
   InboundRoute: InboundRoute,
   InventoryRoute: InventoryRoute,
-  MastersRoute: MastersRoute,
-  WarehousesRoute: WarehousesRoute,
-  EmployeesRoute: EmployeesRoute,
+  MastersRoute: MastersRouteWithChildren,
   OrdersRoute: OrdersRoute,
   PalletsRoute: PalletsRoute,
   PicksRoute: PicksRoute,
-  RfRoute: RfRoute,
-  RfPutawayRoute: RfPutawayRoute,
-  RfMoveRoute: RfMoveRoute,
-  RfPickRoute: RfPickRoute,
-  RfReceivingRoute: RfReceivingRoute,
-  RfInquiryRoute: RfInquiryRoute,
-  RfHistoryRoute: RfHistoryRoute,
   ScoreboardRoute: ScoreboardRoute,
   SettingsRoute: SettingsRoute,
   ShipmentsRoute: ShipmentsRoute,
   SlottingRoute: SlottingRoute,
   WorkforceRoute: WorkforceRoute,
+  RfHistoryRoute: RfHistoryRoute,
+  RfInquiryRoute: RfInquiryRoute,
+  RfMoveRoute: RfMoveRoute,
+  RfPickRoute: RfPickRoute,
+  RfPutawayRoute: RfPutawayRoute,
+  RfReceivingRoute: RfReceivingRoute,
+  RfIndexRoute: RfIndexRoute,
+  TenantPortalIndexRoute: TenantPortalIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
