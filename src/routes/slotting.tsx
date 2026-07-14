@@ -12,8 +12,9 @@ import {
   getVelocityColor,
   getPriorityBadge,
 } from "@/lib/slotting-engine";
-import { pallets, locationMaster, updateLocationInMaster } from "@/lib/pallet-data";
-import { movementHistory } from "@/lib/firestore-data";
+import { pallets, type Pallet } from "@/lib/pallet-data";
+import { locationMaster, updateLocationInMaster } from "@/lib/master-data";
+import { fetchMovementHistory, type MovementHistory } from "@/lib/firestore-data";
 import { itemMaster } from "@/lib/master-data";
 import { warehouses } from "@/lib/mock-data";
 import { toast } from "sonner";
@@ -39,16 +40,20 @@ function SlottingPage() {
 
   useEffect(() => {
     setLoading(true);
-    const allMovements = movementHistory;
-    const recs = analyzeSlottingEfficiency(pallets, locationMaster, allMovements, itemMaster, warehouseId);
-    setRecommendations(recs);
+    let cancelled = false;
+    fetchMovementHistory().then((allMovements) => {
+      if (cancelled) return;
+      const recs = analyzeSlottingEfficiency(pallets, locationMaster, allMovements, itemMaster, warehouseId);
+      setRecommendations(recs);
 
-    const velMap = new Map<string, VelocityProfile>();
-    for (const sku of new Set(pallets.map((p) => p.sku))) {
-      velMap.set(sku, computeSkuVelocity(allMovements, sku));
-    }
-    setVelocityBySku(velMap);
-    setLoading(false);
+      const velMap = new Map<string, VelocityProfile>();
+      for (const sku of new Set(pallets.map((p) => p.sku))) {
+        velMap.set(sku, computeSkuVelocity(allMovements, sku));
+      }
+      setVelocityBySku(velMap);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
   }, [warehouseId]);
 
   const highPriority = useMemo(() => recommendations.filter((r) => r.priority === "high"), [recommendations]);

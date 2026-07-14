@@ -34,6 +34,7 @@ import { Route as RfInquiryRouteImport } from './routes/rf/inquiry'
 import { Route as RfHistoryRouteImport } from './routes/rf/history'
 import { Route as WorkforceRouteImport } from './routes/workforce'
 import { Route as ScoreboardRouteImport } from './routes/scoreboard'
+import { Route as SlottingRouteImport } from './routes/slotting'
 
 const ShipmentsRoute = ShipmentsRouteImport.update({
   id: '/shipments',
@@ -160,6 +161,11 @@ const ScoreboardRoute = ScoreboardRouteImport.update({
   path: '/scoreboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SlottingRoute = SlottingRouteImport.update({
+  id: '/slotting',
+  path: '/slotting',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -185,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
+  '/slotting': typeof SlottingRoute
   '/workforce': typeof WorkforceRoute
 }
 export interface FileRoutesByTo {
@@ -212,6 +219,7 @@ export interface FileRoutesByTo {
   '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
+  '/slotting': typeof SlottingRoute
   '/workforce': typeof WorkforceRoute
 }
 export interface FileRoutesById {
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
+  '/slotting': typeof SlottingRoute
   '/workforce': typeof WorkforceRoute
 }
 export interface FileRouteTypes {
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
     | '/scoreboard'
     | '/settings'
     | '/shipments'
+    | '/slotting'
     | '/workforce'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -296,6 +306,7 @@ export interface FileRouteTypes {
     | '/scoreboard'
     | '/settings'
     | '/shipments'
+    | '/slotting'
     | '/workforce'
   id:
     | '__root__'
@@ -323,6 +334,7 @@ export interface FileRouteTypes {
     | '/scoreboard'
     | '/settings'
     | '/shipments'
+    | '/slotting'
     | '/workforce'
   fileRoutesById: FileRoutesById
 }
@@ -375,6 +387,13 @@ declare module '@tanstack/react-router' {
       path: '/scoreboard'
       fullPath: '/scoreboard'
       preLoaderRoute: typeof ScoreboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/slotting': {
+      id: '/slotting'
+      path: '/slotting'
+      fullPath: '/slotting'
+      preLoaderRoute: typeof SlottingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -559,6 +578,7 @@ const rootRouteChildren: RootRouteChildren = {
   ScoreboardRoute: ScoreboardRoute,
   SettingsRoute: SettingsRoute,
   ShipmentsRoute: ShipmentsRoute,
+  SlottingRoute: SlottingRoute,
   WorkforceRoute: WorkforceRoute,
 }
 export const routeTree = rootRouteImport
