@@ -90,6 +90,24 @@ export type ItemMasterRecord = {
   active: boolean;
   source: "EDI_832" | "CSV" | "MANUAL";
   effectiveAt: string; // EDI 832 DTM/007
+
+  // ─── Enterprise Compliance & Governance ─────────────────────────────
+  /** GS1 GTIN-14 identifier (derived from UPC if not provided) */
+  gtin?: string;
+  /** Lot/batch control required */
+  lotControl: boolean;
+  /** Expiration date control required */
+  expiryControl: boolean;
+  /** Serial number control required (unit-level) */
+  serialControl: boolean;
+  /** Shelf life in days — used for FEFO */
+  shelfLifeDays?: number;
+  /** Preferred storage temperature min °F */
+  storageTempMin?: number;
+  /** Preferred storage temperature max °F */
+  storageTempMax?: number;
+  /** Temperature unit: F or C */
+  storageTempUnit?: "F" | "C";
 };
 
 const ts = (d: string) => new Date(d).toISOString();

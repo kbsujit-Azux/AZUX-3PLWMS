@@ -119,6 +119,7 @@ import type { InboundShipment, InboundLine } from "./inbound-data";
 import type { Order, EdiLog } from "./edi-data";
 import type { OutboundPallet } from "./outbound-pallet-data";
 import type { BillingClient, ChargeRule, BillableEvent, Invoice, InvoicePayment, BillingAuditLog } from "./billing-data";
+import type { SerialInventoryRecord, SerialStatus, ComplianceAuditLog } from "./compliance-types";
 import { maybeCaptureBillableEvent } from "./billing-engine";
 import {
   type LaborStandard,
@@ -2080,3 +2081,90 @@ export async function captureBillableEventForPutaway(params: {
     createEvent: (evt) => createBillableEvent(evt),
   });
 }
+
+// ============================================================
+// Serialized Inventory (GS1 / Lot / Expiry / Temperature)
+// ============================================================
+export async function createSerialInventory(record: SerialInventoryRecord): Promise<void> {
+  await setDoc(doc(db, "serialInventory", record.id), {
+    ...record,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateSerialInventory(id: string, updates: Partial<SerialInventoryRecord>): Promise<void> {
+  await updateDoc(doc(db, "serialInventory", id), { ...updates, updatedAt: serverTimestamp() });
+}
+
+export async function updateSerialInventoryStatus(id: string, status: SerialInventoryRecord["status"]): Promise<void> {
+  await updateDoc(doc(db, "serialInventory", id), { status, updatedAt: serverTimestamp() });
+}
+
+export async function deleteSerialInventory(id: string): Promise<void> {
+  await deleteDoc(doc(db, "serialInventory", id));
+}
+
+export function subscribeSerialInventory(
+  callback: (records: SerialInventoryRecord[]) => void,
+  filters?: { tenantId?: string; warehouseId?: string; sku?: string; status?: SerialInventoryRecord["status"] },
+): Unsubscribe {
+  let q: Query = collection(db, "serialInventory");
+  const conditions: any[] = [];
+  if (filters?.tenantId) conditions.push(where("tenantId", "==", filters.tenantId));
+  if (filters?.warehouseId) conditions.push(where("warehouseId", "==", filters.warehouseId));
+  if (filters?.sku) conditions.push(where("sku", "==", filters.sku));
+  if (filters?.status) conditions.push(where("status", "==", filters.status));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as SerialInventoryRecord)));
+  });
+}
+
+export async function fetchExpiringLots(tenantId: string, daysAhead = 90): Promise<SerialInventoryRecord[]> {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() + daysAhead);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  const q = query(
+    collection(db, "serialInventory"),
+    where("tenantId", "==", tenantId),
+    where("expiryDate", "<=", cutoffStr),
+    orderBy("expiryDate", "asc"),
+  );
+
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as SerialInventoryRecord));
+}
+
+// ============================================================
+// Compliance Audit Vault (SSAE18 / SOC2)
+// ============================================================
+export function subscribeComplianceAuditLog(
+  callback: (logs: ComplianceAuditLog[]) => void,
+  tenantId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "complianceAuditLog");
+  const conditions: any[] = [];
+  if (tenantId) conditions.push(where("tenantId", "==", tenantId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("timestamp", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ComplianceAuditLog)));
+  });
+}
+
+export async function appendComplianceLog(log: ComplianceAuditLog): Promise<void> {
+  await setDoc(doc(db, "complianceAuditLog", log.id), log);
+}
+
+export async function fetchComplianceAuditLog(tenantId: string, limitCount = 100): Promise<ComplianceAuditLog[]> {
+  const q = query(
+    collection(db, "complianceAuditLog"),
+    where("tenantId", "==", tenantId),
+    orderBy("timestamp", "desc"),
+    limit(limitCount),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ComplianceAuditLog));
+}
+

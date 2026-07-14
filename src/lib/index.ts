@@ -202,6 +202,24 @@ export {
   nmfcFor,
 } from "./master-data";
 
+// ─── Compliance & Governance ────────────────────────────────────────────
+export {
+  type SerialInventoryRecord,
+  type SerialStatus,
+  type InventoryLotView,
+  type ValidationResult,
+  type ComplianceAuditLog,
+  type ComplianceAction,
+  type ComplianceEntityType,
+  validateItemForLocation,
+  getValidationBadge,
+} from "./compliance-types";
+
+export {
+  validateItemForLocation,
+  getValidationBadge,
+} from "./compliance-validator";
+
 // ─── Billing ────────────────────────────────────────────────────────────
 export {
   type BillingClient,
@@ -456,6 +474,26 @@ export {
   createBillingAuditLog,
   deleteBillingAuditLog,
   seedBillingData,
+  // ─── Compliance & Governance ────────────────────────────────────────────
+  subscribeSerialInventory,
+  createSerialInventory,
+  updateSerialInventory,
+  updateSerialInventoryStatus,
+  deleteSerialInventory,
+  fetchExpiringLots,
+  subscribeComplianceAuditLog,
+  appendComplianceLog,
+  fetchComplianceAuditLog,
+  type SerialInventoryRecord,
+  type SerialStatus,
+  type InventoryLotView,
+  type ComplianceValidatorOptions,
+  type ValidationResult,
+  type ComplianceAuditLog,
+  type ComplianceAction,
+  type ComplianceEntityType,
+  validateItemForLocation,
+  getValidationBadge,
   // RF Gun / Employee CRUD
   fetchEmployees,
   subscribeEmployees,
