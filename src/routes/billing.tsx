@@ -1397,11 +1397,6 @@ function buildInvoice(
   };
 }
 
-function lineTotal(inv: Invoice): number {
-  const sub = inv.lines.reduce((s, l) => s + l.total, 0);
-  return +(sub * (1 + inv.taxRate)).toFixed(2);
-}
-
 function ManualInvoiceDialog({
   clientId,
   clients,

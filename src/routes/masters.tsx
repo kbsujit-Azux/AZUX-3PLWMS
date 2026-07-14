@@ -57,8 +57,6 @@ import {
   locationMaster,
   collectMasterExceptions,
   locationOccupancyPct,
-  addItemToMaster,
-  deleteItemFromMaster,
   updateItemInMaster,
   updateLocationInMaster,
   deleteLocationFromMaster,
@@ -75,6 +73,8 @@ import {
   rebuildLocationMasterFromInventory,
   fetchTransactionHistory,
   type InventoryTransaction,
+  addItemToMaster,
+  deleteItemFromMaster,
 } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/masters")({

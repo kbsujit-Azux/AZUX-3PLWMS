@@ -191,8 +191,6 @@ export {
   itemMaster,
   findItem,
   hasInventoryForSku,
-  addItemToMaster,
-  deleteItemFromMaster,
   updateItemInMaster,
   type MasterException,
   validateLineAgainstItemMaster,
@@ -201,6 +199,11 @@ export {
   cbmFromInches,
   nmfcFor,
 } from "./master-data";
+
+export {
+  addItemToMaster,
+  deleteItemFromMaster,
+} from "./firestore-data";
 
 // ─── Compliance & Governance ────────────────────────────────────────────
 export {
@@ -299,12 +302,13 @@ export {
 // ─── Voice Picking ──────────────────────────────────────────────────────
 export {
   createVoicePickingEngine,
-  useVoicePicking,
   type VoiceCommand,
   type ParsedVoiceCommand,
   type VoicePickingOptions,
   type VoicePickingState,
 } from "./voice-picking";
+
+export { useVoicePicking } from "../hooks/useVoicePicking";
 
 // ─── Smart Glass Bridge ──────────────────────────────────────────────────
 export {

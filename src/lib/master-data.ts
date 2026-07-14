@@ -275,41 +275,6 @@ export function hasInventoryForSku(sku: string, tenantId?: string): boolean {
   });
 }
 
-import { doc, setDoc, deleteDoc } from "firebase/firestore";
-import { db } from "./firebase";
-
-/** Insert (or update) a record in the Item Master. */
-export async function addItemToMaster(
-  rec: Omit<ItemMasterRecord, "cbmPerCase" | "source" | "effectiveAt" | "active" | "hazmat"> &
-    Partial<Pick<ItemMasterRecord, "source" | "active" | "hazmat">>,
-): Promise<ItemMasterRecord> {
-  const full: ItemMasterRecord = {
-    ...rec,
-    cbmPerCase: cbmFromInches(rec.lengthIn || 0, rec.widthIn || 0, rec.heightIn || 0),
-    active: rec.active ?? true,
-    hazmat: rec.hazmat ?? false,
-    source: rec.source ?? "MANUAL",
-    effectiveAt: new Date().toISOString(),
-  };
-  await setDoc(doc(db, "itemMaster", full.sku), full);
-  return full;
-}
-
-/** Delete a SKU from the Item Master.
- *  Throws if inventory exists for the client. */
-export async function deleteItemFromMaster(sku: string): Promise<{ ok: true }> {
-  // Using local mock data array for validation, as requested by plan context (assumes arrays are still available or we pass context data in a full refactor)
-  const rec = itemMaster.find((i) => i.sku === sku);
-  if (!rec) return { ok: true };
-  if (hasInventoryForSku(sku, rec.tenantId)) {
-    throw new Error(`Cannot delete ${sku} — inventory exists for client ${rec.tenantId}.`);
-  }
-  await deleteDoc(doc(db, "itemMaster", sku));
-  const idx = itemMaster.findIndex((i) => i.sku === sku);
-  if (idx !== -1) itemMaster.splice(idx, 1);
-  return { ok: true };
-}
-
 export function updateItemInMaster(sku: string, updates: Partial<ItemMasterRecord>) {
   const idx = itemMaster.findIndex((i) => i.sku === sku);
   if (idx !== -1) Object.assign(itemMaster[idx], updates);
