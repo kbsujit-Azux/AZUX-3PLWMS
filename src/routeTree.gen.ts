@@ -29,6 +29,7 @@ import { Route as AllocationRouteImport } from './routes/allocation'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantPortalIndexRouteImport } from './routes/tenant-portal/index'
 import { Route as RfIndexRouteImport } from './routes/rf/index'
+import { Route as RateShoppingIndexRouteImport } from './routes/rate-shopping/index'
 import { Route as RfReceivingRouteImport } from './routes/rf/receiving'
 import { Route as RfPutawayRouteImport } from './routes/rf/putaway'
 import { Route as RfPickRouteImport } from './routes/rf/pick'
@@ -138,6 +139,11 @@ const RfIndexRoute = RfIndexRouteImport.update({
   path: '/rf/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RateShoppingIndexRoute = RateShoppingIndexRouteImport.update({
+  id: '/rate-shopping/',
+  path: '/rate-shopping/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RfReceivingRoute = RfReceivingRouteImport.update({
   id: '/rf/receiving',
   path: '/rf/receiving',
@@ -206,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
+  '/rate-shopping/': typeof RateShoppingIndexRoute
   '/rf/': typeof RfIndexRoute
   '/tenant-portal/': typeof TenantPortalIndexRoute
 }
@@ -236,6 +243,7 @@ export interface FileRoutesByTo {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
+  '/rate-shopping': typeof RateShoppingIndexRoute
   '/rf': typeof RfIndexRoute
   '/tenant-portal': typeof TenantPortalIndexRoute
 }
@@ -267,6 +275,7 @@ export interface FileRoutesById {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
+  '/rate-shopping/': typeof RateShoppingIndexRoute
   '/rf/': typeof RfIndexRoute
   '/tenant-portal/': typeof TenantPortalIndexRoute
 }
@@ -299,6 +308,7 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
+    | '/rate-shopping/'
     | '/rf/'
     | '/tenant-portal/'
   fileRoutesByTo: FileRoutesByTo
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
+    | '/rate-shopping'
     | '/rf'
     | '/tenant-portal'
   id:
@@ -359,6 +370,7 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
+    | '/rate-shopping/'
     | '/rf/'
     | '/tenant-portal/'
   fileRoutesById: FileRoutesById
@@ -388,6 +400,7 @@ export interface RootRouteChildren {
   RfPickRoute: typeof RfPickRoute
   RfPutawayRoute: typeof RfPutawayRoute
   RfReceivingRoute: typeof RfReceivingRoute
+  RateShoppingIndexRoute: typeof RateShoppingIndexRoute
   RfIndexRoute: typeof RfIndexRoute
   TenantPortalIndexRoute: typeof TenantPortalIndexRoute
 }
@@ -534,6 +547,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RfIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rate-shopping/': {
+      id: '/rate-shopping/'
+      path: '/rate-shopping'
+      fullPath: '/rate-shopping/'
+      preLoaderRoute: typeof RateShoppingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rf/receiving': {
       id: '/rf/receiving'
       path: '/rf/receiving'
@@ -631,6 +651,7 @@ const rootRouteChildren: RootRouteChildren = {
   RfPickRoute: RfPickRoute,
   RfPutawayRoute: RfPutawayRoute,
   RfReceivingRoute: RfReceivingRoute,
+  RateShoppingIndexRoute: RateShoppingIndexRoute,
   RfIndexRoute: RfIndexRoute,
   TenantPortalIndexRoute: TenantPortalIndexRoute,
 }

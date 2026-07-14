@@ -336,6 +336,29 @@ export {
   getServiceCodeDescription,
 } from "./carrier-services";
 
+// --- Carrier Rate Shopping --------------------------------------------
+export {
+  type RateQuoteRequest,
+  type RateQuoteResponse,
+  type RateQuote,
+  simulateRateQuotes,
+  getCachedRateQuotes,
+  setCachedRateQuotes,
+} from "./carrier-rate-shopping";
+// --- Tenant Portal ------------------------------------------------------
+export {
+  type TenantPortalUser,
+  type TenantPortalReport,
+  type TenantPortalCsvUpload,
+  type TenantPortalSession,
+  type ReportType,
+  type ReportFormat,
+  type CsvUploadType,
+  type CsvUploadStatus,
+  getTenantById,
+  getWarehousesForTenant,
+} from "./tenant-portal";
+
 // ─── RF Gun Domain ─────────────────────────────────────────────────────
 export {
   type WarehouseEmployee,
@@ -533,4 +556,5 @@ export {
 
 // ─── Re-export db-context (React data provider) ─────────────────────────
 export { DatabaseProvider, useWmsData } from "./db-context";
+
 

@@ -1,15 +1,15 @@
 /**
  * ============================================================
- *  MODULE INDEX — White-Labeled Tenant Portal
+ *  MODULE INDEX ï¿½ White-Labeled Tenant Portal
  * ============================================================
  *
  *  Purpose: Tenant self-service portal for inventory visibility,
  *           CSV uploads, reporting, and invoice viewing.
  *
  *  Collections:
- *    - tenantPortalUsers       — Tenant-specific users
- *    - tenantPortalReports     — Saved/cached reports
- *    - tenantPortalCsvUploads  — CSV upload history
+ *    - tenantPortalUsers       ï¿½ Tenant-specific users
+ *    - tenantPortalReports     ï¿½ Saved/cached reports
+ *    - tenantPortalCsvUploads  ï¿½ CSV upload history
  * ============================================================
  */
 
