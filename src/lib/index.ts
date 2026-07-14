@@ -345,6 +345,46 @@ export {
   getCachedRateQuotes,
   setCachedRateQuotes,
 } from "./carrier-rate-shopping";
+// --- Returns Management (RMA) --------------------------------------------
+export {
+  type RmaOrder,
+  type RmaLine,
+  type RmaDisposition,
+  type ReturnProcessingFee,
+  type RmaStatus,
+  type DispositionType,
+  type DispositionStatus,
+  type ReturnReason,
+  type ReturnProcessingFeeType,
+  fetchRmaOrders,
+  fetchRmaOrder,
+  createRmaOrder,
+  updateRmaOrder,
+  deleteRmaOrder,
+  subscribeRmaOrders,
+  fetchRmaLines,
+  createRmaLine,
+  updateRmaLine,
+  deleteRmaLine,
+  fetchRmaDispositions,
+  createRmaDisposition,
+  updateRmaDisposition,
+  deleteRmaDisposition,
+  createReturnProcessingFee,
+  fetchReturnProcessingFees,
+} from "./rma-firestore";
+
+export {
+  type RmaStatus,
+  type DispositionType,
+  type DispositionStatus,
+  type ReturnReason,
+  type ReturnProcessingFeeType,
+  getDefaultDisposition,
+  getDispositionLabel,
+  getRmaStatusLabel,
+} from "./rma-types";
+
 // --- Tenant Portal ------------------------------------------------------
 export {
   type TenantPortalUser,
