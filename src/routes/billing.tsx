@@ -91,7 +91,7 @@ import {
   buildInvoiceLines,
   computeTieredRate,
   applyPeakSurcharge,
-  enforceMinimumCharge,
+  enforceMinimum,
   billingUnitLabel,
   matchAccessorialEvent,
   buildVolumetricStorageLines,
@@ -1185,18 +1185,30 @@ function InvoicesTab({
         if (!rule) return null;
         // Compute tiered rate if applicable
         let rate = rule.rate;
-        let tierBreakdown: TieredRateResult["breakdown"] | undefined;
+        let tierBreakdown: { effectiveRate: number; breakdown: { minQty: number; maxQty: number | null; rate: number }[] } | undefined;
         if (rule.priceTiers && rule.priceTiers.length > 0) {
-          const result = computeTieredRate(ev.quantity, rule.priceTiers);
-          rate = result.effectiveRate;
-          tierBreakdown = result.breakdown;
+          const sorted = [...rule.priceTiers].sort((a, b) => a.minQty - b.minQty);
+          let matchedTier = sorted[sorted.length - 1];
+          for (const tier of sorted) {
+            if (tier.maxQty === null || ev.quantity <= tier.maxQty) {
+              matchedTier = tier;
+              break;
+            }
+          }
+          rate = matchedTier.rate;
+          tierBreakdown = {
+            effectiveRate: matchedTier.rate,
+            breakdown: sorted.map((t) => ({ minQty: t.minQty, maxQty: t.maxQty, rate: t.rate })),
+          };
         }
         let total = +(ev.quantity * rate).toFixed(2);
         // Apply peak surcharge if applicable
-        let peakSurcharge: PeakSurchargeResult | undefined;
+        let peakSurcharge: { baseAmount: number; surchargePct: number; totalAmount: number } | undefined;
         if (rule.peakSurchargePct && rule.peakSurchargePct > 0) {
-          peakSurcharge = applyPeakSurcharge(total, rule.peakSurchargePct, new Date(), rule.peakStartMonth, rule.peakEndMonth);
-          total = peakSurcharge.totalAmount;
+          const baseAmount = total;
+          const totalAmount = applyPeakSurcharge(baseAmount, rule.peakSurchargePct, new Date(), rule.peakStartMonth, rule.peakEndMonth);
+          peakSurcharge = { baseAmount, surchargePct: rule.peakSurchargePct, totalAmount: totalAmount };
+          total = totalAmount;
         }
         return {
           event: ev,
