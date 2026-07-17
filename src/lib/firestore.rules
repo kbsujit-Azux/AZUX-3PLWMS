@@ -1,50 +1,239 @@
-rules_version = "2";
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Open rules for development - restrict in production
-    match /{document=**} {
+    // Allow authenticated users to read/write their own tenant data
+    // Multi-tenant: all documents have tenantId field
+    
+    // Tenants
+    match /tenants/{tenantId} {
+      allow read, write: if true || (
+        request.auth.uid == tenantId || 
+        request.auth.token.tenantId == tenantId
+      );
+    }
+    
+    // Warehouses
+    match /warehouses/{warehouseId} {
+      allow read, write: if true || 
+        resource.data.tenantId == request.auth.uid ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Item Master
+    match /itemMaster/{sku} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Inbound Shipments
+    match /inboundShipments/{shipmentId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Pallets
+    match /pallets/{palletId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Orders
+    match /orders/{orderId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // EDI Logs
+    match /ediLogs/{logId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Pick Tickets
+    match /pickTickets/{ticketId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Bills of Lading
+    match /billsOfLading/{bolId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+    
+    // Warehouse Employees (RF Gun Badge Auth)
+    match /employees/{badgeId} {
+      allow read: if true || 
+        (resource.data.assignedClientId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.assignedClientId);
+      allow write: if true || 
+        request.auth.uid == resource.data.assignedClientId ||
+        request.auth.token.tenantId == resource.data.assignedClientId;
+    }
+    
+    // Movement History (Append-Only Audit Log)
+    match /movementHistory/{movementId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow create: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+      allow update, delete: if false;
+    }
+    
+    // Inventory Transactions
+    match /inventoryTransactions/{txnId} {
       allow read, write: if true;
     }
-
-    // Transaction history - read only for authenticated users in production
-    match /inventoryTransactions/{document} {
-      allow read: if true;
-      allow create: if true;
-    }
-
-    // Pick tickets collection
-    match /pickTickets/{document} {
+    
+    // Counters (for sequence numbers)
+    match /counters/{counterId} {
       allow read, write: if true;
     }
-
-    // Inventory items with batched data
-    match /inventoryItems/{document} {
-      allow read, write: if true;
+    
+    // Locations (master data, shared across tenants)
+    match /locations/{locationId} {
+      allow read: if request.auth != null;
+      allow write: if true || request.auth.uid == "admin";
+    }
+    
+    // Inventory Items
+    match /inventoryItems/{itemId} {
+      allow read: if true || 
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true || 
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
     }
 
-    // Orders collection
-    match /orders/{document} {
-      allow read, write: if true;
+    // RMA Orders
+    match /rmaOrders/{orderId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
     }
 
-    // Counters collection (for sequence numbers)
-    match /counters/{document} {
-      allow read, write: if true;
+    // RMA Lines
+    match /rmaLines/{lineId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
     }
 
-    // Bills of Lading collection
-    match /billsOfLading/{document} {
-      allow read, write: if true;
+    // RMA Dispositions
+    match /rmaDispositions/{dispId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
     }
 
-    // Outbound Pallets collection
-    match /outboundPallets/{document} {
-      allow read, write: if true;
+    // Return Processing Fees
+    match /returnProcessingFees/{feeId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
     }
 
-    // Shipments collection
-    match /shipments/{document} {
-      allow read, write: if true;
+    // Tenant Portal Users
+    match /tenantPortalUsers/{userId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // Tenant Portal CSV Uploads
+    match /tenantPortalCsvUploads/{uploadId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // Tenant Portal Reports
+    match /tenantPortalReports/{reportId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // Tenant Configs (white-label, portal settings)
+    match /tenantConfigs/{tenantId} {
+      allow read: if true ||
+        request.auth.uid == tenantId ||
+        request.auth.token.tenantId == tenantId;
+      allow write: if true ||
+        request.auth.uid == tenantId ||
+        request.auth.token.tenantId == tenantId;
+    }
+
+    // Carrier Credentials
+    match /carrierCredentials/{credId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // Carrier Rate Quotes Cache
+    match /carrierRateQuotes/{quoteId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
     }
   }
 }

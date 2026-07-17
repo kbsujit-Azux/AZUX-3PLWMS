@@ -1,6 +1,6 @@
 {
   "firestore": {
-    "rules": "src/lib/firestore.rules"
+    "rules": "firestore.rules"
   },
   "hosting": [
     {
