@@ -59,6 +59,42 @@ import { shipments as seedCarrierDispatches } from "@/lib/shipment-data";
 import { seedBols as seedBols } from "@/lib/bol-data";
 import { employees as seedEmployees } from "@/lib/rf-employees";
 
+// Enterprise seed data (inline to avoid circular deps)
+const seedTenantPortalUsers = [
+  { id: "tp-acme", tenantId: "acme", email: "portal@acme.com", name: "Acme Portal User", role: "Admin", active: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "tp-northstar", tenantId: "northstar", email: "portal@northstar.com", name: "Northstar Portal User", role: "Admin", active: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "tp-harborlite", tenantId: "harborlite", email: "portal@harborlite.com", name: "Harborlite Portal User", role: "Admin", active: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "tp-verdant", tenantId: "verdant", email: "portal@verdant.com", name: "Verdant Portal User", role: "Admin", active: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+];
+
+const seedRmaOrders = [
+  { id: "rma-001", tenantId: "acme", warehouseId: "atl1", rmaNumber: "RMA-2026-001", status: "draft", returnReason: "customer_return", customerName: "Acme Outdoor Co.", notes: "Customer returned defective tent", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "rma-002", tenantId: "acme", warehouseId: "atl1", rmaNumber: "RMA-2026-002", status: "received", returnReason: "damaged", customerName: "Acme Outdoor Co.", notes: "Damaged during transit", createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date().toISOString() },
+  { id: "rma-003", tenantId: "northstar", warehouseId: "ord2", rmaNumber: "RMA-2026-003", status: "inspected", returnReason: "wrong_item", customerName: "Northstar Apparel", notes: "Wrong size shipped", createdAt: new Date(Date.now() - 172800000).toISOString(), updatedAt: new Date().toISOString() },
+];
+
+const seedRmaLines = [
+  { id: "rl-001", rmaId: "rma-001", tenantId: "acme", sku: "ACM-TENT-2P-OLV", description: "Ridgeline 2-Person Tent, Olive", qtyExpected: 1, qtyReceived: 1, unitCost: 84.5, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "rl-002", rmaId: "rma-002", tenantId: "acme", sku: "ACM-STV-CMP-01", description: "Compact Camp Stove, Single Burner", qtyExpected: 2, qtyReceived: 2, unitCost: 22.1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "rl-003", rmaId: "rma-003", tenantId: "northstar", sku: "NSA-HOOD-BLK-M", description: "Classic Pullover Hoodie, Black, M", qtyExpected: 3, qtyReceived: 3, unitCost: 14.2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+];
+
+const seedRmaDispositions = [
+  { id: "rd-001", rmaId: "rma-001", lineId: "rl-001", tenantId: "acme", dispositionType: "return_to_stock", status: "completed", qty: 1, processedBy: "warehouse-lead", processedAt: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "rd-002", rmaId: "rma-002", lineId: "rl-002", tenantId: "acme", dispositionType: "quarantine", status: "in_progress", qty: 2, processedBy: "quality-inspector", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+];
+
+const seedReturnProcessingFees = [
+  { id: "rf-001", tenantId: "acme", rmaId: "rma-001", lineId: "rl-001", feeType: "restocking", amount: 12.68, currency: "USD", description: "Restocking fee (15% of unit cost)", autoBilled: true, createdAt: new Date().toISOString() },
+  { id: "rf-002", tenantId: "acme", rmaId: "rma-002", lineId: "rl-002", feeType: "inspection", amount: 5.0, currency: "USD", description: "Inspection fee", autoBilled: true, createdAt: new Date().toISOString() },
+];
+
+const seedCarrierCredentials = [
+  { id: "cc-usps", tenantId: "acme", carrierId: "usps", carrierName: "USPS", apiKey: "", apiEndpoint: "https://api.usps.com", accountNumber: "ACME-USPS-001", scacCode: "USPS", enabled: true, supportedCountries: ["US"], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "cc-ups", tenantId: "acme", carrierId: "ups", carrierName: "UPS", apiKey: "", apiEndpoint: "https://api.ups.com", accountNumber: "ACME-UPS-001", scacCode: "UPSN", enabled: true, supportedCountries: ["US", "CA"], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "cc-fedex", tenantId: "acme", carrierId: "fedex", carrierName: "FedEx", apiKey: "", apiEndpoint: "https://api.fedex.com", accountNumber: "ACME-FDX-001", scacCode: "FXFE", enabled: true, supportedCountries: ["US", "CA"], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+];
+
 // Import types
 import type { Tenant, Warehouse, InventoryItem } from "@/lib/mock-data";
 import type { Pallet, PickWave } from "@/lib/pallet-data";
@@ -108,6 +144,12 @@ type DatabaseContextType = {
   clientAllocationConfigs: ClientAllocationConfig[];
   pickTickets: PickTicket[];
   employees: any[];
+  tenantPortalUsers: any[];
+  rmaOrders: any[];
+  rmaLines: any[];
+  rmaDispositions: any[];
+  returnProcessingFees: any[];
+  carrierCredentials: any[];
 };
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -135,6 +177,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   );
   const [pickTickets, setPickTickets] = useState<PickTicket[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [tenantPortalUsers, setTenantPortalUsers] = useState<any[]>([]);
+  const [rmaOrders, setRmaOrders] = useState<any[]>([]);
+  const [rmaLines, setRmaLines] = useState<any[]>([]);
+  const [rmaDispositions, setRmaDispositions] = useState<any[]>([]);
+  const [returnProcessingFees, setReturnProcessingFees] = useState<any[]>([]);
+  const [carrierCredentials, setCarrierCredentials] = useState<any[]>([]);
   const [dataVersion, setDataVersion] = useState(0);
 
   const refreshData = useCallback(() => {
@@ -192,6 +240,30 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
             console.log("Employees seeded successfully!");
           }
         }
+
+        // Seed enterprise collections (always, even if core already seeded)
+        const enterpriseCollections: Record<string, any[]> = {
+          tenantPortalUsers: seedTenantPortalUsers,
+          rmaOrders: seedRmaOrders,
+          rmaLines: seedRmaLines,
+          rmaDispositions: seedRmaDispositions,
+          returnProcessingFees: seedReturnProcessingFees,
+          carrierCredentials: seedCarrierCredentials,
+        };
+
+        for (const [colName, items] of Object.entries(enterpriseCollections)) {
+          const colSnap = await getDocs(collection(db, colName));
+          if (colSnap.empty) {
+            console.log(`Seeding ${colName}...`);
+            const batch = writeBatch(db);
+            items.forEach((item) => {
+              const docRef = doc(db, colName, String(item.id));
+              batch.set(docRef, item);
+            });
+            await batch.commit();
+            console.log(`${colName} seeded successfully!`);
+          }
+        }
       } catch (err) {
         console.error("Firestore database seeding failed:", err);
       }
@@ -245,6 +317,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     );
     syncCollection("pickTickets", setPickTickets, libPickTickets);
     syncCollection("employees", setEmployees as any, [] as any);
+    syncCollection("tenantPortalUsers", setTenantPortalUsers as any);
+    syncCollection("rmaOrders", setRmaOrders as any);
+    syncCollection("rmaLines", setRmaLines as any);
+    syncCollection("rmaDispositions", setRmaDispositions as any);
+    syncCollection("returnProcessingFees", setReturnProcessingFees as any);
+    syncCollection("carrierCredentials", setCarrierCredentials as any);
 
     // Turn off loading once initial data snaps are bound
     setLoading(false);
@@ -276,6 +354,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         clientAllocationConfigs,
         pickTickets,
         employees,
+        tenantPortalUsers,
+        rmaOrders,
+        rmaLines,
+        rmaDispositions,
+        returnProcessingFees,
+        carrierCredentials,
       }}
     >
       {loading ? (

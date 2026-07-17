@@ -20,6 +20,10 @@ import {
   Target,
   Award,
   ArrowUpRight,
+  Building2,
+  Undo2,
+  Calculator,
+  Globe2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -67,13 +71,40 @@ const rfTerminal = [
   { title: "RF Terminal", url: "https://rfgun.web.app", icon: ScanLine },
 ] as const;
 
+const enterprise = [
+  { title: "Tenant Portal", url: "/tenant-portal/", icon: Building2 },
+  { title: "Rate Shopping", url: "/rate-shopping/", icon: Calculator },
+  { title: "Returns (RMA)", url: "/rma/", icon: Undo2 },
+] as const;
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { can } = useAuth();
 
-  const isActive = (url: string) => (url === "/" ? pathname === "/" : pathname.startsWith(url));
+  const isActive = (url: string) => {
+    if (url === "/") return pathname === "/";
+    if (pathname === url) return true;
+    if (!pathname.startsWith(url + "/")) return false;
+    const remaining = pathname.slice(url.length + 1);
+    if (remaining.includes("/")) return false;
+
+    const allItems = [
+      ...operations,
+      ...systems,
+      ...workforce,
+      ...rfTerminal,
+      ...enterprise,
+    ];
+    return !allItems.some((item) => {
+      if (item.url === url || item.url === "/") return false;
+      if (pathname === item.url) return true;
+      if (!pathname.startsWith(item.url + "/")) return false;
+      const itemRemaining = pathname.slice(item.url.length + 1);
+      return !itemRemaining.includes("/");
+    });
+  };
 
   const visibleOps = operations.filter((i) => can(i.url));
   const visibleSys = systems.filter((i) => can(i.url));
@@ -163,6 +194,24 @@ export function AppSidebar() {
                       <item.icon className="h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Enterprise</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {enterprise.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                    <Link to={item.url} className="flex items-center gap-2">
+                      <item.icon className="h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

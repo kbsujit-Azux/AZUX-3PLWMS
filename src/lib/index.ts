@@ -240,6 +240,7 @@ export {
   type BillableEvent,
   type InvoiceLine,
   type Invoice,
+  type AccessorialType,
   billingClients,
   defaultRules,
   billableEvents,
@@ -344,7 +345,22 @@ export {
   simulateRateQuotes,
   getCachedRateQuotes,
   setCachedRateQuotes,
+  resolveRateQuotes,
+  persistRateQuotes,
+  fetchRecentRateQuotes,
+  subscribeRecentRateQuotes,
 } from "./carrier-rate-shopping";
+
+export {
+  type CarrierAdapterConfig,
+  type CarrierAdapter,
+  createCarrierAdapter,
+  createMockAdapter,
+  getRatesFromCarriers,
+  ShipEngineAdapter,
+  EasyPostAdapter,
+  MockCarrierAdapter,
+} from "./carrier-api-adapters";
 // --- Returns Management (RMA) --------------------------------------------
 export {
   type RmaOrder,
@@ -398,6 +414,21 @@ export {
   getTenantById,
   getWarehousesForTenant,
 } from "./tenant-portal";
+
+export {
+  fetchTenantPortalUsers,
+  fetchTenantPortalUser,
+  createTenantPortalUser,
+  updateTenantPortalUser,
+  deleteTenantPortalUser,
+  subscribeTenantPortalUsers,
+  fetchTenantPortalCsvUploads,
+  createTenantPortalCsvUpload,
+  updateTenantPortalCsvUpload,
+  fetchTenantPortalReports,
+  createTenantPortalReport,
+  updateTenantPortalReport,
+} from "./tenant-portal-firestore";
 
 // ─── RF Gun Domain ─────────────────────────────────────────────────────
 export {

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -98,6 +98,10 @@ const typeStyles: Record<LocationType, string> = {
 };
 
 function MastersPage() {
+  const mastersMatch = useMatch({ from: "/masters" });
+  const warehousesMatch = useMatch({ from: "/masters/warehouses", shouldThrow: false });
+  const employeesMatch = useMatch({ from: "/masters/employees", shouldThrow: false });
+  const isExactMasters = !!mastersMatch && !warehousesMatch && !employeesMatch;
   const { tenantId, warehouseId } = useWorkspace();
   const [itemQuery, setItemQuery] = useState("");
   const [locQuery, setLocQuery] = useState("");
@@ -186,6 +190,10 @@ function MastersPage() {
   }, [tenantId, addDialog.open, editLoc]);
 
   const pickableCount = locs.filter((l) => l.pickable).length;
+
+  if (!isExactMasters) {
+    return <Outlet />;
+  }
 
   return (
     <div className="px-6 py-6 space-y-5">
@@ -559,13 +567,13 @@ function MastersPage() {
                         variant="outline"
                         className="text-[10px] font-mono bg-destructive/15 text-destructive border-destructive/30"
                       >
-                        {e.type}
+                        {e.reason}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-mono">{e.entity}</TableCell>
-                    <TableCell className="max-w-md truncate">{e.details}</TableCell>
+                    <TableCell className="font-mono">{e.documentId}</TableCell>
+                    <TableCell className="max-w-md truncate">{e.detail}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {warehouses.find((w) => w.id === e.warehouseId)?.code}
+                      {(e as any).warehouseId || "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {tenants.find((t) => t.id === e.tenantId)?.code}
@@ -1557,6 +1565,7 @@ function InventoryAuditTrail() {
           </table>
         </div>
       </div>
+      <Outlet />
     </div>
   );
 }

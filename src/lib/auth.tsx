@@ -90,6 +90,9 @@ export const ROLE_ROUTES: Record<Role, string[]> = {
     "/rf/receiving",
     "/rf/inquiry",
     "/rf/history",
+    "/tenant-portal/",
+    "/rate-shopping/",
+    "/rma/",
   ],
   "Operations Manager": [
     "/",
@@ -114,6 +117,9 @@ export const ROLE_ROUTES: Record<Role, string[]> = {
     "/rf/receiving",
     "/rf/inquiry",
     "/rf/history",
+    "/tenant-portal/",
+    "/rate-shopping/",
+    "/rma/",
   ],
   "Warehouse Lead": [
     "/",
@@ -136,10 +142,11 @@ export const ROLE_ROUTES: Record<Role, string[]> = {
     "/rf/receiving",
     "/rf/inquiry",
     "/rf/history",
+    "/rma/",
   ],
   Receiver: ["/", "/inbound", "/inventory", "/pallets", "/rf/receiving", "/rf/putaway"],
   Picker: ["/", "/orders", "/allocation", "/shipments", "/inventory", "/rf/pick", "/rf/move", "/rf/inquiry"],
-  Billing: ["/", "/billing", "/documents"],
+  Billing: ["/", "/billing", "/documents", "/tenant-portal/", "/rma/"],
   Viewer: ["/", "/inventory"],
 };
 

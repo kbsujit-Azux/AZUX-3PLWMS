@@ -135,5 +135,105 @@ service cloud.firestore {
         request.auth.uid == resource.data.tenantId ||
         request.auth.token.tenantId == resource.data.tenantId;
     }
+
+    // RMA Orders
+    match /rmaOrders/{orderId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // RMA Lines
+    match /rmaLines/{lineId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // RMA Dispositions
+    match /rmaDispositions/{dispId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // Return Processing Fees
+    match /returnProcessingFees/{feeId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // Tenant Portal Users
+    match /tenantPortalUsers/{userId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // Tenant Portal CSV Uploads
+    match /tenantPortalCsvUploads/{uploadId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // Tenant Portal Reports
+    match /tenantPortalReports/{reportId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // Tenant Configs (white-label, portal settings)
+    match /tenantConfigs/{tenantId} {
+      allow read: if true ||
+        request.auth.uid == tenantId ||
+        request.auth.token.tenantId == tenantId;
+      allow write: if true ||
+        request.auth.uid == tenantId ||
+        request.auth.token.tenantId == tenantId;
+    }
+
+    // Carrier Credentials
+    match /carrierCredentials/{credId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    // Carrier Rate Quotes Cache
+    match /carrierRateQuotes/{quoteId} {
+      allow read: if true ||
+        (resource.data.tenantId == request.auth.uid ||
+         request.auth.token.tenantId == resource.data.tenantId);
+      allow write: if true ||
+        request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
   }
 }

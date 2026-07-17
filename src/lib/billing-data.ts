@@ -103,7 +103,11 @@ export type AccessorialType =
   | "CONTAINER_DEVANNING"
   | "SPECIAL_HANDLING"
   | "LABOR_STANDBY"
-  | "RUSH_PROCESSING";
+  | "RUSH_PROCESSING"
+  | "RMA_PROCESSING"
+  | "RESTOCKING"
+  | "DISPOSAL"
+  | "INSPECTION";
 
 /** Volume-based pricing tier */
 export type PriceTier = {
