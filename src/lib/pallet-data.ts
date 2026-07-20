@@ -37,6 +37,32 @@
 import { warehouses, inventoryItems, type InventoryItem } from "./mock-data";
 import { findItem } from "./master-data";
 
+export type PalletStatus = "building" | "putaway" | "staged" | "picking" | "shipped";
+
+export type Pallet = {
+  id: string;
+  itemStyle: string;
+  tenantId: string;
+  warehouseId: string;
+  sku: string;
+  description: string;
+  units: number;
+  capacityUnits: number;
+  casePack: number;
+  weightLbs: number;
+  builtAt: string;
+  builtBy: string;
+  poNumber: string;
+  ediSource: string;
+  status: PalletStatus;
+  location: string | null;
+  suggestedLocation: string;
+  zone: string;
+  receivedAt: string;
+  cubeCuFt?: number;
+  container?: string;
+};
+
 const ts = (d: string) => new Date(d).toISOString();
 
 export function computePalletCubeCuFt(pallet: Pallet): number {

@@ -34,6 +34,7 @@ import {
   RefreshCw,
   Mic,
   MicOff,
+  Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,8 @@ import {
 } from "@/lib/mock-data";
 import { useVoicePicking } from "@/hooks/useVoicePicking";
 import { useTTS, ttsSpeak } from "@/lib/tts";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 
 type Step = "enter-pick" | "verify" | "pick-qty" | "complete";
 
@@ -66,6 +69,21 @@ function PickInner() {
   const [pickedTotal, setPickedTotal] = useState(0);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const pickInputRef = useRef<HTMLInputElement>(null);
+
+  const { enqueue, online } = useOfflineSync();
+
+  const {
+    mode: scanMode,
+    setMode: setScanMode,
+    videoRef,
+    lastCode,
+    toggleCamera,
+  } = useBarcodeScanner({
+    active: verified,
+    onScan: (code) => {
+      if (step === "enter-pick") handlePickSubmit(code);
+    },
+  });
 
   const tts = useTTS();
 
@@ -163,9 +181,10 @@ function PickInner() {
     [],
   );
 
-  const handlePickSubmit = useCallback(async () => {
+  const handlePickSubmit = useCallback(async (code?: string) => {
     if (!employee || busy) return;
-    const pickNum = parseInt(pickInputRef.current?.value ?? "", 10);
+    const raw = code ?? pickInputRef.current?.value ?? "";
+    const pickNum = parseInt(raw, 10);
     if (isNaN(pickNum)) {
       setError("Enter a valid pick ticket number");
       return;
@@ -209,6 +228,22 @@ function PickInner() {
     setBusy(true);
     setError("");
     try {
+      if (!online) {
+        enqueue({
+          collection: "pickTickets",
+          docId: ticket.pickTicketNum.toString(),
+          type: "update",
+          data: {
+            status: "PICKED",
+            pickedAt: new Date().toISOString(),
+            qtyPicked: qty,
+          },
+        });
+        toast.success("Saved offline — will sync when connected");
+        setPickedTotal(qty);
+        setStep("complete");
+        return;
+      }
       await runTransaction(db, async (txn) => {
         const invRef = doc(db, "inventoryItems", ticket.sku);
         const invSnap = await txn.get(invRef);
@@ -268,7 +303,7 @@ function PickInner() {
     } finally {
       setBusy(false);
     }
-  }, [ticket, employee, busy, pickQty, playChime]);
+  }, [ticket, employee, busy, pickQty, playChime, online, enqueue]);
 
   const handleShortage = useCallback(async () => {
     if (!ticket || !employee || busy) return;
@@ -304,24 +339,50 @@ function PickInner() {
           <ClipboardList className="h-5 w-5 text-emerald-400" />
           <h1 className="text-lg font-semibold">Directed Pick</h1>
         </div>
-        <Button
-          variant={voiceEnabled ? "default" : "ghost"}
-          size="sm"
-          onClick={() => {
-            setVoiceEnabled((v) => !v);
-            if (!voiceEnabled) {
-              tts.speak("Voice enabled");
-            } else {
-              tts.speak("Voice disabled");
-            }
-          }}
-        >
-          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant={scanMode === "camera" ? "default" : "ghost"}
+            size="sm"
+            onClick={toggleCamera}
+            title={scanMode === "camera" ? "Camera Scan ON" : "Camera Scan OFF"}
+          >
+            <ScanLine className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={voiceEnabled ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              setVoiceEnabled((v) => !v);
+              if (!voiceEnabled) {
+                tts.speak("Voice enabled");
+              } else {
+                tts.speak("Voice disabled");
+              }
+            }}
+          >
+            {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
       {voice.listening && (
         <div className="text-xs text-emerald-400 animate-pulse">Listening...</div>
+      )}
+
+      {scanMode === "camera" && (
+        <Card className="p-2 space-y-2">
+          <video
+            ref={videoRef}
+            className="w-full h-40 bg-black rounded"
+            playsInline
+            muted
+          />
+          {lastCode && (
+            <div className="text-xs font-mono text-emerald-400">
+              Last scan: {lastCode}
+            </div>
+          )}
+        </Card>
       )}
 
       {error && (
@@ -333,7 +394,7 @@ function PickInner() {
         </Card>
       )}
 
-      {step === "enter-pick" && (
+      {step === "enter-pick" && scanMode === "manual" && (
         <Card className="border-slate-800 bg-slate-900 p-4 space-y-3">
           <Label className="text-xs text-slate-300">Enter Pick Ticket #</Label>
           <Input
@@ -347,7 +408,7 @@ function PickInner() {
           />
           <Button
             className="w-full h-12 bg-emerald-600 hover:bg-emerald-500"
-            onClick={handlePickSubmit}
+            onClick={() => handlePickSubmit()}
             disabled={busy}
           >
             <ClipboardList className="h-4 w-4 mr-2" /> Load Ticket

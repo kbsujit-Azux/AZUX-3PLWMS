@@ -1,239 +1,365 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow authenticated users to read/write their own tenant data
-    // Multi-tenant: all documents have tenantId field
-    
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function tenantIdMatches() {
+      return request.auth.uid == resource.data.tenantId ||
+        request.auth.token.tenantId == resource.data.tenantId;
+    }
+
+    function tenantIdMatchesCreate(data) {
+      return request.auth.uid == data.tenantId ||
+        request.auth.token.tenantId == data.tenantId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
     // Tenants
     match /tenants/{tenantId} {
-      allow read, write: if true || (
-        request.auth.uid == tenantId || 
-        request.auth.token.tenantId == tenantId
-      );
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || request.auth.uid == tenantId || request.auth.token.tenantId == tenantId;
     }
-    
+
     // Warehouses
     match /warehouses/{warehouseId} {
-      allow read, write: if true || 
-        resource.data.tenantId == request.auth.uid ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || tenantIdMatches();
     }
-    
+
     // Item Master
     match /itemMaster/{sku} {
-      allow read: if true || 
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true || 
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin() || tenantIdMatchesCreate(request.resource.data);
     }
-    
+
     // Inbound Shipments
     match /inboundShipments/{shipmentId} {
-      allow read: if true || 
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true || 
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
-    
+
     // Pallets
     match /pallets/{palletId} {
-      allow read: if true || 
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true || 
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
-    
+
     // Orders
     match /orders/{orderId} {
-      allow read: if true || 
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true || 
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
-    
+
     // EDI Logs
     match /ediLogs/{logId} {
-      allow read: if true || 
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true || 
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
-    }
-    
-    // Pick Tickets
-    match /pickTickets/{ticketId} {
-      allow read: if true || 
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true || 
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
-    }
-    
-    // Bills of Lading
-    match /billsOfLading/{bolId} {
-      allow read: if true || 
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true || 
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
-    }
-    
-    // Warehouse Employees (RF Gun Badge Auth)
-    match /employees/{badgeId} {
-      allow read: if true || 
-        (resource.data.assignedClientId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.assignedClientId);
-      allow write: if true || 
-        request.auth.uid == resource.data.assignedClientId ||
-        request.auth.token.tenantId == resource.data.assignedClientId;
-    }
-    
-    // Movement History (Append-Only Audit Log)
-    match /movementHistory/{movementId} {
-      allow read: if true || 
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow create: if true || 
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
       allow update, delete: if false;
     }
-    
-    // Inventory Transactions
+
+    // Pick Tickets
+    match /pickTickets/{ticketId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Bills of Lading
+    match /billsOfLading/{bolId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Warehouse Employees
+    match /employees/{badgeId} {
+      allow read: if isSignedIn() && (resource.data.assignedClientId == request.auth.uid || request.auth.token.tenantId == resource.data.assignedClientId);
+      allow create, update: if isSignedIn() && (request.auth.uid == request.resource.data.assignedClientId || request.auth.token.tenantId == request.resource.data.assignedClientId);
+      allow delete: if false;
+    }
+
+    // Movement History - Append-only audit log
+    match /movementHistory/{movementId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Inventory Transactions - tenant-scoped append-only
     match /inventoryTransactions/{txnId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow update, delete: if false;
     }
-    
-    // Counters (for sequence numbers)
+
+    // Counters
     match /counters/{counterId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
-    
-    // Locations (master data, shared across tenants)
+
+    // Locations - master data, read by authenticated users, write restricted
     match /locations/{locationId} {
-      allow read: if request.auth != null;
-      allow write: if true || request.auth.uid == "admin";
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
-    
+
     // Inventory Items
     match /inventoryItems/{itemId} {
-      allow read: if true || 
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true || 
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
 
     // RMA Orders
     match /rmaOrders/{orderId} {
-      allow read: if true ||
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true ||
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
 
     // RMA Lines
     match /rmaLines/{lineId} {
-      allow read: if true ||
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true ||
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
 
     // RMA Dispositions
     match /rmaDispositions/{dispId} {
-      allow read: if true ||
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true ||
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
 
     // Return Processing Fees
     match /returnProcessingFees/{feeId} {
-      allow read: if true ||
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true ||
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
 
     // Tenant Portal Users
     match /tenantPortalUsers/{userId} {
-      allow read: if true ||
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true ||
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
 
     // Tenant Portal CSV Uploads
     match /tenantPortalCsvUploads/{uploadId} {
-      allow read: if true ||
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true ||
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow update, delete: if false;
     }
 
     // Tenant Portal Reports
     match /tenantPortalReports/{reportId} {
-      allow read: if true ||
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true ||
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow update, delete: if false;
     }
 
-    // Tenant Configs (white-label, portal settings)
+    // Tenant Configs
     match /tenantConfigs/{tenantId} {
-      allow read: if true ||
-        request.auth.uid == tenantId ||
-        request.auth.token.tenantId == tenantId;
-      allow write: if true ||
-        request.auth.uid == tenantId ||
-        request.auth.token.tenantId == tenantId;
+      allow read: if isSignedIn() && (request.auth.uid == tenantId || request.auth.token.tenantId == tenantId);
+      allow write: if isSignedIn() && (request.auth.uid == tenantId || request.auth.token.tenantId == tenantId);
     }
 
     // Carrier Credentials
     match /carrierCredentials/{credId} {
-      allow read: if true ||
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true ||
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
 
     // Carrier Rate Quotes Cache
     match /carrierRateQuotes/{quoteId} {
-      allow read: if true ||
-        (resource.data.tenantId == request.auth.uid ||
-         request.auth.token.tenantId == resource.data.tenantId);
-      allow write: if true ||
-        request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Cycle Counts
+    match /cycleCounts/{countId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Cycle Count Lines
+    match /cycleCountLines/{lineId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Count Schedules
+    match /countSchedules/{scheduleId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // VAS Work Orders
+    match /vasWorkOrders/{workOrderId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // VAS Work Order Lines
+    match /vasWorkOrderLines/{lineId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Cross-Dock Matches
+    match /crossdockMatches/{matchId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Catch Weight Items
+    match /catchWeightItems/{itemId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Catch Weight Logs
+    match /catchWeightLogs/{logId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Labor Forecasts
+    match /laborForecasts/{forecastId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Shift Schedules
+    match /shiftSchedules/{scheduleId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Client Allocation Configs
+    match /clientAllocationConfigs/{configId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow write: if isAdmin() || tenantIdMatchesCreate(request.resource.data);
+    }
+
+    // Shipment Records
+    match /shipmentRecords/{recordId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Outbound Pallets
+    match /outboundPallets/{palletId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Billing Clients
+    match /billingClients/{clientId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Charge Rules
+    match /chargeRules/{ruleId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Billable Events
+    match /billableEvents/{eventId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Invoices
+    match /invoices/{invoiceId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Invoice Payments
+    match /invoicePayments/{paymentId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Labor Standards
+    match /laborStandards/{standardId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Labor Events
+    match /laborEvents/{eventId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Serial Inventory
+    match /serialInventory/{serialId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Compliance Audits
+    match /complianceAudits/{auditId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Compliance Documents
+    match /complianceDocuments/{docId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Recalls
+    match /recalls/{recallId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Quarantine Orders
+    match /quarantineOrders/{orderId} {
+      allow read: if isSignedIn() && tenantIdMatches();
+      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow delete: if false;
     }
   }
 }

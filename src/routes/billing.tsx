@@ -80,6 +80,8 @@ import {
   type ClientId,
   type Invoice,
   type InvoiceLine,
+  type InvoicePayment,
+  type BillingAuditLog,
   type RateUnit,
   type StorageFrequency,
   type BillableEvent,
@@ -1357,9 +1359,6 @@ function InvoicesTab({
             clients={clients}
             onDelete={handleDeleteInvoice}
             onUpdateStatus={handleUpdateInvoice}
-            onRecordPayment={() => setPaymentOpen(true)}
-            onMarkDisputed={() => setDisputeOpen(true)}
-            onViewAuditLog={() => setAuditOpen(true)}
           />
         ) : (
           <Card className="h-full">
@@ -1932,69 +1931,6 @@ function TransactionsTab({
       </CardContent>
     </Card>
   );
-
-  // Payment Dialog
-  if (paymentOpen && selectedInvoiceId) {
-    const inv = invoices.find((i) => i.id === selectedInvoiceId);
-    if (inv) {
-      const remaining = lineTotal(inv) - (payments.filter((p) => p.invoiceId === inv.id).reduce((s, p) => s + p.amount, 0));
-      return (
-        <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Record Payment — {inv.number}</DialogTitle>
-              <DialogDescription>Record a payment against this invoice.</DialogDescription>
-            </DialogHeader>
-            <PaymentForm
-              invoice={inv}
-              remaining={remaining}
-              onSubmit={(data) => handleRecordPayment(inv.id, data.amount, data.paymentDate, data.paymentMethod, data.reference, data.notes)}
-              onCancel={() => setPaymentOpen(false)}
-            />
-          </DialogContent>
-        </Dialog>
-      );
-    }
-  }
-
-  // Dispute Dialog
-  if (disputeOpen && selectedInvoiceId) {
-    const inv = invoices.find((i) => i.id === selectedInvoiceId);
-    if (inv) {
-      return (
-        <Dialog open={disputeOpen} onOpenChange={setDisputeOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{inv.disputeStatus === "disputed" ? "Resolve Dispute" : "Mark as Disputed"} — {inv.number}</DialogTitle>
-              <DialogDescription>{inv.disputeStatus === "disputed" ? "Resolve the current dispute." : "Mark this invoice as disputed."}</DialogDescription>
-            </DialogHeader>
-            <DisputeForm
-              invoice={inv}
-              onSubmit={(notes) => inv.disputeStatus === "disputed" ? handleResolveDispute(inv.id, notes) : handleMarkDisputed(inv.id, notes)}
-              onCancel={() => setDisputeOpen(false)}
-            />
-          </DialogContent>
-        </Dialog>
-      );
-    }
-  }
-
-  // Audit Log Dialog
-  if (auditOpen) {
-    return (
-      <Dialog open={auditOpen} onOpenChange={setAuditOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Billing Audit Log</DialogTitle>
-            <DialogDescription>Recent billing changes and actions.</DialogDescription>
-          </DialogHeader>
-          <AuditLogTable logs={auditLogs} />
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  return null;
 }
 
 function PaymentForm({ invoice, remaining, onSubmit, onCancel }: { invoice: Invoice; remaining: number; onSubmit: (data: { amount: number; paymentDate: string; paymentMethod: string; reference?: string; notes?: string }) => void; onCancel: () => void }) {

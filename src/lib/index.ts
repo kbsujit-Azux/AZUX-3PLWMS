@@ -230,6 +230,39 @@ export {
   getValidationBadge,
 } from "./compliance-validator";
 
+// ─── Cycle Counting & Physical Inventory ─────────────────────────────────
+export {
+  type CycleCount,
+  type CycleCountLine,
+  type CountSchedule,
+  type AbcClass,
+  type CountStatus,
+  type CountType,
+  type CountScheduleFrequency,
+  type VarianceReason,
+  type CountPriority,
+  cycleCounts,
+  countSchedules,
+  classifyAbc,
+  generateCycleCountSchedule,
+  computeVariance,
+  getAbcClassColor,
+  getCountTypeLabel,
+  getCountStatusLabel,
+} from "./counting-data";
+
+export {
+  buildAbcClassificationReport,
+  computeNextRunDate,
+  evaluateCountLine,
+  suggestVarianceReason,
+  canAutoAdjust,
+  buildCountLinesFromInventory,
+  computeCountSummary,
+  getCountEfficiencyPct,
+  getVarianceRate,
+} from "./counting-engine";
+
 // ─── Billing ────────────────────────────────────────────────────────────
 export {
   type BillingClient,
@@ -240,6 +273,8 @@ export {
   type BillableEvent,
   type InvoiceLine,
   type Invoice,
+  type InvoicePayment,
+  type BillingAuditLog,
   type AccessorialType,
   billingClients,
   defaultRules,
@@ -273,8 +308,6 @@ export {
   type VolumetricStorageSnapshot,
   type MatchedBillableEvent,
   type BillableAccrual,
-  type InvoicePayment,
-  type BillingAuditLog,
 } from "./billing-engine";
 
 // ─── Billing Scheduler ──────────────────────────────────────────────────
@@ -363,15 +396,6 @@ export {
 } from "./carrier-api-adapters";
 // --- Returns Management (RMA) --------------------------------------------
 export {
-  type RmaOrder,
-  type RmaLine,
-  type RmaDisposition,
-  type ReturnProcessingFee,
-  type RmaStatus,
-  type DispositionType,
-  type DispositionStatus,
-  type ReturnReason,
-  type ReturnProcessingFeeType,
   fetchRmaOrders,
   fetchRmaOrder,
   createRmaOrder,
@@ -391,6 +415,10 @@ export {
 } from "./rma-firestore";
 
 export {
+  type RmaOrder,
+  type RmaLine,
+  type RmaDisposition,
+  type ReturnProcessingFee,
   type RmaStatus,
   type DispositionType,
   type DispositionStatus,
@@ -447,14 +475,16 @@ export {
 
 // ─── Labor Management (LMS) ────────────────────────────────────────────
 export {
-  type LaborStandard,
-  type LaborEvent,
-  type LaborTaskType,
   LABOR_STANDARDS,
   getLaborStandard,
   computeStandardSec,
   computeEfficiencyPct,
 } from "./labor-data";
+export {
+  type LaborStandard,
+  type LaborEvent,
+  type LaborTaskType,
+} from "./rf-types";
 
 // ─── Task Interleaving ──────────────────────────────────────────────────
 export {
@@ -580,14 +610,6 @@ export {
   subscribeComplianceAuditLog,
   appendComplianceLog,
   fetchComplianceAuditLog,
-  type SerialInventoryRecord,
-  type SerialStatus,
-  type InventoryLotView,
-  type ComplianceValidatorOptions,
-  type ValidationResult,
-  type ComplianceAuditLog,
-  type ComplianceAction,
-  type ComplianceEntityType,
   // RF Gun / Employee CRUD
   fetchEmployees,
   subscribeEmployees,
@@ -623,9 +645,157 @@ export {
   updateQuarantineOrder,
   releaseQuarantineOrder,
   subscribeQuarantineOrders,
+  // Cycle Counting & Physical Inventory
+  fetchCycleCounts,
+  subscribeCycleCounts,
+  createCycleCount,
+  updateCycleCount,
+  deleteCycleCount,
+  fetchCycleCountLines,
+  subscribeCycleCountLines,
+  createCycleCountLine,
+  updateCycleCountLine,
+  batchWriteCycleCountLines,
+  fetchCountSchedules,
+  subscribeCountSchedules,
+  createCountSchedule,
+  updateCountSchedule,
+  deleteCountSchedule,
+  // RF Task Assignment
+  subscribeAssignedTasks,
+  assignRfTask,
+  completeRfTask,
+  failRfTask,
+  fetchAssignedTasks,
+  type RfAssignedTask,
+  type RfTaskType,
+  type RfTaskStatus,
+  // VAS Work Orders (Firestore CRUD only)
+  fetchVasWorkOrders,
+  subscribeVasWorkOrders,
+  createVasWorkOrder,
+  updateVasWorkOrder,
+  deleteVasWorkOrder,
+  fetchVasWorkOrderLines,
+  subscribeVasWorkOrderLines,
+  createVasWorkOrderLine,
+  updateVasWorkOrderLine,
+  batchWriteVasWorkOrderLines,
+  // RF Task Assignment
+} from "./firestore-data";
+
+// ─── VAS Domain Data & Engine ─────────────────────────────────────────────
+export {
+  type VasWorkOrder,
+  type VasWorkOrderLine,
+  type VasWorkOrderType,
+  type VasWorkOrderStatus,
+  type VasPriority,
+  type VasLaborEvent,
+  vasWorkOrders,
+  vasWorkOrderLines,
+  vasProgressPct,
+  vasPriorityColor,
+  vasTypeLabel,
+  vasStatusLabel,
+} from "./vas-data";
+
+export {
+  computeVasProgress,
+  canReleaseWorkOrder,
+  canStartWorkOrder,
+  canCompleteWorkOrder,
+  calculateVasCost,
+  validateInventoryAvailability,
+  getWorkOrderNextAction,
+  getWorkOrderProgressDetails,
+} from "./vas-engine";
+
+// ─── Cross-Docking ────────────────────────────────────────────────────────
+export {
+  type CrossDockMatch,
+  type CrossDockMatchStatus,
+  type CrossDockMatchPriority,
+  crossdockMatches,
+  crossdockPriorityColor,
+  crossdockStatusLabel,
+  crossdockProgressPct,
+} from "./crossdock-data";
+
+export {
+  type CrossDockEvaluationResult,
+  findOpenOrdersForSku,
+  findOpenPickTicketsForOrder,
+  findAvailableStagingLane,
+  evaluateCrossDockEligibility,
+  canDispatchCrossDock,
+  getCrossDockSummary,
+} from "./crossdock-engine";
+
+// ─── Containerization & Cubing ───────────────────────────────────────────
+export {
+  type CartonSize,
+  cartonSizes,
+  getCartonById,
+  recommendCartonSize,
+} from "./carton-catalog";
+
+export {
+  type PackedItem,
+  type Carton,
+  type Cartonization,
+  expandOrderLinesToItems,
+  cartonizeOrder,
+  canCartonize,
+} from "./cubing-engine";
+
+// ─── Catch Weight Management ─────────────────────────────────────────────
+export {
+  type CatchWeightTransactionType,
+  type CatchWeightItem,
+  type CatchWeightLog,
+  catchWeightItems,
+  catchWeightLogs,
+  validateCatchWeight,
+  computeCatchWeightStats,
+} from "./catch-weight-data";
+
+export {
+  computeWeightVariancePct,
+  isWeightOutOfSpec,
+  computeBillingWeight,
+} from "./catch-weight-engine";
+
+export {
+  fetchCatchWeightItems,
+  subscribeCatchWeightItems,
+  createCatchWeightItem,
+  updateCatchWeightItem,
+  fetchCatchWeightLogs,
+  subscribeCatchWeightLogs,
+  createCatchWeightLog,
+} from "./firestore-data";
+
+// ─── Labor Forecasting ───────────────────────────────────────────────────
+export {
+  type ForecastHorizon,
+  type LaborForecast,
+  type ShiftSchedule,
+  forecastLaborFromEdi,
+  computeShiftSchedule,
+} from "./labor-forecast";
+
+export {
+  createLaborForecast,
+  updateLaborForecast,
+  deleteLaborForecast,
+  createShiftSchedule,
+  updateShiftSchedule,
+  deleteShiftSchedule,
 } from "./firestore-data";
 
 // ─── Re-export db-context (React data provider) ─────────────────────────
 export { DatabaseProvider, useWmsData } from "./db-context";
+
 
 

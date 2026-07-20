@@ -8,6 +8,8 @@
  * ============================================================
  */
 
+import { useState, useEffect, useCallback } from "react";
+
 type SpeechSynthesisUtterance = {
   text: string;
   volume?: number;

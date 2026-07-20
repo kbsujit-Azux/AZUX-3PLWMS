@@ -10,19 +10,25 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkforceRouteImport } from './routes/workforce'
+import { Route as VasRouteImport } from './routes/vas'
 import { Route as SlottingRouteImport } from './routes/slotting'
 import { Route as ShipmentsRouteImport } from './routes/shipments'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScoreboardRouteImport } from './routes/scoreboard'
 import { Route as PicksRouteImport } from './routes/picks'
 import { Route as PalletsRouteImport } from './routes/pallets'
+import { Route as PackingRouteImport } from './routes/packing'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as MastersRouteImport } from './routes/masters'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InboundRouteImport } from './routes/inbound'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as EdiRouteImport } from './routes/edi'
 import { Route as DocumentsRouteImport } from './routes/documents'
+import { Route as CrossdockRouteImport } from './routes/crossdock'
+import { Route as CountingRouteImport } from './routes/counting'
 import { Route as ComplianceRouteImport } from './routes/compliance'
+import { Route as CatchWeightRouteImport } from './routes/catch-weight'
 import { Route as BillingRouteImport } from './routes/billing'
 import { Route as Allocation_backupRouteImport } from './routes/allocation_backup'
 import { Route as AllocationRouteImport } from './routes/allocation'
@@ -31,6 +37,7 @@ import { Route as TenantPortalIndexRouteImport } from './routes/tenant-portal/in
 import { Route as RmaIndexRouteImport } from './routes/rma/index'
 import { Route as RfIndexRouteImport } from './routes/rf/index'
 import { Route as RateShoppingIndexRouteImport } from './routes/rate-shopping/index'
+import { Route as WorkforceForecastRouteImport } from './routes/workforce/forecast'
 import { Route as RfReceivingRouteImport } from './routes/rf/receiving'
 import { Route as RfPutawayRouteImport } from './routes/rf/putaway'
 import { Route as RfPickRouteImport } from './routes/rf/pick'
@@ -43,6 +50,11 @@ import { Route as MastersEmployeesRouteImport } from './routes/masters/employees
 const WorkforceRoute = WorkforceRouteImport.update({
   id: '/workforce',
   path: '/workforce',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VasRoute = VasRouteImport.update({
+  id: '/vas',
+  path: '/vas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SlottingRoute = SlottingRouteImport.update({
@@ -75,6 +87,11 @@ const PalletsRoute = PalletsRouteImport.update({
   path: '/pallets',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PackingRoute = PackingRouteImport.update({
+  id: '/packing',
+  path: '/packing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrdersRoute = OrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -95,6 +112,11 @@ const InboundRoute = InboundRouteImport.update({
   path: '/inbound',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EdiRoute = EdiRouteImport.update({
   id: '/edi',
   path: '/edi',
@@ -105,9 +127,24 @@ const DocumentsRoute = DocumentsRouteImport.update({
   path: '/documents',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CrossdockRoute = CrossdockRouteImport.update({
+  id: '/crossdock',
+  path: '/crossdock',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CountingRoute = CountingRouteImport.update({
+  id: '/counting',
+  path: '/counting',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ComplianceRoute = ComplianceRouteImport.update({
   id: '/compliance',
   path: '/compliance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CatchWeightRoute = CatchWeightRouteImport.update({
+  id: '/catch-weight',
+  path: '/catch-weight',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BillingRoute = BillingRouteImport.update({
@@ -149,6 +186,11 @@ const RateShoppingIndexRoute = RateShoppingIndexRouteImport.update({
   id: '/rate-shopping/',
   path: '/rate-shopping/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const WorkforceForecastRoute = WorkforceForecastRouteImport.update({
+  id: '/forecast',
+  path: '/forecast',
+  getParentRoute: () => WorkforceRoute,
 } as any)
 const RfReceivingRoute = RfReceivingRouteImport.update({
   id: '/rf/receiving',
@@ -196,20 +238,26 @@ export interface FileRoutesByFullPath {
   '/allocation': typeof AllocationRoute
   '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
+  '/catch-weight': typeof CatchWeightRoute
   '/compliance': typeof ComplianceRoute
+  '/counting': typeof CountingRoute
+  '/crossdock': typeof CrossdockRoute
   '/documents': typeof DocumentsRoute
   '/edi': typeof EdiRoute
+  '/health': typeof HealthRoute
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
   '/masters': typeof MastersRouteWithChildren
   '/orders': typeof OrdersRoute
+  '/packing': typeof PackingRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
   '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
-  '/workforce': typeof WorkforceRoute
+  '/vas': typeof VasRoute
+  '/workforce': typeof WorkforceRouteWithChildren
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
   '/rf/history': typeof RfHistoryRoute
@@ -218,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
+  '/workforce/forecast': typeof WorkforceForecastRoute
   '/rate-shopping/': typeof RateShoppingIndexRoute
   '/rf/': typeof RfIndexRoute
   '/rma/': typeof RmaIndexRoute
@@ -228,20 +277,26 @@ export interface FileRoutesByTo {
   '/allocation': typeof AllocationRoute
   '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
+  '/catch-weight': typeof CatchWeightRoute
   '/compliance': typeof ComplianceRoute
+  '/counting': typeof CountingRoute
+  '/crossdock': typeof CrossdockRoute
   '/documents': typeof DocumentsRoute
   '/edi': typeof EdiRoute
+  '/health': typeof HealthRoute
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
   '/masters': typeof MastersRouteWithChildren
   '/orders': typeof OrdersRoute
+  '/packing': typeof PackingRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
   '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
-  '/workforce': typeof WorkforceRoute
+  '/vas': typeof VasRoute
+  '/workforce': typeof WorkforceRouteWithChildren
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
   '/rf/history': typeof RfHistoryRoute
@@ -250,6 +305,7 @@ export interface FileRoutesByTo {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
+  '/workforce/forecast': typeof WorkforceForecastRoute
   '/rate-shopping': typeof RateShoppingIndexRoute
   '/rf': typeof RfIndexRoute
   '/rma': typeof RmaIndexRoute
@@ -261,20 +317,26 @@ export interface FileRoutesById {
   '/allocation': typeof AllocationRoute
   '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
+  '/catch-weight': typeof CatchWeightRoute
   '/compliance': typeof ComplianceRoute
+  '/counting': typeof CountingRoute
+  '/crossdock': typeof CrossdockRoute
   '/documents': typeof DocumentsRoute
   '/edi': typeof EdiRoute
+  '/health': typeof HealthRoute
   '/inbound': typeof InboundRoute
   '/inventory': typeof InventoryRoute
   '/masters': typeof MastersRouteWithChildren
   '/orders': typeof OrdersRoute
+  '/packing': typeof PackingRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
   '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
-  '/workforce': typeof WorkforceRoute
+  '/vas': typeof VasRoute
+  '/workforce': typeof WorkforceRouteWithChildren
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
   '/rf/history': typeof RfHistoryRoute
@@ -283,6 +345,7 @@ export interface FileRoutesById {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
+  '/workforce/forecast': typeof WorkforceForecastRoute
   '/rate-shopping/': typeof RateShoppingIndexRoute
   '/rf/': typeof RfIndexRoute
   '/rma/': typeof RmaIndexRoute
@@ -295,19 +358,25 @@ export interface FileRouteTypes {
     | '/allocation'
     | '/allocation_backup'
     | '/billing'
+    | '/catch-weight'
     | '/compliance'
+    | '/counting'
+    | '/crossdock'
     | '/documents'
     | '/edi'
+    | '/health'
     | '/inbound'
     | '/inventory'
     | '/masters'
     | '/orders'
+    | '/packing'
     | '/pallets'
     | '/picks'
     | '/scoreboard'
     | '/settings'
     | '/shipments'
     | '/slotting'
+    | '/vas'
     | '/workforce'
     | '/masters/employees'
     | '/masters/warehouses'
@@ -317,6 +386,7 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
+    | '/workforce/forecast'
     | '/rate-shopping/'
     | '/rf/'
     | '/rma/'
@@ -327,19 +397,25 @@ export interface FileRouteTypes {
     | '/allocation'
     | '/allocation_backup'
     | '/billing'
+    | '/catch-weight'
     | '/compliance'
+    | '/counting'
+    | '/crossdock'
     | '/documents'
     | '/edi'
+    | '/health'
     | '/inbound'
     | '/inventory'
     | '/masters'
     | '/orders'
+    | '/packing'
     | '/pallets'
     | '/picks'
     | '/scoreboard'
     | '/settings'
     | '/shipments'
     | '/slotting'
+    | '/vas'
     | '/workforce'
     | '/masters/employees'
     | '/masters/warehouses'
@@ -349,6 +425,7 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
+    | '/workforce/forecast'
     | '/rate-shopping'
     | '/rf'
     | '/rma'
@@ -359,19 +436,25 @@ export interface FileRouteTypes {
     | '/allocation'
     | '/allocation_backup'
     | '/billing'
+    | '/catch-weight'
     | '/compliance'
+    | '/counting'
+    | '/crossdock'
     | '/documents'
     | '/edi'
+    | '/health'
     | '/inbound'
     | '/inventory'
     | '/masters'
     | '/orders'
+    | '/packing'
     | '/pallets'
     | '/picks'
     | '/scoreboard'
     | '/settings'
     | '/shipments'
     | '/slotting'
+    | '/vas'
     | '/workforce'
     | '/masters/employees'
     | '/masters/warehouses'
@@ -381,6 +464,7 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
+    | '/workforce/forecast'
     | '/rate-shopping/'
     | '/rf/'
     | '/rma/'
@@ -392,20 +476,26 @@ export interface RootRouteChildren {
   AllocationRoute: typeof AllocationRoute
   Allocation_backupRoute: typeof Allocation_backupRoute
   BillingRoute: typeof BillingRoute
+  CatchWeightRoute: typeof CatchWeightRoute
   ComplianceRoute: typeof ComplianceRoute
+  CountingRoute: typeof CountingRoute
+  CrossdockRoute: typeof CrossdockRoute
   DocumentsRoute: typeof DocumentsRoute
   EdiRoute: typeof EdiRoute
+  HealthRoute: typeof HealthRoute
   InboundRoute: typeof InboundRoute
   InventoryRoute: typeof InventoryRoute
   MastersRoute: typeof MastersRouteWithChildren
   OrdersRoute: typeof OrdersRoute
+  PackingRoute: typeof PackingRoute
   PalletsRoute: typeof PalletsRoute
   PicksRoute: typeof PicksRoute
   ScoreboardRoute: typeof ScoreboardRoute
   SettingsRoute: typeof SettingsRoute
   ShipmentsRoute: typeof ShipmentsRoute
   SlottingRoute: typeof SlottingRoute
-  WorkforceRoute: typeof WorkforceRoute
+  VasRoute: typeof VasRoute
+  WorkforceRoute: typeof WorkforceRouteWithChildren
   RfHistoryRoute: typeof RfHistoryRoute
   RfInquiryRoute: typeof RfInquiryRoute
   RfMoveRoute: typeof RfMoveRoute
@@ -425,6 +515,13 @@ declare module '@tanstack/react-router' {
       path: '/workforce'
       fullPath: '/workforce'
       preLoaderRoute: typeof WorkforceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vas': {
+      id: '/vas'
+      path: '/vas'
+      fullPath: '/vas'
+      preLoaderRoute: typeof VasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/slotting': {
@@ -469,6 +566,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PalletsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/packing': {
+      id: '/packing'
+      path: '/packing'
+      fullPath: '/packing'
+      preLoaderRoute: typeof PackingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/orders': {
       id: '/orders'
       path: '/orders'
@@ -497,6 +601,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InboundRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/edi': {
       id: '/edi'
       path: '/edi'
@@ -511,11 +622,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocumentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/crossdock': {
+      id: '/crossdock'
+      path: '/crossdock'
+      fullPath: '/crossdock'
+      preLoaderRoute: typeof CrossdockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/counting': {
+      id: '/counting'
+      path: '/counting'
+      fullPath: '/counting'
+      preLoaderRoute: typeof CountingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/compliance': {
       id: '/compliance'
       path: '/compliance'
       fullPath: '/compliance'
       preLoaderRoute: typeof ComplianceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/catch-weight': {
+      id: '/catch-weight'
+      path: '/catch-weight'
+      fullPath: '/catch-weight'
+      preLoaderRoute: typeof CatchWeightRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/billing': {
@@ -573,6 +705,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/rate-shopping/'
       preLoaderRoute: typeof RateShoppingIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/workforce/forecast': {
+      id: '/workforce/forecast'
+      path: '/forecast'
+      fullPath: '/workforce/forecast'
+      preLoaderRoute: typeof WorkforceForecastRouteImport
+      parentRoute: typeof WorkforceRoute
     }
     '/rf/receiving': {
       id: '/rf/receiving'
@@ -646,25 +785,43 @@ const MastersRouteChildren: MastersRouteChildren = {
 const MastersRouteWithChildren =
   MastersRoute._addFileChildren(MastersRouteChildren)
 
+interface WorkforceRouteChildren {
+  WorkforceForecastRoute: typeof WorkforceForecastRoute
+}
+
+const WorkforceRouteChildren: WorkforceRouteChildren = {
+  WorkforceForecastRoute: WorkforceForecastRoute,
+}
+
+const WorkforceRouteWithChildren = WorkforceRoute._addFileChildren(
+  WorkforceRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AllocationRoute: AllocationRoute,
   Allocation_backupRoute: Allocation_backupRoute,
   BillingRoute: BillingRoute,
+  CatchWeightRoute: CatchWeightRoute,
   ComplianceRoute: ComplianceRoute,
+  CountingRoute: CountingRoute,
+  CrossdockRoute: CrossdockRoute,
   DocumentsRoute: DocumentsRoute,
   EdiRoute: EdiRoute,
+  HealthRoute: HealthRoute,
   InboundRoute: InboundRoute,
   InventoryRoute: InventoryRoute,
   MastersRoute: MastersRouteWithChildren,
   OrdersRoute: OrdersRoute,
+  PackingRoute: PackingRoute,
   PalletsRoute: PalletsRoute,
   PicksRoute: PicksRoute,
   ScoreboardRoute: ScoreboardRoute,
   SettingsRoute: SettingsRoute,
   ShipmentsRoute: ShipmentsRoute,
   SlottingRoute: SlottingRoute,
-  WorkforceRoute: WorkforceRoute,
+  VasRoute: VasRoute,
+  WorkforceRoute: WorkforceRouteWithChildren,
   RfHistoryRoute: RfHistoryRoute,
   RfInquiryRoute: RfInquiryRoute,
   RfMoveRoute: RfMoveRoute,

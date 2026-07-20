@@ -34,6 +34,7 @@ import {
   Plus,
   Mic,
   MicOff,
+  Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,8 @@ import { DROP001_LOCATION } from "@/lib/mock-data";
 import { type InboundShipment, type InboundLine } from "@/lib/inbound-data";
 import { useVoicePicking } from "@/hooks/useVoicePicking";
 import { useTTS, ttsSpeak } from "@/lib/tts";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 
 type Step = "scan-container" | "manifest" | "pallet-split" | "complete";
 
@@ -61,6 +64,21 @@ function ReceivingInner() {
   const [busy, setBusy] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const containerRef = useRef<HTMLInputElement>(null);
+
+  const { enqueue, online } = useOfflineSync();
+
+  const {
+    mode: scanMode,
+    setMode: setScanMode,
+    videoRef,
+    lastCode,
+    toggleCamera,
+  } = useBarcodeScanner({
+    active: verified,
+    onScan: (code) => {
+      if (step === "scan-container") handleContainerScan(code);
+    },
+  });
 
   const tts = useTTS();
 
@@ -130,9 +148,9 @@ function ReceivingInner() {
     }
   }, []);
 
-  const handleContainerScan = useCallback(async () => {
+  const handleContainerScan = useCallback(async (code?: string) => {
     if (!employee || busy) return;
-    const containerNo = containerRef.current?.value.trim();
+    const containerNo = code ?? containerRef.current?.value.trim();
     if (!containerNo) {
       setError("Scan or enter Container Number");
       return;
@@ -175,6 +193,27 @@ function ReceivingInner() {
       setBusy(true);
       setError("");
       try {
+        if (!online) {
+          enqueue({
+            collection: "inboundShipments",
+            docId: shipment.id,
+            type: "update",
+            data: {
+              [`lines.${line.lineNo}.receivedQty`]: qty,
+              status: "received",
+              receivedAt: new Date().toISOString(),
+            },
+          });
+          toast.success("Saved offline — will sync when connected");
+          setReceivedMap((m) => ({ ...m, [line.lineNo]: qty }));
+          playChime("ok");
+          if (lineIdx < shipment.lines.length - 1) {
+            setLineIdx((i) => i + 1);
+          } else {
+            setStep("pallet-split");
+          }
+          return;
+        }
         await receiveInboundShipment(shipment.id, line.lineNo, qty, []);
         setReceivedMap((m) => ({ ...m, [line.lineNo]: qty }));
         playChime("ok");
@@ -190,7 +229,7 @@ function ReceivingInner() {
         setBusy(false);
       }
     },
-    [shipment, employee, busy, lineIdx, playChime],
+    [shipment, employee, busy, lineIdx, playChime, online, enqueue],
   );
 
   const initSplits = useCallback(
@@ -256,24 +295,50 @@ function ReceivingInner() {
           <Container className="h-5 w-5 text-emerald-400" />
           <h1 className="text-lg font-semibold">Dock Receiving</h1>
         </div>
-        <Button
-          variant={voiceEnabled ? "default" : "ghost"}
-          size="sm"
-          onClick={() => {
-            setVoiceEnabled((v) => !v);
-            if (!voiceEnabled) {
-              tts.speak("Voice enabled");
-            } else {
-              tts.speak("Voice disabled");
-            }
-          }}
-        >
-          {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant={scanMode === "camera" ? "default" : "ghost"}
+            size="sm"
+            onClick={toggleCamera}
+            title={scanMode === "camera" ? "Camera Scan ON" : "Camera Scan OFF"}
+          >
+            <ScanLine className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={voiceEnabled ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              setVoiceEnabled((v) => !v);
+              if (!voiceEnabled) {
+                tts.speak("Voice enabled");
+              } else {
+                tts.speak("Voice disabled");
+              }
+            }}
+          >
+            {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
       {voice.listening && (
         <div className="text-xs text-emerald-400 animate-pulse">Listening...</div>
+      )}
+
+      {scanMode === "camera" && (
+        <Card className="p-2 space-y-2">
+          <video
+            ref={videoRef}
+            className="w-full h-40 bg-black rounded"
+            playsInline
+            muted
+          />
+          {lastCode && (
+            <div className="text-xs font-mono text-emerald-400">
+              Last scan: {lastCode}
+            </div>
+          )}
+        </Card>
       )}
 
       {error && (
@@ -285,7 +350,7 @@ function ReceivingInner() {
         </Card>
       )}
 
-      {step === "scan-container" && (
+      {step === "scan-container" && scanMode === "manual" && (
         <Card className="border-slate-800 bg-slate-900 p-4 space-y-3">
           <Label className="text-xs text-slate-300">Scan Container / Work ID</Label>
           <Input
@@ -299,7 +364,7 @@ function ReceivingInner() {
           />
           <Button
             className="w-full h-12 bg-emerald-600 hover:bg-emerald-500"
-            onClick={handleContainerScan}
+            onClick={() => handleContainerScan()}
             disabled={busy}
           >
             <ScanLine className="h-4 w-4 mr-2" /> Look Up Shipment

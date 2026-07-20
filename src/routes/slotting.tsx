@@ -12,7 +12,7 @@ import {
   getVelocityColor,
   getPriorityBadge,
 } from "@/lib/slotting-engine";
-import { pallets, type Pallet } from "@/lib/pallet-data";
+import { pallets, type Pallet, appendPallets } from "@/lib/pallet-data";
 import { locationMaster, updateLocationInMaster } from "@/lib/master-data";
 import { fetchMovementHistory, type MovementHistory } from "@/lib/firestore-data";
 import { itemMaster } from "@/lib/master-data";
@@ -72,7 +72,7 @@ function SlottingPage() {
       await new Promise((resolve) => setTimeout(resolve, 600));
       const pallet = pallets.find((p) => p.sku === selectedRec.sku && p.location === selectedRec.currentLocationId);
       if (pallet) {
-        updateLocationInMaster(pallet.id, { location: selectedRec.suggestedLocationId });
+        appendPallets([{ ...pallet, location: selectedRec.suggestedLocationId, suggestedLocation: selectedRec.suggestedLocationId }]);
       }
       updateLocationInMaster(selectedRec.currentLocationId, { occupiedPallets: Math.max(0, (locationMaster.find((l) => l.id === selectedRec.currentLocationId)?.occupiedPallets ?? 0) - 1) });
       const newLoc = locationMaster.find((l) => l.id === selectedRec.suggestedLocationId);

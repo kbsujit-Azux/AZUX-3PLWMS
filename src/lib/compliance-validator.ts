@@ -44,7 +44,7 @@ export function validateItemForLocation(
     }
   }
 
-  return { valid: true };
+  return { valid: true, severity: "info" };
 }
 
 export function getValidationBadge(result: ValidationResult): { label: string; className: string } {

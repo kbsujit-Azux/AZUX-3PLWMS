@@ -60,6 +60,8 @@ import { type Pallet } from "@/lib/pallet-data";
 import { type LocationRecord } from "@/lib/master-data";
 import { useVoicePicking } from "@/hooks/useVoicePicking";
 import { useTTS, ttsSpeak } from "@/lib/tts";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 
 type Step = "scan-pallet" | "scan-location" | "confirm";
 
@@ -77,6 +79,22 @@ function PutawayInner() {
     Record<string, { type: string; occupiedPallets?: number }>
   >({});
   const palletInputRef = useRef<HTMLInputElement>(null);
+
+  const { enqueue, online } = useOfflineSync();
+
+  const {
+    mode: scanMode,
+    setMode: setScanMode,
+    videoRef,
+    lastCode,
+    toggleCamera,
+  } = useBarcodeScanner({
+    active: verified,
+    onScan: (code) => {
+      if (step === "scan-pallet") handlePalletScan(code);
+      else if (step === "scan-location") handleLocationScan(code);
+    },
+  });
 
   const tts = useTTS();
 
@@ -213,6 +231,20 @@ function PutawayInner() {
     setBusy(true);
     setError("");
     try {
+      if (!online) {
+        enqueue({
+          collection: "pallets",
+          docId: pallet.id,
+          type: "update",
+          data: { status: "putaway", location, updatedAt: new Date().toISOString() },
+        });
+        toast.success("Saved offline — will sync when connected");
+        setPallet(null);
+        setLocation("");
+        setLocInput("");
+        setStep("scan-pallet");
+        return;
+      }
       await runTransaction(db, async (txn) => {
         txn.update(doc(db, "pallets", pallet.id), {
           status: "putaway",
@@ -242,7 +274,7 @@ function PutawayInner() {
               qtyAllocated: 0,
               receivedAt: new Date().toISOString(),
               poNumber: pallet.poNumber,
-              ediSource: pallet.ediSource,
+              ediSource: pallet.ediSource as "EDI_943" | "EDI_944" | "CSV" | "MANUAL",
             });
           }
           txn.update(doc(db, "inventoryItems", pallet.sku), { batches: updatedBatches });
@@ -254,7 +286,6 @@ function PutawayInner() {
           txn.update(locRef, { occupiedPallets: (locSnap.data()?.occupiedPallets ?? 0) + 1 });
         }
       });
-      await updatePallet(pallet.id, { status: "putaway", location });
       toast.success(`${pallet.id} → ${location}`);
       playChime("ok");
       setPallet(null);
@@ -267,7 +298,7 @@ function PutawayInner() {
     } finally {
       setBusy(false);
     }
-  }, [pallet, location, employee, busy, playChime]);
+  }, [pallet, location, employee, busy, playChime, online, enqueue]);
 
   if (!verified) return null;
 
@@ -286,6 +317,14 @@ function PutawayInner() {
             title={arMode ? "AR Vision ON" : "AR Vision OFF"}
           >
             <Camera className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={scanMode === "camera" ? "default" : "ghost"}
+            size="sm"
+            onClick={toggleCamera}
+            title={scanMode === "camera" ? "Camera Scan ON" : "Camera Scan OFF"}
+          >
+            <ScanLine className="h-4 w-4" />
           </Button>
           <Button
             variant={voiceEnabled ? "default" : "ghost"}
@@ -325,6 +364,22 @@ function PutawayInner() {
         </Card>
       )}
 
+      {scanMode === "camera" && (
+        <Card className="p-2 space-y-2">
+          <video
+            ref={videoRef}
+            className="w-full h-40 bg-black rounded"
+            playsInline
+            muted
+          />
+          {lastCode && (
+            <div className="text-xs font-mono text-emerald-400">
+              Last scan: {lastCode}
+            </div>
+          )}
+        </Card>
+      )}
+
       {error && (
         <Card className="border-amber-500/50 bg-amber-950/30 p-3">
           <div className="flex items-center gap-2 text-amber-400 text-xs">
@@ -334,7 +389,7 @@ function PutawayInner() {
         </Card>
       )}
 
-      {step === "scan-pallet" && (
+      {step === "scan-pallet" && scanMode === "manual" && (
         <Card className="border-slate-800 bg-slate-900 p-4 space-y-3">
           <Label className="text-xs text-slate-300">1. Scan Pallet ID</Label>
           <Input
@@ -356,7 +411,7 @@ function PutawayInner() {
         </Card>
       )}
 
-      {step === "scan-location" && pallet && (
+      {step === "scan-location" && pallet && scanMode === "manual" && (
         <Card className="border-slate-800 bg-slate-900 p-4 space-y-3">
           <div className="text-xs text-slate-400 space-y-1">
             <div className="flex items-center gap-2">

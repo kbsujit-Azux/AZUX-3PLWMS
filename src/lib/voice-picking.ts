@@ -179,9 +179,11 @@ export function createVoicePickingEngine(options: VoicePickingOptions) {
     if (!enabled) return;
     if (state.listening) return;
 
-    if (typeof (window as unknown as Record<string, unknown>).SpeechRecognition !== "undefined" || typeof (window as unknown as Record<string, unknown>).webkitSpeechRecognition !== "undefined") {
+    const hasSpeechRecognition = typeof window !== "undefined" &&
+      (("SpeechRecognition" in window) || ("webkitSpeechRecognition" in window));
+    if (hasSpeechRecognition) {
       startWebSpeech();
-    } else if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    } else if (navigator.mediaDevices && !!(navigator.mediaDevices as any).getUserMedia) {
       await startWebRTC();
     } else {
       updateState({ supported: false, error: "No voice input API available" });

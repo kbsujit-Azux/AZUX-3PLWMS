@@ -23,7 +23,10 @@ import {
   Building2,
   Undo2,
   Calculator,
-  Globe2,
+  Settings2,
+  Zap,
+  Scale,
+  Activity,
 } from "lucide-react";
 import {
   Sidebar,
@@ -47,8 +50,13 @@ const operations = [
   { title: "Orders", url: "/orders", icon: ClipboardList },
   { title: "Allocation", url: "/allocation", icon: PackageSearch },
   { title: "Picks", url: "/picks", icon: PackageCheck },
+  { title: "Packing", url: "/packing", icon: Package },
   { title: "Shipments", url: "/shipments", icon: Truck },
   { title: "Pallets", url: "/pallets", icon: Boxes },
+  { title: "VAS Work Orders", url: "/vas", icon: Settings2 },
+  { title: "Cross-Dock", url: "/crossdock", icon: Zap },
+  { title: "Cycle Counting", url: "/counting", icon: Target },
+  { title: "Catch Weight", url: "/catch-weight", icon: Scale },
 ] as const;
 
 const systems = [
@@ -60,6 +68,7 @@ const systems = [
   { title: "Billing", url: "/billing", icon: Receipt },
   { title: "Slotting", url: "/slotting", icon: Target },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Health Pulse", url: "/health", icon: Activity },
 ] as const;
 
 const workforce = [

@@ -9,9 +9,31 @@ export default defineConfig({
   envDir: path.resolve(__dirname, ".."),
   base: "/",
   plugins: [tailwindcss(), viteReact(), VitePWA({
-    registerType: "auto",
-    includeAssets: ["favicon.svg", "icon-192.png", "icon-512.png"],
-    manifest: false,
+    registerType: "none",
+    injectRegister: false,
+    manifestFilename: "manifest.json",
+    includeAssets: ["favicon.svg", "logo-placeholder.svg"],
+    manifest: {
+      name: "AZUX RF Terminal",
+      short_name: "AZUX RF",
+      description: "Enterprise Warehouse Mobility — AZUX 3PL WMS",
+      start_url: "/",
+      scope: "/",
+      display: "standalone",
+      orientation: "any",
+      theme_color: "#0f172a",
+      background_color: "#0f172a",
+      categories: ["business", "productivity"],
+      icons: [
+        { src: "/logo-placeholder.svg", sizes: "192x192", type: "image/svg+xml", purpose: "any maskable" },
+        { src: "/logo-placeholder.svg", sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
+      ],
+      screenshots: [],
+      shortcuts: [
+        { name: "Putaway", short_name: "Putaway", url: "/?screen=putaway", icons: [{ src: "/logo-placeholder.svg", sizes: "192x192" }] },
+        { name: "Pick", short_name: "Pick", url: "/?screen=pick", icons: [{ src: "/logo-placeholder.svg", sizes: "192x192" }] }
+      ]
+    },
     workbox: {
       globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
       runtimeCaching: [

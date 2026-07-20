@@ -8,6 +8,8 @@
  * ============================================================
  */
 
+import { useState, useEffect, useCallback } from "react";
+
 const SPEECH_AVAILABLE =
   typeof window !== "undefined" &&
   typeof (window as any).speechSynthesis !== "undefined";

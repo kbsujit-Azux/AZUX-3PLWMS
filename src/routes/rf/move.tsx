@@ -39,6 +39,8 @@ import { db } from "@/lib/firestore";
 import { inventoryItems, type InventoryItem } from "@/lib/mock-data";
 import { useVoicePicking } from "@/hooks/useVoicePicking";
 import { useTTS, ttsSpeak } from "@/lib/tts";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 
 type Step = "scan-origin" | "scan-dest" | "confirm";
 
@@ -60,6 +62,22 @@ function MoveInner() {
   const [arMode, setArMode] = useState(false);
   const [locations, setLocations] = useState<Record<string, { type: string }>>({});
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const { enqueue, online } = useOfflineSync();
+
+  const {
+    mode: scanMode,
+    setMode: setScanMode,
+    videoRef,
+    lastCode,
+    toggleCamera,
+  } = useBarcodeScanner({
+    active: verified,
+    onScan: (code) => {
+      if (step === "scan-origin") handleOriginScan(code);
+      else if (step === "scan-dest") handleDestScan(code);
+    },
+  });
 
   const tts = useTTS();
 
@@ -206,6 +224,20 @@ function MoveInner() {
     setError("");
     const oldLoc = pallet.location!;
     try {
+      if (!online) {
+        enqueue({
+          collection: "pallets",
+          docId: pallet.id,
+          type: "update",
+          data: { location: newLocation, updatedAt: new Date().toISOString() },
+        });
+        toast.success("Saved offline — will sync when connected");
+        setPallet(null);
+        setNewLocation("");
+        setLocInput("");
+        setStep("scan-origin");
+        return;
+      }
       await runTransaction(db, async (txn) => {
         const invSnap = await txn.get(doc(db, "inventoryItems", pallet.sku));
         if (invSnap.exists()) {
@@ -237,7 +269,6 @@ function MoveInner() {
           });
         }
       });
-      await updatePallet(pallet.id, { location: newLocation });
       toast.success(`${pallet.id}: ${oldLoc} → ${newLocation}`);
       playChime("ok");
       setPallet(null);
@@ -250,7 +281,7 @@ function MoveInner() {
     } finally {
       setBusy(false);
     }
-  }, [pallet, newLocation, employee, busy, playChime]);
+  }, [pallet, newLocation, employee, busy, playChime, online, enqueue]);
 
   if (!verified) return null;
 
@@ -269,6 +300,14 @@ function MoveInner() {
             title={arMode ? "AR Vision ON" : "AR Vision OFF"}
           >
             <Camera className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={scanMode === "camera" ? "default" : "ghost"}
+            size="sm"
+            onClick={toggleCamera}
+            title={scanMode === "camera" ? "Camera Scan ON" : "Camera Scan OFF"}
+          >
+            <ScanLine className="h-4 w-4" />
           </Button>
           <Button
             variant={voiceEnabled ? "default" : "ghost"}
@@ -312,6 +351,22 @@ function MoveInner() {
         </Card>
       )}
 
+      {scanMode === "camera" && (
+        <Card className="p-2 space-y-2">
+          <video
+            ref={videoRef}
+            className="w-full h-40 bg-black rounded"
+            playsInline
+            muted
+          />
+          {lastCode && (
+            <div className="text-xs font-mono text-emerald-400">
+              Last scan: {lastCode}
+            </div>
+          )}
+        </Card>
+      )}
+
       {error && (
         <Card className="border-amber-500/50 bg-amber-950/30 p-3">
           <div className="flex items-center gap-2 text-amber-400 text-xs">
@@ -321,7 +376,7 @@ function MoveInner() {
         </Card>
       )}
 
-      {step === "scan-origin" && (
+      {step === "scan-origin" && scanMode === "manual" && (
         <Card className="border-slate-800 bg-slate-900 p-4 space-y-3">
           <Label className="text-xs text-slate-300">1. Scan Origin Pallet ID</Label>
           <Input
@@ -343,7 +398,7 @@ function MoveInner() {
         </Card>
       )}
 
-      {step === "scan-dest" && pallet && (
+      {step === "scan-dest" && pallet && scanMode === "manual" && (
         <Card className="border-slate-800 bg-slate-900 p-4 space-y-3">
           <div className="text-xs text-slate-400 space-y-1">
             <div>

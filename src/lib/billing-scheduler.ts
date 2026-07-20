@@ -20,7 +20,8 @@
  * ============================================================
  */
 
-import type { Pallet, LocationRecord } from "./pallet-data";
+import type { Pallet } from "./pallet-data";
+import type { LocationRecord } from "./master-data";
 import type { ChargeRule, BillableEvent, BillingClient } from "./billing-data";
 import { buildVolumetricStorageSnapshots, buildVolumetricStorageLines, buildInvoiceLinesFromEvents, applyMinimumCharges } from "./billing-engine";
 

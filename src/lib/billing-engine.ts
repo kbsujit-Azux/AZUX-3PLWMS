@@ -32,6 +32,8 @@ import type {
   AccessorialType,
   InvoiceLine,
   RateUnit,
+  Invoice,
+  BillingAuditLog,
 } from "./billing-data";
 import type { Pallet } from "./pallet-data";
 import type { LocationRecord } from "./master-data";
@@ -207,7 +209,7 @@ export type VolumetricStorageSnapshot = {
 export function computeLocationUtilizationCubicFeet(
   pallets: Pallet[],
   location: LocationRecord,
-): number {
+): { usedCuFt: number; capacityCuFt: number; utilizationPct: number } {
   const totalCube = pallets.reduce((sum, p) => sum + (p.cubeCuFt || computePalletCubeCuFt(p)), 0);
   const locCube = location.cubicFeet || computeLocationCubicFeet(location);
   return {

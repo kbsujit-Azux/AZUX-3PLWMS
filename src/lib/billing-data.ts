@@ -73,6 +73,7 @@ export type ChargeRule = {
   description: string;
   unit: RateUnit | "flat";
   rate: number;
+  ratePerCuFt?: number;
   frequency?: StorageFrequency;
   customCycleDays?: number;
   trigger?: string;
@@ -153,7 +154,7 @@ export type Invoice = {
   tenantId: string;
   issueDate: string;
   dueDate: string;
-  status: "Draft" | "Sent" | "Paid" | "Overdue" | "Void";
+  status: "Draft" | "Sent" | "Paid" | "Overdue" | "Void" | "Disputed";
   lines: InvoiceLine[];
   taxRate: number;
   notes?: string;
@@ -782,6 +783,8 @@ export function accessorialLabel(a: AccessorialType): string {
       return "Labor Standby";
     case "RUSH_PROCESSING":
       return "Rush Processing";
+    default:
+      return a;
   }
 }
 

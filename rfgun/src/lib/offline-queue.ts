@@ -1,23 +1,23 @@
-/**
- * ============================================================
- *  MODULE INDEX — Offline Queue
- * ============================================================
- *
- *  Purpose: Queue Firestore writes locally when offline,
- *           then flush when connectivity resumes.
- *
- *  Collections supported:
- *    - billableEvents
- *    - laborEvents
- *    - movementHistory
- * ============================================================
- */
+import { Db, Firestore, FirestoreError } from "firebase/firestore";
 
+import { doc, setDoc } from "firebase/firestore";
 import { useState, useEffect, useCallback } from "react";
+import { db } from "@shared/lib/firestore";
 
 const DB_NAME = "azux-offline-outbox";
-const STORE_NAME = "queue";
-const DB_VERSION = 1;
+
+const openDb = (): Promise<IDBDatabase> =>
+  new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve(req.result);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains("queue")) {
+        db.createObjectStore("queue", { keyPath: "id" });
+      }
+    };
+  });
 
 export interface OutboxItem {
   id: string;
@@ -28,54 +28,51 @@ export interface OutboxItem {
   attempts: number;
 }
 
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
-    };
-  });
-}
-
 export async function enqueue(item: Omit<OutboxItem, "queuedAt" | "attempts">): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction(STORE_NAME, "readwrite");
-  const store = tx.objectStore(STORE_NAME);
-  store.put({
-    ...item,
-    queuedAt: Date.now(),
-    attempts: 0,
-  } as OutboxItem);
+  const tx = db.transaction("queue", "readwrite");
+  tx.objectStore("queue").put({ ...item, queuedAt: Date.now(), attempts: 0 } as OutboxItem);
 }
 
 export async function dequeue(id: string): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction(STORE_NAME, "readwrite");
-  const store = tx.objectStore(STORE_NAME);
-  store.delete(id);
+  const tx = db.transaction("queue", "readwrite");
+  tx.objectStore("queue").delete(id);
 }
 
 export async function getAllQueued(): Promise<OutboxItem[]> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.getAll();
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    const tx = db.transaction("queue", "readonly");
+    const req = tx.objectStore("queue").getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
   });
 }
 
 export async function clearQueue(): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction(STORE_NAME, "readwrite");
-  const store = tx.objectStore(STORE_NAME);
-  store.clear();
+  const tx = db.transaction("queue", "readwrite");
+  tx.objectStore("queue").clear();
+}
+
+export async function flushQueue(): Promise<{ flushed: number; failed: number }> {
+  const items = await getAllQueued();
+  let flushed = 0;
+  let failed = 0;
+
+  for (const item of items) {
+    try {
+      const docRef = doc(db, item.collection, item.docId);
+      await setDoc(docRef, item.data, { merge: true });
+      await dequeue(item.id);
+      flushed++;
+    } catch {
+      failed++;
+    }
+  }
+
+  return { flushed, failed };
 }
 
 export function useOfflineQueue() {
@@ -92,7 +89,11 @@ export function useOfflineQueue() {
   }, []);
 
   useEffect(() => {
-    const goOnline = () => { setOnline(true); refreshPending(); };
+    const goOnline = async () => {
+      setOnline(true);
+      await flushQueue();
+      refreshPending();
+    };
     const goOffline = () => setOnline(false);
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);

@@ -25,7 +25,7 @@
  */
 
 import type { Pallet } from "./pallet-data";
-import type { PickTicket } from "./edi-data";
+import type { PickTicket } from "./mock-data";
 import { getAisleFromLocation } from "./labor-data";
 import type { Task } from "./interleaving-types";
 
@@ -48,38 +48,36 @@ export async function buildTaskQueue(
 ): Promise<Task[]> {
   const tasks: Task[] = [];
 
-  // Open picks (OPEN or PARTIAL)
+  // Open picks (GENERATED or PICKED with remaining qty)
   for (const pick of picks) {
-    if (pick.clientId !== tenantId || pick.warehouseId !== warehouseId) continue;
-    if (pick.status !== "OPEN" && pick.status !== "PARTIAL") continue;
-    if (pick.qtyPicked >= pick.qtyOrdered) continue;
+    const remaining = (pick.quantityToPick || 0) - (pick.qtyPicked || 0);
+    if (remaining <= 0) continue;
 
-    // PickInstructions are in the pick wave, but PickTicket has locationId
-    const loc = pick.locationId || "";
-    const aisle = parseAisle(loc);
+    const loc = pick.fromLocation || "";
+    const aisle = getAisleFromLocation(loc);
 
     tasks.push({
-      id: pick.number,
+      id: String(pick.pickTicketNum),
       type: "PICK",
-      description: `Pick ${pick.sku} x${pick.qtyOrdered - pick.qtyPicked}`,
+      description: `Pick ${pick.sku} x${remaining}`,
       locationId: loc,
       aisle,
-      qty: pick.qtyOrdered - pick.qtyPicked,
+      qty: remaining,
       uom: "EA",
-      referenceId: pick.number,
-      priority: pick.status === "PARTIAL" ? 2 : 1, // partial picks higher priority
+      referenceId: String(pick.pickTicketNum),
+      priority: pick.status === "PICKED" ? 2 : 1,
       sku: pick.sku,
       status: pick.status,
     });
   }
 
-  // Open putaways: pallets with status NEW or staged awaiting putaway
+  // Open putaways: pallets with status putaway or staged awaiting putaway
   for (const pallet of putawayPallets) {
-    if (pallet.clientId !== tenantId || pallet.warehouseId !== warehouseId) continue;
-    if (pallet.status !== "NEW" && pallet.status !== "staged") continue;
+    if (pallet.tenantId !== tenantId || pallet.warehouseId !== warehouseId) continue;
+    if (pallet.status !== "putaway" && pallet.status !== "staged") continue;
 
     const loc = pallet.suggestedLocation || pallet.location || "";
-    const aisle = parseAisle(loc);
+    const aisle = getAisleFromLocation(loc);
 
     tasks.push({
       id: pallet.id,
@@ -183,7 +181,7 @@ export async function getWorkerCurrentAisle(
   if (snap.empty) return "UNKNOWN";
   
   const event = snap.docs[0].data();
-  return event.aisle || parseAisle(event.locationId || "");
+  return event.aisle || getAisleFromLocation((event as { locationId?: string }).locationId || "");
 }
 
 /**

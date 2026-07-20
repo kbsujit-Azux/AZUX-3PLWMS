@@ -101,6 +101,7 @@ function RmaPage() {
     }
     let cancelled = false;
     async function loadLines() {
+      if (!selectedOrder) return;
       try {
         const [linesData, dispData, feesData] = await Promise.all([
           fetchRmaLines(selectedOrder.id),
@@ -171,7 +172,8 @@ function RmaPage() {
       const fee = feeTypes[disposition];
       if (fee.amount > 0) {
         const line = lines.find((l) => l.id === lineId);
-        const amount = fee.type === "restocking" ? line?.unitCost * fee.amount : fee.amount;
+        const unitCost = line?.unitCost ?? 0;
+        const amount = fee.type === "restocking" ? unitCost * fee.amount : fee.amount;
         await createReturnProcessingFee({
           tenantId: selectedOrder.tenantId,
           rmaId: selectedOrder.id,

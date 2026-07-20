@@ -102,6 +102,7 @@ import {
   Query,
   serverTimestamp,
   runTransaction,
+  addDoc,
 } from "firebase/firestore";
 import { db } from "./firestore";
 import type {
@@ -120,16 +121,20 @@ import type { Order, EdiLog } from "./edi-data";
 import type { OutboundPallet } from "./outbound-pallet-data";
 import type { BillingClient, ChargeRule, BillableEvent, Invoice, InvoicePayment, BillingAuditLog } from "./billing-data";
 import type { SerialInventoryRecord, SerialStatus, ComplianceAuditLog, ComplianceDocument, Recall, QuarantineOrder, ComplianceDocumentType, DocumentStatus, RecallStatus } from "./compliance-types";
+import type { CycleCount, CycleCountLine, CountSchedule } from "./counting-data";
+import type { VasWorkOrder, VasWorkOrderLine } from "./vas-data";
+import type { CrossDockMatch } from "./crossdock-data";
+import type { CatchWeightItem, CatchWeightLog } from "./catch-weight-data";
+import type { LaborForecast, ShiftSchedule } from "./labor-forecast";
+import type { WarehouseEmployee, MovementHistory } from "./rf-types";
 import { maybeCaptureBillableEvent } from "./billing-engine";
 import {
-  type LaborStandard,
-  type LaborEvent,
-  type LaborTaskType,
   LABOR_STANDARDS,
   getLaborStandard,
   computeStandardSec,
   getAisleFromLocation,
 } from "./labor-data";
+import type { LaborStandard, LaborEvent, LaborTaskType } from "./rf-types";
 
 // ============================================================
 // Tenants
@@ -277,30 +282,45 @@ export async function receiveInboundShipment(
   receivedQty: number,
   palletIds: string[],
 ) {
-  const shipmentRef = doc(db, "inboundShipments", shipmentId);
-  const shipmentSnap = await getDoc(shipmentRef);
-  const shipmentData = shipmentSnap.data() as any;
-  const clientId = shipmentData?.clientId || shipmentData?.tenantId;
-  const tenantId = shipmentData?.tenantId || clientId;
-  const warehouseId = shipmentData?.warehouseId;
+  return await runTransaction(db, async (transaction) => {
+    const shipmentRef = doc(db, "inboundShipments", shipmentId);
+    const shipmentSnap = await transaction.get(shipmentRef);
+    if (!shipmentSnap.exists()) {
+      throw new Error(`Shipment ${shipmentId} not found`);
+    }
+    const shipmentData = shipmentSnap.data() as any;
+    const clientId = shipmentData?.clientId || shipmentData?.tenantId;
+    const tenantId = shipmentData?.tenantId || clientId;
+    const warehouseId = shipmentData?.warehouseId;
 
-  await updateDoc(shipmentRef, {
-    [`lines.${lineNo}.receivedQty`]: increment(receivedQty),
-    [`lines.${lineNo}.palletIds`]: arrayUnion(...palletIds),
-    status: "received",
-    receivedAt: new Date().toISOString(),
+    transaction.update(shipmentRef, {
+      [`lines.${lineNo}.receivedQty`]: increment(receivedQty),
+      [`lines.${lineNo}.palletIds`]: arrayUnion(...palletIds),
+      status: "received",
+      receivedAt: new Date().toISOString(),
+    });
+
+    if (clientId && receivedQty > 0) {
+      const eventRef = doc(collection(db, "billableEvents"));
+      transaction.set(eventRef, {
+        id: eventRef.id,
+        clientId,
+        tenantId,
+        warehouseId,
+        shipmentId,
+        lineNo,
+        receivedQty,
+        type: "Inbound",
+        unit: "carton",
+        billed: false,
+        date: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    return { success: true };
   });
-
-  if (clientId && receivedQty > 0) {
-    await captureBillableEventForInboundReceive({
-      clientId,
-      tenantId,
-      warehouseId,
-      shipmentId,
-      lineNo,
-      receivedQty,
-    }).catch(() => {});
-  }
 }
 
 // ============================================================
@@ -348,7 +368,17 @@ export async function createPallets(pallets: Pallet[]) {
 }
 
 export async function updatePallet(palletId: string, updates: Partial<Pallet>) {
-  await updateDoc(doc(db, "pallets", palletId), updates);
+  const palletRef = doc(db, "pallets", palletId);
+  return await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(palletRef);
+    if (!snap.exists()) {
+      throw new Error(`Pallet ${palletId} not found`);
+    }
+    transaction.update(palletRef, {
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    });
+  });
 }
 
 // ============================================================
@@ -1847,20 +1877,22 @@ export async function seedEmployees(employees: WarehouseEmployee[]): Promise<voi
   await batch.commit();
 }
 
+export type { MovementHistory, WarehouseEmployee } from "./rf-types";
+
 // ============================================================
 // Labor Management System (LMS) — Engineered Labor Standards & Events
 // ============================================================
 
 export async function fetchLaborStandards(): Promise<LaborStandard[]> {
   const snap = await getDocs(collection(db, "laborStandards"));
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as LaborStandard);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as LaborStandard[];
 }
 
 export function subscribeLaborStandards(
   callback: (standards: LaborStandard[]) => void,
 ): Unsubscribe {
-  return onSnapshot(collection(db, "laborStandards"), (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as LaborStandard));
+  return onSnapshot(collection(db, "laborStandards"), (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as LaborStandard[]);
   });
 }
 
@@ -1890,8 +1922,8 @@ export async function seedLaborStandards(): Promise<void> {
   await batch.commit();
 }
 
-export async function recordLaborEvent(event: Omit<LaborEvent, "eventId" | "startedAt" | "completedAt">): Promise<string> {
-  const startedAt = new Date(event.startedAt as unknown as number);
+export async function recordLaborEvent(event: Omit<LaborEvent, "eventId" | "completedAt"> & { startedAt: string | Date }): Promise<string> {
+  const startedAt = new Date(event.startedAt);
   const completedAt = new Date();
 
   const actualSec = Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 1000));
@@ -1955,8 +1987,8 @@ export function subscribeLaborEvents(
     q = query(collection(db, "laborEvents"), ...conditions, orderBy("completedAt", "desc"), limit(limitCount));
   }
 
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ eventId: d.id, ...(d.data() ?? {}) }) as LaborEvent));
+  return onSnapshot(q, (snap: QuerySnapshot<LaborEvent>) => {
+    callback(snap.docs.map((d) => ({ ...(d.data() ?? {}), eventId: d.id } as LaborEvent)));
   });
 }
 
@@ -2171,9 +2203,9 @@ export async function fetchComplianceAuditLog(tenantId: string, limitCount = 100
 // ============================================================
 // Compliance Documents (Certificates, SDS, ISO, FDA, etc.)
 // ============================================================
-export async function createComplianceDocument(doc: ComplianceDocument): Promise<void> {
-  await setDoc(doc(db, "complianceDocuments", doc.id), {
-    ...doc,
+export async function createComplianceDocument(complianceDoc: ComplianceDocument): Promise<void> {
+  await setDoc(doc(db, "complianceDocuments", complianceDoc.id), {
+    ...complianceDoc,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -2284,5 +2316,480 @@ export function subscribeQuarantineOrders(
   return onSnapshot(q, (snap: QuerySnapshot) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as QuarantineOrder)));
   });
+}
+
+// ============================================================
+// RF Task Assignment
+// ============================================================
+export type RfTaskType = "PICK" | "PUTAWAY" | "RECEIVE" | "MOVE" | "INQUIRY";
+export type RfTaskStatus = "PENDING" | "ACTIVE" | "COMPLETED" | "FAILED";
+
+export type RfAssignedTask = {
+  id?: string;
+  type: RfTaskType;
+  badgeId: string;
+  pickTicketNum?: number;
+  palletId?: string;
+  sku?: string;
+  fromLocation?: string;
+  toLocation?: string;
+  qty: number;
+  status: RfTaskStatus;
+  assignedAt: string;
+  completedAt?: string;
+  notes?: string;
+};
+
+export function subscribeAssignedTasks(
+  badgeId: string,
+  callback: (tasks: RfAssignedTask[]) => void,
+): Unsubscribe {
+  const q = query(
+    collection(db, "rfAssignedTasks", badgeId, "items"),
+    orderBy("assignedAt", "desc"),
+  );
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as RfAssignedTask)));
+  });
+}
+
+export async function assignRfTask(
+  badgeId: string,
+  task: Omit<RfAssignedTask, "id" | "badgeId" | "assignedAt">,
+): Promise<string> {
+  const ref = doc(collection(db, "rfAssignedTasks", badgeId, "items"));
+  await setDoc(ref, {
+    ...task,
+    badgeId,
+    assignedAt: new Date().toISOString(),
+  });
+  return ref.id;
+}
+
+export async function completeRfTask(badgeId: string, taskId: string, notes?: string) {
+  await updateDoc(doc(db, "rfAssignedTasks", badgeId, "items", taskId), {
+    status: "COMPLETED",
+    completedAt: new Date().toISOString(),
+    ...(notes ? { notes } : {}),
+  });
+}
+
+export async function failRfTask(badgeId: string, taskId: string, notes?: string) {
+  await updateDoc(doc(db, "rfAssignedTasks", badgeId, "items", taskId), {
+    status: "FAILED",
+    completedAt: new Date().toISOString(),
+    ...(notes ? { notes } : {}),
+  });
+}
+
+export async function fetchAssignedTasks(badgeId: string): Promise<RfAssignedTask[]> {
+  const q = query(
+    collection(db, "rfAssignedTasks", badgeId, "items"),
+    orderBy("assignedAt", "desc"),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as RfAssignedTask));
+}
+
+// ============================================================
+// Cycle Counting
+// ============================================================
+export async function fetchCycleCounts(
+  tenantId?: string,
+  warehouseId?: string,
+): Promise<CycleCount[]> {
+  let q: Query = collection(db, "cycleCounts");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("scheduledDate", "desc"));
+  else q = query(q, orderBy("scheduledDate", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CycleCount));
+}
+
+export function subscribeCycleCounts(
+  callback: (counts: CycleCount[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "cycleCounts");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("scheduledDate", "desc"));
+  else q = query(q, orderBy("scheduledDate", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CycleCount)));
+  });
+}
+
+export async function createCycleCount(data: Omit<CycleCount, "id">): Promise<string> {
+  const ref = doc(collection(db, "cycleCounts"));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+export async function updateCycleCount(id: string, data: Partial<CycleCount>): Promise<void> {
+  await updateDoc(doc(db, "cycleCounts", id), data);
+}
+
+export async function deleteCycleCount(id: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "cycleCounts", id));
+  return { ok: true };
+}
+
+// ============================================================
+// Cycle Count Lines
+// ============================================================
+export async function fetchCycleCountLines(countId: string): Promise<CycleCountLine[]> {
+  const q = query(collection(db, "cycleCountLines"), where("countId", "==", countId), orderBy("locationId"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CycleCountLine));
+}
+
+export function subscribeCycleCountLines(
+  callback: (lines: CycleCountLine[]) => void,
+  countId: string,
+): Unsubscribe {
+  const q = query(collection(db, "cycleCountLines"), where("countId", "==", countId), orderBy("locationId"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CycleCountLine)));
+  });
+}
+
+export async function createCycleCountLine(data: Omit<CycleCountLine, "id">): Promise<string> {
+  const ref = doc(collection(db, "cycleCountLines"));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+export async function updateCycleCountLine(id: string, data: Partial<CycleCountLine>): Promise<void> {
+  await updateDoc(doc(db, "cycleCountLines", id), data);
+}
+
+export async function batchWriteCycleCountLines(lines: CycleCountLine[]): Promise<void> {
+  const batch = writeBatch(db);
+  for (const line of lines) {
+    const ref = doc(db, "cycleCountLines", line.id);
+    batch.set(ref, line);
+  }
+  await batch.commit();
+}
+
+// ============================================================
+// Count Schedules
+// ============================================================
+export async function fetchCountSchedules(
+  tenantId?: string,
+  warehouseId?: string,
+): Promise<CountSchedule[]> {
+  let q: Query = collection(db, "countSchedules");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("nextRunAt", "asc"));
+  else q = query(q, orderBy("nextRunAt", "asc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CountSchedule));
+}
+
+export function subscribeCountSchedules(
+  callback: (schedules: CountSchedule[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "countSchedules");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("nextRunAt", "asc"));
+  else q = query(q, orderBy("nextRunAt", "asc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CountSchedule)));
+  });
+}
+
+export async function createCountSchedule(data: Omit<CountSchedule, "id">): Promise<string> {
+  const ref = doc(collection(db, "countSchedules"));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+export async function updateCountSchedule(id: string, data: Partial<CountSchedule>): Promise<void> {
+  await updateDoc(doc(db, "countSchedules", id), data);
+}
+
+export async function deleteCountSchedule(id: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "countSchedules", id));
+  return { ok: true };
+}
+
+// ============================================================
+// VAS Work Orders
+// ============================================================
+export async function fetchVasWorkOrders(
+  tenantId?: string,
+  warehouseId?: string,
+): Promise<VasWorkOrder[]> {
+  let q: Query = collection(db, "vasWorkOrders");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("scheduledStartAt", "desc"));
+  else q = query(q, orderBy("scheduledStartAt", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as VasWorkOrder));
+}
+
+export function subscribeVasWorkOrders(
+  callback: (orders: VasWorkOrder[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "vasWorkOrders");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("scheduledStartAt", "desc"));
+  else q = query(q, orderBy("scheduledStartAt", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as VasWorkOrder)));
+  });
+}
+
+export async function createVasWorkOrder(data: Omit<VasWorkOrder, "id">): Promise<string> {
+  const ref = doc(collection(db, "vasWorkOrders"));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+export async function updateVasWorkOrder(id: string, data: Partial<VasWorkOrder>): Promise<void> {
+  await updateDoc(doc(db, "vasWorkOrders", id), data);
+}
+
+export async function deleteVasWorkOrder(id: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "vasWorkOrders", id));
+  return { ok: true };
+}
+
+// ============================================================
+// VAS Work Order Lines
+// ============================================================
+export async function fetchVasWorkOrderLines(workOrderId: string): Promise<VasWorkOrderLine[]> {
+  const q = query(
+    collection(db, "vasWorkOrderLines"),
+    where("workOrderId", "==", workOrderId),
+    orderBy("lineNo"),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as VasWorkOrderLine));
+}
+
+export function subscribeVasWorkOrderLines(
+  callback: (lines: VasWorkOrderLine[]) => void,
+  workOrderId: string,
+): Unsubscribe {
+  const q = query(
+    collection(db, "vasWorkOrderLines"),
+    where("workOrderId", "==", workOrderId),
+    orderBy("lineNo"),
+  );
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as VasWorkOrderLine)));
+  });
+}
+
+export async function createVasWorkOrderLine(data: Omit<VasWorkOrderLine, "id">): Promise<string> {
+  const ref = doc(collection(db, "vasWorkOrderLines"));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+export async function updateVasWorkOrderLine(id: string, data: Partial<VasWorkOrderLine>): Promise<void> {
+  await updateDoc(doc(db, "vasWorkOrderLines", id), data);
+}
+
+export async function batchWriteVasWorkOrderLines(lines: VasWorkOrderLine[]): Promise<void> {
+  const batch = writeBatch(db);
+  for (const line of lines) {
+    const ref = doc(db, "vasWorkOrderLines", line.id);
+    batch.set(ref, line);
+  }
+  await batch.commit();
+}
+
+// ============================================================
+// Cross-Docking
+// ============================================================
+export async function fetchCrossDockMatches(
+  tenantId?: string,
+  warehouseId?: string,
+): Promise<CrossDockMatch[]> {
+  let q: Query = collection(db, "crossdockMatches");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("matchedAt", "desc"));
+  else q = query(q, orderBy("matchedAt", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CrossDockMatch));
+}
+
+export function subscribeCrossDockMatches(
+  callback: (matches: CrossDockMatch[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "crossdockMatches");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("matchedAt", "desc"));
+  else q = query(q, orderBy("matchedAt", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CrossDockMatch)));
+  });
+}
+
+export async function createCrossDockMatch(data: Omit<CrossDockMatch, "id">): Promise<string> {
+  const ref = doc(collection(db, "crossdockMatches"));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+export async function updateCrossDockMatch(id: string, data: Partial<CrossDockMatch>): Promise<void> {
+  await updateDoc(doc(db, "crossdockMatches", id), data);
+}
+
+export async function deleteCrossDockMatch(id: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "crossdockMatches", id));
+  return { ok: true };
+}
+
+// ============================================================
+// Catch Weight
+// ============================================================
+export async function fetchCatchWeightItems(
+  tenantId?: string,
+  warehouseId?: string,
+): Promise<CatchWeightItem[]> {
+  let q: Query = collection(db, "catchWeightItems");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions);
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as CatchWeightItem[];
+}
+
+export function subscribeCatchWeightItems(
+  callback: (items: CatchWeightItem[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "catchWeightItems");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions);
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as CatchWeightItem[]);
+  });
+}
+
+export async function createCatchWeightItem(data: Omit<CatchWeightItem, "sku"> & { sku: string }): Promise<string> {
+  const ref = doc(collection(db, "catchWeightItems"), data.sku);
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+export async function updateCatchWeightItem(sku: string, data: Partial<CatchWeightItem>): Promise<void> {
+  await updateDoc(doc(db, "catchWeightItems", sku), data);
+}
+
+export async function fetchCatchWeightLogs(
+  tenantId?: string,
+  warehouseId?: string,
+): Promise<CatchWeightLog[]> {
+  let q: Query = collection(db, "catchWeightLogs");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("capturedAt", "desc"));
+  else q = query(q, orderBy("capturedAt", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CatchWeightLog));
+}
+
+export function subscribeCatchWeightLogs(
+  callback: (logs: CatchWeightLog[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "catchWeightLogs");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("capturedAt", "desc"));
+  else q = query(q, orderBy("capturedAt", "desc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CatchWeightLog)));
+  });
+}
+
+export async function createCatchWeightLog(data: Omit<CatchWeightLog, "id">): Promise<string> {
+  const ref = doc(collection(db, "catchWeightLogs"));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+// ============================================================
+// Labor Forecasting
+// ============================================================
+export async function createLaborForecast(data: Omit<LaborForecast, "id">): Promise<string> {
+  const ref = doc(collection(db, "laborForecasts"));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+export async function updateLaborForecast(id: string, data: Partial<LaborForecast>): Promise<void> {
+  await updateDoc(doc(db, "laborForecasts", id), data);
+}
+
+export async function deleteLaborForecast(id: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "laborForecasts", id));
+  return { ok: true };
+}
+
+export function subscribeLaborForecasts(
+  callback: (forecasts: LaborForecast[]) => void,
+  tenantId?: string,
+  warehouseId?: string,
+): Unsubscribe {
+  let q: Query = collection(db, "laborForecasts");
+  const conditions: any[] = [];
+  if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
+  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (conditions.length > 0) q = query(q, ...conditions, orderBy("forecastDate", "asc"));
+  else q = query(q, orderBy("forecastDate", "asc"));
+  return onSnapshot(q, (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as LaborForecast)));
+  });
+}
+
+export async function createShiftSchedule(data: Omit<ShiftSchedule, "id">): Promise<string> {
+  const ref = doc(collection(db, "shiftSchedules"));
+  await setDoc(ref, data);
+  return ref.id;
+}
+
+export async function updateShiftSchedule(id: string, data: Partial<ShiftSchedule>): Promise<void> {
+  await updateDoc(doc(db, "shiftSchedules", id), data);
+}
+
+export async function deleteShiftSchedule(id: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "shiftSchedules", id));
+  return { ok: true };
 }
 

@@ -197,7 +197,10 @@ export const itemMaster: ItemMasterRecord[] = [
       active: true,
       source: "EDI_832",
       effectiveAt: ts("2026-05-01T00:00:00Z"),
-    };
+      lotControl: false,
+      expiryControl: false,
+      serialControl: false,
+    } satisfies ItemMasterRecord;
   }),
   (() => {
     const s = specFor("ACM-SLPBG-20F", 6, 3.4);
@@ -225,6 +228,9 @@ export const itemMaster: ItemMasterRecord[] = [
       active: true,
       source: "EDI_832",
       effectiveAt: ts("2026-05-12T00:00:00Z"),
+      lotControl: false,
+      expiryControl: false,
+      serialControl: false,
     } satisfies ItemMasterRecord;
   })(),
   (() => {
@@ -253,6 +259,9 @@ export const itemMaster: ItemMasterRecord[] = [
       active: true,
       source: "EDI_832",
       effectiveAt: ts("2026-05-02T00:00:00Z"),
+      lotControl: false,
+      expiryControl: false,
+      serialControl: false,
     } satisfies ItemMasterRecord;
   })(),
 ];
@@ -378,6 +387,14 @@ export type LocationRecord = {
   velocityScore?: number;
   /** Recommended SKU(s) for this location */
   recommendedSku?: string;
+  /** Hazmat-approved location */
+  hazmatAllowed?: boolean;
+  /** Climate-controlled / temperature-controlled location */
+  tempControlled?: boolean;
+  /** Minimum temperature in °F */
+  tempMin?: number;
+  /** Maximum temperature in °F */
+  tempMax?: number;
 };
 
 export const locationMaster: LocationRecord[] = [

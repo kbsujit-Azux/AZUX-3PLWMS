@@ -5,9 +5,11 @@ import { collection, getDocs, getDoc, doc, updateDoc, addDoc, query, where, limi
 import { hashPassword, verifyPassword } from "@shared/lib/password-utils";
 import { recordLaborEvent, computeStandardSec, getAisleFromLocation } from "./lib/labor";
 import { useScanner } from "./hooks/useScanner";
+import { BrowserMultiFormatReader } from "@zxing/browser";
 import { useVoicePicking } from "@shared/hooks/useVoicePicking";
-import { enqueue, useOfflineQueue } from "./lib/offline-queue";
+import { enqueue, useOfflineQueue, flushQueue } from "./lib/offline-queue";
 import { ttsSpeak, ttsAvailable, useTTS } from "@shared/lib/tts";
+import { parseGs1Barcode, isLikelyGs1 } from "@shared/lib/gs1-parser";
 import { PackageSearch, MoveRight, ClipboardList, Container, ScanLine, History, LogOut, ArrowLeft, CheckCircle2, AlertTriangle, MapPin, Boxes, Warehouse, Camera, CameraOff, X, PackageCheck, Tag, Package, Wrench, Truck, Zap, Clock, UserCheck, Download, WifiOff, Mic, MicOff } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -138,7 +140,7 @@ function playChime(type: "ok" | "err") {
 }
 
 // ─── Scanner Hook ────────────────────────────────────────────────────────────
-function useCameraScanner(onScan: (code: string) => void) {
+function useCameraScanner(onScan: (code: string, gs1?: ReturnType<typeof parseGs1Barcode>) => void) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -146,10 +148,13 @@ function useCameraScanner(onScan: (code: string) => void) {
   const [error, setError] = useState<string>("");
   const [flash, setFlash] = useState(false);
   const [scannerSource, setScannerSource] = useState<"camera" | "datwedge" | "keyboard">("camera");
-  const rafRef = useRef<number>(0);
+  const [lastGs1, setLastGs1] = useState<ReturnType<typeof parseGs1Barcode> | undefined>(undefined);
   const lastScanRef = useRef<string>("");
-  const scanCooldownRef = useRef<number>(0);
+  const scanCooldownRef = useRef(0);
   const bufferRef = useRef<{ value: string; timer: number }>({ value: "", timer: 0 });
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef(0);
 
   const resetBuffer = useCallback(() => {
     bufferRef.current.value = "";
@@ -162,89 +167,79 @@ function useCameraScanner(onScan: (code: string) => void) {
     setScannerSource(source);
     setFlash(true);
     setTimeout(() => setFlash(false), 200);
-    onScan(trimmed);
+
+    const gs1 = isLikelyGs1(trimmed) ? parseGs1Barcode(trimmed) : undefined;
+    setLastGs1(gs1);
+
+    onScan(trimmed, gs1);
     lastScanRef.current = trimmed;
     scanCooldownRef.current = Date.now();
     resetBuffer();
     if (navigator.vibrate) navigator.vibrate(50);
   }, [onScan, resetBuffer]);
 
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (readerRef.current) {
+      try {
+        readerRef.current.reset();
+      } catch {
+        // ignore reset errors
+      }
+      readerRef.current = null;
+    }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    setStream(null);
+    setScanning(false);
+  }, []);
+
   const startCamera = useCallback(async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-      });
-      setStream(mediaStream);
-      setError("");
+      stopCamera();
+      const reader = new BrowserMultiFormatReader();
+      readerRef.current = reader;
       setScanning(true);
       setScannerSource("camera");
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        videoRef.current.setAttribute("playsinline", "");
-        videoRef.current.play();
-      }
+      setError("");
+
+      const mediaStream = await reader.decodeFromVideoDevice(
+        undefined,
+        videoRef.current!,
+        (result) => {
+          if (!result) return;
+          const code = result.getText().trim();
+          if (!code) return;
+          const now = Date.now();
+          if (code === lastScanRef.current || now - scanCooldownRef.current < 500) {
+            return;
+          }
+          lastScanRef.current = code;
+          scanCooldownRef.current = now;
+          handleScan(code, "camera");
+        },
+      );
+
+      streamRef.current = mediaStream as unknown as MediaStream;
+      setStream(mediaStream as unknown as MediaStream);
     } catch (e: unknown) {
+      stopCamera();
       const msg = e instanceof Error ? e.message : "Camera access denied";
       setError(msg);
       toast.error("Camera error", { description: msg });
     }
-  }, []);
-
-  const stopCamera = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-      setStream(null);
-    }
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    setScanning(false);
-  }, [stream]);
-
-  const tick = useCallback(async () => {
-    if (!scanning || !videoRef.current || !canvasRef.current || !videoRef.current.videoWidth) {
-      rafRef.current = requestAnimationFrame(tick);
-      return;
-    }
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) { rafRef.current = requestAnimationFrame(tick); return; }
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-
-    try {
-      if ("BarcodeDetector" in window && video.readyState >= 2) {
-        const detector = new (window as unknown as Record<string, unknown>).BarcodeDetector({ formats: ["code_128", "code_39", "ean_13", "upc_a", "qr_code"] });
-        const barcodes = await (detector as { detect: (input: HTMLCanvasElement) => Promise<Array<{ rawValue: string }>> }).detect(canvas);
-        const now = Date.now();
-        for (const barcode of barcodes) {
-          if (barcode.rawValue && barcode.rawValue !== lastScanRef.current && now - scanCooldownRef.current > 2000) {
-            handleScan(barcode.rawValue, "camera");
-            break;
-          }
-        }
-      }
-    } catch { /* barcode detection failed for this frame */ }
-
-    rafRef.current = requestAnimationFrame(tick);
-  }, [scanning, handleScan]);
-
-  useEffect(() => {
-    if (scanning) {
-      rafRef.current = requestAnimationFrame(tick);
-    }
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [scanning, tick]);
+  }, [handleScan, stopCamera]);
 
   useEffect(() => {
     return () => {
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      stopCamera();
     };
-  }, [stream]);
+  }, [stopCamera]);
 
   // DataWedge intent listener (Zebra)
   useEffect(() => {
@@ -289,7 +284,23 @@ function useCameraScanner(onScan: (code: string) => void) {
     };
   }, [handleScan, resetBuffer]);
 
-  return { videoRef, canvasRef, stream, scanning, error, flash, scannerSource, startCamera, stopCamera };
+  return { videoRef, canvasRef, stream, scanning, error, flash, scannerSource, lastGs1, startCamera, stopCamera };
+}
+
+function Gs1InfoPanel({ gs1 }: { gs1?: ReturnType<typeof parseGs1Barcode> }) {
+  if (!gs1) return null;
+  return (
+    <div className="border border-sky-500/40 bg-sky-950/30 rounded-md p-3 space-y-1.5">
+      <div className="text-[10px] font-medium text-sky-400 uppercase tracking-wider">GS1 Parsed</div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+        {gs1.sku && <div><span className="text-slate-500">SKU:</span> <span className="font-mono text-white">{gs1.sku}</span></div>}
+        {gs1.ai10 && <div><span className="text-slate-500">Lot:</span> <span className="font-mono text-white">{gs1.ai10}</span></div>}
+        {gs1.expiryDate && <div><span className="text-slate-500">Exp:</span> <span className="font-mono text-white">{gs1.expiryDate}</span></div>}
+        {gs1.ai17 && !gs1.expiryDate && <div><span className="text-slate-500">Exp:</span> <span className="font-mono text-white">{gs1.ai17}</span></div>}
+        {gs1.ai21 && <div><span className="text-slate-500">S/N:</span> <span className="font-mono text-white">{gs1.ai21}</span></div>}
+      </div>
+    </div>
+  );
 }
 
 // ─── Shared UI ──────────────────────────────────────────────────────────────
@@ -494,7 +505,7 @@ function PutawayScreen({ employee }: { employee: Employee }) {
     finally { setBusy(false); }
   }, [pallet, location, employee, busy]);
 
-  const scanner = useCameraScanner((code) => {
+  const scanner = useCameraScanner((code, _gs1) => {
     if (step === "scan-pallet") handlePallet(code);
     else if (step === "scan-location") handleLoc(code);
   });
@@ -513,6 +524,7 @@ function PutawayScreen({ employee }: { employee: Employee }) {
         </div>
       </div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
+      {scanner.lastGs1 && <Gs1InfoPanel gs1={scanner.lastGs1} />}
       {(step === "scan-pallet" || step === "scan-location") && (
         <div className="space-y-3">
           <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} scannerSource={scanner.scannerSource} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} arMode={arMode ? "putaway" : undefined} arLocation={arMode ? location : undefined} arSku={arMode ? pallet?.sku : undefined} arQty={arMode ? pallet?.units : undefined} arStatus={arMode && location ? "pending" : undefined} />
@@ -618,7 +630,7 @@ function MoveScreen({ employee }: { employee: Employee }) {
     finally { setBusy(false); }
   }, [pallet, origin, dest, employee, busy]);
 
-  const scanner = useCameraScanner((code) => {
+  const scanner = useCameraScanner((code, _gs1) => {
     if (step === "scan-origin") handleOrigin(code);
     else if (step === "scan-dest") handleDest(code);
   });
@@ -632,6 +644,7 @@ function MoveScreen({ employee }: { employee: Employee }) {
         </button>
       </div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
+      {scanner.lastGs1 && <Gs1InfoPanel gs1={scanner.lastGs1} />}
       {(step === "scan-origin" || step === "scan-dest") && (
         <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
       )}
@@ -705,7 +718,7 @@ function PickScreen({ employee }: { employee: Employee }) {
     finally { setBusy(false); }
   }, [ticket, qty, employee, busy]);
 
-  const scanner = useCameraScanner((code) => { setTicketId(code); });
+  const scanner = useCameraScanner((code, _gs1) => { setTicketId(code); });
 
   return (
     <div className="p-3 sm:p-4 space-y-4">
@@ -716,6 +729,7 @@ function PickScreen({ employee }: { employee: Employee }) {
         </button>
       </div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
+      {scanner.lastGs1 && <Gs1InfoPanel gs1={scanner.lastGs1} />}
       {!ticket ? (
         <div className="space-y-3">
           <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} scannerSource={scanner.scannerSource} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
@@ -811,7 +825,7 @@ function ReceivingScreen({ employee }: { employee: Employee }) {
     finally { setBusy(false); }
   }, [shipment, lines, received, employee, busy]);
 
-  const scanner = useCameraScanner((code) => setShipmentId(code));
+  const scanner = useCameraScanner((code, _gs1) => setShipmentId(code));
 
   return (
     <div className="p-3 sm:p-4 space-y-4">
@@ -822,6 +836,7 @@ function ReceivingScreen({ employee }: { employee: Employee }) {
         </button>
       </div>
       {error && (<div className="border border-amber-500/50 bg-amber-950/30 rounded-md p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /><span>{error}</span></div>)}
+      {scanner.lastGs1 && <Gs1InfoPanel gs1={scanner.lastGs1} />}
       {!shipment ? (
         <div className="space-y-3">
           <CameraOverlay videoRef={scanner.videoRef} canvasRef={scanner.canvasRef} stream={scanner.stream} scanning={scanner.scanning} flash={scanner.flash} scannerSource={scanner.scannerSource} onStart={scanner.startCamera} onStop={scanner.stopCamera} error={scanner.error} />
@@ -863,11 +878,12 @@ function InquiryScreen({ employee }: { employee: Employee }) {
     } catch (e: unknown) { setResult(e instanceof Error ? e.message : "Lookup failed"); setDetail([]); playChime("err"); }
   }, [mode, input, employee]);
 
-  const scanner = useCameraScanner((code) => { setInput(code); });
+  const scanner = useCameraScanner((code, _gs1) => { setInput(code); });
 
   return (
     <div className="p-3 sm:p-4 space-y-4">
       <div className="flex items-center gap-2"><ScanLine className="h-5 w-5 text-emerald-400" /><h1 className="text-lg font-semibold">Inquiry</h1></div>
+      {scanner.lastGs1 && <Gs1InfoPanel gs1={scanner.lastGs1} />}
       <div className="flex gap-2 text-xs">
         {(["pallet", "location", "sku"] as const).map((m) => (<button key={m} className={`flex-1 py-2 rounded border ${mode === m ? "border-emerald-500 bg-emerald-950/30 text-emerald-400" : "border-slate-800 text-slate-400"}`} onClick={() => setMode(m)}>{m.toUpperCase()}</button>))}
       </div>

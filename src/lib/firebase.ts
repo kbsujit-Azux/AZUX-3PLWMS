@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 
 const getEnv = (key: string) => {
@@ -34,7 +34,6 @@ const useEmulator = getEnv("VITE_USE_EMULATOR") === "true";
 
 if (useEmulator) {
   try {
-    // Only connect if it has not been connected in this JS environment already
     connectFirestoreEmulator(db, "localhost", 8080);
     console.log("WMS connected to local Firestore emulator (localhost:8080)");
   } catch (err: any) {
@@ -42,6 +41,16 @@ if (useEmulator) {
       console.warn("Firestore Emulator connection error:", err);
     }
   }
+}
+
+if (typeof window !== "undefined") {
+  enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code === "failed-precondition") {
+      console.warn("Firestore persistence failed: multiple tabs open");
+    } else if (err.code === "unimplemented") {
+      console.warn("Firestore persistence not available in this browser");
+    }
+  });
 }
 
 export { app, db, analytics };

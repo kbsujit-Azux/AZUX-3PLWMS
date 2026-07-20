@@ -138,9 +138,10 @@ function CompliancePage() {
       return;
     }
     const ids = quarantineForm.serialIds.split(",").map((s) => s.trim()).filter(Boolean);
+    const quarantineId = `qo-${Date.now()}`;
     try {
-      const order = await createQuarantineOrder({
-        id: `qo-${Date.now()}`,
+      await createQuarantineOrder({
+        id: quarantineId,
         tenantId: "tenant-1",
         serialInventoryIds: ids,
         reason: quarantineForm.reason,
@@ -157,7 +158,7 @@ function CompliancePage() {
         actor: "current-user",
         action: "serial_status_changed",
         entityType: "serial_inventory",
-        entityId: order.id,
+        entityId: quarantineId,
         afterState: { status: "quarantined", reason: quarantineForm.reason },
       });
       toast.success("Quarantine order created");
