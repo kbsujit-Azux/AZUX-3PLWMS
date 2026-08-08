@@ -14,7 +14,10 @@
     "seed:new-features": "npx tsx scripts/seed-new-features.ts",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules",
+    "firebase:deploy:hosting": "firebase deploy --only hosting",
+    "firebase:deploy": "firebase deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

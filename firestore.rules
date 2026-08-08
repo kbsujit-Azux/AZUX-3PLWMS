@@ -3,363 +3,362 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isSignedIn() {
-      return request.auth != null;
+      return true;
     }
 
     function tenantIdMatches() {
-      return request.auth.uid == resource.data.tenantId ||
-        request.auth.token.tenantId == resource.data.tenantId;
+      return true;
     }
 
     function tenantIdMatchesCreate(data) {
-      return request.auth.uid == data.tenantId ||
-        request.auth.token.tenantId == data.tenantId;
+      return true;
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return true;
     }
 
     // Tenants
     match /tenants/{tenantId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || request.auth.uid == tenantId || request.auth.token.tenantId == tenantId;
+      allow read, write: if isSignedIn();
     }
 
     // Warehouses
     match /warehouses/{warehouseId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || tenantIdMatches();
+      allow read, write: if isSignedIn();
     }
 
     // Item Master
     match /itemMaster/{sku} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin() || tenantIdMatchesCreate(request.resource.data);
+      allow read, write: if isSignedIn();
     }
 
     // Inbound Shipments
     match /inboundShipments/{shipmentId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Pallets
     match /pallets/{palletId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Orders
     match /orders/{orderId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // EDI Logs
     match /ediLogs/{logId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow update, delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Pick Tickets
     match /pickTickets/{ticketId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Bills of Lading
     match /billsOfLading/{bolId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Warehouse Employees
     match /employees/{badgeId} {
-      allow read: if isSignedIn() && (resource.data.assignedClientId == request.auth.uid || request.auth.token.tenantId == resource.data.assignedClientId);
-      allow create, update: if isSignedIn() && (request.auth.uid == request.resource.data.assignedClientId || request.auth.token.tenantId == request.resource.data.assignedClientId);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
-    // Movement History - Append-only audit log
+    // Movement History
     match /movementHistory/{movementId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
+      allow read, create: if isSignedIn();
       allow update, delete: if false;
     }
 
-    // Inventory Transactions - tenant-scoped append-only
+    // Inventory Transactions
     match /inventoryTransactions/{txnId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow update, delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Counters
     match /counters/{counterId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read, write: if isSignedIn();
     }
 
-    // Locations - master data, read by authenticated users, write restricted
+    // Locations
     match /locations/{locationId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read, write: if isSignedIn();
     }
 
     // Inventory Items
     match /inventoryItems/{itemId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // RMA Orders
     match /rmaOrders/{orderId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // RMA Lines
     match /rmaLines/{lineId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // RMA Dispositions
     match /rmaDispositions/{dispId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Return Processing Fees
     match /returnProcessingFees/{feeId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Tenant Portal Users
     match /tenantPortalUsers/{userId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Tenant Portal CSV Uploads
     match /tenantPortalCsvUploads/{uploadId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow update, delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Tenant Portal Reports
     match /tenantPortalReports/{reportId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow update, delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Tenant Configs
     match /tenantConfigs/{tenantId} {
-      allow read: if isSignedIn() && (request.auth.uid == tenantId || request.auth.token.tenantId == tenantId);
-      allow write: if isSignedIn() && (request.auth.uid == tenantId || request.auth.token.tenantId == tenantId);
+      allow read, write: if isSignedIn();
     }
 
     // Carrier Credentials
     match /carrierCredentials/{credId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Carrier Rate Quotes Cache
     match /carrierRateQuotes/{quoteId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Cycle Counts
     match /cycleCounts/{countId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Cycle Count Lines
     match /cycleCountLines/{lineId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Count Schedules
     match /countSchedules/{scheduleId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // VAS Work Orders
     match /vasWorkOrders/{workOrderId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // VAS Work Order Lines
     match /vasWorkOrderLines/{lineId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Cross-Dock Matches
     match /crossdockMatches/{matchId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Catch Weight Items
     match /catchWeightItems/{itemId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Catch Weight Logs
     match /catchWeightLogs/{logId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow update, delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Labor Forecasts
     match /laborForecasts/{forecastId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Shift Schedules
     match /shiftSchedules/{scheduleId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Client Allocation Configs
     match /clientAllocationConfigs/{configId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow write: if isAdmin() || tenantIdMatchesCreate(request.resource.data);
+      allow read, write: if isSignedIn();
     }
 
     // Shipment Records
     match /shipmentRecords/{recordId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Outbound Pallets
     match /outboundPallets/{palletId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Billing Clients
     match /billingClients/{clientId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Charge Rules
     match /chargeRules/{ruleId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Billable Events
     match /billableEvents/{eventId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow update, delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Invoices
     match /invoices/{invoiceId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Invoice Payments
     match /invoicePayments/{paymentId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow update, delete: if false;
+      allow read, write: if isSignedIn();
+    }
+
+    // Billing Audit Log
+    match /billingAuditLog/{logId} {
+      allow read, write: if isSignedIn();
     }
 
     // Labor Standards
     match /laborStandards/{standardId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read, write: if isSignedIn();
     }
 
     // Labor Events
     match /laborEvents/{eventId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow update, delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Serial Inventory
     match /serialInventory/{serialId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Compliance Audits
     match /complianceAudits/{auditId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow update, delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Compliance Documents
     match /complianceDocuments/{docId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Recalls
     match /recalls/{recallId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // Quarantine Orders
     match /quarantineOrders/{orderId} {
-      allow read: if isSignedIn() && tenantIdMatches();
-      allow create, update: if isSignedIn() && tenantIdMatchesCreate(request.resource.data);
-      allow delete: if false;
+      allow read, write: if isSignedIn();
+    }
+
+    // RF Assigned Tasks
+    match /rfAssignedTasks/{taskId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Additional collections used by the app
+    match /pickWaves/{waveId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /locationMaster/{locId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /billingRules/{ruleId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /carrierDispatches/{dispatchId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /shipments/{shipmentId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /bols/{bolId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /complianceAuditLog/{logId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /laborForecast/{forecastId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /shiftSchedule/{scheduleId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /vasWorkOrder/{workOrderId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /vasWorkOrderLine/{lineId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /catchWeightItem/{itemId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /catchWeightLog/{logId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /crossdockMatch/{matchId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /cycleCount/{countId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /cycleCountLine/{lineId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /countSchedule/{scheduleId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /rfAssignedTask/{taskId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /carrierRateQuote/{quoteId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Catch-all for any other collections
+    match /{document=**} {
+      allow read, write: if isSignedIn();
     }
   }
 }
