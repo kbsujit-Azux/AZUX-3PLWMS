@@ -17,7 +17,7 @@
  *    • pallets[], pickWaves[]    — Pallet & wave management
  *    • orders[], pickTickets[]   — Order lifecycle
  *    • inboundShipments[]        — ASN receiving
- *    • carrierDispatches[]       — Shipment/yard ops
+ *    • shipments[]              — Shipment/yard ops
  *    • bols[]                    — Bills of lading
  *    • billingClients, billingRules, billableEvents, invoices[]
  *    • itemMaster[], locationMaster[] — Master data
@@ -586,7 +586,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           await seedCollection("pickWaves", seedPickWaves, (item) => item.id);
           await seedCollection("orders", seedOrders, (item) => item.id);
           await seedCollection("inboundShipments", seedInboundShipments, (item) => item.id);
-          await seedCollection("carrierDispatches", seedCarrierDispatches, (item) => item.id);
+          await seedCollection("shipments", seedCarrierDispatches, (item) => item.id);
           await seedCollection("bols", seedBols, (item) => item.id);
           await seedCollection("itemMaster", seedItemMaster, (item) => item.sku);
           await seedCollection("locationMaster", seedLocationMaster, (item) => item.id);
@@ -675,10 +675,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     syncCollection("pickWaves", setPickWaves, libPickWaves as unknown as PickWave[]);
     syncCollection("orders", setOrders, libOrders);
     syncCollection("inboundShipments", setInboundShipments, libInboundShipments);
-    syncCollection("carrierDispatches", setCarrierDispatches, libCarrierDispatches);
+    syncCollection("shipments", setCarrierDispatches, libCarrierDispatches);
     syncCollection("bols", setBols, libBols);
     syncCollection("billingClients", setBillingClients);
-    syncCollection("billingRules", setBillingRules);
+    syncCollection("chargeRules", setBillingRules);
     syncCollection("billableEvents", setBillableEvents);
     syncCollection("invoices", setInvoices);
     syncCollection("itemMaster", setItemMaster, libItemMaster);

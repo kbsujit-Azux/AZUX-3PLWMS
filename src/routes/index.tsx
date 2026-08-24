@@ -346,7 +346,7 @@ function Dashboard() {
       addLog({
         ts: new Date(nowMs - 1200000).toLocaleTimeString("en-US", { hour12: false }),
         level: "warn",
-        warehouse: l.warehouseCode || warehouseId,
+        warehouse: l.warehouseId || warehouseId,
         message: `EDI ${l.txnType} ${l.status}: ${l.direction}`,
         ref: l.id,
       });
