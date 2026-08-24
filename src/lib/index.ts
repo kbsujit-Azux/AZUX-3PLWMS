@@ -794,8 +794,30 @@ export {
   deleteShiftSchedule,
 } from "./firestore-data";
 
+// ─── Settings CRUD (Clients, Users, Carrier Services) ───────────────────
+export {
+  fetchClients,
+  subscribeClients,
+  createClient,
+  updateClient,
+  deleteClient,
+  fetchUsers,
+  subscribeUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  fetchCarrierServices,
+  subscribeCarrierServices,
+  createCarrierService,
+  updateCarrierService,
+  deleteCarrierService,
+} from "./firestore-data";
+
+export type { SettingsClient, SettingsUser } from "./firestore-data";
+
 // ─── Re-export db-context (React data provider) ─────────────────────────
 export { DatabaseProvider, useWmsData } from "./db-context";
+
 
 
 

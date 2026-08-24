@@ -51,44 +51,34 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useWmsData } from "@/components/db-context";
+import {
+  createWarehouse,
+  updateWarehouse,
+  deleteWarehouse,
+  createClient,
+  updateClient,
+  deleteClient,
+  createUser,
+  updateUser,
+  deleteUser,
+  createCarrierService,
+  updateCarrierService,
+  deleteCarrierService,
+} from "@/lib/firestore-data";
+import type { Warehouse } from "@/lib/mock-data";
+import type { SettingsClient, SettingsUser } from "@/lib/firestore-data";
+import type { CarrierServiceRecord } from "@/lib/carrier-services";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — AZUX 3PL WMS Systems" }] }),
   component: SettingsPage,
 });
 
-// ───────────────────────── Types ─────────────────────────
 type BusinessType = "Warehousing" | "Transload" | "Warehousing+Transload";
 type AllocRule = "FIFO" | "LIFO";
 
-type ClientRecord = {
-  id: string;
-  code: string;
-  name: string;
-  arAccount: string;
-  address: string;
-  contactPerson: string;
-  contactEmail: string;
-  contactPhone: string;
-  businessType: BusinessType;
-  allocationRule: AllocRule;
-  preferredLocationPrefix: string;
-  useDropForAllocation: boolean;
-  active: boolean;
-};
-
-type WarehouseRecord = {
-  id: string;
-  code: string;
-  name: string;
-  city: string;
-  addressLine: string;
-  squareFeet: number;
-  capacityPct: number;
-  manager: string;
-  active: boolean;
-};
-
+type ClientRecord = SettingsClient;
 type UserRole =
   | "Admin"
   | "Operations Manager"
@@ -97,14 +87,8 @@ type UserRole =
   | "Receiver"
   | "Billing"
   | "Viewer";
-type UserRecord = {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  warehouseCode: string;
-  active: boolean;
-};
+type UserRecord = SettingsUser;
+type CarrierServiceRecordSettings = CarrierServiceRecord;
 
 const ROLES: UserRole[] = [
   "Admin",
@@ -117,364 +101,12 @@ const ROLES: UserRole[] = [
 ];
 const BIZ_TYPES: BusinessType[] = ["Warehousing", "Transload", "Warehousing+Transload"];
 
-type CarrierServiceRecord = {
-  id: string;
-  carrier: string;
-  serviceCode: string;
-  serviceDescription: string;
-  transitDays: string;
-  pricingTier: string;
-  typicalUseCase: string;
-  active: boolean;
-};
-
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-// ───────────────────────── Seeds ─────────────────────────
-const seedClients: ClientRecord[] = [
-  {
-    id: uid(),
-    code: "ACME",
-    name: "Acme Outdoor Co.",
-    arAccount: "AR-10045",
-    address: "1840 Riverbend Pkwy, Atlanta, GA 30339",
-    contactPerson: "Maya Chen",
-    contactEmail: "maya.chen@acmeoutdoor.com",
-    contactPhone: "+1 (404) 555-0119",
-    businessType: "Warehousing",
-    allocationRule: "FIFO",
-    preferredLocationPrefix: "A12",
-    useDropForAllocation: true,
-    active: true,
-  },
-  {
-    id: uid(),
-    code: "NSAP",
-    name: "Northstar Apparel",
-    arAccount: "AR-10078",
-    address: "9 Lakeshore Dr, Chicago, IL 60611",
-    contactPerson: "Eli Park",
-    contactEmail: "eli@northstar.co",
-    contactPhone: "+1 (312) 555-0144",
-    businessType: "Warehousing+Transload",
-    allocationRule: "LIFO",
-    preferredLocationPrefix: "D04",
-    useDropForAllocation: false,
-    active: true,
-  },
-  {
-    id: uid(),
-    code: "HLE",
-    name: "Harborlite Electronics",
-    arAccount: "AR-10112",
-    address: "55 Port Terminal Rd, Newark, NJ 07114",
-    contactPerson: "Priya Shah",
-    contactEmail: "priya.shah@harborlite.io",
-    contactPhone: "+1 (973) 555-0188",
-    businessType: "Transload",
-    allocationRule: "FIFO",
-    preferredLocationPrefix: "C08",
-    useDropForAllocation: true,
-    active: true,
-  },
-  {
-    id: uid(),
-    code: "VRDN",
-    name: "Verdant Wellness",
-    arAccount: "AR-10133",
-    address: "402 Greenway Blvd, Austin, TX 78704",
-    contactPerson: "Jordan Lee",
-    contactEmail: "jordan@verdant.co",
-    contactPhone: "+1 (512) 555-0102",
-    businessType: "Warehousing",
-    allocationRule: "FIFO",
-    preferredLocationPrefix: "G01",
-    useDropForAllocation: false,
-    active: true,
-  },
-];
-
-const seedWarehouses: WarehouseRecord[] = [
-  {
-    id: uid(),
-    code: "ATL1",
-    name: "ATL-1 Distribution",
-    city: "Atlanta, GA",
-    addressLine: "1840 Riverbend Pkwy",
-    squareFeet: 240000,
-    capacityPct: 78,
-    manager: "Devon Hill",
-    active: true,
-  },
-  {
-    id: uid(),
-    code: "ORD2",
-    name: "ORD-2 Fulfillment",
-    city: "Chicago, IL",
-    addressLine: "9 Lakeshore Dr",
-    squareFeet: 310000,
-    capacityPct: 64,
-    manager: "Sara Owens",
-    active: true,
-  },
-  {
-    id: uid(),
-    code: "LAX3",
-    name: "LAX-3 Cross-Dock",
-    city: "Los Angeles, CA",
-    addressLine: "880 Terminal Way",
-    squareFeet: 180000,
-    capacityPct: 91,
-    manager: "Marcus Reid",
-    active: true,
-  },
-  {
-    id: uid(),
-    code: "EWR1",
-    name: "EWR-1 Bonded",
-    city: "Newark, NJ",
-    addressLine: "55 Port Terminal Rd",
-    squareFeet: 150000,
-    capacityPct: 47,
-    manager: "Anya Volkov",
-    active: true,
-  },
-];
-
-const seedUsers: UserRecord[] = [
-  {
-    id: uid(),
-    name: "Jordan Avery",
-    email: "jordan.avery@azux.com",
-    role: "Admin",
-    warehouseCode: "ALL",
-    active: true,
-  },
-  {
-    id: uid(),
-    name: "Devon Hill",
-    email: "devon.hill@azux.com",
-    role: "Operations Manager",
-    warehouseCode: "ATL1",
-    active: true,
-  },
-  {
-    id: uid(),
-    name: "Sara Owens",
-    email: "sara.owens@azux.com",
-    role: "Warehouse Lead",
-    warehouseCode: "ORD2",
-    active: true,
-  },
-  {
-    id: uid(),
-    name: "Marcus Reid",
-    email: "marcus.reid@azux.com",
-    role: "Warehouse Lead",
-    warehouseCode: "LAX3",
-    active: true,
-  },
-  {
-    id: uid(),
-    name: "Anya Volkov",
-    email: "anya.volkov@azux.com",
-    role: "Receiver",
-    warehouseCode: "EWR1",
-    active: true,
-  },
-  {
-    id: uid(),
-    name: "Riley Park",
-    email: "riley.park@azux.com",
-    role: "Picker",
-    warehouseCode: "ATL1",
-    active: true,
-  },
-  {
-    id: uid(),
-    name: "Tomás Ruiz",
-    email: "tomas.ruiz@azux.com",
-    role: "Billing",
-    warehouseCode: "ALL",
-    active: false,
-  },
-];
-
-const seedCarriers: CarrierServiceRecord[] = [
-  {
-    id: uid(),
-    carrier: "FedEx",
-    serviceCode: "FEDEX_GROUND",
-    serviceDescription: "FedEx Ground (Commercial)",
-    transitDays: "1-5 Days",
-    pricingTier: "Low-Mid",
-    typicalUseCase: "Standard B2B inventory delivery",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "FedEx",
-    serviceCode: "FEDEX_HOME",
-    serviceDescription: "FedEx Home Delivery",
-    transitDays: "1-5 Days",
-    pricingTier: "Mid",
-    typicalUseCase: "Standard B2C e-commerce (Delivers 7 days/wk)",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "FedEx",
-    serviceCode: "FEDEX_GROUND_ECONOMY",
-    serviceDescription: "FedEx Ground Economy",
-    transitDays: "2-7 Days",
-    pricingTier: "Very Low",
-    typicalUseCase: "SmartPost replacement for lightweight <5 lbs",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "FedEx",
-    serviceCode: "FEDEX_EXPRESS_SAVER",
-    serviceDescription: "FedEx Express Saver",
-    transitDays: "3 Days",
-    pricingTier: "Mid-High",
-    typicalUseCase: "Budget-conscious time-definite delivery",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "FedEx",
-    serviceCode: "FEDEX_2_DAY",
-    serviceDescription: "FedEx 2Day",
-    transitDays: "2 Days",
-    pricingTier: "High",
-    typicalUseCase: "Two-day express delivery by end of day",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "FedEx",
-    serviceCode: "FEDEX_STANDARD_OVERNIGHT",
-    serviceDescription: "FedEx Standard Overnight",
-    transitDays: "1 Day",
-    pricingTier: "Very High",
-    typicalUseCase: "Next-day afternoon delivery (by 3:00 PM)",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "FedEx",
-    serviceCode: "FEDEX_PRIORITY_OVERNIGHT",
-    serviceDescription: "FedEx Priority Overnight",
-    transitDays: "1 Day",
-    pricingTier: "Premium",
-    typicalUseCase: "Next-day morning delivery (by 10:30 AM)",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "UPS",
-    serviceCode: "UPS_GROUND",
-    serviceDescription: "UPS Ground",
-    transitDays: "1-5 Days",
-    pricingTier: "Low-Mid",
-    typicalUseCase: "Most common 3PL ground fulfillment tier",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "UPS",
-    serviceCode: "UPS_3_DAY_SELECT",
-    serviceDescription: "UPS 3 Day Select",
-    transitDays: "3 Days",
-    pricingTier: "Mid-High",
-    typicalUseCase: "Cost-effective guaranteed 3-day transit",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "UPS",
-    serviceCode: "UPS_2ND_DAY_AIR",
-    serviceDescription: "UPS 2nd Day Air",
-    transitDays: "2 Days",
-    pricingTier: "High",
-    typicalUseCase: "Routine air shipping to all 50 states",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "UPS",
-    serviceCode: "UPS_NEXT_DAY_AIR_SAVER",
-    serviceDescription: "UPS Next Day Air Saver",
-    transitDays: "1 Day",
-    pricingTier: "Very High",
-    typicalUseCase: "Next-day PM delivery for commercial addresses",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "UPS",
-    serviceCode: "UPS_NEXT_DAY_AIR",
-    serviceDescription: "UPS Next Day Air",
-    transitDays: "1 Day",
-    pricingTier: "Premium",
-    typicalUseCase: "Next-day AM delivery (by 10:30 AM)",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "USPS",
-    serviceCode: "USPS_GROUND_ADVANTAGE",
-    serviceDescription: "USPS Ground Advantage",
-    transitDays: "2-5 Days",
-    pricingTier: "Low",
-    typicalUseCase: "Best for sub-1 lb e-commerce parcels",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "USPS",
-    serviceCode: "USPS_PRIORITY",
-    serviceDescription: "USPS Priority Mail",
-    transitDays: "2-3 Days",
-    pricingTier: "Mid",
-    typicalUseCase: "Faster D2C delivery with built-in $100 insurance",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "USPS",
-    serviceCode: "USPS_PRIORITY_EXPRESS",
-    serviceDescription: "USPS Priority Mail Express",
-    transitDays: "1-2 Days",
-    pricingTier: "High",
-    typicalUseCase: "Overnight to most locations, including P.O. Boxes",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "USPS",
-    serviceCode: "USPS_MEDIA_MAIL",
-    serviceDescription: "USPS Media Mail",
-    transitDays: "2-8 Days",
-    pricingTier: "Lowest",
-    typicalUseCase: "Restricted strictly to books, media, and educational print",
-    active: true,
-  },
-  {
-    id: uid(),
-    carrier: "LTL",
-    serviceCode: "LTL_STANDARD",
-    serviceDescription: "LTL Carrier - Standard",
-    transitDays: "3-7 Days",
-    pricingTier: "Low-Mid",
-    typicalUseCase: "Less-than-truckload palletized freight for B2B shipments",
-    active: true,
-  },
-];
-
-// ───────────────────────── Page ─────────────────────────
 function SettingsPage() {
+  const { warehouses, clients, users, carrierServices, loading } = useWmsData();
+  const [q, setQ] = useState("");
+
   return (
     <div className="px-6 py-8 space-y-6">
       <header className="flex items-center gap-3">
@@ -487,36 +119,151 @@ function SettingsPage() {
         </div>
       </header>
 
-      <Tabs defaultValue="clients" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="clients" className="gap-2">
-            <Building2 className="h-3.5 w-3.5" /> Clients
-          </TabsTrigger>
-          <TabsTrigger value="warehouses" className="gap-2">
-            <WarehouseIcon className="h-3.5 w-3.5" /> Warehouses
-          </TabsTrigger>
-          <TabsTrigger value="users" className="gap-2">
-            <UsersIcon className="h-3.5 w-3.5" /> Users & Roles
-          </TabsTrigger>
-          <TabsTrigger value="carriers" className="gap-2">
-            <Truck className="h-3.5 w-3.5" /> Carriers & Services
-          </TabsTrigger>
-        </TabsList>
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent" />
+        </div>
+      ) : (
+        <Tabs defaultValue="clients" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="clients" className="gap-2">
+              <Building2 className="h-3.5 w-3.5" /> Clients
+            </TabsTrigger>
+            <TabsTrigger value="warehouses" className="gap-2">
+              <WarehouseIcon className="h-3.5 w-3.5" /> Warehouses
+            </TabsTrigger>
+            <TabsTrigger value="users" className="gap-2">
+              <UsersIcon className="h-3.5 w-3.5" /> Users & Roles
+            </TabsTrigger>
+            <TabsTrigger value="carriers" className="gap-2">
+              <Truck className="h-3.5 w-3.5" /> Carriers & Services
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="clients">
-          <ClientsPanel />
-        </TabsContent>
-        <TabsContent value="warehouses">
-          <WarehousesPanel />
-        </TabsContent>
-        <TabsContent value="users">
-          <UsersPanel />
-        </TabsContent>
-        <TabsContent value="carriers">
-          <CarriersPanel />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="clients">
+            <ClientsPanel items={clients} q={q} onSearch={setQ} />
+          </TabsContent>
+          <TabsContent value="warehouses">
+            <WarehousesPanel items={warehouses} q={q} onSearch={setQ} />
+          </TabsContent>
+          <TabsContent value="users">
+            <UsersPanel items={users} q={q} onSearch={setQ} />
+          </TabsContent>
+          <TabsContent value="carriers">
+            <CarriersPanel items={carrierServices} q={q} onSearch={setQ} />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
+  );
+}
+
+function Toolbar({
+  title,
+  count,
+  searchValue,
+  onSearch,
+  onNew,
+  newLabel,
+  searchPlaceholder,
+}: {
+  title: string;
+  count: number;
+  searchValue: string;
+  onSearch: (v: string) => void;
+  onNew: () => void;
+  newLabel: string;
+  searchPlaceholder?: string;
+}) {
+  return (
+    <div className="flex items-end justify-between gap-3">
+      <div>
+        <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+        <p className="text-[11px] text-muted-foreground">
+          {count} record{count === 1 ? "" : "s"}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Input
+          value={searchValue}
+          onChange={(e) => onSearch(e.target.value)}
+          placeholder={searchPlaceholder ?? "Search…"}
+          className="h-9 w-[280px]"
+        />
+        <Button onClick={onNew} size="sm" className="gap-2">
+          <Plus className="h-3.5 w-3.5" /> {newLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={"space-y-1.5 " + (className ?? "")}>
+      <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onEdit}>
+        <Pencil className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7 text-destructive hover:text-destructive"
+        onClick={onDelete}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+function ConfirmDelete({
+  open,
+  label,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  label: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialog open={open} onOpenChange={(o) => !o && onCancel()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete "{label}"?</AlertDialogTitle>
+          <AlertDialogDescription className="text-xs">
+            This action removes the record from Firestore.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -539,36 +286,40 @@ function emptyClient(): ClientRecord {
   };
 }
 
-function ClientsPanel() {
-  const [rows, setRows] = useState<ClientRecord[]>(seedClients);
-  const [q, setQ] = useState("");
+function ClientsPanel({ items, q, onSearch }: { items: ClientRecord[]; q: string; onSearch: (v: string) => void }) {
   const [editing, setEditing] = useState<ClientRecord | null>(null);
   const [toDelete, setToDelete] = useState<ClientRecord | null>(null);
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase().trim();
-    if (!s) return rows;
-    return rows.filter((r) =>
+    if (!s) return items;
+    return items.filter((r) =>
       [r.name, r.code, r.arAccount, r.contactPerson, r.businessType]
         .join(" ")
         .toLowerCase()
         .includes(s),
     );
-  }, [rows, q]);
+  }, [items, q]);
 
-  const save = (rec: ClientRecord) => {
+  const save = async (rec: ClientRecord) => {
     if (!rec.name.trim() || !rec.code.trim()) {
       toast.error("Client name and code are required");
       return;
     }
-    setRows((prev) => {
-      const exists = prev.some((p) => p.id === rec.id);
-      return exists
-        ? prev.map((p) => (p.id === rec.id ? rec : p))
-        : [{ ...rec, id: uid() }, ...prev];
-    });
-    toast.success(rec.id ? "Client updated" : "Client created");
-    setEditing(null);
+    try {
+      if (rec.id) {
+        await updateClient(rec.id, rec);
+        toast.success("Client updated");
+      } else {
+        const id = rec.id || uid();
+        await createClient({ ...rec, id });
+        toast.success("Client created");
+      }
+      setEditing(null);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Save failed";
+      toast.error("Error", { description: msg });
+    }
   };
 
   return (
@@ -577,7 +328,7 @@ function ClientsPanel() {
         title="All Clients"
         count={filtered.length}
         searchValue={q}
-        onSearch={setQ}
+        onSearch={onSearch}
         onNew={() => setEditing(emptyClient())}
         newLabel="New client"
         searchPlaceholder="Search clients, code, AR, contact…"
@@ -662,14 +413,16 @@ function ClientsPanel() {
         </Table>
       </div>
 
-      {editing && <ClientDialog value={editing} onClose={() => setEditing(null)} onSave={save} />}
+      {editing && (
+        <ClientDialog value={editing} onClose={() => setEditing(null)} onSave={save} />
+      )}
       <ConfirmDelete
         open={!!toDelete}
         label={toDelete?.name ?? ""}
         onCancel={() => setToDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (toDelete) {
-            setRows((prev) => prev.filter((p) => p.id !== toDelete.id));
+            await deleteClient(toDelete.id);
             toast.success(`Deleted ${toDelete.name}`);
           }
           setToDelete(null);
@@ -833,9 +586,8 @@ function ClientDialog({
 }
 
 // ───────────────────────── Warehouses ─────────────────────────
-function emptyWarehouse(): WarehouseRecord {
+function emptyWarehouse(): Omit<Warehouse, "id"> {
   return {
-    id: "",
     code: "",
     name: "",
     city: "",
@@ -847,32 +599,36 @@ function emptyWarehouse(): WarehouseRecord {
   };
 }
 
-function WarehousesPanel() {
-  const [rows, setRows] = useState<WarehouseRecord[]>(seedWarehouses);
-  const [q, setQ] = useState("");
-  const [editing, setEditing] = useState<WarehouseRecord | null>(null);
-  const [toDelete, setToDelete] = useState<WarehouseRecord | null>(null);
+function WarehousesPanel({ items, q, onSearch }: { items: Warehouse[]; q: string; onSearch: (v: string) => void }) {
+  const [editing, setEditing] = useState<Warehouse | null>(null);
+  const [toDelete, setToDelete] = useState<Warehouse | null>(null);
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase().trim();
-    if (!s) return rows;
-    return rows.filter((r) =>
+    if (!s) return items;
+    return items.filter((r) =>
       [r.name, r.code, r.city, r.manager].join(" ").toLowerCase().includes(s),
     );
-  }, [rows, q]);
+  }, [items, q]);
 
-  const save = (rec: WarehouseRecord) => {
+  const save = async (rec: Omit<Warehouse, "id">) => {
     if (!rec.name.trim() || !rec.code.trim()) {
       toast.error("Warehouse name and code are required");
       return;
     }
-    setRows((prev) =>
-      prev.some((p) => p.id === rec.id)
-        ? prev.map((p) => (p.id === rec.id ? rec : p))
-        : [{ ...rec, id: uid() }, ...prev],
-    );
-    toast.success(rec.id ? "Warehouse updated" : "Warehouse created");
-    setEditing(null);
+    try {
+      if (editing) {
+        await updateWarehouse(editing.id, rec);
+        toast.success("Warehouse updated");
+      } else {
+        await createWarehouse(rec);
+        toast.success("Warehouse created");
+      }
+      setEditing(null);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Save failed";
+      toast.error("Error", { description: msg });
+    }
   };
 
   return (
@@ -881,8 +637,8 @@ function WarehousesPanel() {
         title="All Warehouses"
         count={filtered.length}
         searchValue={q}
-        onSearch={setQ}
-        onNew={() => setEditing(emptyWarehouse())}
+        onSearch={onSearch}
+        onNew={() => setEditing(null)}
         newLabel="New warehouse"
         searchPlaceholder="Search warehouses, city, manager…"
       />
@@ -938,16 +694,16 @@ function WarehousesPanel() {
         </Table>
       </div>
 
-      {editing && (
+      {editing !== null && (
         <WarehouseDialog value={editing} onClose={() => setEditing(null)} onSave={save} />
       )}
       <ConfirmDelete
         open={!!toDelete}
         label={toDelete?.name ?? ""}
         onCancel={() => setToDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (toDelete) {
-            setRows((prev) => prev.filter((p) => p.id !== toDelete.id));
+            await deleteWarehouse(toDelete.id);
             toast.success(`Deleted ${toDelete.name}`);
           }
           setToDelete(null);
@@ -962,12 +718,21 @@ function WarehouseDialog({
   onClose,
   onSave,
 }: {
-  value: WarehouseRecord;
+  value: Warehouse;
   onClose: () => void;
-  onSave: (r: WarehouseRecord) => void;
+  onSave: (r: Omit<Warehouse, "id">) => void;
 }) {
-  const [draft, setDraft] = useState<WarehouseRecord>(value);
-  const upd = <K extends keyof WarehouseRecord>(k: K, v: WarehouseRecord[K]) =>
+  const [draft, setDraft] = useState<Omit<Warehouse, "id">>({
+    code: value.code,
+    name: value.name,
+    city: value.city,
+    addressLine: value.addressLine,
+    squareFeet: value.squareFeet,
+    capacityPct: value.capacityPct,
+    manager: value.manager,
+    active: value.active,
+  });
+  const upd = <K extends keyof Omit<Warehouse, "id">>(k: K, v: Omit<Warehouse, "id">[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -1049,32 +814,37 @@ function emptyUser(): UserRecord {
   return { id: "", name: "", email: "", role: "Viewer", warehouseCode: "ALL", active: true };
 }
 
-function UsersPanel() {
-  const [rows, setRows] = useState<UserRecord[]>(seedUsers);
-  const [q, setQ] = useState("");
+function UsersPanel({ items, q, onSearch }: { items: UserRecord[]; q: string; onSearch: (v: string) => void }) {
   const [editing, setEditing] = useState<UserRecord | null>(null);
   const [toDelete, setToDelete] = useState<UserRecord | null>(null);
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase().trim();
-    if (!s) return rows;
-    return rows.filter((r) =>
+    if (!s) return items;
+    return items.filter((r) =>
       [r.name, r.email, r.role, r.warehouseCode].join(" ").toLowerCase().includes(s),
     );
-  }, [rows, q]);
+  }, [items, q]);
 
-  const save = (rec: UserRecord) => {
+  const save = async (rec: UserRecord) => {
     if (!rec.name.trim() || !rec.email.trim()) {
       toast.error("Name and email are required");
       return;
     }
-    setRows((prev) =>
-      prev.some((p) => p.id === rec.id)
-        ? prev.map((p) => (p.id === rec.id ? rec : p))
-        : [{ ...rec, id: uid() }, ...prev],
-    );
-    toast.success(rec.id ? "User updated" : "User created");
-    setEditing(null);
+    try {
+      if (rec.id) {
+        await updateUser(rec.id, rec);
+        toast.success("User updated");
+      } else {
+        const id = rec.id || uid();
+        await createUser({ ...rec, id });
+        toast.success("User created");
+      }
+      setEditing(null);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Save failed";
+      toast.error("Error", { description: msg });
+    }
   };
 
   return (
@@ -1083,7 +853,7 @@ function UsersPanel() {
         title="Users & Roles"
         count={filtered.length}
         searchValue={q}
-        onSearch={setQ}
+        onSearch={onSearch}
         onNew={() => setEditing(emptyUser())}
         newLabel="Invite user"
         searchPlaceholder="Search users, email, role…"
@@ -1141,16 +911,16 @@ function UsersPanel() {
           value={editing}
           onClose={() => setEditing(null)}
           onSave={save}
-          warehouseCodes={seedWarehouses.map((w) => w.code)}
+          warehouseCodes={[]}
         />
       )}
       <ConfirmDelete
         open={!!toDelete}
         label={toDelete?.name ?? ""}
         onCancel={() => setToDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (toDelete) {
-            setRows((prev) => prev.filter((p) => p.id !== toDelete.id));
+            await deleteUser(toDelete.id);
             toast.success(`Removed ${toDelete.name}`);
           }
           setToDelete(null);
@@ -1243,8 +1013,8 @@ function UserDialog({
   );
 }
 
-// ───────────────────────── Carriers & Services ─────────────────────────
-function emptyCarrier(): CarrierServiceRecord {
+// ───────────────────────── Carriers ─────────────────────────
+function emptyCarrier(): CarrierServiceRecordSettings {
   return {
     id: "",
     carrier: "",
@@ -1257,36 +1027,40 @@ function emptyCarrier(): CarrierServiceRecord {
   };
 }
 
-function CarriersPanel() {
-  const [rows, setRows] = useState<CarrierServiceRecord[]>(seedCarriers);
-  const [q, setQ] = useState("");
+function CarriersPanel({ items, q, onSearch }: { items: CarrierServiceRecord[]; q: string; onSearch: (v: string) => void }) {
   const [editing, setEditing] = useState<CarrierServiceRecord | null>(null);
   const [toDelete, setToDelete] = useState<CarrierServiceRecord | null>(null);
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase().trim();
-    if (!s) return rows;
-    return rows.filter((r) =>
+    if (!s) return items;
+    return items.filter((r) =>
       [r.carrier, r.serviceCode, r.serviceDescription, r.typicalUseCase, r.pricingTier]
         .join(" ")
         .toLowerCase()
         .includes(s),
     );
-  }, [rows, q]);
+  }, [items, q]);
 
-  const save = (rec: CarrierServiceRecord) => {
+  const save = async (rec: CarrierServiceRecord) => {
     if (!rec.carrier.trim() || !rec.serviceCode.trim() || !rec.serviceDescription.trim()) {
       toast.error("Carrier, service code, and description are required");
       return;
     }
-    setRows((prev) => {
-      const exists = prev.some((p) => p.id === rec.id);
-      return exists
-        ? prev.map((p) => (p.id === rec.id ? rec : p))
-        : [{ ...rec, id: uid() }, ...prev];
-    });
-    toast.success(rec.id ? "Carrier service updated" : "Carrier service created");
-    setEditing(null);
+    try {
+      if (rec.id) {
+        await updateCarrierService(rec.id, rec);
+        toast.success("Carrier service updated");
+      } else {
+        const id = rec.id || uid();
+        await createCarrierService({ ...rec, id });
+        toast.success("Carrier service created");
+      }
+      setEditing(null);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Save failed";
+      toast.error("Error", { description: msg });
+    }
   };
 
   return (
@@ -1295,7 +1069,7 @@ function CarriersPanel() {
         title="Carrier & Service Codes"
         count={filtered.length}
         searchValue={q}
-        onSearch={setQ}
+        onSearch={onSearch}
         onNew={() => setEditing(emptyCarrier())}
         newLabel="Add carrier service"
         searchPlaceholder="Search carrier, service code, description…"
@@ -1355,14 +1129,16 @@ function CarriersPanel() {
         </Table>
       </div>
 
-      {editing && <CarrierDialog value={editing} onClose={() => setEditing(null)} onSave={save} />}
+      {editing && (
+        <CarrierDialog value={editing} onClose={() => setEditing(null)} onSave={save} />
+      )}
       <ConfirmDelete
         open={!!toDelete}
         label={toDelete?.serviceDescription ?? ""}
         onCancel={() => setToDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (toDelete) {
-            setRows((prev) => prev.filter((p) => p.id !== toDelete.id));
+            await deleteCarrierService(toDelete.id);
             toast.success(`Deleted ${toDelete.serviceCode}`);
           }
           setToDelete(null);
@@ -1456,115 +1232,5 @@ function CarrierDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// ───────────────────────── Shared bits ─────────────────────────
-function Toolbar({
-  title,
-  count,
-  searchValue,
-  onSearch,
-  onNew,
-  newLabel,
-  searchPlaceholder,
-}: {
-  title: string;
-  count: number;
-  searchValue: string;
-  onSearch: (v: string) => void;
-  onNew: () => void;
-  newLabel: string;
-  searchPlaceholder?: string;
-}) {
-  return (
-    <div className="flex items-end justify-between gap-3">
-      <div>
-        <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
-        <p className="text-[11px] text-muted-foreground">
-          {count} record{count === 1 ? "" : "s"}
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Input
-          value={searchValue}
-          onChange={(e) => onSearch(e.target.value)}
-          placeholder={searchPlaceholder ?? "Search…"}
-          className="h-9 w-[280px]"
-        />
-        <Button onClick={onNew} size="sm" className="gap-2">
-          <Plus className="h-3.5 w-3.5" /> {newLabel}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={"space-y-1.5 " + (className ?? "")}>
-      <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</Label>
-      {children}
-    </div>
-  );
-}
-
-function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
-  return (
-    <div className="flex items-center justify-end gap-1">
-      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onEdit}>
-        <Pencil className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        size="icon"
-        variant="ghost"
-        className="h-7 w-7 text-destructive hover:text-destructive"
-        onClick={onDelete}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </Button>
-    </div>
-  );
-}
-
-function ConfirmDelete({
-  open,
-  label,
-  onCancel,
-  onConfirm,
-}: {
-  open: boolean;
-  label: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <AlertDialog open={open} onOpenChange={(o) => !o && onCancel()}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete “{label}”?</AlertDialogTitle>
-          <AlertDialogDescription className="text-xs">
-            This action removes the record from the current session.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onConfirm}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }

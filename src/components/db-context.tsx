@@ -40,10 +40,7 @@ import { collection, onSnapshot, getDocs, limit, doc, writeBatch, query } from "
 import { db } from "@/lib/firestore";
 
 // Import local seed data
-import {
-  tenants as seedTenants,
-  warehouses as seedWarehouses,
-} from "@/lib/mock-data";
+import { tenants as seedTenants, warehouses as seedWarehouses } from "@/lib/mock-data";
 import {
   inventoryItems as seedInventoryItems,
   clientAllocationConfigs as seedClientAllocationConfigs,
@@ -61,38 +58,399 @@ import { employees as seedEmployees } from "@/lib/rf-employees";
 
 // Enterprise seed data (inline to avoid circular deps)
 const seedTenantPortalUsers = [
-  { id: "tp-acme", tenantId: "acme", email: "portal@acme.com", name: "Acme Portal User", role: "Admin", active: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "tp-northstar", tenantId: "northstar", email: "portal@northstar.com", name: "Northstar Portal User", role: "Admin", active: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "tp-harborlite", tenantId: "harborlite", email: "portal@harborlite.com", name: "Harborlite Portal User", role: "Admin", active: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "tp-verdant", tenantId: "verdant", email: "portal@verdant.com", name: "Verdant Portal User", role: "Admin", active: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  {
+    id: "tp-acme",
+    tenantId: "acme",
+    email: "portal@acme.com",
+    name: "Acme Portal User",
+    role: "Admin",
+    active: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "tp-northstar",
+    tenantId: "northstar",
+    email: "portal@northstar.com",
+    name: "Northstar Portal User",
+    role: "Admin",
+    active: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "tp-harborlite",
+    tenantId: "harborlite",
+    email: "portal@harborlite.com",
+    name: "Harborlite Portal User",
+    role: "Admin",
+    active: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "tp-verdant",
+    tenantId: "verdant",
+    email: "portal@verdant.com",
+    name: "Verdant Portal User",
+    role: "Admin",
+    active: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 const seedRmaOrders = [
-  { id: "rma-001", tenantId: "acme", warehouseId: "atl1", rmaNumber: "RMA-2026-001", status: "draft", returnReason: "customer_return", customerName: "Acme Outdoor Co.", notes: "Customer returned defective tent", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "rma-002", tenantId: "acme", warehouseId: "atl1", rmaNumber: "RMA-2026-002", status: "received", returnReason: "damaged", customerName: "Acme Outdoor Co.", notes: "Damaged during transit", createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: "rma-003", tenantId: "northstar", warehouseId: "ord2", rmaNumber: "RMA-2026-003", status: "inspected", returnReason: "wrong_item", customerName: "Northstar Apparel", notes: "Wrong size shipped", createdAt: new Date(Date.now() - 172800000).toISOString(), updatedAt: new Date().toISOString() },
+  {
+    id: "rma-001",
+    tenantId: "acme",
+    warehouseId: "atl1",
+    rmaNumber: "RMA-2026-001",
+    status: "draft",
+    returnReason: "customer_return",
+    customerName: "Acme Outdoor Co.",
+    notes: "Customer returned defective tent",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "rma-002",
+    tenantId: "acme",
+    warehouseId: "atl1",
+    rmaNumber: "RMA-2026-002",
+    status: "received",
+    returnReason: "damaged",
+    customerName: "Acme Outdoor Co.",
+    notes: "Damaged during transit",
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "rma-003",
+    tenantId: "northstar",
+    warehouseId: "ord2",
+    rmaNumber: "RMA-2026-003",
+    status: "inspected",
+    returnReason: "wrong_item",
+    customerName: "Northstar Apparel",
+    notes: "Wrong size shipped",
+    createdAt: new Date(Date.now() - 172800000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 const seedRmaLines = [
-  { id: "rl-001", rmaId: "rma-001", tenantId: "acme", sku: "ACM-TENT-2P-OLV", description: "Ridgeline 2-Person Tent, Olive", qtyExpected: 1, qtyReceived: 1, unitCost: 84.5, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "rl-002", rmaId: "rma-002", tenantId: "acme", sku: "ACM-STV-CMP-01", description: "Compact Camp Stove, Single Burner", qtyExpected: 2, qtyReceived: 2, unitCost: 22.1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "rl-003", rmaId: "rma-003", tenantId: "northstar", sku: "NSA-HOOD-BLK-M", description: "Classic Pullover Hoodie, Black, M", qtyExpected: 3, qtyReceived: 3, unitCost: 14.2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  {
+    id: "rl-001",
+    rmaId: "rma-001",
+    tenantId: "acme",
+    sku: "ACM-TENT-2P-OLV",
+    description: "Ridgeline 2-Person Tent, Olive",
+    qtyExpected: 1,
+    qtyReceived: 1,
+    unitCost: 84.5,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "rl-002",
+    rmaId: "rma-002",
+    tenantId: "acme",
+    sku: "ACM-STV-CMP-01",
+    description: "Compact Camp Stove, Single Burner",
+    qtyExpected: 2,
+    qtyReceived: 2,
+    unitCost: 22.1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "rl-003",
+    rmaId: "rma-003",
+    tenantId: "northstar",
+    sku: "NSA-HOOD-BLK-M",
+    description: "Classic Pullover Hoodie, Black, M",
+    qtyExpected: 3,
+    qtyReceived: 3,
+    unitCost: 14.2,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 const seedRmaDispositions = [
-  { id: "rd-001", rmaId: "rma-001", lineId: "rl-001", tenantId: "acme", dispositionType: "return_to_stock", status: "completed", qty: 1, processedBy: "warehouse-lead", processedAt: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "rd-002", rmaId: "rma-002", lineId: "rl-002", tenantId: "acme", dispositionType: "quarantine", status: "in_progress", qty: 2, processedBy: "quality-inspector", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  {
+    id: "rd-001",
+    rmaId: "rma-001",
+    lineId: "rl-001",
+    tenantId: "acme",
+    dispositionType: "return_to_stock",
+    status: "completed",
+    qty: 1,
+    processedBy: "warehouse-lead",
+    processedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "rd-002",
+    rmaId: "rma-002",
+    lineId: "rl-002",
+    tenantId: "acme",
+    dispositionType: "quarantine",
+    status: "in_progress",
+    qty: 2,
+    processedBy: "quality-inspector",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 const seedReturnProcessingFees = [
-  { id: "rf-001", tenantId: "acme", rmaId: "rma-001", lineId: "rl-001", feeType: "restocking", amount: 12.68, currency: "USD", description: "Restocking fee (15% of unit cost)", autoBilled: true, createdAt: new Date().toISOString() },
-  { id: "rf-002", tenantId: "acme", rmaId: "rma-002", lineId: "rl-002", feeType: "inspection", amount: 5.0, currency: "USD", description: "Inspection fee", autoBilled: true, createdAt: new Date().toISOString() },
+  {
+    id: "rf-001",
+    tenantId: "acme",
+    rmaId: "rma-001",
+    lineId: "rl-001",
+    feeType: "restocking",
+    amount: 12.68,
+    currency: "USD",
+    description: "Restocking fee (15% of unit cost)",
+    autoBilled: true,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "rf-002",
+    tenantId: "acme",
+    rmaId: "rma-002",
+    lineId: "rl-002",
+    feeType: "inspection",
+    amount: 5.0,
+    currency: "USD",
+    description: "Inspection fee",
+    autoBilled: true,
+    createdAt: new Date().toISOString(),
+  },
 ];
 
 const seedCarrierCredentials = [
-  { id: "cc-usps", tenantId: "acme", carrierId: "usps", carrierName: "USPS", apiKey: "", apiEndpoint: "https://api.usps.com", accountNumber: "ACME-USPS-001", scacCode: "USPS", enabled: true, supportedCountries: ["US"], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "cc-ups", tenantId: "acme", carrierId: "ups", carrierName: "UPS", apiKey: "", apiEndpoint: "https://api.ups.com", accountNumber: "ACME-UPS-001", scacCode: "UPSN", enabled: true, supportedCountries: ["US", "CA"], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "cc-fedex", tenantId: "acme", carrierId: "fedex", carrierName: "FedEx", apiKey: "", apiEndpoint: "https://api.fedex.com", accountNumber: "ACME-FDX-001", scacCode: "FXFE", enabled: true, supportedCountries: ["US", "CA"], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  {
+    id: "cc-usps",
+    tenantId: "acme",
+    carrierId: "usps",
+    carrierName: "USPS",
+    apiKey: "",
+    apiEndpoint: "https://api.usps.com",
+    accountNumber: "ACME-USPS-001",
+    scacCode: "USPS",
+    enabled: true,
+    supportedCountries: ["US"],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "cc-ups",
+    tenantId: "acme",
+    carrierId: "ups",
+    carrierName: "UPS",
+    apiKey: "",
+    apiEndpoint: "https://api.ups.com",
+    accountNumber: "ACME-UPS-001",
+    scacCode: "UPSN",
+    enabled: true,
+    supportedCountries: ["US", "CA"],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "cc-fedex",
+    tenantId: "acme",
+    carrierId: "fedex",
+    carrierName: "FedEx",
+    apiKey: "",
+    apiEndpoint: "https://api.fedex.com",
+    accountNumber: "ACME-FDX-001",
+    scacCode: "FXFE",
+    enabled: true,
+    supportedCountries: ["US", "CA"],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+const seedClients = [
+  {
+    id: "cli-acme",
+    code: "ACME",
+    name: "Acme Outdoor Co.",
+    arAccount: "AR-10045",
+    address: "1840 Riverbend Pkwy, Atlanta, GA 30339",
+    contactPerson: "Maya Chen",
+    contactEmail: "maya.chen@acmeoutdoor.com",
+    contactPhone: "+1 (404) 555-0119",
+    businessType: "Warehousing",
+    allocationRule: "FIFO",
+    preferredLocationPrefix: "A12",
+    useDropForAllocation: true,
+    active: true,
+  },
+  {
+    id: "cli-northstar",
+    code: "NSAP",
+    name: "Northstar Apparel",
+    arAccount: "AR-10078",
+    address: "9 Lakeshore Dr, Chicago, IL 60611",
+    contactPerson: "Eli Park",
+    contactEmail: "eli@northstar.co",
+    contactPhone: "+1 (312) 555-0144",
+    businessType: "Warehousing+Transload",
+    allocationRule: "LIFO",
+    preferredLocationPrefix: "D04",
+    useDropForAllocation: false,
+    active: true,
+  },
+  {
+    id: "cli-harborlite",
+    code: "HLE",
+    name: "Harborlite Electronics",
+    arAccount: "AR-10112",
+    address: "55 Port Terminal Rd, Newark, NJ 07114",
+    contactPerson: "Priya Shah",
+    contactEmail: "priya.shah@harborlite.io",
+    contactPhone: "+1 (973) 555-0188",
+    businessType: "Transload",
+    allocationRule: "FIFO",
+    preferredLocationPrefix: "C08",
+    useDropForAllocation: true,
+    active: true,
+  },
+  {
+    id: "cli-verdant",
+    code: "VRDN",
+    name: "Verdant Wellness",
+    arAccount: "AR-10133",
+    address: "402 Greenway Blvd, Austin, TX 78704",
+    contactPerson: "Jordan Lee",
+    contactEmail: "jordan@verdant.co",
+    contactPhone: "+1 (512) 555-0102",
+    businessType: "Warehousing",
+    allocationRule: "FIFO",
+    preferredLocationPrefix: "G01",
+    useDropForAllocation: false,
+    active: true,
+  },
+];
+
+const seedUsers = [
+  {
+    id: "usr-001",
+    name: "Jordan Avery",
+    email: "jordan.avery@azux.com",
+    role: "Admin",
+    warehouseCode: "ALL",
+    active: true,
+  },
+  {
+    id: "usr-002",
+    name: "Devon Hill",
+    email: "devon.hill@azux.com",
+    role: "Operations Manager",
+    warehouseCode: "ATL1",
+    active: true,
+  },
+  {
+    id: "usr-003",
+    name: "Sara Owens",
+    email: "sara.owens@azux.com",
+    role: "Warehouse Lead",
+    warehouseCode: "ORD2",
+    active: true,
+  },
+  {
+    id: "usr-004",
+    name: "Marcus Reid",
+    email: "marcus.reid@azux.com",
+    role: "Warehouse Lead",
+    warehouseCode: "LAX3",
+    active: true,
+  },
+  {
+    id: "usr-005",
+    name: "Anya Volkov",
+    email: "anya.volkov@azux.com",
+    role: "Receiver",
+    warehouseCode: "EWR1",
+    active: true,
+  },
+  {
+    id: "usr-006",
+    name: "Riley Park",
+    email: "riley.park@azux.com",
+    role: "Picker",
+    warehouseCode: "ATL1",
+    active: true,
+  },
+  {
+    id: "usr-007",
+    name: "Tomás Ruiz",
+    email: "tomas.ruiz@azux.com",
+    role: "Billing",
+    warehouseCode: "ALL",
+    active: false,
+  },
+];
+
+const seedCarrierServices = [
+  {
+    id: "cs-001",
+    carrier: "FedEx",
+    serviceCode: "FEDEX_GROUND",
+    serviceDescription: "FedEx Ground (Commercial)",
+    transitDays: "1-5 Days",
+    pricingTier: "Low-Mid",
+    typicalUseCase: "Standard B2B inventory delivery",
+    active: true,
+  },
+  {
+    id: "cs-002",
+    carrier: "FedEx",
+    serviceCode: "FEDEX_HOME",
+    serviceDescription: "FedEx Home Delivery",
+    transitDays: "1-5 Days",
+    pricingTier: "Mid",
+    typicalUseCase: "Standard B2C e-commerce (Delivers 7 days/wk)",
+    active: true,
+  },
+  {
+    id: "cs-003",
+    carrier: "UPS",
+    serviceCode: "UPS_GROUND",
+    serviceDescription: "UPS Ground",
+    transitDays: "1-5 Days",
+    pricingTier: "Low-Mid",
+    typicalUseCase: "Most common 3PL ground fulfillment tier",
+    active: true,
+  },
+  {
+    id: "cs-004",
+    carrier: "USPS",
+    serviceCode: "USPS_GROUND_ADVANTAGE",
+    serviceDescription: "USPS Ground Advantage",
+    transitDays: "2-5 Days",
+    pricingTier: "Low",
+    typicalUseCase: "Best for sub-1 lb e-commerce parcels",
+    active: true,
+  },
+  {
+    id: "cs-005",
+    carrier: "LTL",
+    serviceCode: "LTL_STANDARD",
+    serviceDescription: "LTL Carrier - Standard",
+    transitDays: "3-7 Days",
+    pricingTier: "Low-Mid",
+    typicalUseCase: "Less-than-truckload palletized freight for B2B shipments",
+    active: true,
+  },
 ];
 
 // Import types
@@ -105,6 +463,9 @@ import type { Bol } from "@/lib/bol-data";
 import type { ItemMasterRecord, LocationRecord } from "@/lib/master-data";
 import type { BillingClient, ChargeRule, BillableEvent, Invoice } from "@/lib/billing-data";
 import type { ClientAllocationConfig, PickTicket } from "@/lib/mock-data";
+import type { SettingsClient } from "@/lib/firestore-data";
+import type { SettingsUser } from "@/lib/firestore-data";
+import type { CarrierServiceRecord } from "@/lib/carrier-services";
 
 // Import mutable library array targets for background synchronization
 import {
@@ -150,6 +511,9 @@ type DatabaseContextType = {
   rmaDispositions: any[];
   returnProcessingFees: any[];
   carrierCredentials: any[];
+  clients: SettingsClient[];
+  users: SettingsUser[];
+  carrierServices: CarrierServiceRecord[];
 };
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -183,6 +547,9 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [rmaDispositions, setRmaDispositions] = useState<any[]>([]);
   const [returnProcessingFees, setReturnProcessingFees] = useState<any[]>([]);
   const [carrierCredentials, setCarrierCredentials] = useState<any[]>([]);
+  const [clients, setClients] = useState<SettingsClient[]>([]);
+  const [users, setUsers] = useState<SettingsUser[]>([]);
+  const [carrierServices, setCarrierServices] = useState<CarrierServiceRecord[]>([]);
   const [dataVersion, setDataVersion] = useState(0);
 
   const refreshData = useCallback(() => {
@@ -224,7 +591,11 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           await seedCollection("itemMaster", seedItemMaster, (item) => item.sku);
           await seedCollection("locationMaster", seedLocationMaster, (item) => item.id);
           await seedCollection("ediLogs", seedEdiLogs, (item) => item.id);
-          await seedCollection("clientAllocationConfigs", seedClientAllocationConfigs, (item) => item.tenantId);
+          await seedCollection(
+            "clientAllocationConfigs",
+            seedClientAllocationConfigs,
+            (item) => item.tenantId,
+          );
           await seedCollection("employees", seedEmployees, (item) => item.badgeId);
 
           console.log("Default WMS datasets successfully seeded to Firestore!");
@@ -249,6 +620,9 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           rmaDispositions: seedRmaDispositions,
           returnProcessingFees: seedReturnProcessingFees,
           carrierCredentials: seedCarrierCredentials,
+          clients: seedClients,
+          users: seedUsers,
+          carrierServices: seedCarrierServices,
         };
 
         for (const [colName, items] of Object.entries(enterpriseCollections)) {
@@ -323,6 +697,9 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     syncCollection("rmaDispositions", setRmaDispositions as any);
     syncCollection("returnProcessingFees", setReturnProcessingFees as any);
     syncCollection("carrierCredentials", setCarrierCredentials as any);
+    syncCollection("clients", setClients);
+    syncCollection("users", setUsers);
+    syncCollection("carrierServices", setCarrierServices);
 
     // Turn off loading once initial data snaps are bound
     setLoading(false);
@@ -360,6 +737,9 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         rmaDispositions,
         returnProcessingFees,
         carrierCredentials,
+        clients,
+        users,
+        carrierServices,
       }}
     >
       {loading ? (

@@ -119,14 +119,32 @@ import type { ItemMasterRecord, LocationRecord, LocationType } from "./master-da
 import type { InboundShipment, InboundLine } from "./inbound-data";
 import type { Order, EdiLog } from "./edi-data";
 import type { OutboundPallet } from "./outbound-pallet-data";
-import type { BillingClient, ChargeRule, BillableEvent, Invoice, InvoicePayment, BillingAuditLog } from "./billing-data";
-import type { SerialInventoryRecord, SerialStatus, ComplianceAuditLog, ComplianceDocument, Recall, QuarantineOrder, ComplianceDocumentType, DocumentStatus, RecallStatus } from "./compliance-types";
+import type {
+  BillingClient,
+  ChargeRule,
+  BillableEvent,
+  Invoice,
+  InvoicePayment,
+  BillingAuditLog,
+} from "./billing-data";
+import type {
+  SerialInventoryRecord,
+  SerialStatus,
+  ComplianceAuditLog,
+  ComplianceDocument,
+  Recall,
+  QuarantineOrder,
+  ComplianceDocumentType,
+  DocumentStatus,
+  RecallStatus,
+} from "./compliance-types";
 import type { CycleCount, CycleCountLine, CountSchedule } from "./counting-data";
 import type { VasWorkOrder, VasWorkOrderLine } from "./vas-data";
 import type { CrossDockMatch } from "./crossdock-data";
 import type { CatchWeightItem, CatchWeightLog } from "./catch-weight-data";
 import type { LaborForecast, ShiftSchedule } from "./labor-forecast";
 import type { WarehouseEmployee, MovementHistory } from "./rf-types";
+import type { CarrierServiceRecord } from "./carrier-services";
 import { maybeCaptureBillableEvent } from "./billing-engine";
 import {
   LABOR_STANDARDS,
@@ -1703,13 +1721,16 @@ export async function deleteInvoice(invoiceId: string): Promise<void> {
 // ============================================================
 // Invoice Payments
 // ============================================================
-export function subscribeInvoicePayments(callback: (payments: InvoicePayment[]) => void, invoiceId?: string): Unsubscribe {
+export function subscribeInvoicePayments(
+  callback: (payments: InvoicePayment[]) => void,
+  invoiceId?: string,
+): Unsubscribe {
   let q: Query = collection(db, "invoicePayments");
   const conditions: any[] = [];
   if (invoiceId) conditions.push(where("invoiceId", "==", invoiceId));
   if (conditions.length > 0) q = query(q, ...conditions);
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    let items = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as InvoicePayment));
+    let items = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as InvoicePayment);
     if (invoiceId) items = items.filter((p) => p.invoiceId === invoiceId);
     callback(items);
   });
@@ -1730,13 +1751,16 @@ export async function deleteInvoicePayment(paymentId: string): Promise<void> {
 // ============================================================
 // Billing Audit Log
 // ============================================================
-export function subscribeBillingAuditLog(callback: (logs: BillingAuditLog[]) => void, tenantId?: string): Unsubscribe {
+export function subscribeBillingAuditLog(
+  callback: (logs: BillingAuditLog[]) => void,
+  tenantId?: string,
+): Unsubscribe {
   let q: Query = collection(db, "billingAuditLog");
   const conditions: any[] = [];
   if (tenantId) conditions.push(where("tenantId", "==", tenantId));
   if (conditions.length > 0) q = query(q, ...conditions);
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    let items = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as BillingAuditLog));
+    let items = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as BillingAuditLog);
     if (tenantId) items = items.filter((l) => l.tenantId === tenantId);
     callback(items);
   });
@@ -1782,14 +1806,21 @@ export async function seedBillingData(): Promise<{ success: boolean; error?: str
 // ============================================================
 // Warehouse Employees (RF Gun Badge Auth)
 // ============================================================
-export async function fetchEmployees(tenantId?: string, warehouseId?: string): Promise<WarehouseEmployee[]> {
+export async function fetchEmployees(
+  tenantId?: string,
+  warehouseId?: string,
+): Promise<WarehouseEmployee[]> {
   let q: Query = collection(db, "employees");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("assignedClientId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("assignedWarehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("assignedWarehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions);
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as WarehouseEmployee[];
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() ?? {}),
+  })) as unknown as WarehouseEmployee[];
 }
 
 export function subscribeEmployees(
@@ -1800,10 +1831,13 @@ export function subscribeEmployees(
   let q: Query = collection(db, "employees");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("assignedClientId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("assignedWarehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("assignedWarehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions);
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as WarehouseEmployee[]);
+    callback(
+      snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as WarehouseEmployee[],
+    );
   });
 }
 
@@ -1811,7 +1845,10 @@ export async function createEmployee(emp: WarehouseEmployee): Promise<void> {
   await setDoc(doc(db, "employees", emp.badgeId), emp);
 }
 
-export async function updateEmployee(badgeId: string, updates: Partial<WarehouseEmployee>): Promise<void> {
+export async function updateEmployee(
+  badgeId: string,
+  updates: Partial<WarehouseEmployee>,
+): Promise<void> {
   await updateDoc(doc(db, "employees", badgeId), updates);
 }
 
@@ -1847,15 +1884,25 @@ export async function fetchMovementHistory(filters?: {
   if (filters?.type) conditions.push(where("type", "==", filters.type));
   if (conditions.length > 0) q = query(q, ...conditions);
   const snap = await getDocs(q);
-  let results = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as MovementHistory[];
+  let results = snap.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() ?? {}),
+  })) as unknown as MovementHistory[];
   if (filters?.limit) results = results.slice(0, filters.limit);
-  const sorted = results.sort((a, b) => ((b as any).timestamp?.seconds ?? 0) - ((a as any).timestamp?.seconds ?? 0));
+  const sorted = results.sort(
+    (a, b) => ((b as any).timestamp?.seconds ?? 0) - ((a as any).timestamp?.seconds ?? 0),
+  );
   return sorted;
 }
 
 export function subscribeMovementHistory(
   callback: (entries: MovementHistory[]) => void,
-  filters?: { badgeId?: string; tenantId?: string; itemCode?: string; type?: MovementHistory["type"] },
+  filters?: {
+    badgeId?: string;
+    tenantId?: string;
+    itemCode?: string;
+    type?: MovementHistory["type"];
+  },
 ): Unsubscribe {
   let q: Query = collection(db, "movementHistory");
   const conditions: any[] = [];
@@ -1865,7 +1912,9 @@ export function subscribeMovementHistory(
   if (filters?.type) conditions.push(where("type", "==", filters.type));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("timestamp", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as MovementHistory[]);
+    callback(
+      snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as MovementHistory[],
+    );
   });
 }
 
@@ -1892,7 +1941,9 @@ export function subscribeLaborStandards(
   callback: (standards: LaborStandard[]) => void,
 ): Unsubscribe {
   return onSnapshot(collection(db, "laborStandards"), (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as LaborStandard[]);
+    callback(
+      snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as LaborStandard[],
+    );
   });
 }
 
@@ -1902,7 +1953,10 @@ export async function createLaborStandard(standard: LaborStandard): Promise<stri
   return ref.id;
 }
 
-export async function updateLaborStandard(id: string, updates: Partial<LaborStandard>): Promise<void> {
+export async function updateLaborStandard(
+  id: string,
+  updates: Partial<LaborStandard>,
+): Promise<void> {
   await updateDoc(doc(db, "laborStandards", id), updates);
 }
 
@@ -1922,15 +1976,16 @@ export async function seedLaborStandards(): Promise<void> {
   await batch.commit();
 }
 
-export async function recordLaborEvent(event: Omit<LaborEvent, "eventId" | "completedAt"> & { startedAt: string | Date }): Promise<string> {
+export async function recordLaborEvent(
+  event: Omit<LaborEvent, "eventId" | "completedAt"> & { startedAt: string | Date },
+): Promise<string> {
   const startedAt = new Date(event.startedAt);
   const completedAt = new Date();
 
   const actualSec = Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 1000));
   const standardSec = computeStandardSec(event.taskType, event.qty);
-  const efficiencyPct = actualSec > 0 && standardSec > 0
-    ? Math.round((standardSec / actualSec) * 100)
-    : 100;
+  const efficiencyPct =
+    actualSec > 0 && standardSec > 0 ? Math.round((standardSec / actualSec) * 100) : 100;
 
   const aisle = getAisleFromLocation(event.locationId);
 
@@ -1950,10 +2005,21 @@ export async function recordLaborEvent(event: Omit<LaborEvent, "eventId" | "comp
 }
 
 export async function fetchLaborEvents(
-  filters?: { badgeId?: string; tenantId?: string; warehouseId?: string; dateFrom?: Date; dateTo?: Date; taskType?: string },
+  filters?: {
+    badgeId?: string;
+    tenantId?: string;
+    warehouseId?: string;
+    dateFrom?: Date;
+    dateTo?: Date;
+    taskType?: string;
+  },
   limitCount = 100,
 ): Promise<LaborEvent[]> {
-  let q: any = query(collection(db, "laborEvents"), orderBy("completedAt", "desc"), limit(limitCount));
+  let q: any = query(
+    collection(db, "laborEvents"),
+    orderBy("completedAt", "desc"),
+    limit(limitCount),
+  );
   const conditions: any[] = [];
 
   if (filters?.badgeId) conditions.push(where("badgeId", "==", filters.badgeId));
@@ -1964,7 +2030,12 @@ export async function fetchLaborEvents(
   if (filters?.taskType) conditions.push(where("taskType", "==", filters.taskType));
 
   if (conditions.length > 0) {
-    q = query(collection(db, "laborEvents"), ...conditions, orderBy("completedAt", "desc"), limit(limitCount));
+    q = query(
+      collection(db, "laborEvents"),
+      ...conditions,
+      orderBy("completedAt", "desc"),
+      limit(limitCount),
+    );
   }
 
   const snap = await getDocs(q);
@@ -1976,7 +2047,11 @@ export function subscribeLaborEvents(
   filters?: { badgeId?: string; tenantId?: string; warehouseId?: string },
   limitCount = 200,
 ): Unsubscribe {
-  let q: any = query(collection(db, "laborEvents"), orderBy("completedAt", "desc"), limit(limitCount));
+  let q: any = query(
+    collection(db, "laborEvents"),
+    orderBy("completedAt", "desc"),
+    limit(limitCount),
+  );
   const conditions: any[] = [];
 
   if (filters?.badgeId) conditions.push(where("badgeId", "==", filters.badgeId));
@@ -1984,11 +2059,16 @@ export function subscribeLaborEvents(
   if (filters?.warehouseId) conditions.push(where("warehouseId", "==", filters.warehouseId));
 
   if (conditions.length > 0) {
-    q = query(collection(db, "laborEvents"), ...conditions, orderBy("completedAt", "desc"), limit(limitCount));
+    q = query(
+      collection(db, "laborEvents"),
+      ...conditions,
+      orderBy("completedAt", "desc"),
+      limit(limitCount),
+    );
   }
 
   return onSnapshot(q, (snap: QuerySnapshot<LaborEvent>) => {
-    callback(snap.docs.map((d) => ({ ...(d.data() ?? {}), eventId: d.id } as LaborEvent)));
+    callback(snap.docs.map((d) => ({ ...(d.data() ?? {}), eventId: d.id }) as LaborEvent));
   });
 }
 
@@ -2008,7 +2088,7 @@ async function getAutoCaptureRules(clientId: string, warehouseId?: string): Prom
       where("autoCapture", "==", true),
     ),
   );
-  let rules = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ChargeRule));
+  let rules = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as ChargeRule);
   if (warehouseId) {
     rules = rules.filter((r) => !r.warehouseId || r.warehouseId === warehouseId);
   }
@@ -2125,11 +2205,17 @@ export async function createSerialInventory(record: SerialInventoryRecord): Prom
   });
 }
 
-export async function updateSerialInventory(id: string, updates: Partial<SerialInventoryRecord>): Promise<void> {
+export async function updateSerialInventory(
+  id: string,
+  updates: Partial<SerialInventoryRecord>,
+): Promise<void> {
   await updateDoc(doc(db, "serialInventory", id), { ...updates, updatedAt: serverTimestamp() });
 }
 
-export async function updateSerialInventoryStatus(id: string, status: SerialInventoryRecord["status"]): Promise<void> {
+export async function updateSerialInventoryStatus(
+  id: string,
+  status: SerialInventoryRecord["status"],
+): Promise<void> {
   await updateDoc(doc(db, "serialInventory", id), { status, updatedAt: serverTimestamp() });
 }
 
@@ -2139,7 +2225,12 @@ export async function deleteSerialInventory(id: string): Promise<void> {
 
 export function subscribeSerialInventory(
   callback: (records: SerialInventoryRecord[]) => void,
-  filters?: { tenantId?: string; warehouseId?: string; sku?: string; status?: SerialInventoryRecord["status"] },
+  filters?: {
+    tenantId?: string;
+    warehouseId?: string;
+    sku?: string;
+    status?: SerialInventoryRecord["status"];
+  },
 ): Unsubscribe {
   let q: Query = collection(db, "serialInventory");
   const conditions: any[] = [];
@@ -2149,11 +2240,14 @@ export function subscribeSerialInventory(
   if (filters?.status) conditions.push(where("status", "==", filters.status));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("createdAt", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as SerialInventoryRecord)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as SerialInventoryRecord));
   });
 }
 
-export async function fetchExpiringLots(tenantId: string, daysAhead = 90): Promise<SerialInventoryRecord[]> {
+export async function fetchExpiringLots(
+  tenantId: string,
+  daysAhead = 90,
+): Promise<SerialInventoryRecord[]> {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() + daysAhead);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
@@ -2166,7 +2260,7 @@ export async function fetchExpiringLots(tenantId: string, daysAhead = 90): Promi
   );
 
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as SerialInventoryRecord));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as SerialInventoryRecord);
 }
 
 // ============================================================
@@ -2181,7 +2275,7 @@ export function subscribeComplianceAuditLog(
   if (tenantId) conditions.push(where("tenantId", "==", tenantId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("timestamp", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ComplianceAuditLog)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as ComplianceAuditLog));
   });
 }
 
@@ -2189,7 +2283,10 @@ export async function appendComplianceLog(log: ComplianceAuditLog): Promise<void
   await setDoc(doc(db, "complianceAuditLog", log.id), log);
 }
 
-export async function fetchComplianceAuditLog(tenantId: string, limitCount = 100): Promise<ComplianceAuditLog[]> {
+export async function fetchComplianceAuditLog(
+  tenantId: string,
+  limitCount = 100,
+): Promise<ComplianceAuditLog[]> {
   const q = query(
     collection(db, "complianceAuditLog"),
     where("tenantId", "==", tenantId),
@@ -2197,7 +2294,7 @@ export async function fetchComplianceAuditLog(tenantId: string, limitCount = 100
     limit(limitCount),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ComplianceAuditLog));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as ComplianceAuditLog);
 }
 
 // ============================================================
@@ -2211,7 +2308,10 @@ export async function createComplianceDocument(complianceDoc: ComplianceDocument
   });
 }
 
-export async function updateComplianceDocument(id: string, updates: Partial<ComplianceDocument>): Promise<void> {
+export async function updateComplianceDocument(
+  id: string,
+  updates: Partial<ComplianceDocument>,
+): Promise<void> {
   await updateDoc(doc(db, "complianceDocuments", id), { ...updates, updatedAt: serverTimestamp() });
 }
 
@@ -2221,7 +2321,12 @@ export async function deleteComplianceDocument(id: string): Promise<void> {
 
 export function subscribeComplianceDocuments(
   callback: (docs: ComplianceDocument[]) => void,
-  filters?: { tenantId?: string; sku?: string; documentType?: ComplianceDocumentType; status?: DocumentStatus },
+  filters?: {
+    tenantId?: string;
+    sku?: string;
+    documentType?: ComplianceDocumentType;
+    status?: DocumentStatus;
+  },
 ): Unsubscribe {
   let q: Query = collection(db, "complianceDocuments");
   const conditions: any[] = [];
@@ -2231,11 +2336,14 @@ export function subscribeComplianceDocuments(
   if (filters?.status) conditions.push(where("status", "==", filters.status));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("issuedAt", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ComplianceDocument)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as ComplianceDocument));
   });
 }
 
-export async function fetchExpiringDocuments(tenantId: string, daysAhead = 90): Promise<ComplianceDocument[]> {
+export async function fetchExpiringDocuments(
+  tenantId: string,
+  daysAhead = 90,
+): Promise<ComplianceDocument[]> {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() + daysAhead);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
@@ -2249,7 +2357,7 @@ export async function fetchExpiringDocuments(tenantId: string, daysAhead = 90): 
   );
 
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as ComplianceDocument));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as ComplianceDocument);
 }
 
 // ============================================================
@@ -2277,7 +2385,7 @@ export function subscribeRecalls(
   if (filters?.status) conditions.push(where("status", "==", filters.status));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("issuedAt", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as Recall)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as Recall));
   });
 }
 
@@ -2292,7 +2400,10 @@ export async function createQuarantineOrder(order: QuarantineOrder): Promise<voi
   });
 }
 
-export async function updateQuarantineOrder(id: string, updates: Partial<QuarantineOrder>): Promise<void> {
+export async function updateQuarantineOrder(
+  id: string,
+  updates: Partial<QuarantineOrder>,
+): Promise<void> {
   await updateDoc(doc(db, "quarantineOrders", id), { ...updates, updatedAt: serverTimestamp() });
 }
 
@@ -2314,7 +2425,7 @@ export function subscribeQuarantineOrders(
   if (filters?.status) conditions.push(where("status", "==", filters.status));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("issuedAt", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as QuarantineOrder)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as QuarantineOrder));
   });
 }
 
@@ -2349,7 +2460,7 @@ export function subscribeAssignedTasks(
     orderBy("assignedAt", "desc"),
   );
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as RfAssignedTask)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as RfAssignedTask));
   });
 }
 
@@ -2388,7 +2499,7 @@ export async function fetchAssignedTasks(badgeId: string): Promise<RfAssignedTas
     orderBy("assignedAt", "desc"),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as RfAssignedTask));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as RfAssignedTask);
 }
 
 // ============================================================
@@ -2401,11 +2512,12 @@ export async function fetchCycleCounts(
   let q: Query = collection(db, "cycleCounts");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("scheduledDate", "desc"));
   else q = query(q, orderBy("scheduledDate", "desc"));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CycleCount));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CycleCount);
 }
 
 export function subscribeCycleCounts(
@@ -2416,11 +2528,12 @@ export function subscribeCycleCounts(
   let q: Query = collection(db, "cycleCounts");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("scheduledDate", "desc"));
   else q = query(q, orderBy("scheduledDate", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CycleCount)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CycleCount));
   });
 }
 
@@ -2443,18 +2556,26 @@ export async function deleteCycleCount(id: string): Promise<{ ok: true }> {
 // Cycle Count Lines
 // ============================================================
 export async function fetchCycleCountLines(countId: string): Promise<CycleCountLine[]> {
-  const q = query(collection(db, "cycleCountLines"), where("countId", "==", countId), orderBy("locationId"));
+  const q = query(
+    collection(db, "cycleCountLines"),
+    where("countId", "==", countId),
+    orderBy("locationId"),
+  );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CycleCountLine));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CycleCountLine);
 }
 
 export function subscribeCycleCountLines(
   callback: (lines: CycleCountLine[]) => void,
   countId: string,
 ): Unsubscribe {
-  const q = query(collection(db, "cycleCountLines"), where("countId", "==", countId), orderBy("locationId"));
+  const q = query(
+    collection(db, "cycleCountLines"),
+    where("countId", "==", countId),
+    orderBy("locationId"),
+  );
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CycleCountLine)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CycleCountLine));
   });
 }
 
@@ -2464,7 +2585,10 @@ export async function createCycleCountLine(data: Omit<CycleCountLine, "id">): Pr
   return ref.id;
 }
 
-export async function updateCycleCountLine(id: string, data: Partial<CycleCountLine>): Promise<void> {
+export async function updateCycleCountLine(
+  id: string,
+  data: Partial<CycleCountLine>,
+): Promise<void> {
   await updateDoc(doc(db, "cycleCountLines", id), data);
 }
 
@@ -2487,11 +2611,12 @@ export async function fetchCountSchedules(
   let q: Query = collection(db, "countSchedules");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("nextRunAt", "asc"));
   else q = query(q, orderBy("nextRunAt", "asc"));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CountSchedule));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CountSchedule);
 }
 
 export function subscribeCountSchedules(
@@ -2502,11 +2627,12 @@ export function subscribeCountSchedules(
   let q: Query = collection(db, "countSchedules");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("nextRunAt", "asc"));
   else q = query(q, orderBy("nextRunAt", "asc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CountSchedule)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CountSchedule));
   });
 }
 
@@ -2535,11 +2661,12 @@ export async function fetchVasWorkOrders(
   let q: Query = collection(db, "vasWorkOrders");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("scheduledStartAt", "desc"));
   else q = query(q, orderBy("scheduledStartAt", "desc"));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as VasWorkOrder));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as VasWorkOrder);
 }
 
 export function subscribeVasWorkOrders(
@@ -2550,11 +2677,12 @@ export function subscribeVasWorkOrders(
   let q: Query = collection(db, "vasWorkOrders");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("scheduledStartAt", "desc"));
   else q = query(q, orderBy("scheduledStartAt", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as VasWorkOrder)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as VasWorkOrder));
   });
 }
 
@@ -2583,7 +2711,7 @@ export async function fetchVasWorkOrderLines(workOrderId: string): Promise<VasWo
     orderBy("lineNo"),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as VasWorkOrderLine));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as VasWorkOrderLine);
 }
 
 export function subscribeVasWorkOrderLines(
@@ -2596,7 +2724,7 @@ export function subscribeVasWorkOrderLines(
     orderBy("lineNo"),
   );
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as VasWorkOrderLine)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as VasWorkOrderLine));
   });
 }
 
@@ -2606,7 +2734,10 @@ export async function createVasWorkOrderLine(data: Omit<VasWorkOrderLine, "id">)
   return ref.id;
 }
 
-export async function updateVasWorkOrderLine(id: string, data: Partial<VasWorkOrderLine>): Promise<void> {
+export async function updateVasWorkOrderLine(
+  id: string,
+  data: Partial<VasWorkOrderLine>,
+): Promise<void> {
   await updateDoc(doc(db, "vasWorkOrderLines", id), data);
 }
 
@@ -2629,11 +2760,12 @@ export async function fetchCrossDockMatches(
   let q: Query = collection(db, "crossdockMatches");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("matchedAt", "desc"));
   else q = query(q, orderBy("matchedAt", "desc"));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CrossDockMatch));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CrossDockMatch);
 }
 
 export function subscribeCrossDockMatches(
@@ -2644,11 +2776,12 @@ export function subscribeCrossDockMatches(
   let q: Query = collection(db, "crossdockMatches");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("matchedAt", "desc"));
   else q = query(q, orderBy("matchedAt", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CrossDockMatch)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CrossDockMatch));
   });
 }
 
@@ -2658,7 +2791,10 @@ export async function createCrossDockMatch(data: Omit<CrossDockMatch, "id">): Pr
   return ref.id;
 }
 
-export async function updateCrossDockMatch(id: string, data: Partial<CrossDockMatch>): Promise<void> {
+export async function updateCrossDockMatch(
+  id: string,
+  data: Partial<CrossDockMatch>,
+): Promise<void> {
   await updateDoc(doc(db, "crossdockMatches", id), data);
 }
 
@@ -2677,7 +2813,8 @@ export async function fetchCatchWeightItems(
   let q: Query = collection(db, "catchWeightItems");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions);
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as CatchWeightItem[];
@@ -2691,20 +2828,28 @@ export function subscribeCatchWeightItems(
   let q: Query = collection(db, "catchWeightItems");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions);
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as CatchWeightItem[]);
+    callback(
+      snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })) as unknown as CatchWeightItem[],
+    );
   });
 }
 
-export async function createCatchWeightItem(data: Omit<CatchWeightItem, "sku"> & { sku: string }): Promise<string> {
+export async function createCatchWeightItem(
+  data: Omit<CatchWeightItem, "sku"> & { sku: string },
+): Promise<string> {
   const ref = doc(collection(db, "catchWeightItems"), data.sku);
   await setDoc(ref, data);
   return ref.id;
 }
 
-export async function updateCatchWeightItem(sku: string, data: Partial<CatchWeightItem>): Promise<void> {
+export async function updateCatchWeightItem(
+  sku: string,
+  data: Partial<CatchWeightItem>,
+): Promise<void> {
   await updateDoc(doc(db, "catchWeightItems", sku), data);
 }
 
@@ -2715,11 +2860,12 @@ export async function fetchCatchWeightLogs(
   let q: Query = collection(db, "catchWeightLogs");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("capturedAt", "desc"));
   else q = query(q, orderBy("capturedAt", "desc"));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CatchWeightLog));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CatchWeightLog);
 }
 
 export function subscribeCatchWeightLogs(
@@ -2730,11 +2876,12 @@ export function subscribeCatchWeightLogs(
   let q: Query = collection(db, "catchWeightLogs");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("capturedAt", "desc"));
   else q = query(q, orderBy("capturedAt", "desc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as CatchWeightLog)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CatchWeightLog));
   });
 }
 
@@ -2770,11 +2917,12 @@ export function subscribeLaborForecasts(
   let q: Query = collection(db, "laborForecasts");
   const conditions: any[] = [];
   if (tenantId && tenantId !== "all") conditions.push(where("tenantId", "==", tenantId));
-  if (warehouseId && warehouseId !== "all") conditions.push(where("warehouseId", "==", warehouseId));
+  if (warehouseId && warehouseId !== "all")
+    conditions.push(where("warehouseId", "==", warehouseId));
   if (conditions.length > 0) q = query(q, ...conditions, orderBy("forecastDate", "asc"));
   else q = query(q, orderBy("forecastDate", "asc"));
   return onSnapshot(q, (snap: QuerySnapshot) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) } as LaborForecast)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as LaborForecast));
   });
 }
 
@@ -2793,3 +2941,115 @@ export async function deleteShiftSchedule(id: string): Promise<{ ok: true }> {
   return { ok: true };
 }
 
+// ============================================================
+// Settings — Clients, Users, Carrier Services (Firestore CRUD)
+// ============================================================
+
+export type SettingsClient = {
+  id: string;
+  code: string;
+  name: string;
+  arAccount: string;
+  address: string;
+  contactPerson: string;
+  contactEmail: string;
+  contactPhone: string;
+  businessType: "Warehousing" | "Transload" | "Warehousing+Transload";
+  allocationRule: "FIFO" | "LIFO";
+  preferredLocationPrefix: string;
+  useDropForAllocation: boolean;
+  active: boolean;
+};
+
+export type SettingsUser = {
+  id: string;
+  name: string;
+  email: string;
+  role:
+    | "Admin"
+    | "Operations Manager"
+    | "Warehouse Lead"
+    | "Picker"
+    | "Receiver"
+    | "Billing"
+    | "Viewer";
+  warehouseCode: string;
+  active: boolean;
+};
+
+export async function fetchClients(): Promise<SettingsClient[]> {
+  const snap = await getDocs(collection(db, "clients"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as SettingsClient);
+}
+
+export function subscribeClients(callback: (clients: SettingsClient[]) => void): Unsubscribe {
+  return onSnapshot(collection(db, "clients"), (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as SettingsClient));
+  });
+}
+
+export async function createClient(client: SettingsClient) {
+  await setDoc(doc(collection(db, "clients"), client.id), client);
+}
+
+export async function updateClient(clientId: string, updates: Partial<SettingsClient>) {
+  await updateDoc(doc(db, "clients", clientId), updates);
+}
+
+export async function deleteClient(clientId: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "clients", clientId));
+  return { ok: true };
+}
+
+export async function fetchUsers(): Promise<SettingsUser[]> {
+  const snap = await getDocs(collection(db, "users"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as SettingsUser);
+}
+
+export function subscribeUsers(callback: (users: SettingsUser[]) => void): Unsubscribe {
+  return onSnapshot(collection(db, "users"), (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as SettingsUser));
+  });
+}
+
+export async function createUser(user: SettingsUser) {
+  await setDoc(doc(collection(db, "users"), user.id), user);
+}
+
+export async function updateUser(userId: string, updates: Partial<SettingsUser>) {
+  await updateDoc(doc(db, "users", userId), updates);
+}
+
+export async function deleteUser(userId: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "users", userId));
+  return { ok: true };
+}
+
+export async function fetchCarrierServices(): Promise<CarrierServiceRecord[]> {
+  const snap = await getDocs(collection(db, "carrierServices"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CarrierServiceRecord);
+}
+
+export function subscribeCarrierServices(
+  callback: (services: CarrierServiceRecord[]) => void,
+): Unsubscribe {
+  return onSnapshot(collection(db, "carrierServices"), (snap: QuerySnapshot) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CarrierServiceRecord));
+  });
+}
+
+export async function createCarrierService(service: CarrierServiceRecord) {
+  await setDoc(doc(collection(db, "carrierServices"), service.id), service);
+}
+
+export async function updateCarrierService(
+  serviceId: string,
+  updates: Partial<CarrierServiceRecord>,
+) {
+  await updateDoc(doc(db, "carrierServices", serviceId), updates);
+}
+
+export async function deleteCarrierService(serviceId: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "carrierServices", serviceId));
+  return { ok: true };
+}
