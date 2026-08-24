@@ -96,6 +96,16 @@ function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
+  const levelStyles: Record<
+    "info" | "warn" | "error" | "ok",
+    { dot: string; label: string; icon: typeof AlertTriangle }
+  > = {
+    ok: { dot: "bg-chart-3", label: "text-chart-3", icon: CheckCircle2 },
+    info: { dot: "bg-chart-1", label: "text-chart-1", icon: ScanLine },
+    warn: { dot: "bg-chart-4", label: "text-chart-4", icon: FileWarning },
+    error: { dot: "bg-destructive", label: "text-destructive", icon: AlertTriangle },
+  };
+
   const isAll = tenantId === "all";
   const isAllWh = warehouseId === "all";
 
