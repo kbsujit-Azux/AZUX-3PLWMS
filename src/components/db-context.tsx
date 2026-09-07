@@ -55,6 +55,8 @@ import { inboundShipments as seedInboundShipments } from "@/lib/inbound-data";
 import { shipments as seedCarrierDispatches } from "@/lib/shipment-data";
 import { seedBols as seedBols } from "@/lib/bol-data";
 import { employees as seedEmployees } from "@/lib/rf-employees";
+import { cartonizeOrder } from "@/lib/cubing-engine";
+import { cartonSizes } from "@/lib/carton-catalog";
 
 // Enterprise seed data (inline to avoid circular deps)
 const seedTenantPortalUsers = [
@@ -514,6 +516,7 @@ type DatabaseContextType = {
   clients: SettingsClient[];
   users: SettingsUser[];
   carrierServices: CarrierServiceRecord[];
+  cartonizations: any[];
 };
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -550,6 +553,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [clients, setClients] = useState<SettingsClient[]>([]);
   const [users, setUsers] = useState<SettingsUser[]>([]);
   const [carrierServices, setCarrierServices] = useState<CarrierServiceRecord[]>([]);
+  const [cartonizations, setCartonizations] = useState<any[]>([]);
   const [dataVersion, setDataVersion] = useState(0);
 
   const refreshData = useCallback(() => {
@@ -610,6 +614,20 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
             await batch.commit();
             console.log("Employees seeded successfully!");
           }
+        }
+
+        // Seed cartonizations if empty
+        const cartonSnap = await getDocs(collection(db, "cartonizations"));
+        if (cartonSnap.empty && seedOrders.length > 0) {
+          console.log("Seeding cartonizations...");
+          const cartonBatch = writeBatch(db);
+          seedOrders.forEach((order) => {
+            const c = cartonizeOrder(order, seedItemMaster, cartonSizes);
+            const docRef = doc(db, "cartonizations", c.id);
+            cartonBatch.set(docRef, c);
+          });
+          await cartonBatch.commit();
+          console.log("Cartonizations seeded successfully!");
         }
 
         // Seed enterprise collections (always, even if core already seeded)
@@ -700,6 +718,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     syncCollection("clients", setClients);
     syncCollection("users", setUsers);
     syncCollection("carrierServices", setCarrierServices);
+    syncCollection("cartonizations", setCartonizations);
 
     // Turn off loading once initial data snaps are bound
     setLoading(false);
@@ -740,6 +759,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         clients,
         users,
         carrierServices,
+        cartonizations,
       }}
     >
       {loading ? (
