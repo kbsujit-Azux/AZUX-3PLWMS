@@ -104,12 +104,20 @@ function PackingPage() {
 
   const [cartonizations, setCartonizations] = useState<Cartonization[]>([]);
   const [dbLoading, setDbLoading] = useState(true);
-  const [query, setQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedCartonization, setSelectedCartonization] = useState<Cartonization | null>(null);
   const [newCartonizationOpen, setNewCartonizationOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Cartonization | null>(null);
+
+  const pruneUndefined = <T extends Record<string, unknown>>(obj: T): T => {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v !== undefined) out[k] = v;
+    }
+    return out as T;
+  };
 
   const filteredOrders = useMemo(() => {
     if (tenantId === "all" && warehouseId === "all") return liveOrders;
@@ -139,18 +147,20 @@ function PackingPage() {
     return () => {
       if (unsub) unsub();
     };
-  }, [query]);
+  }, []);
 
   useEffect(() => {
     if (!dbLoading && cartonizations.length === 0 && filteredOrders.length > 0) {
       const results: Cartonization[] = [];
       for (const order of filteredOrders) {
-        const c = cartonizeOrder(order, []);
+        const c = pruneUndefined(cartonizeOrder(order, []));
         results.push(c);
       }
       (async () => {
         try {
-          const batch = results.map((c) => addDoc(collection(db, "cartonizations"), c));
+          const batch = results.map((c) =>
+            addDoc(collection(db, "cartonizations"), pruneUndefined(c)),
+          );
           await Promise.all(batch);
           toast.success(`Synced ${results.length} cartonization(s) to Firestore`);
         } catch (err) {
@@ -164,17 +174,17 @@ function PackingPage() {
   const filtered = useMemo(() => {
     return cartonizations.filter((c) => {
       const matchesQuery =
-        c.id.toLowerCase().includes(query.toLowerCase()) ||
-        c.orderId.toLowerCase().includes(query.toLowerCase());
+        c.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.orderId.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === "all" || c.status === statusFilter;
       return matchesQuery && matchesStatus;
     });
-  }, [cartonizations, query, statusFilter]);
+  }, [cartonizations, searchQuery, statusFilter]);
 
   const handleCartonize = async (orderId: string) => {
     const order = filteredOrders.find((o) => o.id === orderId);
     if (!order) return;
-    const c = cartonizeOrder(order, []);
+    const c = pruneUndefined(cartonizeOrder(order, []));
     try {
       await addDoc(collection(db, "cartonizations"), c);
       toast.success(`Cartonization created for ${orderId}`);
@@ -225,8 +235,8 @@ function PackingPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search cartonizations..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-8 text-xs"
           />
         </div>

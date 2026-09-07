@@ -58,6 +58,14 @@ import { employees as seedEmployees } from "@/lib/rf-employees";
 import { cartonizeOrder } from "@/lib/cubing-engine";
 import { cartonSizes } from "@/lib/carton-catalog";
 
+const pruneUndefined = <T extends Record<string, unknown>>(obj: T): T => {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out as T;
+};
+
 // Enterprise seed data (inline to avoid circular deps)
 const seedTenantPortalUsers = [
   {
@@ -622,7 +630,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           console.log("Seeding cartonizations...");
           const cartonBatch = writeBatch(db);
           seedOrders.forEach((order) => {
-            const c = cartonizeOrder(order, seedItemMaster, cartonSizes);
+            const c = pruneUndefined(cartonizeOrder(order, seedItemMaster, cartonSizes));
             const docRef = doc(db, "cartonizations", c.id);
             cartonBatch.set(docRef, c);
           });
