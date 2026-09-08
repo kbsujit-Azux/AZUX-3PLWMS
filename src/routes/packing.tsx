@@ -77,6 +77,7 @@ import {
   onSnapshot,
   orderBy,
   setDoc,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 
@@ -103,8 +104,6 @@ function PackingPage() {
     refreshData,
   } = useWmsData();
 
-  const [cartonizations, setCartonizations] = useState<Cartonization[]>([]);
-  const [dbLoading, setDbLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedCartonization, setSelectedCartonization] = useState<Cartonization | null>(null);
@@ -122,65 +121,20 @@ function PackingPage() {
 
   const filteredOrders = useMemo(() => {
     if (tenantId === "all" && warehouseId === "all") return liveOrders;
-    return liveOrders.filter((o) => o.tenantId === tenantId && o.warehouseId === warehouseId);
+    return liveOrders.filter(
+      (o) => o.tenantId === tenantId && o.warehouseId === warehouseId,
+    );
   }, [liveOrders, tenantId, warehouseId]);
 
-  useEffect(() => {
-    let unsub: (() => void) | undefined;
-
-    const loadCartonizations = async () => {
-      setDbLoading(true);
-      try {
-        const q = query(collection(db, "cartonizations"), orderBy("createdAt", "desc"));
-        unsub = onSnapshot(q, (snap) => {
-          const list = snap.docs.map((d) => d.data() as Cartonization);
-          setCartonizations(list);
-          setDbLoading(false);
-        });
-      } catch (err) {
-        console.error("Failed to load cartonizations:", err);
-        setDbLoading(false);
-      }
-    };
-
-    loadCartonizations();
-
-    return () => {
-      if (unsub) unsub();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!dbLoading && cartonizations.length === 0 && filteredOrders.length > 0) {
-      const results: Cartonization[] = [];
-      for (const order of filteredOrders) {
-        const c = pruneUndefined(cartonizeOrder(order, []));
-        results.push(c);
-      }
-      (async () => {
-        try {
-          const batch = results.map((c) =>
-            setDoc(doc(db, "cartonizations", c.id), pruneUndefined(c)),
-          );
-          await Promise.all(batch);
-          toast.success(`Synced ${results.length} cartonization(s) to Firestore`);
-        } catch (err) {
-          console.error("Failed to sync cartonizations:", err);
-          toast.error("Failed to sync cartonizations");
-        }
-      })();
-    }
-  }, [dbLoading, cartonizations.length, filteredOrders]);
-
   const filtered = useMemo(() => {
-    return cartonizations.filter((c) => {
+    return liveCartonizations.filter((c) => {
       const matchesQuery =
         c.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.orderId.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === "all" || c.status === statusFilter;
       return matchesQuery && matchesStatus;
     });
-  }, [cartonizations, searchQuery, statusFilter]);
+  }, [liveCartonizations, searchQuery, statusFilter]);
 
   const handleCartonize = async (orderId: string) => {
     const order = filteredOrders.find((o) => o.id === orderId);
@@ -215,14 +169,43 @@ function PackingPage() {
     }
   };
 
+  const handleRefresh = () => {
+    refreshData();
+  };
+
+  const handleAutoSync = async () => {
+    if (liveCartonizations.length === 0 && filteredOrders.length > 0) {
+      const results: Cartonization[] = [];
+      for (const order of filteredOrders) {
+        const c = pruneUndefined(cartonizeOrder(order, []));
+        results.push(c);
+      }
+      if (results.length > 0) {
+        try {
+          const batch = results.map((c) =>
+            setDoc(doc(db, "cartonizations", c.id), pruneUndefined(c)),
+          );
+          await Promise.all(batch);
+          toast.success(`Synced ${results.length} cartonization(s) to Firestore`);
+        } catch (err) {
+          console.error("Failed to sync cartonizations:", err);
+          toast.error("Failed to sync cartonizations");
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    handleAutoSync();
+  }, [liveCartonizations.length, filteredOrders]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Packing & Cartonization</h1>
           <p className="text-sm text-muted-foreground">
-            Automated volumetric calculation to determine optimal carton sizes before picking
-            starts.
+            Automated volumetric calculation to determine optimal carton sizes before picking starts.
           </p>
         </div>
         <Button size="sm" onClick={() => setNewCartonizationOpen(true)}>
@@ -253,13 +236,13 @@ function PackingPage() {
             <SelectItem value="printed">Printed</SelectItem>
           </SelectContent>
         </Select>
-        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={refreshData}>
+        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={handleRefresh}>
           <RefreshCw className="h-3.5 w-3.5" />
           Refresh
         </Button>
       </div>
 
-      {dbLoading || loading ? (
+      {loading ? (
         <div className="text-center py-12 text-muted-foreground text-sm">
           Loading cartonizations...
         </div>
@@ -336,7 +319,7 @@ function PackingPage() {
         </div>
       )}
 
-      {!dbLoading && !loading && filtered.length === 0 && (
+      {!loading && filtered.length === 0 && (
         <div className="text-center py-12 text-muted-foreground text-sm">
           No cartonizations found. Cartonize an order to get started.
         </div>
@@ -381,7 +364,9 @@ function PackingPage() {
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     Cartons
                   </p>
-                  <p className="text-lg font-semibold">{selectedCartonization.cartonCount}</p>
+                  <p className="text-lg font-semibold">
+                    {selectedCartonization.cartonCount}
+                  </p>
                 </div>
                 <div className="rounded-lg border p-3 space-y-1">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -414,7 +399,9 @@ function PackingPage() {
                       {selectedCartonization.cartons.map((carton) => (
                         <TableRow key={carton.cartonId}>
                           <TableCell className="text-xs">{carton.seq}</TableCell>
-                          <TableCell className="font-mono text-xs">{carton.cartonId}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {carton.cartonId}
+                          </TableCell>
                           <TableCell className="text-xs">{carton.cartonName}</TableCell>
                           <TableCell className="text-right font-mono text-xs">
                             {carton.totalQty}
