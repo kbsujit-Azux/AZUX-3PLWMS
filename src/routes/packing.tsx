@@ -76,6 +76,7 @@ import {
   where,
   onSnapshot,
   orderBy,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 
@@ -159,7 +160,7 @@ function PackingPage() {
       (async () => {
         try {
           const batch = results.map((c) =>
-            addDoc(collection(db, "cartonizations"), pruneUndefined(c)),
+            setDoc(doc(db, "cartonizations", c.id), pruneUndefined(c)),
           );
           await Promise.all(batch);
           toast.success(`Synced ${results.length} cartonization(s) to Firestore`);
@@ -186,7 +187,7 @@ function PackingPage() {
     if (!order) return;
     const c = pruneUndefined(cartonizeOrder(order, []));
     try {
-      await addDoc(collection(db, "cartonizations"), c);
+      await setDoc(doc(db, "cartonizations", c.id), c);
       toast.success(`Cartonization created for ${orderId}`);
       setNewCartonizationOpen(false);
     } catch (err) {
@@ -252,8 +253,9 @@ function PackingPage() {
             <SelectItem value="printed">Printed</SelectItem>
           </SelectContent>
         </Select>
-        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={refreshData}>
-          <RefreshCw className="h-4 w-4" />
+        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={refreshData}>
+          <RefreshCw className="h-3.5 w-3.5" />
+          Refresh
         </Button>
       </div>
 
