@@ -28,7 +28,8 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/components/workspace-context";
-import { useWmsData, type CsvUploadHistory } from "@/lib";
+import { useWmsData } from "@/components/db-context";
+import { type CsvUploadHistory } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/system/csv-history")({
   head: () => ({
