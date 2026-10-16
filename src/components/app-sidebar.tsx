@@ -16,10 +16,7 @@ import {
   PackageCheck,
   ScanLine,
   Users,
-  TrendingUp,
   Target,
-  Award,
-  ArrowUpRight,
   Building2,
   Undo2,
   Calculator,
@@ -71,11 +68,6 @@ const systems = [
   { title: "Health Pulse", url: "/health", icon: Activity },
 ] as const;
 
-const workforce = [
-  { title: "Workforce", url: "/workforce", icon: Users },
-  { title: "Scoreboard", url: "/scoreboard", icon: TrendingUp },
-] as const;
-
 const rfTerminal = [
   { title: "RF Terminal", url: "https://rfgun.web.app", icon: ScanLine },
 ] as const;
@@ -102,7 +94,6 @@ export function AppSidebar() {
     const allItems = [
       ...operations,
       ...systems,
-      ...workforce,
       ...rfTerminal,
       ...enterprise,
     ];
@@ -117,7 +108,6 @@ export function AppSidebar() {
 
   const visibleOps = operations.filter((i) => can(i.url));
   const visibleSys = systems.filter((i) => can(i.url));
-  const visibleWf = workforce.filter((i) => can(i.url));
 
   return (
     <Sidebar collapsible="icon">
@@ -161,24 +151,6 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleSys.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
-                    <Link to={item.url} className="flex items-center gap-2">
-                      <item.icon className="h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Workforce</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleWf.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                     <Link to={item.url} className="flex items-center gap-2">

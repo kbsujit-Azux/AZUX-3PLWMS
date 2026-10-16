@@ -9,12 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkforceRouteImport } from './routes/workforce'
 import { Route as VasRouteImport } from './routes/vas'
 import { Route as SlottingRouteImport } from './routes/slotting'
 import { Route as ShipmentsRouteImport } from './routes/shipments'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ScoreboardRouteImport } from './routes/scoreboard'
 import { Route as PicksRouteImport } from './routes/picks'
 import { Route as PalletsRouteImport } from './routes/pallets'
 import { Route as PackingRouteImport } from './routes/packing'
@@ -37,7 +35,6 @@ import { Route as TenantPortalIndexRouteImport } from './routes/tenant-portal/in
 import { Route as RmaIndexRouteImport } from './routes/rma/index'
 import { Route as RfIndexRouteImport } from './routes/rf/index'
 import { Route as RateShoppingIndexRouteImport } from './routes/rate-shopping/index'
-import { Route as WorkforceForecastRouteImport } from './routes/workforce/forecast'
 import { Route as RfReceivingRouteImport } from './routes/rf/receiving'
 import { Route as RfPutawayRouteImport } from './routes/rf/putaway'
 import { Route as RfPickRouteImport } from './routes/rf/pick'
@@ -47,11 +44,6 @@ import { Route as RfHistoryRouteImport } from './routes/rf/history'
 import { Route as MastersWarehousesRouteImport } from './routes/masters/warehouses'
 import { Route as MastersEmployeesRouteImport } from './routes/masters/employees'
 
-const WorkforceRoute = WorkforceRouteImport.update({
-  id: '/workforce',
-  path: '/workforce',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const VasRoute = VasRouteImport.update({
   id: '/vas',
   path: '/vas',
@@ -70,11 +62,6 @@ const ShipmentsRoute = ShipmentsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScoreboardRoute = ScoreboardRouteImport.update({
-  id: '/scoreboard',
-  path: '/scoreboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PicksRoute = PicksRouteImport.update({
@@ -187,11 +174,6 @@ const RateShoppingIndexRoute = RateShoppingIndexRouteImport.update({
   path: '/rate-shopping/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WorkforceForecastRoute = WorkforceForecastRouteImport.update({
-  id: '/forecast',
-  path: '/forecast',
-  getParentRoute: () => WorkforceRoute,
-} as any)
 const RfReceivingRoute = RfReceivingRouteImport.update({
   id: '/rf/receiving',
   path: '/rf/receiving',
@@ -252,12 +234,10 @@ export interface FileRoutesByFullPath {
   '/packing': typeof PackingRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
-  '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/vas': typeof VasRoute
-  '/workforce': typeof WorkforceRouteWithChildren
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
   '/rf/history': typeof RfHistoryRoute
@@ -266,7 +246,6 @@ export interface FileRoutesByFullPath {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
-  '/workforce/forecast': typeof WorkforceForecastRoute
   '/rate-shopping/': typeof RateShoppingIndexRoute
   '/rf/': typeof RfIndexRoute
   '/rma/': typeof RmaIndexRoute
@@ -291,12 +270,10 @@ export interface FileRoutesByTo {
   '/packing': typeof PackingRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
-  '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/vas': typeof VasRoute
-  '/workforce': typeof WorkforceRouteWithChildren
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
   '/rf/history': typeof RfHistoryRoute
@@ -305,7 +282,6 @@ export interface FileRoutesByTo {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
-  '/workforce/forecast': typeof WorkforceForecastRoute
   '/rate-shopping': typeof RateShoppingIndexRoute
   '/rf': typeof RfIndexRoute
   '/rma': typeof RmaIndexRoute
@@ -331,12 +307,10 @@ export interface FileRoutesById {
   '/packing': typeof PackingRoute
   '/pallets': typeof PalletsRoute
   '/picks': typeof PicksRoute
-  '/scoreboard': typeof ScoreboardRoute
   '/settings': typeof SettingsRoute
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/vas': typeof VasRoute
-  '/workforce': typeof WorkforceRouteWithChildren
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
   '/rf/history': typeof RfHistoryRoute
@@ -345,7 +319,6 @@ export interface FileRoutesById {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
-  '/workforce/forecast': typeof WorkforceForecastRoute
   '/rate-shopping/': typeof RateShoppingIndexRoute
   '/rf/': typeof RfIndexRoute
   '/rma/': typeof RmaIndexRoute
@@ -372,12 +345,10 @@ export interface FileRouteTypes {
     | '/packing'
     | '/pallets'
     | '/picks'
-    | '/scoreboard'
     | '/settings'
     | '/shipments'
     | '/slotting'
     | '/vas'
-    | '/workforce'
     | '/masters/employees'
     | '/masters/warehouses'
     | '/rf/history'
@@ -386,7 +357,6 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
-    | '/workforce/forecast'
     | '/rate-shopping/'
     | '/rf/'
     | '/rma/'
@@ -411,12 +381,10 @@ export interface FileRouteTypes {
     | '/packing'
     | '/pallets'
     | '/picks'
-    | '/scoreboard'
     | '/settings'
     | '/shipments'
     | '/slotting'
     | '/vas'
-    | '/workforce'
     | '/masters/employees'
     | '/masters/warehouses'
     | '/rf/history'
@@ -425,7 +393,6 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
-    | '/workforce/forecast'
     | '/rate-shopping'
     | '/rf'
     | '/rma'
@@ -450,12 +417,10 @@ export interface FileRouteTypes {
     | '/packing'
     | '/pallets'
     | '/picks'
-    | '/scoreboard'
     | '/settings'
     | '/shipments'
     | '/slotting'
     | '/vas'
-    | '/workforce'
     | '/masters/employees'
     | '/masters/warehouses'
     | '/rf/history'
@@ -464,7 +429,6 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
-    | '/workforce/forecast'
     | '/rate-shopping/'
     | '/rf/'
     | '/rma/'
@@ -490,12 +454,10 @@ export interface RootRouteChildren {
   PackingRoute: typeof PackingRoute
   PalletsRoute: typeof PalletsRoute
   PicksRoute: typeof PicksRoute
-  ScoreboardRoute: typeof ScoreboardRoute
   SettingsRoute: typeof SettingsRoute
   ShipmentsRoute: typeof ShipmentsRoute
   SlottingRoute: typeof SlottingRoute
   VasRoute: typeof VasRoute
-  WorkforceRoute: typeof WorkforceRouteWithChildren
   RfHistoryRoute: typeof RfHistoryRoute
   RfInquiryRoute: typeof RfInquiryRoute
   RfMoveRoute: typeof RfMoveRoute
@@ -510,13 +472,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/workforce': {
-      id: '/workforce'
-      path: '/workforce'
-      fullPath: '/workforce'
-      preLoaderRoute: typeof WorkforceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/vas': {
       id: '/vas'
       path: '/vas'
@@ -543,13 +498,6 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scoreboard': {
-      id: '/scoreboard'
-      path: '/scoreboard'
-      fullPath: '/scoreboard'
-      preLoaderRoute: typeof ScoreboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/picks': {
@@ -706,13 +654,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RateShoppingIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/workforce/forecast': {
-      id: '/workforce/forecast'
-      path: '/forecast'
-      fullPath: '/workforce/forecast'
-      preLoaderRoute: typeof WorkforceForecastRouteImport
-      parentRoute: typeof WorkforceRoute
-    }
     '/rf/receiving': {
       id: '/rf/receiving'
       path: '/rf/receiving'
@@ -785,18 +726,6 @@ const MastersRouteChildren: MastersRouteChildren = {
 const MastersRouteWithChildren =
   MastersRoute._addFileChildren(MastersRouteChildren)
 
-interface WorkforceRouteChildren {
-  WorkforceForecastRoute: typeof WorkforceForecastRoute
-}
-
-const WorkforceRouteChildren: WorkforceRouteChildren = {
-  WorkforceForecastRoute: WorkforceForecastRoute,
-}
-
-const WorkforceRouteWithChildren = WorkforceRoute._addFileChildren(
-  WorkforceRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AllocationRoute: AllocationRoute,
@@ -816,12 +745,10 @@ const rootRouteChildren: RootRouteChildren = {
   PackingRoute: PackingRoute,
   PalletsRoute: PalletsRoute,
   PicksRoute: PicksRoute,
-  ScoreboardRoute: ScoreboardRoute,
   SettingsRoute: SettingsRoute,
   ShipmentsRoute: ShipmentsRoute,
   SlottingRoute: SlottingRoute,
   VasRoute: VasRoute,
-  WorkforceRoute: WorkforceRouteWithChildren,
   RfHistoryRoute: RfHistoryRoute,
   RfInquiryRoute: RfInquiryRoute,
   RfMoveRoute: RfMoveRoute,

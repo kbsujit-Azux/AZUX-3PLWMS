@@ -51,10 +51,10 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { CsvUploader } from "@/components/csv-uploader";
 import { useWorkspace } from "@/components/workspace-context";
+import { useWmsData } from "@/components/db-context";
 import { tenants, warehouses } from "@/lib/mock-data";
 import {
-  itemMaster,
-  locationMaster,
+  locationMaster as staticLocationMaster,
   collectMasterExceptions,
   locationOccupancyPct,
   updateItemInMaster,
@@ -103,11 +103,15 @@ function MastersPage() {
   const employeesMatch = useMatch({ from: "/masters/employees", shouldThrow: false });
   const isExactMasters = !!mastersMatch && !warehousesMatch && !employeesMatch;
   const { tenantId, warehouseId } = useWorkspace();
+  const {
+    itemMaster: liveItemMaster,
+    locationMaster: liveLocationMaster,
+    refreshData,
+  } = useWmsData();
   const [itemQuery, setItemQuery] = useState("");
   const [locQuery, setLocQuery] = useState("");
   const [csv832Open, setCsv832Open] = useState(false);
   const [csvLocOpen, setCsvLocOpen] = useState(false);
-  const [, force] = useState(0);
   const [tab, setTab] = useState<string>("items");
   const [addDialog, setAddDialog] = useState<{
     open: boolean;
@@ -152,34 +156,37 @@ function MastersPage() {
     }
   }, []);
 
+  const itemMaster =
+    tenantId !== "all" ? liveItemMaster.filter((i) => i.tenantId === tenantId) : liveItemMaster;
+
+  const locationMaster =
+    warehouseId !== "all"
+      ? liveLocationMaster.filter((l) => l.warehouseId === warehouseId)
+      : liveLocationMaster;
+
   const items = useMemo(() => {
-    return itemMaster.filter((i) => {
-      if (tenantId !== "all" && i.tenantId !== tenantId) return false;
-      const q = itemQuery.toLowerCase();
-      if (!q) return true;
-      return (
+    const q = itemQuery.toLowerCase();
+    if (!q) return itemMaster;
+    return itemMaster.filter(
+      (i) =>
         i.sku.toLowerCase().includes(q) ||
         i.upc.includes(q) ||
         i.itemStyle.toLowerCase().includes(q) ||
-        i.description.toLowerCase().includes(q)
-      );
-    });
-  }, [tenantId, itemQuery]);
+        i.description.toLowerCase().includes(q),
+    );
+  }, [itemMaster, itemQuery, tenantId]);
 
   const locs = useMemo(() => {
-    return locationMaster.filter((l) => {
-      if (warehouseId !== "all" && l.warehouseId !== warehouseId) return false;
-      if (tenantId !== "all" && l.tenantId && l.tenantId !== tenantId) return false;
-      const q = locQuery.toLowerCase();
-      if (!q) return true;
-      return (
+    const q = locQuery.toLowerCase();
+    if (!q) return locationMaster;
+    return locationMaster.filter(
+      (l) =>
         l.id.toLowerCase().includes(q) ||
         l.zone.toLowerCase().includes(q) ||
         l.type.toLowerCase().includes(q) ||
-        (l.tenantId?.toLowerCase().includes(q) ?? false)
-      );
-    });
-  }, [warehouseId, locQuery, tenantId]);
+        (l.tenantId?.toLowerCase().includes(q) ?? false),
+    );
+  }, [locationMaster, locQuery, warehouseId, tenantId]);
 
   const exceptions = useMemo(() => {
     return collectMasterExceptions().filter((e) => {
@@ -205,9 +212,21 @@ function MastersPage() {
             cross-checked against these registers before execution.
           </p>
         </div>
-        <Button asChild size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-500">
-          <Link to="/masters/employees"><Users className="h-4 w-4 mr-1" /> Employees</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9"
+            onClick={() => refreshData()}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+          </Button>
+          <Button asChild size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-500">
+            <Link to="/masters/employees">
+              <Users className="h-4 w-4 mr-1" /> Employees
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-3">
