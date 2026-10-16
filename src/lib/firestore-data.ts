@@ -3053,3 +3053,62 @@ export async function deleteCarrierService(serviceId: string): Promise<{ ok: tru
   await deleteDoc(doc(db, "carrierServices", serviceId));
   return { ok: true };
 }
+
+export type CsvUploadHistory = {
+  id: string;
+  tenantId: string;
+  warehouseId: string;
+  fileName: string;
+  fileSize: number;
+  uploadAt: string;
+  uploadedBy: string;
+  source: "inbound_asn" | "inventory" | "item_master" | "custom";
+  status: "pending" | "processing" | "completed" | "failed";
+  recordsProcessed: number;
+  errors: Array<{ row: number; field: string; message: string }>;
+  warnings: Array<{ row: number; field: string; message: string }>;
+  mapping: Record<string, string>;
+  rawHeaders: string[];
+};
+
+export function subscribeCsvUploadHistory(
+  tenantId: string,
+  warehouseId: string,
+  callback: (history: CsvUploadHistory[]) => void,
+): Unsubscribe {
+  const q = query(
+    collection(db, "csvUploadHistory"),
+    where("tenantId", "==", tenantId),
+    where("warehouseId", "==", warehouseId),
+    orderBy("uploadAt", "desc"),
+  );
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as CsvUploadHistory));
+  });
+}
+
+export async function createCsvUploadRecord(
+  record: Omit<CsvUploadHistory, "id" | "uploadAt">,
+): Promise<string> {
+  const id = `CSV-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, "0")}${(new Date().getDate()).toString().padStart(2, "0")}-${Math.floor(Math.random() * 10000)
+    .toString()
+    .padStart(4, "0")}`;
+  await setDoc(doc(db, "csvUploadHistory", id), {
+    ...record,
+    id,
+    uploadAt: new Date().toISOString(),
+  });
+  return id;
+}
+
+export async function updateCsvUploadRecord(
+  id: string,
+  updates: Partial<CsvUploadHistory>,
+): Promise<void> {
+  await updateDoc(doc(db, "csvUploadHistory", id), updates);
+}
+
+export async function deleteCsvUploadRecord(id: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "csvUploadHistory", id));
+  return { ok: true };
+}

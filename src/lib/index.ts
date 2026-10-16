@@ -811,9 +811,13 @@ export {
   createCarrierService,
   updateCarrierService,
   deleteCarrierService,
+  subscribeCsvUploadHistory,
+  createCsvUploadRecord,
+  updateCsvUploadRecord,
+  deleteCsvUploadRecord,
 } from "./firestore-data";
 
-export type { SettingsClient, SettingsUser } from "./firestore-data";
+export type { SettingsClient, SettingsUser, CsvUploadHistory } from "./firestore-data";
 
 // ─── Re-export db-context (React data provider) ─────────────────────────
 export { DatabaseProvider, useWmsData } from "./db-context";

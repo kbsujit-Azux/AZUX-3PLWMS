@@ -356,6 +356,11 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // CSV Upload History for Inbound ASN
+    match /csvUploadHistory/{uploadId} {
+      allow read, write: if isSignedIn();
+    }
+
     // Catch-all for any other collections
     match /{document=**} {
       allow read, write: if isSignedIn();

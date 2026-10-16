@@ -476,6 +476,7 @@ import type { ClientAllocationConfig, PickTicket } from "@/lib/mock-data";
 import type { SettingsClient } from "@/lib/firestore-data";
 import type { SettingsUser } from "@/lib/firestore-data";
 import type { CarrierServiceRecord } from "@/lib/carrier-services";
+import type { CsvUploadHistory } from "@/lib/firestore-data";
 
 // Import mutable library array targets for background synchronization
 import {
@@ -502,29 +503,30 @@ type DatabaseContextType = {
   pallets: Pallet[];
   pickWaves: PickWave[];
   orders: Order[];
-  inboundShipments: InboundShipment[];
-  carrierDispatches: CarrierDispatch[];
-  bols: Bol[];
-  billingClients: BillingClient[];
-  billingRules: ChargeRule[];
-  billableEvents: BillableEvent[];
-  invoices: Invoice[];
-  itemMaster: ItemMasterRecord[];
-  locationMaster: LocationRecord[];
-  ediLogs: EdiLog[];
-  clientAllocationConfigs: ClientAllocationConfig[];
-  pickTickets: PickTicket[];
-  employees: any[];
-  tenantPortalUsers: any[];
-  rmaOrders: any[];
-  rmaLines: any[];
-  rmaDispositions: any[];
-  returnProcessingFees: any[];
-  carrierCredentials: any[];
-  clients: SettingsClient[];
-  users: SettingsUser[];
-  carrierServices: CarrierServiceRecord[];
-  cartonizations: any[];
+inboundShipments: InboundShipment[];
+    carrierDispatches: CarrierDispatch[];
+    bols: Bol[];
+    billingClients: BillingClient[];
+    billingRules: ChargeRule[];
+    billableEvents: BillableEvent[];
+    invoices: Invoice[];
+    itemMaster: ItemMasterRecord[];
+    locationMaster: LocationRecord[];
+    ediLogs: EdiLog[];
+    clientAllocationConfigs: ClientAllocationConfig[];
+    pickTickets: PickTicket[];
+    employees: any[];
+    tenantPortalUsers: any[];
+    rmaOrders: any[];
+    rmaLines: any[];
+    rmaDispositions: any[];
+    returnProcessingFees: any[];
+    carrierCredentials: any[];
+    clients: SettingsClient[];
+    users: SettingsUser[];
+    carrierServices: CarrierServiceRecord[];
+    cartonizations: any[];
+    csvUploadHistory: CsvUploadHistory[];
 };
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -562,6 +564,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<SettingsUser[]>([]);
   const [carrierServices, setCarrierServices] = useState<CarrierServiceRecord[]>([]);
   const [cartonizations, setCartonizations] = useState<any[]>([]);
+  const [csvUploadHistory, setCsvUploadHistory] = useState<CsvUploadHistory[]>([]);
   const [dataVersion, setDataVersion] = useState(0);
 
   const refreshData = useCallback(() => {
@@ -727,6 +730,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     syncCollection("users", setUsers);
     syncCollection("carrierServices", setCarrierServices);
     syncCollection("cartonizations", setCartonizations);
+    syncCollection("csvUploadHistory", setCsvUploadHistory as any, [] as any);
 
     // Turn off loading once initial data snaps are bound
     setLoading(false);
@@ -768,6 +772,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         users,
         carrierServices,
         cartonizations,
+        csvUploadHistory,
       }}
     >
       {loading ? (

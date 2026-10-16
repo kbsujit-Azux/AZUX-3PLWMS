@@ -35,6 +35,7 @@ import { Route as TenantPortalIndexRouteImport } from './routes/tenant-portal/in
 import { Route as RmaIndexRouteImport } from './routes/rma/index'
 import { Route as RfIndexRouteImport } from './routes/rf/index'
 import { Route as RateShoppingIndexRouteImport } from './routes/rate-shopping/index'
+import { Route as SystemCsvHistoryRouteImport } from './routes/system/csv-history'
 import { Route as RfReceivingRouteImport } from './routes/rf/receiving'
 import { Route as RfPutawayRouteImport } from './routes/rf/putaway'
 import { Route as RfPickRouteImport } from './routes/rf/pick'
@@ -174,6 +175,11 @@ const RateShoppingIndexRoute = RateShoppingIndexRouteImport.update({
   path: '/rate-shopping/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SystemCsvHistoryRoute = SystemCsvHistoryRouteImport.update({
+  id: '/system/csv-history',
+  path: '/system/csv-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RfReceivingRoute = RfReceivingRouteImport.update({
   id: '/rf/receiving',
   path: '/rf/receiving',
@@ -246,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
+  '/system/csv-history': typeof SystemCsvHistoryRoute
   '/rate-shopping/': typeof RateShoppingIndexRoute
   '/rf/': typeof RfIndexRoute
   '/rma/': typeof RmaIndexRoute
@@ -282,6 +289,7 @@ export interface FileRoutesByTo {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
+  '/system/csv-history': typeof SystemCsvHistoryRoute
   '/rate-shopping': typeof RateShoppingIndexRoute
   '/rf': typeof RfIndexRoute
   '/rma': typeof RmaIndexRoute
@@ -319,6 +327,7 @@ export interface FileRoutesById {
   '/rf/pick': typeof RfPickRoute
   '/rf/putaway': typeof RfPutawayRoute
   '/rf/receiving': typeof RfReceivingRoute
+  '/system/csv-history': typeof SystemCsvHistoryRoute
   '/rate-shopping/': typeof RateShoppingIndexRoute
   '/rf/': typeof RfIndexRoute
   '/rma/': typeof RmaIndexRoute
@@ -357,6 +366,7 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
+    | '/system/csv-history'
     | '/rate-shopping/'
     | '/rf/'
     | '/rma/'
@@ -393,6 +403,7 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
+    | '/system/csv-history'
     | '/rate-shopping'
     | '/rf'
     | '/rma'
@@ -429,6 +440,7 @@ export interface FileRouteTypes {
     | '/rf/pick'
     | '/rf/putaway'
     | '/rf/receiving'
+    | '/system/csv-history'
     | '/rate-shopping/'
     | '/rf/'
     | '/rma/'
@@ -464,6 +476,7 @@ export interface RootRouteChildren {
   RfPickRoute: typeof RfPickRoute
   RfPutawayRoute: typeof RfPutawayRoute
   RfReceivingRoute: typeof RfReceivingRoute
+  SystemCsvHistoryRoute: typeof SystemCsvHistoryRoute
   RateShoppingIndexRoute: typeof RateShoppingIndexRoute
   RfIndexRoute: typeof RfIndexRoute
   RmaIndexRoute: typeof RmaIndexRoute
@@ -654,6 +667,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RateShoppingIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/system/csv-history': {
+      id: '/system/csv-history'
+      path: '/system/csv-history'
+      fullPath: '/system/csv-history'
+      preLoaderRoute: typeof SystemCsvHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rf/receiving': {
       id: '/rf/receiving'
       path: '/rf/receiving'
@@ -755,6 +775,7 @@ const rootRouteChildren: RootRouteChildren = {
   RfPickRoute: RfPickRoute,
   RfPutawayRoute: RfPutawayRoute,
   RfReceivingRoute: RfReceivingRoute,
+  SystemCsvHistoryRoute: SystemCsvHistoryRoute,
   RateShoppingIndexRoute: RateShoppingIndexRoute,
   RfIndexRoute: RfIndexRoute,
   RmaIndexRoute: RmaIndexRoute,

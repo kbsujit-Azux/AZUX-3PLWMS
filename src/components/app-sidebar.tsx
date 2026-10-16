@@ -16,6 +16,7 @@ import {
   PackageCheck,
   ScanLine,
   Users,
+  FileSpreadsheet,
   Target,
   Building2,
   Undo2,
@@ -68,6 +69,10 @@ const systems = [
   { title: "Health Pulse", url: "/health", icon: Activity },
 ] as const;
 
+const systemAdmin = [
+  { title: "CSV Upload History", url: "/system/csv-history", icon: FileSpreadsheet },
+] as const;
+
 const rfTerminal = [
   { title: "RF Terminal", url: "https://rfgun.web.app", icon: ScanLine },
 ] as const;
@@ -94,6 +99,7 @@ export function AppSidebar() {
     const allItems = [
       ...operations,
       ...systems,
+      ...systemAdmin,
       ...rfTerminal,
       ...enterprise,
     ];
@@ -108,6 +114,7 @@ export function AppSidebar() {
 
   const visibleOps = operations.filter((i) => can(i.url));
   const visibleSys = systems.filter((i) => can(i.url));
+  const visibleSystemAdmin = systemAdmin.filter((i) => can(i.url));
 
   return (
     <Sidebar collapsible="icon">
@@ -151,6 +158,24 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleSys.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                    <Link to={item.url} className="flex items-center gap-2">
+                      <item.icon className="h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>System Admin</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {visibleSystemAdmin.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                     <Link to={item.url} className="flex items-center gap-2">

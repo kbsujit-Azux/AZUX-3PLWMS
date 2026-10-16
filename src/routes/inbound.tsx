@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import Papa from "papaparse";
 import {
   Search,
   Upload,
@@ -72,6 +73,7 @@ import { createPalletsFromInbound } from "@/lib/pallet-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
+import { createCsvUploadRecord, type CsvUploadHistory } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
   head: () => ({
@@ -307,6 +309,39 @@ function InboundPage() {
         title="Upload inbound ASN CSV"
         description="Fallback ingestion when an EDI 943 feed is not active. Map your headers to the inbound schema."
         ediHint="EDI 943"
+        onConfirm={async (file) => {
+          try {
+            const text = await file.text();
+            const parsed = Papa.parse(text, {
+              header: true,
+              skipEmptyLines: true,
+            });
+            const data = parsed.data as Record<string, string>[];
+            
+            const recordId = await createCsvUploadRecord({
+              id: "",
+              tenantId: tenantId !== "all" ? tenantId : tenants[0]?.id || "all",
+              warehouseId: warehouseId !== "all" ? warehouseId : warehouses[0]?.id || "atl1",
+              fileName: file.name,
+              fileSize: file.size,
+              uploadAt: new Date().toISOString(),
+              uploadedBy: "Manual Upload",
+              source: "inbound_asn",
+              status: "completed",
+              recordsProcessed: data.length,
+              errors: [],
+              warnings: [],
+              mapping: {},
+              rawHeaders: parsed.meta.fields || [],
+            });
+            
+            toast.success(`CSV uploaded: ${data.length} records to ${recordId}`);
+            refreshData();
+          } catch (e) {
+            console.error(e);
+            toast.error("Failed to process CSV upload");
+          }
+        }}
         targetFields={[
           { key: "client", label: "Client / Tenant", required: true },
           { key: "warehouse", label: "Warehouse", required: true },
