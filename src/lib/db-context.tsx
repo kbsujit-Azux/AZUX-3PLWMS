@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { collection, onSnapshot, getDocs, setDoc, doc } from "firebase/firestore";
 import { db } from "./firebase";
 
-// Importing seed data
 import { tenants, warehouses, inventoryItems } from "./mock-data";
 import { itemMaster, locationMaster } from "./master-data";
 import { pallets, pickWaves } from "./pallet-data";
@@ -23,6 +22,7 @@ export type WmsDataContextType = {
   pickWaves: any[];
   orders: any[];
   inboundShipments: any[];
+  workOrders: any[];
   carrierDispatches: any[];
   bols: any[];
   billingRates: any[];
@@ -30,6 +30,7 @@ export type WmsDataContextType = {
   itemMaster: any[];
   locationMaster: any[];
   ediLogs: any[];
+  csvUploadHistory: any[];
   loading: boolean;
 };
 
@@ -44,6 +45,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     pickWaves: [],
     orders: [],
     inboundShipments: [],
+    workOrders: [],
     carrierDispatches: [],
     bols: [],
     billingRates: [],
@@ -51,6 +53,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     itemMaster: [],
     locationMaster: [],
     ediLogs: [],
+    csvUploadHistory: [],
   });
   const [loading, setLoading] = useState(true);
 
@@ -70,6 +73,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         "pickWaves",
         "orders",
         "inboundShipments",
+        "workOrders",
         "carrierDispatches",
         "bols",
         "billingRates",
@@ -77,6 +81,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         "itemMaster",
         "locationMaster",
         "ediLogs",
+        "csvUploadHistory",
       ];
 
       collections.forEach((colName) => {

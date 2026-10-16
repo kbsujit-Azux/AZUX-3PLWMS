@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkordersRouteImport } from './routes/workorders'
 import { Route as VasRouteImport } from './routes/vas'
 import { Route as SlottingRouteImport } from './routes/slotting'
 import { Route as ShipmentsRouteImport } from './routes/shipments'
@@ -32,6 +33,7 @@ import { Route as Allocation_backupRouteImport } from './routes/allocation_backu
 import { Route as AllocationRouteImport } from './routes/allocation'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantPortalIndexRouteImport } from './routes/tenant-portal/index'
+import { Route as SystemIndexRouteImport } from './routes/system/index'
 import { Route as RmaIndexRouteImport } from './routes/rma/index'
 import { Route as RfIndexRouteImport } from './routes/rf/index'
 import { Route as RateShoppingIndexRouteImport } from './routes/rate-shopping/index'
@@ -45,6 +47,11 @@ import { Route as RfHistoryRouteImport } from './routes/rf/history'
 import { Route as MastersWarehousesRouteImport } from './routes/masters/warehouses'
 import { Route as MastersEmployeesRouteImport } from './routes/masters/employees'
 
+const WorkordersRoute = WorkordersRouteImport.update({
+  id: '/workorders',
+  path: '/workorders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VasRoute = VasRouteImport.update({
   id: '/vas',
   path: '/vas',
@@ -160,6 +167,11 @@ const TenantPortalIndexRoute = TenantPortalIndexRouteImport.update({
   path: '/tenant-portal/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SystemIndexRoute = SystemIndexRouteImport.update({
+  id: '/system/',
+  path: '/system/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RmaIndexRoute = RmaIndexRouteImport.update({
   id: '/rma/',
   path: '/rma/',
@@ -244,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/vas': typeof VasRoute
+  '/workorders': typeof WorkordersRoute
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
   '/rf/history': typeof RfHistoryRoute
@@ -256,6 +269,7 @@ export interface FileRoutesByFullPath {
   '/rate-shopping/': typeof RateShoppingIndexRoute
   '/rf/': typeof RfIndexRoute
   '/rma/': typeof RmaIndexRoute
+  '/system/': typeof SystemIndexRoute
   '/tenant-portal/': typeof TenantPortalIndexRoute
 }
 export interface FileRoutesByTo {
@@ -281,6 +295,7 @@ export interface FileRoutesByTo {
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/vas': typeof VasRoute
+  '/workorders': typeof WorkordersRoute
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
   '/rf/history': typeof RfHistoryRoute
@@ -293,6 +308,7 @@ export interface FileRoutesByTo {
   '/rate-shopping': typeof RateShoppingIndexRoute
   '/rf': typeof RfIndexRoute
   '/rma': typeof RmaIndexRoute
+  '/system': typeof SystemIndexRoute
   '/tenant-portal': typeof TenantPortalIndexRoute
 }
 export interface FileRoutesById {
@@ -319,6 +335,7 @@ export interface FileRoutesById {
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/vas': typeof VasRoute
+  '/workorders': typeof WorkordersRoute
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
   '/rf/history': typeof RfHistoryRoute
@@ -331,6 +348,7 @@ export interface FileRoutesById {
   '/rate-shopping/': typeof RateShoppingIndexRoute
   '/rf/': typeof RfIndexRoute
   '/rma/': typeof RmaIndexRoute
+  '/system/': typeof SystemIndexRoute
   '/tenant-portal/': typeof TenantPortalIndexRoute
 }
 export interface FileRouteTypes {
@@ -358,6 +376,7 @@ export interface FileRouteTypes {
     | '/shipments'
     | '/slotting'
     | '/vas'
+    | '/workorders'
     | '/masters/employees'
     | '/masters/warehouses'
     | '/rf/history'
@@ -370,6 +389,7 @@ export interface FileRouteTypes {
     | '/rate-shopping/'
     | '/rf/'
     | '/rma/'
+    | '/system/'
     | '/tenant-portal/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -395,6 +415,7 @@ export interface FileRouteTypes {
     | '/shipments'
     | '/slotting'
     | '/vas'
+    | '/workorders'
     | '/masters/employees'
     | '/masters/warehouses'
     | '/rf/history'
@@ -407,6 +428,7 @@ export interface FileRouteTypes {
     | '/rate-shopping'
     | '/rf'
     | '/rma'
+    | '/system'
     | '/tenant-portal'
   id:
     | '__root__'
@@ -432,6 +454,7 @@ export interface FileRouteTypes {
     | '/shipments'
     | '/slotting'
     | '/vas'
+    | '/workorders'
     | '/masters/employees'
     | '/masters/warehouses'
     | '/rf/history'
@@ -444,6 +467,7 @@ export interface FileRouteTypes {
     | '/rate-shopping/'
     | '/rf/'
     | '/rma/'
+    | '/system/'
     | '/tenant-portal/'
   fileRoutesById: FileRoutesById
 }
@@ -470,6 +494,7 @@ export interface RootRouteChildren {
   ShipmentsRoute: typeof ShipmentsRoute
   SlottingRoute: typeof SlottingRoute
   VasRoute: typeof VasRoute
+  WorkordersRoute: typeof WorkordersRoute
   RfHistoryRoute: typeof RfHistoryRoute
   RfInquiryRoute: typeof RfInquiryRoute
   RfMoveRoute: typeof RfMoveRoute
@@ -480,11 +505,19 @@ export interface RootRouteChildren {
   RateShoppingIndexRoute: typeof RateShoppingIndexRoute
   RfIndexRoute: typeof RfIndexRoute
   RmaIndexRoute: typeof RmaIndexRoute
+  SystemIndexRoute: typeof SystemIndexRoute
   TenantPortalIndexRoute: typeof TenantPortalIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workorders': {
+      id: '/workorders'
+      path: '/workorders'
+      fullPath: '/workorders'
+      preLoaderRoute: typeof WorkordersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/vas': {
       id: '/vas'
       path: '/vas'
@@ -646,6 +679,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TenantPortalIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/system/': {
+      id: '/system/'
+      path: '/system'
+      fullPath: '/system/'
+      preLoaderRoute: typeof SystemIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rma/': {
       id: '/rma/'
       path: '/rma'
@@ -769,6 +809,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShipmentsRoute: ShipmentsRoute,
   SlottingRoute: SlottingRoute,
   VasRoute: VasRoute,
+  WorkordersRoute: WorkordersRoute,
   RfHistoryRoute: RfHistoryRoute,
   RfInquiryRoute: RfInquiryRoute,
   RfMoveRoute: RfMoveRoute,
@@ -779,6 +820,7 @@ const rootRouteChildren: RootRouteChildren = {
   RateShoppingIndexRoute: RateShoppingIndexRoute,
   RfIndexRoute: RfIndexRoute,
   RmaIndexRoute: RmaIndexRoute,
+  SystemIndexRoute: SystemIndexRoute,
   TenantPortalIndexRoute: TenantPortalIndexRoute,
 }
 export const routeTree = rootRouteImport

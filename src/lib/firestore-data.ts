@@ -342,6 +342,241 @@ export async function receiveInboundShipment(
 }
 
 // ============================================================
+// Create Inbound Shipment from CSV
+// ============================================================
+export async function createInboundShipmentRecord(
+  shipment: Omit<
+    InboundShipment,
+    "id" | "isaControl" | "partner" | "receivedAt" | "lines" | "source"
+  > & {
+    source: "CSV";
+    lines: Array<{
+      lineNo: number;
+      sku: string;
+      upc?: string;
+      itemStyle?: string;
+      description?: string;
+      lot: string;
+      expirationDate?: string;
+      qtyExpected: number;
+      cartonsExpected?: number;
+      unitsPerPallet?: number;
+      weightLbsPerUnit?: number;
+    }>;
+  },
+): Promise<string> {
+  const id = `INB-${new Date().getFullYear()}${(new Date().getMonth() + 1)
+    .toString()
+    .padStart(2, "0")}${(new Date().getDate()).toString().padStart(2, "0")}-${Math.floor(Math.random() * 10000)
+    .toString()
+    .padStart(4, "0")}`;
+
+  const woId = `WO-${id.replace("INB-", "")}`;
+
+  const totalUnits = shipment.lines.reduce((sum, l) => sum + l.qtyExpected, 0);
+  const totalCartons = shipment.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0);
+
+  const lines: InboundLine[] = shipment.lines.map((l, idx) => ({
+    lineNo: l.lineNo,
+    sku: l.sku,
+    upc: l.upc || "",
+    itemStyle: l.itemStyle || "",
+    description: l.description || "",
+    lot: l.lot,
+    expirationDate: l.expirationDate || "2030-12-31",
+    qtyExpected: l.qtyExpected,
+    cartonsExpected: l.cartonsExpected || 0,
+    uom: "EA",
+    weightLbsPerUnit: l.weightLbsPerUnit || 0,
+    unitsPerPallet: l.unitsPerPallet || 1,
+    receivedQty: 0,
+    palletIds: [],
+    status: "expected",
+  }));
+
+  const fullShipment: InboundShipment = {
+    id,
+    ediRef: shipment.ediRef || shipment.poNumber,
+    isaControl: `CSV-${Date.now()}`,
+    tenantId: shipment.tenantId,
+    warehouseId: shipment.warehouseId,
+    partner: "CSV_IMPORT",
+    carrier: shipment.carrier,
+    trailerNumber: shipment.trailerNumber || "—",
+    containerNumber: shipment.containerNumber || "—",
+    sealNumber: shipment.sealNumber || "",
+    bolNumber: shipment.bolNumber || "",
+    origin: shipment.origin || "",
+    poNumber: shipment.poNumber,
+    appointmentAt: shipment.appointmentAt || new Date().toISOString(),
+    expectedAt: shipment.appointmentAt || new Date().toISOString(),
+    receivedAt: null,
+    doorAssigned: null,
+    status: "scheduled",
+    source: "CSV",
+    workOrderId: woId,
+    lines,
+  };
+
+  await setDoc(doc(db, "inboundShipments", id), fullShipment);
+
+  const workOrderLines = shipment.lines.map((l, idx) => ({
+    lineNo: idx + 1,
+    sku: l.sku,
+    upc: l.upc || "",
+    description: "",
+    lot: l.lot,
+    qtyExpected: l.qtyExpected,
+    qtyReceived: 0,
+    cartons: l.cartonsExpected || 0,
+    status: "pending" as const,
+  }));
+
+  await createWorkOrder({
+    id: woId,
+    woNumber: woId,
+    tenantId: shipment.tenantId,
+    warehouseId: shipment.warehouseId,
+    clientName: "",
+    containerNumber: shipment.containerNumber || "—",
+    trailerNumber: shipment.trailerNumber || "—",
+    sealNumber: shipment.sealNumber || "",
+    bolNumber: shipment.bolNumber || "",
+    poNumber: shipment.poNumber,
+    ediRef: shipment.ediRef,
+    carrier: shipment.carrier,
+    vessel: "",
+    voyageNumber: "",
+    port: "",
+    origin: shipment.origin || "",
+    arrivalDate: shipment.appointmentAt,
+    departureDate: null,
+    inboundEntryDate: new Date().toISOString(),
+    receivedDate: null,
+    status: "scheduled",
+    totalUnits,
+    totalCartons,
+    lineCount: shipment.lines.length,
+    lines: workOrderLines,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  return id;
+}
+
+export async function updateInboundLineFields(
+  shipmentId: string,
+  lineNo: number,
+  updates: Partial<InboundLine> & { receivedQty?: number; palletIds?: string[]; status?: "expected" | "partial" | "received" },
+) {
+  const shipmentRef = doc(db, "inboundShipments", shipmentId);
+  await updateDoc(shipmentRef, {
+    [`lines.${lineNo}`]: updates,
+  });
+}
+
+export async function updateInboundShipmentStatus(
+  shipmentId: string,
+  status: "scheduled" | "arrived" | "unloading" | "received" | "exception",
+  receivedAt?: string,
+) {
+  const shipmentRef = doc(db, "inboundShipments", shipmentId);
+  await updateDoc(shipmentRef, {
+    status,
+    receivedAt: receivedAt || new Date().toISOString(),
+  });
+}
+
+export async function deleteInboundShipment(shipmentId: string, workOrderId?: string) {
+  const shipmentRef = doc(db, "inboundShipments", shipmentId);
+  await deleteDoc(shipmentRef);
+
+  if (workOrderId) {
+    try {
+      await deleteDoc(doc(db, "workOrders", workOrderId));
+    } catch (e) {
+      console.warn("Work order not found or already deleted:", workOrderId);
+    }
+  }
+}
+
+export async function updateInboundShipmentRecord(
+  shipmentId: string,
+  updates: {
+    ediRef: string;
+    poNumber: string;
+    carrier: string;
+    trailerNumber: string;
+    containerNumber: string;
+    sealNumber: string;
+    bolNumber: string;
+    origin: string;
+    appointmentAt: string;
+    lines: Array<{
+      lineNo: number;
+      sku: string;
+      upc: string;
+      itemStyle: string;
+      description: string;
+      lot: string;
+      expirationDate: string;
+      qtyExpected: number;
+      cartonsExpected: number;
+      unitsPerPallet: number;
+      weightLbsPerUnit: number;
+      poNumber?: string;
+    }>;
+  }
+) {
+  const shipmentRef = doc(db, "inboundShipments", shipmentId);
+  await updateDoc(shipmentRef, {
+    ediRef: updates.ediRef,
+    poNumber: updates.poNumber,
+    carrier: updates.carrier,
+    trailerNumber: updates.trailerNumber,
+    containerNumber: updates.containerNumber,
+    sealNumber: updates.sealNumber,
+    bolNumber: updates.bolNumber,
+    origin: updates.origin,
+    appointmentAt: updates.appointmentAt,
+    lines: updates.lines,
+  });
+}
+
+export async function createPalletsAndLinkToShipment(
+  shipmentId: string,
+  pallets: Array<{
+    id: string;
+    itemStyle: string;
+    tenantId: string;
+    warehouseId: string;
+    sku: string;
+    description: string;
+    units: number;
+    capacityUnits: number;
+    casePack: number;
+    weightLbs: number;
+    builtAt: string;
+    builtBy: string;
+    poNumber: string;
+    ediSource: string;
+    status: "building" | "putaway" | "staged" | "picking" | "shipped";
+    location: string | null;
+    suggestedLocation: string;
+    zone: string;
+    receivedAt: string;
+    cubeCuFt: number;
+  }>,
+): Promise<void> {
+  const batch = writeBatch(db);
+  pallets.forEach((pallet) => {
+    batch.set(doc(db, "pallets", pallet.id), pallet);
+  });
+  await batch.commit();
+}
+
+// ============================================================
 // Pallets
 // ============================================================
 export async function fetchPallets(tenantId?: string, warehouseId?: string): Promise<Pallet[]> {
@@ -3111,4 +3346,49 @@ export async function updateCsvUploadRecord(
 export async function deleteCsvUploadRecord(id: string): Promise<{ ok: true }> {
   await deleteDoc(doc(db, "csvUploadHistory", id));
   return { ok: true };
+}
+
+// ============================================================
+// Work Orders
+// ============================================================
+export async function fetchWorkOrders(): Promise<any[]> {
+  const q = query(collection(db, "workOrders"), orderBy("createdAt", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }));
+}
+
+export function subscribeWorkOrders(callback: (workOrders: any[]) => void): Unsubscribe {
+  const q = query(collection(db, "workOrders"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })));
+  });
+}
+
+export async function createWorkOrder(data: any): Promise<string> {
+  const id = data.id || genWoId();
+  await setDoc(doc(db, "workOrders", id), {
+    ...data,
+    id,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return id;
+}
+
+export async function updateWorkOrder(id: string, updates: any): Promise<void> {
+  await updateDoc(doc(db, "workOrders", id), {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteWorkOrder(id: string): Promise<void> {
+  await deleteDoc(doc(db, "workOrders", id));
+}
+
+function genWoId(): string {
+  const now = new Date();
+  const dateStr = now.getFullYear().toString() + (now.getMonth() + 1).toString().padStart(2, "0") + now.getDate().toString().padStart(2, "0");
+  const seq = Math.floor(Math.random() * 1000).toString().padStart(4, "0");
+  return `WO-${dateStr}-${seq}`;
 }

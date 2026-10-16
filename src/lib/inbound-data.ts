@@ -42,16 +42,17 @@ export type InboundLine = {
   upc: string;
   itemStyle: string;
   description: string;
-  lot: string; // EDI 943 LOT01 — supplier lot / batch
-  expirationDate: string; // ISO date — EDI 943 DTM/036
-  qtyExpected: number; // Units
-  cartonsExpected: number; // EDI 943 N1*CN / cartons
+  lot: string;
+  expirationDate: string;
+  qtyExpected: number;
+  cartonsExpected: number;
   uom: string;
   weightLbsPerUnit: number;
-  unitsPerPallet: number; // Tied to item-style pallet build
-  receivedQty: number; // Updated post-receipt
-  palletIds: string[]; // Pallets created from this line
+  unitsPerPallet: number;
+  receivedQty: number;
+  palletIds: string[];
   status: "expected" | "partial" | "received";
+  poNumber?: string;
 };
 
 export type InboundShipment = {
@@ -74,6 +75,7 @@ export type InboundShipment = {
   doorAssigned: string | null;
   status: "scheduled" | "arrived" | "unloading" | "received" | "exception";
   source: "EDI_943" | "EDI_944" | "CSV" | "MANUAL";
+  workOrderId?: string;
   lines: InboundLine[];
 };
 
@@ -422,4 +424,55 @@ export function closeInboundShipment(
   shipment.receivedAt = receipt.closedAt;
 
   return receipt;
+}
+
+export type WorkOrderStatus = "scheduled" | "at_dock" | "unloading" | "received" | "departed" | "closed";
+
+export type WorkOrderLine = {
+  lineNo: number;
+  sku: string;
+  upc: string;
+  description: string;
+  lot: string;
+  qtyExpected: number;
+  qtyReceived: number;
+  cartons: number;
+  status: "pending" | "received" | "partial";
+};
+
+export type WorkOrder = {
+  id: string;
+  woNumber: string;
+  tenantId: string;
+  warehouseId: string;
+  clientName: string;
+  containerNumber: string;
+  trailerNumber: string;
+  sealNumber: string;
+  bolNumber: string;
+  poNumber: string;
+  ediRef: string;
+  carrier: string;
+  vessel: string;
+  voyageNumber: string;
+  port: string;
+  origin: string;
+  arrivalDate: string;
+  departureDate: string | null;
+  inboundEntryDate: string;
+  receivedDate: string | null;
+  status: WorkOrderStatus;
+  totalUnits: number;
+  totalCartons: number;
+  lineCount: number;
+  lines: WorkOrderLine[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function genWorkOrderId(): string {
+  const now = new Date();
+  const dateStr = now.getFullYear().toString() + (now.getMonth() + 1).toString().padStart(2, "0") + (now.getDate()).toString().padStart(2, "0");
+  const seq = Math.floor(Math.random() * 1000).toString().padStart(4, "0");
+  return `WO-${dateStr}-${seq}`;
 }

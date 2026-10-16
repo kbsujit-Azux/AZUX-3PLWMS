@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Search,
   FileSpreadsheet,
@@ -93,6 +93,12 @@ function CsvHistoryPage() {
     URL.revokeObjectURL(url);
   };
 
+  const getStatusVariant = (status: string) => {
+    if (status === "completed") return "default";
+    if (status === "failed") return "destructive";
+    return "secondary";
+  };
+
   return (
     <div className="px-6 py-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -152,150 +158,143 @@ function CsvHistoryPage() {
             </TableHeader>
             <TableBody>
               {histories.map((h) => (
-                <React.Fragment key={h.id}>
-                  <TableRow className="text-xs hover:bg-muted/30">
-                    <TableCell className="font-mono">{h.id}</TableCell>
-                    <TableCell className="font-medium">{h.fileName}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={h.status === "completed" ? "default" : h.status === "failed" ? "destructive" : "secondary"}
-                        className="text-xs"
-                      >
-                        {h.status}
+                <TableRow key={h.id} className="text-xs hover:bg-muted/30">
+                  <TableCell className="font-mono">{h.id}</TableCell>
+                  <TableCell className="font-medium">{h.fileName}</TableCell>
+                  <TableCell>
+                    <Badge variant={getStatusVariant(h.status)} className="text-xs">
+                      {h.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="tabular-nums">{h.recordsProcessed}</TableCell>
+                  <TableCell>
+                    {h.errors.length > 0 ? (
+                      <Badge variant="destructive" className="text-xs">
+                        {h.errors.length}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="tabular-nums">{h.recordsProcessed}</TableCell>
-                    <TableCell>
-                      {h.errors.length > 0 ? (
-                        <Badge variant="destructive" className="text-xs">
-                          {h.errors.length}
-                        </Badge>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      {new Date(h.uploadAt).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">{h.uploadedBy}</TableCell>
-                    <TableCell>
-                      <Dialog open={detailOpen === h.id} onOpenChange={(o) => setDetailOpen(o ? h.id : null)}>
-                        <DialogTrigger asChild>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
-                            <FileSpreadsheet className="h-3.5 w-3.5" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-                          <DialogHeader>
-                            <DialogTitle className="text-base">
-                              {h.fileName} - Details
-                            </DialogTitle>
-                          </DialogHeader>
-                          <div className="flex-1 overflow-y-auto space-y-4 p-4">
-                            <div className="grid grid-cols-2 gap-4 text-xs">
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {new Date(h.uploadAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs">{h.uploadedBy}</TableCell>
+                  <TableCell>
+                    <Dialog open={detailOpen === h.id} onOpenChange={(o) => setDetailOpen(o ? h.id : null)}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                          <FileSpreadsheet className="h-3.5 w-3.5" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                        <DialogHeader>
+                          <DialogTitle className="text-base">
+                            {h.fileName} - Details
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="flex-1 overflow-y-auto space-y-4 p-4">
+                          <div className="grid grid-cols-2 gap-4 text-xs">
+                            <div>
+                              <span className="text-muted-foreground">ID</span>
+                              <div className="font-mono">{h.id}</div>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Status</span>
                               <div>
-                                <span className="text-muted-foreground">ID</span>
-                                <div className="font-mono">{h.id}</div>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Status</span>
-                                <div>
-                                  <Badge
-                                    variant={h.status === "completed" ? "default" : h.status === "failed" ? "destructive" : "secondary"}
-                                  >
-                                    {h.status}
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Source</span>
-                                <div>{h.source.replace("_", " ")}</div>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Records Processed</span>
-                                <div className="tabular-nums">{h.recordsProcessed}</div>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Uploaded At</span>
-                                <div>{new Date(h.uploadAt).toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">File Size</span>
-                                <div>{(h.fileSize / 1024).toFixed(1)} KB</div>
+                                <Badge variant={getStatusVariant(h.status)}>
+                                  {h.status}
+                                </Badge>
                               </div>
                             </div>
-
-                            {h.errors.length > 0 && (
-                              <div>
-                                <h4 className="text-xs font-semibold mb-2 text-destructive">Errors ({h.errors.length})</h4>
-                                <div className="max-h-40 overflow-y-auto rounded-md border border-destructive/20 bg-destructive/5">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow className="bg-destructive/10">
-                                        <TableHead className="text-xs">Row</TableHead>
-                                        <TableHead className="text-xs">Field</TableHead>
-                                        <TableHead className="text-xs">Message</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {h.errors.slice(0, 50).map((e, i) => (
-                                        <TableRow key={i}>
-                                          <TableCell className="font-mono text-xs">{e.row}</TableCell>
-                                          <TableCell className="font-mono text-xs">{e.field}</TableCell>
-                                          <TableCell className="text-xs">{e.message}</TableCell>
-                                        </TableRow>
-                                      ))}
-                                      {h.errors.length > 50 && (
-                                        <TableRow>
-                                          <TableCell colSpan={3} className="text-center text-muted-foreground text-xs">
-                                            ...and {h.errors.length - 50} more errors
-                                          </TableCell>
-                                        </TableRow>
-                                      )}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </div>
-                            )}
-
-                            {h.warnings.length > 0 && (
-                              <div>
-                                <h4 className="text-xs font-semibold mb-2 text-amber-500">Warnings ({h.warnings.length})</h4>
-                                <div className="max-h-40 overflow-y-auto rounded-md border border-amber-500/20 bg-amber-500/5">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow className="bg-amber-500/10">
-                                        <TableHead className="text-xs">Row</TableHead>
-                                        <TableHead className="text-xs">Field</TableHead>
-                                        <TableHead className="text-xs">Message</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {h.warnings.slice(0, 50).map((w, i) => (
-                                        <TableRow key={i}>
-                                          <TableCell className="font-mono text-xs">{w.row}</TableCell>
-                                          <TableCell className="font-mono text-xs">{w.field}</TableCell>
-                                          <TableCell className="text-xs">{w.message}</TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </div>
-                            )}
-
-                            {h.errors.length === 0 && h.warnings.length === 0 && (
-                              <div className="text-center py-8 text-muted-foreground">
-                                <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-emerald-500" />
-                                <p className="text-xs">No errors or warnings</p>
-                              </div>
-                            )}
+                            <div>
+                              <span className="text-muted-foreground">Source</span>
+                              <div>{h.source.replace("_", " ")}</div>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Records Processed</span>
+                              <div className="tabular-nums">{h.recordsProcessed}</div>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Uploaded At</span>
+                              <div>{new Date(h.uploadAt).toLocaleString()}</div>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">File Size</span>
+                              <div>{(h.fileSize / 1024).toFixed(1)} KB</div>
+                            </div>
                           </div>
-                        </DialogContent>
-                      </Dialog>
-                    </TableCell>
-                  </TableRow>
-                </React.Fragment>
+
+                          {h.errors.length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-semibold mb-2 text-destructive">Errors ({h.errors.length})</h4>
+                              <div className="max-h-40 overflow-y-auto rounded-md border border-destructive/20 bg-destructive/5">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="bg-destructive/10">
+                                      <TableHead className="text-xs">Row</TableHead>
+                                      <TableHead className="text-xs">Field</TableHead>
+                                      <TableHead className="text-xs">Message</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {h.errors.slice(0, 50).map((e, i) => (
+                                      <TableRow key={i}>
+                                        <TableCell className="font-mono text-xs">{e.row}</TableCell>
+                                        <TableCell className="font-mono text-xs">{e.field}</TableCell>
+                                        <TableCell className="text-xs">{e.message}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                    {h.errors.length > 50 && (
+                                      <TableRow>
+                                        <TableCell colSpan={3} className="text-center text-muted-foreground text-xs">
+                                          ...and {h.errors.length - 50} more errors
+                                        </TableCell>
+                                      </TableRow>
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </div>
+                          )}
+
+                          {h.warnings.length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-semibold mb-2 text-amber-500">Warnings ({h.warnings.length})</h4>
+                              <div className="max-h-40 overflow-y-auto rounded-md border border-amber-500/20 bg-amber-500/5">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="bg-amber-500/10">
+                                      <TableHead className="text-xs">Row</TableHead>
+                                      <TableHead className="text-xs">Field</TableHead>
+                                      <TableHead className="text-xs">Message</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {h.warnings.slice(0, 50).map((w, i) => (
+                                      <TableRow key={i}>
+                                        <TableCell className="font-mono text-xs">{w.row}</TableCell>
+                                        <TableCell className="font-mono text-xs">{w.field}</TableCell>
+                                        <TableCell className="text-xs">{w.message}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </div>
+                          )}
+
+                          {h.errors.length === 0 && h.warnings.length === 0 && (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-emerald-500" />
+                              <p className="text-xs">No errors or warnings</p>
+                            </div>
+                          )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </TableCell>
+                </TableRow>
               ))}
             </TableBody>
           </Table>

@@ -23,6 +23,8 @@ import {
   Download,
   X,
   Check,
+  Edit,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -60,7 +62,6 @@ import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { tenants, warehouses, inventoryItems } from "@/lib/mock-data";
 import {
-  inboundShipments,
   inboundProgressPct,
   shipmentProgressPct,
   warehouseCode,
@@ -73,7 +74,7 @@ import { createPalletsFromInbound } from "@/lib/pallet-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
-import { createCsvUploadRecord, type CsvUploadHistory } from "@/lib/firestore-data";
+import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
   head: () => ({
@@ -105,32 +106,61 @@ const lineStatusStyles: Record<InboundLine["status"], string> = {
 
 function InboundPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { refreshData } = useWmsData();
-  const [query, setQuery] = useState("");
+  const { inboundShipments, refreshData } = useWmsData();
+  const [query, setQuery] = useState(() => localStorage.getItem("inbound-query") || "");
   const [csvOpen, setCsvOpen] = useState(false);
   const [, force] = useState(0);
   const [activeLine, setActiveLine] = useState<{ s: InboundShipment; l: InboundLine } | null>(null);
   const [addContainerOpen, setAddContainerOpen] = useState(false);
   const [closeContainer, setCloseContainer] = useState<InboundShipment | null>(null);
+  const [editContainer, setEditContainer] = useState<InboundShipment | null>(null);
+  const [deleteContainer, setDeleteContainer] = useState<InboundShipment | null>(null);
   const [printReceipt, setPrintReceipt] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
-  const [reportStart, setReportStart] = useState("");
-  const [reportEnd, setReportEnd] = useState("");
+  const [reportStart, setReportStart] = useState(() => localStorage.getItem("inbound-report-start") || "");
+  const [reportEnd, setReportEnd] = useState(() => localStorage.getItem("inbound-report-end") || "");
+  const [csvErrors, setCsvErrors] = useState<Array<{ row: number; field: string; message: string }>>([]);
+  const [csvWarnings, setCsvWarnings] = useState<Array<{ row: number; field: string; message: string }>>([]);
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    localStorage.setItem("inbound-query", value);
+  };
+
+  const handleReportStartChange = (value: string) => {
+    setReportStart(value);
+    localStorage.setItem("inbound-report-start", value);
+  };
+
+  const handleReportEndChange = (value: string) => {
+    setReportEnd(value);
+    localStorage.setItem("inbound-report-end", value);
+  };
+
+  const resetFilters = () => {
+    localStorage.removeItem("inbound-query");
+    localStorage.removeItem("inbound-report-start");
+    localStorage.removeItem("inbound-report-end");
+    setQuery("");
+    setReportStart("");
+    setReportEnd("");
+  };
 
   const filtered = useMemo(() => {
-    return inboundShipments.filter((s) => {
-      if (tenantId !== "all" && s.tenantId !== tenantId) return false;
-      if (warehouseId !== "all" && s.warehouseId !== warehouseId) return false;
-      if (query) {
-        const q = query.toLowerCase();
-        const blob =
-          `${s.id} ${s.ediRef} ${s.poNumber} ${s.trailerNumber} ${s.containerNumber} ${s.bolNumber} ${s.carrier}`.toLowerCase();
-        if (!blob.includes(q)) return false;
-      }
-      return true;
-    });
-    // re-render on force
-  }, [tenantId, warehouseId, query]);
+    return inboundShipments
+      .filter((s) => {
+        if (tenantId !== "all" && s.tenantId !== tenantId) return false;
+        if (warehouseId !== "all" && s.warehouseId !== warehouseId) return false;
+        if (query) {
+          const q = query.toLowerCase();
+          const blob =
+            `${s.id} ${s.ediRef} ${s.poNumber} ${s.trailerNumber} ${s.containerNumber} ${s.bolNumber} ${s.carrier}`.toLowerCase();
+          if (!blob.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.id.localeCompare(a.id));
+  }, [inboundShipments, tenantId, warehouseId, query]);
 
   const stats = useMemo(() => {
     const t = { scheduled: 0, atDoor: 0, exception: 0, expectedUnits: 0, expectedCartons: 0 };
@@ -223,14 +253,16 @@ function InboundPage() {
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => handleQueryChange(e.target.value)}
             placeholder="Search ASN, PO, trailer, container, BOL, carrier…"
             className="h-8 pl-8 text-xs"
           />
         </div>
-        <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-          <Filter className="h-3.5 w-3.5" /> Filter
-        </Button>
+        {(query || reportStart || reportEnd) && (
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={resetFilters}>
+            <X className="h-3.5 w-3.5" /> Reset
+          </Button>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -247,6 +279,16 @@ function InboundPage() {
             onCloseContainer={
               s.status !== "received" && s.lines.every((l) => l.palletIds.length > 0)
                 ? () => setCloseContainer(s)
+                : undefined
+            }
+            onEdit={
+              s.status === "scheduled" && !s.lines.some((l) => l.palletIds.length > 0)
+                ? () => setEditContainer(s)
+                : undefined
+            }
+            onDelete={
+              s.status === "scheduled" && !s.lines.some((l) => l.palletIds.length > 0)
+                ? () => setDeleteContainer(s)
                 : undefined
             }
             onPrintReceipt={
@@ -303,12 +345,74 @@ function InboundPage() {
         onEndDateChange={setReportEnd}
       />
 
+      {deleteContainer && (
+        <AlertDialog
+          open={!!deleteContainer}
+          onOpenChange={(o) => !o && setDeleteContainer(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Container?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete the inbound shipment &quot;
+                {deleteContainer.id} &quot; (ASN: {deleteContainer.ediRef}) and all
+                associated lines. This action cannot be undone.
+                <br />
+                <br />
+                Only scheduled containers with no pallet builds can be deleted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteContainer(null)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  try {
+                    await deleteInboundShipment(deleteContainer.id, deleteContainer.workOrderId);
+                    toast.success("Container deleted", {
+                      description: `Inbound shipment ${deleteContainer.id} has been removed.`,
+                    });
+                    force((n) => n + 1);
+                    setDeleteContainer(null);
+                  } catch (e: any) {
+                    toast.error("Failed to delete container", {
+                      description: e.message || "Please check permissions and try again",
+                    });
+                  }
+                }}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                Delete Container
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {editContainer && (
+        <EditContainerDialog
+          open={!!editContainer}
+          onOpenChange={(o) => !o && setEditContainer(null)}
+          shipment={editContainer}
+          onEdited={() => force((n) => n + 1)}
+        />
+      )}
+
       <CsvUploader
         open={csvOpen}
-        onOpenChange={setCsvOpen}
+        onOpenChange={(o) => {
+          setCsvOpen(o);
+          if (!o) {
+            setCsvErrors([]);
+            setCsvWarnings([]);
+          }
+        }}
         title="Upload inbound ASN CSV"
         description="Fallback ingestion when an EDI 943 feed is not active. Map your headers to the inbound schema."
         ediHint="EDI 943"
+        errors={csvErrors}
+        warnings={csvWarnings}
         onConfirm={async (file) => {
           try {
             const text = await file.text();
@@ -317,26 +421,203 @@ function InboundPage() {
               skipEmptyLines: true,
             });
             const data = parsed.data as Record<string, string>[];
-            
+
+            const tenantToUse = tenantId !== "all" ? tenantId : tenants[0]?.id || "acme";
+            const warehouseToUse = warehouseId !== "all" ? warehouseId : warehouses[0]?.id || "atl1";
+
+            const errors: Array<{ row: number; field: string; message: string }> = [];
+            const warnings: Array<{ row: number; field: string; message: string }> = [];
+            const shipmentMap = new Map<string, any>();
+
+            const selectedTenant = tenants.find((t) => t.id === tenantToUse);
+            const selectedWarehouse = warehouses.find((w) => w.id === warehouseToUse);
+
+            if (!selectedTenant) {
+              errors.push({ row: 0, field: "client", message: `Selected tenant "${tenantToUse}" not found` });
+            }
+            if (!selectedWarehouse) {
+              errors.push({ row: 0, field: "warehouse", message: `Selected warehouse "${warehouseToUse}" not found` });
+            }
+
+            data.forEach((row, idx) => {
+              const rowNum = idx + 2;
+              const getField = (key: string) => {
+                const lowerKey = key.toLowerCase();
+                for (const k of Object.keys(row)) {
+                  if (k.toLowerCase() === lowerKey) return (row[k] as string).trim();
+                }
+                return "";
+              };
+
+              const asnRef = getField("asn_ref") || getField("asn");
+              const poNumber = getField("po_number") || getField("po");
+              const containerNumber = getField("container_number") || getField("container");
+
+              if (!asnRef) {
+                errors.push({ row: rowNum, field: "asn_ref", message: "ASN or Reference is required" });
+                return;
+              }
+
+              if (!containerNumber) {
+                errors.push({ row: rowNum, field: "container_number", message: "Container is required" });
+                return;
+              }
+
+              const key = asnRef;
+
+              if (shipmentMap.has(key)) {
+                const existingPo = shipmentMap.get(key).poNumber;
+                if (poNumber && existingPo && existingPo !== poNumber) {
+                  warnings.push({ row: rowNum, field: "po_number", message: `Multiple POs (${existingPo}, ${poNumber}) for same ASN - lines will be consolidated` });
+                }
+              }
+
+              if (!shipmentMap.has(key)) {
+                const carrier = getField("carrier");
+                if (!carrier) {
+                  warnings.push({ row: rowNum, field: "carrier", message: "Carrier is recommended" });
+                }
+
+                const expectedAtStr = getField("expected_at") || getField("appointment") || "";
+                if (expectedAtStr) {
+                  const expectedAt = new Date(expectedAtStr);
+                  if (isNaN(expectedAt.getTime())) {
+                    warnings.push({ row: rowNum, field: "expected_at", message: "Invalid appointment date format" });
+                  } else if (expectedAt < new Date(new Date().setHours(0, 0, 0, 0))) {
+                    warnings.push({ row: rowNum, field: "expected_at", message: "Appointment date is in the past" });
+                  }
+                }
+
+                shipmentMap.set(key, {
+                  ediRef: asnRef,
+                  poNumber: poNumber || "",
+                  tenantId: tenantToUse,
+                  warehouseId: warehouseToUse,
+                  carrier: carrier,
+                  trailerNumber: getField("trailer_number") || getField("trailer"),
+                  containerNumber: containerNumber,
+                  sealNumber: getField("seal_number") || "",
+                  bolNumber: getField("bol_number") || "",
+                  origin: getField("origin") || "",
+                  appointmentAt: expectedAtStr,
+                  lines: [],
+                });
+              }
+
+              const shipment = shipmentMap.get(key);
+              if (!shipment) return;
+
+              const sku = getField("sku") || getField("item");
+              if (!sku) {
+                errors.push({ row: rowNum, field: "sku", message: "SKU/Item is required (check CSV column header)" });
+                return;
+              }
+
+              const lot = getField("lot") || "";
+              if (lot && !lot) {
+                warnings.push({ row: rowNum, field: "lot", message: "LOT is empty, will use blank" });
+              }
+
+              const qtyStr = getField("qty_expected") || getField("units");
+              if (!qtyStr) {
+                errors.push({ row: rowNum, field: "qty_expected", message: "Quantity expected is required" });
+                return;
+              }
+
+              const qty = parseInt(qtyStr, 10);
+              if (isNaN(qty) || qty <= 0) {
+                errors.push({ row: rowNum, field: "qty_expected", message: `Invalid quantity: ${qtyStr}` });
+                return;
+              }
+
+              const itemMasterItem = inventoryItems.find((i) => i.sku === sku && i.tenantId === tenantToUse);
+              if (!itemMasterItem) {
+                warnings.push({ row: rowNum, field: "sku", message: `SKU "${sku}" not found in Item Master for tenant "${tenantToUse}"` });
+              }
+
+              if (getField("expiration_date")) {
+                const expDate = new Date(getField("expiration_date"));
+                if (isNaN(expDate.getTime())) {
+                  warnings.push({ row: rowNum, field: "expiration_date", message: "Invalid expiration date format" });
+                } else if (expDate < new Date(new Date().setHours(0, 0, 0, 0))) {
+                  warnings.push({ row: rowNum, field: "expiration_date", message: "Expiration date is in the past" });
+                }
+              }
+
+              shipment.lines.push({
+                lineNo: (shipment.lines.length || 0) + 1,
+                sku,
+                upc: itemMasterItem?.upc || "",
+                itemStyle: itemMasterItem?.itemStyle || "",
+                description: itemMasterItem?.description || "",
+                lot,
+                expirationDate: getField("expiration_date") || "2030-12-31",
+                qtyExpected: qty,
+                cartonsExpected: parseInt(getField("cartons") || "0", 10) || 0,
+                poNumber: poNumber || undefined,
+              });
+            });
+
+            for (const [, shipment] of shipmentMap) {
+              try {
+                await createInboundShipmentRecord({
+                  tenantId: shipment.tenantId,
+                  warehouseId: shipment.warehouseId,
+                  ediRef: shipment.ediRef,
+                  poNumber: shipment.poNumber,
+                  carrier: shipment.carrier,
+                  trailerNumber: shipment.trailerNumber,
+                  containerNumber: shipment.containerNumber,
+                  sealNumber: shipment.sealNumber,
+                  bolNumber: shipment.bolNumber,
+                  origin: shipment.origin,
+                  appointmentAt: shipment.appointmentAt,
+                  source: "CSV",
+                  lines: shipment.lines,
+                });
+              } catch (e: any) {
+                errors.push({ row: 0, field: "server", message: `Server error: ${e.message}` });
+              }
+            }
+
+            setCsvErrors(errors);
+            setCsvWarnings(warnings);
+
             const recordId = await createCsvUploadRecord({
               id: "",
-              tenantId: tenantId !== "all" ? tenantId : tenants[0]?.id || "all",
-              warehouseId: warehouseId !== "all" ? warehouseId : warehouses[0]?.id || "atl1",
+              tenantId: tenantToUse,
+              warehouseId: warehouseToUse,
               fileName: file.name,
               fileSize: file.size,
               uploadAt: new Date().toISOString(),
               uploadedBy: "Manual Upload",
               source: "inbound_asn",
-              status: "completed",
+              status: errors.length === 0 ? "completed" : "failed",
               recordsProcessed: data.length,
-              errors: [],
-              warnings: [],
+              errors: errors.filter((e) => e.row !== undefined),
+              warnings: warnings.filter((w) => w.row !== undefined),
               mapping: {},
               rawHeaders: parsed.meta.fields || [],
             });
-            
-            toast.success(`CSV uploaded: ${data.length} records to ${recordId}`);
-            refreshData();
+
+            if (errors.length > 0) {
+              const errorList = errors.map((e) => `${e.row}:${e.field} - ${e.message}`).join("\n");
+              toast.error(`Upload failed with ${errors.length} error(s)`, {
+                description: errorList,
+              });
+            } else if (warnings.length > 0) {
+              const warningList = warnings.map((w) => `${w.row}:${w.field} - ${w.message}`).join("\n");
+              toast.warning(`Uploaded with ${warnings.length} warning(s)`, {
+                description: warningList,
+              });
+            } else {
+              const successCount = shipmentMap.size;
+              toast.success(`Successfully imported ${successCount} inbound shipment(s)`);
+              refreshData();
+              setCsvOpen(false);
+              setCsvErrors([]);
+              setCsvWarnings([]);
+            }
           } catch (e) {
             console.error(e);
             toast.error("Failed to process CSV upload");
@@ -387,11 +668,15 @@ function ShipmentCard({
   shipment,
   onBuildPallets,
   onCloseContainer,
+  onEdit,
+  onDelete,
   onPrintReceipt,
 }: {
   shipment: InboundShipment;
   onBuildPallets: (l: InboundLine) => void;
   onCloseContainer?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
   onPrintReceipt?: () => void;
 }) {
   const tenant = tenants.find((t) => t.id === shipment.tenantId);
@@ -613,7 +898,27 @@ function ShipmentCard({
       </Table>
 
       {!hasReceipt && canClose && (
-        <div className="px-4 py-3 border-t border-border bg-muted/20 flex justify-end">
+        <div className="px-4 py-3 border-t border-border bg-muted/20 flex justify-end gap-2">
+          {onEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5"
+              onClick={onEdit}
+            >
+              <Edit className="h-3 w-3" /> Edit Container
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-7 text-xs gap-1.5"
+              onClick={onDelete}
+            >
+              <X className="h-3 w-3" /> Delete Container
+            </Button>
+          )}
           <Button
             size="sm"
             variant="default"
@@ -625,6 +930,275 @@ function ShipmentCard({
         </div>
       )}
     </div>
+  );
+}
+
+function EditContainerDialog({
+  open,
+  onOpenChange,
+  shipment,
+  onEdited,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  shipment: InboundShipment;
+  onEdited: () => void;
+}) {
+  const [header, setHeader] = useState({
+    ediRef: shipment.ediRef,
+    poNumber: shipment.poNumber,
+    carrier: shipment.carrier,
+    trailerNumber: shipment.trailerNumber,
+    containerNumber: shipment.containerNumber,
+    sealNumber: shipment.sealNumber,
+    bolNumber: shipment.bolNumber,
+    origin: shipment.origin,
+    appointmentAt: shipment.appointmentAt,
+  });
+  const [lines, setLines] = useState(
+    shipment.lines.map((l) => ({
+      ...l,
+      lineNo: l.lineNo,
+    }))
+  );
+  const [notes, setNotes] = useState("");
+
+  const handleDeleteLine = (idx: number) => {
+    setLines(lines.filter((_, i) => i !== idx));
+  };
+
+  const handleAddLine = () => {
+    setLines([
+      ...lines,
+      {
+        lineNo: lines.length + 1,
+        sku: "",
+        upc: "",
+        itemStyle: "",
+        description: "",
+        lot: "",
+        expirationDate: "2030-12-31",
+        qtyExpected: 0,
+        cartonsExpected: 0,
+        unitsPerPallet: 0,
+        weightLbsPerUnit: 0,
+        receivedQty: 0,
+        palletIds: [],
+        status: "expected",
+      },
+    ]);
+  };
+
+  const handleUpdateLine = (idx: number, field: string, value: any) => {
+    setLines(lines.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
+  };
+
+  const handleSave = async () => {
+    try {
+      const ts = (d: string) => new Date(d).toISOString();
+
+      const { updateInboundShipmentRecord } = await import("@/lib/firestore-data");
+
+      await updateInboundShipmentRecord(shipment.id, {
+        ediRef: header.ediRef,
+        poNumber: header.poNumber,
+        carrier: header.carrier,
+        trailerNumber: header.trailerNumber,
+        containerNumber: header.containerNumber,
+        sealNumber: header.sealNumber,
+        bolNumber: header.bolNumber,
+        origin: header.origin,
+        appointmentAt: header.appointmentAt,
+        lines: lines.map((l, idx) => ({
+          lineNo: idx + 1,
+          sku: l.sku,
+          upc: l.upc,
+          itemStyle: l.itemStyle,
+          description: l.description,
+          lot: l.lot,
+          expirationDate: l.expirationDate,
+          qtyExpected: l.qtyExpected,
+          cartonsExpected: l.cartonsExpected,
+          unitsPerPallet: l.unitsPerPallet,
+          weightLbsPerUnit: l.weightLbsPerUnit,
+          poNumber: l.poNumber,
+        })),
+      });
+
+      toast.success("Container updated successfully");
+      onOpenChange(false);
+      onEdited();
+    } catch (e: any) {
+      toast.error(`Failed to update container: ${e.message}`);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-base">Edit Container</DialogTitle>
+          <DialogDescription className="text-xs">
+            Edit container header information and line items.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            Header Information
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[10px]">EDI Ref</Label>
+              <Input
+                value={header.ediRef}
+                onChange={(e) => setHeader({ ...header, ediRef: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">PO Number</Label>
+              <Input
+                value={header.poNumber}
+                onChange={(e) => setHeader({ ...header, poNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Carrier</Label>
+              <Input
+                value={header.carrier}
+                onChange={(e) => setHeader({ ...header, carrier: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Container</Label>
+              <Input
+                value={header.containerNumber}
+                onChange={(e) => setHeader({ ...header, containerNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Trailer</Label>
+              <Input
+                value={header.trailerNumber}
+                onChange={(e) => setHeader({ ...header, trailerNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Seal #</Label>
+              <Input
+                value={header.sealNumber}
+                onChange={(e) => setHeader({ ...header, sealNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">BOL #</Label>
+              <Input
+                value={header.bolNumber}
+                onChange={(e) => setHeader({ ...header, bolNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Origin</Label>
+              <Input
+                value={header.origin}
+                onChange={(e) => setHeader({ ...header, origin: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Appointment</Label>
+              <Input
+                type="datetime-local"
+                value={header.appointmentAt}
+                onChange={(e) => setHeader({ ...header, appointmentAt: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            Line Items ({lines.length})
+          </h3>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {lines.map((l, idx) => (
+              <div key={idx} className="grid grid-cols-6 gap-2 p-2 border border-border rounded-md bg-background">
+                <Input
+                  placeholder="SKU"
+                  value={l.sku}
+                  onChange={(e) => handleUpdateLine(idx, "sku", e.target.value)}
+                  className="h-7 text-xs col-span-1"
+                />
+                <Input
+                  placeholder="Lot"
+                  value={l.lot}
+                  onChange={(e) => handleUpdateLine(idx, "lot", e.target.value)}
+                  className="h-7 text-xs col-span-1"
+                />
+                <Input
+                  type="number"
+                  placeholder="Qty"
+                  value={l.qtyExpected}
+                  onChange={(e) => handleUpdateLine(idx, "qtyExpected", parseInt(e.target.value || "0", 10))}
+                  className="h-7 text-xs col-span-1"
+                />
+                <Input
+                  type="number"
+                  placeholder="Cartons"
+                  value={l.cartonsExpected}
+                  onChange={(e) => handleUpdateLine(idx, "cartonsExpected", parseInt(e.target.value || "0", 10))}
+                  className="h-7 text-xs col-span-1"
+                />
+                <Input
+                  placeholder="PO #"
+                  value={l.poNumber || ""}
+                  onChange={(e) => handleUpdateLine(idx, "poNumber", e.target.value)}
+                  className="h-7 text-xs col-span-1"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => handleDeleteLine(idx)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+            {lines.length === 0 && (
+              <div className="text-center py-4 text-muted-foreground text-xs">
+                No line items. Container requires at least one line item to ship.
+              </div>
+            )}
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={handleAddLine}>
+              <Plus className="h-3 w-3" /> Add Line
+            </Button>
+          </div>
+
+          <Textarea
+            placeholder="Notes..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="min-h-20"
+          />
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleSave}>
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -929,79 +1503,130 @@ function AddContainerDialog({
     setLines(lines.filter((_, i) => i !== idx));
   };
 
-  const handleAdd = () => {
-    if (!header.ediRef || !header.poNumber) {
-      toast.error("EDI Reference and PO Number are required");
-      return;
+  const handleAdd = async () => {
+    const validationErrors: string[] = [];
+    const validationWarnings: string[] = [];
+
+    if (!header.ediRef || header.ediRef.length < 3) {
+      validationErrors.push("EDI Reference is required (min 3 characters)");
+    }
+    if (!header.poNumber || header.poNumber.length < 3) {
+      validationErrors.push("PO Number is required (min 3 characters)");
+    }
+    if (!header.carrier || header.carrier.trim() === "") {
+      validationErrors.push("Carrier is required");
+    }
+    if (!selectedTenantId) {
+      validationErrors.push("Client is required");
+    }
+    if (!selectedWarehouseId) {
+      validationErrors.push("Warehouse is required");
+    }
+    if (!header.containerNumber || header.containerNumber.trim() === "") {
+      validationErrors.push("Container is required");
     }
     if (lines.length === 0) {
-      toast.error("At least one line item is required");
+      validationErrors.push("At least one line item is required");
       return;
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (!l.sku || l.sku.trim() === "") {
+        validationErrors.push(`Line ${i + 1}: SKU is required`);
+      } else if (!validSkus.find((v) => v.sku === l.sku)) {
+        validationWarnings.push(`Line ${i + 1}: SKU "${l.sku}" not found in Item Master`);
+      }
+      if (!l.qtyExpected || l.qtyExpected <= 0) {
+        validationErrors.push(`Line ${i + 1}: Valid quantity is required`);
+      }
+      if (l.expirationDate) {
+        const exp = new Date(l.expirationDate);
+        if (isNaN(exp.getTime())) {
+          validationWarnings.push(`Line ${i + 1}: Invalid expiration date`);
+        } else if (exp < new Date(new Date().setHours(0, 0, 0, 0))) {
+          validationWarnings.push(`Line ${i + 1}: Expiration date is in the past`);
+        }
+      }
+    }
+
+    if (header.appointmentAt) {
+      const appt = new Date(header.appointmentAt);
+      if (isNaN(appt.getTime())) {
+        validationWarnings.push("Invalid appointment date format");
+      } else if (appt < new Date(new Date().setHours(0, 0, 0, 0))) {
+        validationWarnings.push("Appointment date is in the past");
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      toast.error(`Validation failed (${validationErrors.length} error(s))`, {
+        description: validationErrors.join("\n"),
+      });
+      return;
+    }
+
+    if (validationWarnings.length > 0) {
+      toast.warning(`Validation warnings (${validationWarnings.length})`, {
+        description: validationWarnings.join("\n"),
+      });
     }
 
     const ts = (d: string) => new Date(d).toISOString();
     const wsToSelect =
       selectedWarehouseId || (warehouseId !== "all" ? warehouseId : warehouses[0]?.id || "atl1");
-    const newShipment: InboundShipment = {
-      id: `INB-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, "0")}${(inboundShipments.length + 1).toString().padStart(3, "0")}`,
-      ediRef: header.ediRef,
-      isaControl: `0000${Math.floor(Math.random() * 999999)
-        .toString()
-        .padStart(6, "0")}`,
-      tenantId: selectedTenantId || (tenantId !== "all" ? tenantId : tenants[0].id),
-      warehouseId: wsToSelect,
-      partner: "MANUAL",
-      carrier: header.carrier,
-      trailerNumber: header.trailerNumber || "—",
-      containerNumber: header.containerNumber || "—",
-      sealNumber: header.sealNumber,
-      bolNumber: header.bolNumber,
-      origin: header.origin,
-      poNumber: header.poNumber,
-      appointmentAt: header.appointmentAt ? ts(header.appointmentAt) : new Date().toISOString(),
-      expectedAt: header.appointmentAt ? ts(header.appointmentAt) : new Date().toISOString(),
-      receivedAt: null,
-      doorAssigned: header.doorAssigned || null,
-      status: "scheduled",
-      source: "MANUAL",
-      lines: lines.map((l, idx) => ({
-        lineNo: idx + 1,
-        sku: l.sku,
-        upc: l.upc,
-        itemStyle: l.itemStyle,
-        description: l.description,
-        lot: l.lot,
-        expirationDate: l.expirationDate ? ts(l.expirationDate) : ts("2030-12-31"),
-        qtyExpected: l.qtyExpected,
-        cartonsExpected: l.cartonsExpected,
-        uom: "EA",
-        weightLbsPerUnit: l.weightLbsPerUnit,
-        unitsPerPallet: l.unitsPerPallet,
-        receivedQty: 0,
-        palletIds: [],
-        status: "expected",
-      })),
-    };
 
-    inboundShipments.unshift(newShipment);
-    toast.success(`Container ${header.containerNumber || header.trailerNumber} added`);
-    onOpenChange(false);
-    onAdded();
-    setHeader({
-      ediRef: "",
-      poNumber: "",
-      carrier: "",
-      trailerNumber: "",
-      containerNumber: "",
-      sealNumber: "",
-      bolNumber: "",
-      doorAssigned: "",
-      appointmentAt: "",
-      origin: "",
-    });
-    setSelectedWarehouseId(wsToSelect);
-    setLines([]);
-    setNotes("");
+    try {
+      const shipmentId = await createInboundShipmentRecord({
+        tenantId: selectedTenantId || (tenantId !== "all" ? tenantId : tenants[0].id),
+        warehouseId: wsToSelect,
+        ediRef: header.ediRef,
+        poNumber: header.poNumber,
+        carrier: header.carrier,
+        trailerNumber: header.trailerNumber || "",
+        containerNumber: header.containerNumber || "",
+        sealNumber: header.sealNumber || "",
+        bolNumber: header.bolNumber || "",
+        origin: header.origin || "",
+        appointmentAt: header.appointmentAt ? ts(header.appointmentAt) : new Date().toISOString(),
+        source: "MANUAL",
+        lines: lines.map((l, idx) => ({
+          lineNo: idx + 1,
+          sku: l.sku,
+          upc: l.upc,
+          itemStyle: l.itemStyle,
+          description: l.description,
+          lot: l.lot,
+          expirationDate: l.expirationDate ? ts(l.expirationDate) : "2030-12-31",
+          qtyExpected: l.qtyExpected,
+          cartonsExpected: l.cartonsExpected,
+          unitsPerPallet: l.unitsPerPallet,
+          weightLbsPerUnit: l.weightLbsPerUnit,
+        })),
+      });
+
+      toast.success(`Container added successfully [${shipmentId}]`);
+      onOpenChange(false);
+      onAdded();
+      setHeader({
+        ediRef: "",
+        poNumber: "",
+        carrier: "",
+        trailerNumber: "",
+        containerNumber: "",
+        sealNumber: "",
+        bolNumber: "",
+        doorAssigned: "",
+        appointmentAt: "",
+        origin: "",
+      });
+      setSelectedWarehouseId(wsToSelect);
+      setLines([]);
+      setNotes("");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Failed to add container: ${e.message}`);
+    }
   };
 
   return (
