@@ -128,7 +128,6 @@ function InboundPage() {
       return true;
     });
     // re-render on force
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, warehouseId, query]);
 
   const stats = useMemo(() => {
@@ -309,9 +308,15 @@ function InboundPage() {
         description="Fallback ingestion when an EDI 943 feed is not active. Map your headers to the inbound schema."
         ediHint="EDI 943"
         targetFields={[
+          { key: "client", label: "Client / Tenant", required: true },
+          { key: "warehouse", label: "Warehouse", required: true },
           { key: "asn_ref", label: "ASN / Reference", required: true },
           { key: "po_number", label: "PO number", required: true },
-          { key: "trailer_number", label: "Trailer / Container" },
+          { key: "trailer_number", label: "Trailer Number" },
+          { key: "container_number", label: "Container Number" },
+          { key: "seal_number", label: "Seal Number" },
+          { key: "bol_number", label: "BOL Number" },
+          { key: "origin", label: "Origin" },
           { key: "carrier", label: "Carrier", required: true },
           { key: "expected_at", label: "Appointment", required: true },
           { key: "sku", label: "Line SKU", required: true },
@@ -321,9 +326,15 @@ function InboundPage() {
           { key: "cartons", label: "Cartons expected" },
         ]}
         exampleHeaders={[
+          "Client",
+          "Warehouse",
           "ASN",
           "PO",
           "Trailer",
+          "Container",
+          "Seal",
+          "BOL",
+          "Origin",
           "Carrier",
           "ETA",
           "Item",
@@ -795,6 +806,9 @@ function AddContainerDialog({
   onAdded: () => void;
 }) {
   const { tenantId, warehouseId } = useWorkspace();
+  const { warehouses: liveWarehouses } = useWmsData();
+  const [selectedTenantId, setSelectedTenantId] = useState<string>("");
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>("");
   const [header, setHeader] = useState({
     ediRef: "",
     poNumber: "",
@@ -807,11 +821,19 @@ function AddContainerDialog({
     appointmentAt: "",
     origin: "",
   });
-  const [selectedTenantId, setSelectedTenantId] = useState<string>("");
   const validSkus = useMemo(() => {
     const tenantToUse = selectedTenantId || (tenantId !== "all" ? tenantId : tenants[0].id);
-    return inventoryItems.filter((i) => i.tenantId === tenantToUse).map((i) => ({ sku: i.sku, upc: i.upc, itemStyle: i.itemStyle, description: i.description }));
+    return inventoryItems
+      .filter((i) => i.tenantId === tenantToUse)
+      .map((i) => ({ sku: i.sku, upc: i.upc, itemStyle: i.itemStyle, description: i.description }));
   }, [selectedTenantId, tenantId]);
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedTenantId(tenantId !== "all" ? tenantId : tenants[0].id);
+      setSelectedWarehouseId(warehouseId !== "all" ? warehouseId : warehouses[0]?.id || "atl1");
+    }
+  }, [open]);
 
   const [lines, setLines] = useState<
     Array<{
@@ -853,17 +875,19 @@ function AddContainerDialog({
 
   const onSkuChange = (idx: number, sku: string) => {
     const masterItem = validSkus.find((v) => v.sku === sku);
-    setLines(lines.map((l, i) =>
-      i === idx
-        ? {
-            ...l,
-            sku,
-            upc: masterItem?.upc ?? "",
-            itemStyle: masterItem?.itemStyle ?? "",
-            description: masterItem?.description ?? "",
-          }
-        : l,
-    ));
+    setLines(
+      lines.map((l, i) =>
+        i === idx
+          ? {
+              ...l,
+              sku,
+              upc: masterItem?.upc ?? "",
+              itemStyle: masterItem?.itemStyle ?? "",
+              description: masterItem?.description ?? "",
+            }
+          : l,
+      ),
+    );
   };
 
   const removeLine = (idx: number) => {
@@ -881,6 +905,8 @@ function AddContainerDialog({
     }
 
     const ts = (d: string) => new Date(d).toISOString();
+    const wsToSelect =
+      selectedWarehouseId || (warehouseId !== "all" ? warehouseId : warehouses[0]?.id || "atl1");
     const newShipment: InboundShipment = {
       id: `INB-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, "0")}${(inboundShipments.length + 1).toString().padStart(3, "0")}`,
       ediRef: header.ediRef,
@@ -888,7 +914,7 @@ function AddContainerDialog({
         .toString()
         .padStart(6, "0")}`,
       tenantId: selectedTenantId || (tenantId !== "all" ? tenantId : tenants[0].id),
-      warehouseId: warehouseId === "all" ? warehouses[0].id : warehouseId,
+      warehouseId: wsToSelect,
       partner: "MANUAL",
       carrier: header.carrier,
       trailerNumber: header.trailerNumber || "—",
@@ -938,6 +964,7 @@ function AddContainerDialog({
       appointmentAt: "",
       origin: "",
     });
+    setSelectedWarehouseId(wsToSelect);
     setLines([]);
     setNotes("");
   };
@@ -961,16 +988,35 @@ function AddContainerDialog({
               <div className="space-y-1">
                 <Label className="text-[10px]">Client *</Label>
                 <select
-                  value={selectedTenantId || (tenantId !== "all" ? tenantId : "")}
+                  value={selectedTenantId}
                   onChange={(e) => setSelectedTenantId(e.target.value)}
                   className="h-8 text-xs rounded-md border border-input bg-background px-2 w-full"
                 >
                   <option value="">Select client...</option>
-                  {tenants.filter((t) => t.id !== "all").map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.code} · {t.name}
-                    </option>
-                  ))}
+                  {tenants
+                    .filter((t) => t.id !== "all")
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.code} · {t.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Warehouse *</Label>
+                <select
+                  value={selectedWarehouseId}
+                  onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                  className="h-8 text-xs rounded-md border border-input bg-background px-2 w-full"
+                >
+                  <option value="">Select warehouse...</option>
+                  {liveWarehouses
+                    .filter((w) => w.id !== "all")
+                    .map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.code} · {w.name}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div className="space-y-1">
@@ -1015,11 +1061,21 @@ function AddContainerDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px]">Seal / BOL</Label>
+                <Label className="text-[10px]">Seal Number</Label>
                 <Input
                   value={header.sealNumber}
                   onChange={(e) => setHeader({ ...header, sealNumber: e.target.value })}
                   className="h-8 text-xs"
+                  placeholder="SL-77104"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">BOL Number</Label>
+                <Input
+                  value={header.bolNumber}
+                  onChange={(e) => setHeader({ ...header, bolNumber: e.target.value })}
+                  className="h-8 text-xs"
+                  placeholder="BOL-554301"
                 />
               </div>
               <div className="space-y-1">
@@ -1083,88 +1139,92 @@ function AddContainerDialog({
                     <TableHead className="text-[10px] w-8"></TableHead>
                   </TableRow>
                 </TableHeader>
-<TableBody>
-                   {lines.map((l, idx) => (
-                     <TableRow key={idx}>
-                       <TableCell className="py-2">{idx + 1}</TableCell>
-                       <TableCell className="py-2">
-                         <select
-                           value={l.sku}
-                           onChange={(e) => onSkuChange(idx, e.target.value)}
-                           className="h-7 text-xs w-24 rounded-md border border-input bg-background px-1"
-                         >
-                           <option value="">Select SKU...</option>
-                           {validSkus.map((v) => (
-                             <option key={v.sku} value={v.sku}>{v.sku}</option>
-                           ))}
-                         </select>
-                       </TableCell>
-                       <TableCell className="py-2">
-                         <Input
-                           value={l.description}
-                           onChange={(e) => updateLine(idx, "description", e.target.value)}
-                           className="h-7 text-xs w-32"
-                           readOnly={!!l.sku && !!validSkus.find((v) => v.sku === l.sku)?.description}
-                         />
-                       </TableCell>
-                       <TableCell className="py-2">
-                         <Input
-                           value={l.lot}
-                           onChange={(e) => updateLine(idx, "lot", e.target.value)}
-                           className="h-7 text-xs w-20"
-                         />
-                       </TableCell>
-                       <TableCell className="py-2">
-                         <Input
-                           type="date"
-                           value={l.expirationDate}
-                           onChange={(e) => updateLine(idx, "expirationDate", e.target.value)}
-                           className="h-7 text-xs w-28"
-                         />
-                       </TableCell>
-                       <TableCell className="py-2">
-                         <Input
-                           type="number"
-                           value={l.qtyExpected}
-                           onChange={(e) =>
-                             updateLine(idx, "qtyExpected", parseInt(e.target.value) || 0)
-                           }
-                           className="h-7 text-xs w-16 text-right"
-                         />
-                       </TableCell>
-                       <TableCell className="py-2">
-                         <Input
-                           type="number"
-                           value={l.cartonsExpected}
-                           onChange={(e) =>
-                             updateLine(idx, "cartonsExpected", parseInt(e.target.value) || 0)
-                           }
-                           className="h-7 text-xs w-16 text-right"
-                         />
-                       </TableCell>
-                       <TableCell className="py-2">
-                         <Input
-                           type="number"
-                           value={l.unitsPerPallet}
-                           onChange={(e) =>
-                             updateLine(idx, "unitsPerPallet", parseInt(e.target.value) || 0)
-                           }
-                           className="h-7 text-xs w-14 text-right"
-                         />
-                       </TableCell>
-                       <TableCell className="py-2">
-                         <Button
-                           size="sm"
-                           variant="ghost"
-                           className="h-6 w-6 p-0"
-                           onClick={() => removeLine(idx)}
-                         >
-                           <X className="h-3 w-3" />
-                         </Button>
-                       </TableCell>
-                     </TableRow>
-                   ))}
-                 </TableBody>
+                <TableBody>
+                  {lines.map((l, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="py-2">{idx + 1}</TableCell>
+                      <TableCell className="py-2">
+                        <select
+                          value={l.sku}
+                          onChange={(e) => onSkuChange(idx, e.target.value)}
+                          className="h-7 text-xs w-24 rounded-md border border-input bg-background px-1"
+                        >
+                          <option value="">Select SKU...</option>
+                          {validSkus.map((v) => (
+                            <option key={v.sku} value={v.sku}>
+                              {v.sku}
+                            </option>
+                          ))}
+                        </select>
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Input
+                          value={l.description}
+                          onChange={(e) => updateLine(idx, "description", e.target.value)}
+                          className="h-7 text-xs w-32"
+                          readOnly={
+                            !!l.sku && !!validSkus.find((v) => v.sku === l.sku)?.description
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Input
+                          value={l.lot}
+                          onChange={(e) => updateLine(idx, "lot", e.target.value)}
+                          className="h-7 text-xs w-20"
+                        />
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Input
+                          type="date"
+                          value={l.expirationDate}
+                          onChange={(e) => updateLine(idx, "expirationDate", e.target.value)}
+                          className="h-7 text-xs w-28"
+                        />
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Input
+                          type="number"
+                          value={l.qtyExpected}
+                          onChange={(e) =>
+                            updateLine(idx, "qtyExpected", parseInt(e.target.value) || 0)
+                          }
+                          className="h-7 text-xs w-16 text-right"
+                        />
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Input
+                          type="number"
+                          value={l.cartonsExpected}
+                          onChange={(e) =>
+                            updateLine(idx, "cartonsExpected", parseInt(e.target.value) || 0)
+                          }
+                          className="h-7 text-xs w-16 text-right"
+                        />
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Input
+                          type="number"
+                          value={l.unitsPerPallet}
+                          onChange={(e) =>
+                            updateLine(idx, "unitsPerPallet", parseInt(e.target.value) || 0)
+                          }
+                          className="h-7 text-xs w-14 text-right"
+                        />
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={() => removeLine(idx)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
               </Table>
             </div>
           </div>
