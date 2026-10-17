@@ -74,7 +74,7 @@ import { createPalletsFromInbound } from "@/lib/pallet-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
-import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment } from "@/lib/firestore-data";
+import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment, updateInboundShipmentRecord } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
   head: () => ({
