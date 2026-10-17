@@ -899,6 +899,18 @@ function ShipmentCard({
 
       {!hasReceipt && canClose && (
         <div className="px-4 py-3 border-t border-border bg-muted/20 flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="default"
+            className="h-7 text-xs gap-1.5"
+            onClick={onCloseContainer}
+          >
+            <Check className="h-3 w-3" /> Close Container
+          </Button>
+        </div>
+      )}
+      {shipment.status === "scheduled" && !allLinesHavePallets && !hasReceipt && (
+        <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end gap-2">
           {onEdit && (
             <Button
               size="sm"
@@ -919,14 +931,6 @@ function ShipmentCard({
               <X className="h-3 w-3" /> Delete Container
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="default"
-            className="h-7 text-xs gap-1.5"
-            onClick={onCloseContainer}
-          >
-            <Check className="h-3 w-3" /> Close Container
-          </Button>
         </div>
       )}
     </div>
