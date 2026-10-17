@@ -74,21 +74,15 @@ function WorkOrdersPage() {
 
   const getCasePackForSku = (sku: string, tenantId: string): number => {
     if (!sku) return 1;
-    const item = inventoryItems.find((i) => i.sku === sku && i.tenantId === tenantId);
+    const item = inventoryItems?.find?.((i) => i.sku === sku && i.tenantId === tenantId);
     return item?.caseQty || 1;
   };
 
   const displayCartons = (wo: WorkOrder): number => {
     if (!wo) return 0;
+    if (wo.totalCartons > 0) return wo.totalCartons;
     
-    const totalCartons = wo.totalCartons ?? 0;
-    const totalUnits = wo.totalUnits ?? 0;
-    
-    if (totalCartons > 0) return totalCartons;
-    if (totalUnits > 0) {
-      if (!wo.lines || wo.lines.length === 0) {
-        return Math.ceil(totalUnits / 1);
-      }
+    if (wo.lines?.length > 0) {
       let sum = 0;
       for (const line of wo.lines) {
         if (line.cartons > 0) {
@@ -96,27 +90,12 @@ function WorkOrdersPage() {
         } else if (line.sku && line.qtyExpected > 0) {
           const cp = getCasePackForSku(line.sku, wo.tenantId);
           sum += Math.ceil(line.qtyExpected / cp);
-        } else if (line.qtyExpected > 0) {
-          sum += line.qtyExpected;
         }
       }
       if (sum > 0) return sum;
-      return Math.ceil(totalUnits / 1);
     }
     
-    if (wo.lines && wo.lines.length > 0) {
-      let sum = 0;
-      for (const line of wo.lines) {
-        if (line.cartons > 0) sum += line.cartons;
-        else if (line.sku && line.qtyExpected > 0) {
-          const cp = getCasePackForSku(line.sku, wo.tenantId);
-          sum += Math.ceil(line.qtyExpected / cp);
-        } else if (line.qtyExpected > 0) sum += line.qtyExpected;
-      }
-      return sum;
-    }
-    
-    return 0;
+    return Math.max(1, Math.ceil((wo.totalUnits ?? 0) / 1));
   };
 
   const canEdit = (wo: WorkOrder) => ["scheduled", "at_dock", "unloading"].includes(wo.status);
