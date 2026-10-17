@@ -104,9 +104,18 @@ const lineStatusStyles: Record<InboundLine["status"], string> = {
   received: "bg-chart-3/15 text-chart-3 border-chart-3/30",
 };
 
+const woStatusColors: Record<string, string> = {
+  scheduled: "bg-muted text-muted-foreground border-border",
+  at_dock: "bg-primary/15 text-primary border-primary/30",
+  unloading: "bg-chart-4/15 text-chart-4 border-chart-4/30",
+  received: "bg-chart-3/15 text-chart-3 border-chart-3/30",
+  departed: "bg-amber-500/15 text-amber-600 border-amber-500/30",
+  closed: "bg-green-500/15 text-green-600 border-green-500/30",
+};
+
 function InboundPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { inboundShipments, refreshData } = useWmsData();
+  const { inboundShipments, workOrders, refreshData } = useWmsData();
   const [query, setQuery] = useState(() => localStorage.getItem("inbound-query") || "");
   const [csvOpen, setCsvOpen] = useState(false);
   const [, force] = useState(0);
@@ -275,6 +284,7 @@ function InboundPage() {
           <ShipmentCard
             key={s.id}
             shipment={s}
+            workOrders={workOrders}
             onBuildPallets={(l) => setActiveLine({ s, l })}
             onCloseContainer={
               s.status !== "received" && s.lines.every((l) => l.palletIds.length > 0)
@@ -666,6 +676,7 @@ function InboundPage() {
 
 function ShipmentCard({
   shipment,
+  workOrders,
   onBuildPallets,
   onCloseContainer,
   onEdit,
@@ -673,6 +684,7 @@ function ShipmentCard({
   onPrintReceipt,
 }: {
   shipment: InboundShipment;
+  workOrders: WorkOrder[];
   onBuildPallets: (l: InboundLine) => void;
   onCloseContainer?: () => void;
   onEdit?: () => void;
@@ -688,6 +700,7 @@ function ShipmentCard({
   const allLinesHavePallets = shipment.lines.every((l) => l.palletIds.length > 0);
   const canClose = onCloseContainer && allLinesHavePallets;
   const hasReceipt = !!onPrintReceipt;
+  const linkedWO = shipment.workOrderId ? workOrders.find((w) => w.id === shipment.workOrderId) : null;
 
   return (
     <div className="rounded-md border border-border bg-card overflow-hidden">
@@ -706,6 +719,13 @@ function ShipmentCard({
             <span className="text-[10px] text-muted-foreground font-mono">
               EDI 943 · {shipment.ediRef}
             </span>
+            {linkedWO && linkedWO.workOrderId && (
+              <span
+                className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${woStatusColors[linkedWO.status] || woStatusColors.scheduled}`}
+              >
+                WO: {linkedWO.status.replace("_", " ")}
+              </span>
+            )}
           </div>
           <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-[11px]">
             <KV icon={Truck} label="Carrier" value={shipment.carrier} />

@@ -438,6 +438,8 @@ export type WorkOrderLine = {
   qtyReceived: number;
   cartons: number;
   status: "pending" | "received" | "partial";
+  unitsPerPallet?: number;
+  weightLbsPerUnit?: number;
 };
 
 export type WorkOrder = {
@@ -459,6 +461,8 @@ export type WorkOrder = {
   origin: string;
   arrivalDate: string;
   departureDate: string | null;
+  yardInDate: string | null;
+  yardLeaveDate: string | null;
   inboundEntryDate: string;
   receivedDate: string | null;
   status: WorkOrderStatus;
@@ -468,6 +472,9 @@ export type WorkOrder = {
   lines: WorkOrderLine[];
   createdAt: string;
   updatedAt: string;
+  notes?: string;
+  osdQty?: number;
+  odReason?: string;
 };
 
 export function genWorkOrderId(): string {

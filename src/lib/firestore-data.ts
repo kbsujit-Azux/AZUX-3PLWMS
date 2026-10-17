@@ -527,20 +527,16 @@ export async function updateInboundShipmentRecord(
       weightLbsPerUnit: number;
       poNumber?: string;
     }>;
+    status?: "scheduled" | "arrived" | "unloading" | "received" | "exception";
+    receivedAt?: string;
   }
 ) {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
+  const { status, receivedAt, ...shipmentUpdates } = updates;
   await updateDoc(shipmentRef, {
-    ediRef: updates.ediRef,
-    poNumber: updates.poNumber,
-    carrier: updates.carrier,
-    trailerNumber: updates.trailerNumber,
-    containerNumber: updates.containerNumber,
-    sealNumber: updates.sealNumber,
-    bolNumber: updates.bolNumber,
-    origin: updates.origin,
-    appointmentAt: updates.appointmentAt,
-    lines: updates.lines,
+    ...shipmentUpdates,
+    ...(status && { status }),
+    ...(receivedAt && { receivedAt }),
   });
 }
 

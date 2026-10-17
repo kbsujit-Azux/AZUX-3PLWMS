@@ -1,15 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Search, Container, Truck, Ship, Hash, Calendar, Check, Edit, X, AlertTriangle } from "lucide-react";
+import { Search, Container, Truck, Ship, Hash, Calendar, Check, Edit, X, AlertTriangle, ChevronRight, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { type WorkOrder } from "@/lib/inbound-data";
+import { type WorkOrder, type WorkOrderStatus, closeInboundShipment } from "@/lib/inbound-data";
 import { useWmsData } from "@/components/db-context";
-import { deleteWorkOrder, updateWorkOrder } from "@/lib/firestore-data";
+import { deleteWorkOrder, updateWorkOrder, updateInboundShipmentRecord } from "@/lib/firestore-data";
+import { type InboundShipment } from "@/lib/inbound-data";
 
 export const Route = createFileRoute("/workorders")({
   head: () => ({
@@ -73,6 +74,79 @@ function WorkOrdersPage() {
   const canEdit = (wo: WorkOrder) => wo.status === "scheduled" && !hasPalletsBuilt(wo);
   const canDelete = (wo: WorkOrder) => wo.status === "scheduled" && !hasPalletsBuilt(wo);
 
+  const statusTransitions: Record<WorkOrderStatus, WorkOrderStatus | null> = {
+    scheduled: "at_dock",
+    at_dock: "unloading",
+    unloading: "received",
+    received: "departed",
+    departed: "closed",
+    closed: null,
+  };
+
+  const getInboundIdForWO = (woId: string): string | undefined => {
+    return inboundShipments?.find((s) => s.workOrderId === woId)?.id;
+  };
+
+  const canTransitionTo = (wo: WorkOrder, target: WorkOrderStatus): boolean => {
+    if (statusTransitions[wo.status as WorkOrderStatus] !== target) return false;
+    if (target === "unloading" || target === "received") {
+      return hasPalletsBuilt(wo);
+    }
+    if (target === "closed") {
+      const inboundId = getInboundIdForWO(wo.id);
+      if (!inboundId) return false;
+      const inbound = inboundShipments?.find((s) => s.id === inboundId);
+      return inbound && inbound.lines.every((l) => l.palletIds.length > 0);
+    }
+    return true;
+  };
+
+  const handleStatusTransition = async (wo: WorkOrder, newStatus: WorkOrderStatus) => {
+    try {
+      await updateWorkOrder(wo.id, { status: newStatus });
+      toast.success(`Work order status: ${newStatus.replace("_", " ")}`);
+
+      const inboundId = getInboundIdForWO(wo.id);
+      if (inboundId) {
+        const inbound = inboundShipments?.find((s) => s.id === inboundId);
+        if (inbound && newStatus !== inbound.status) {
+          await updateInboundShipmentRecord(inboundId, {
+            ...inbound,
+            status: newStatus as any,
+          });
+        }
+      }
+    } catch (e: unknown) {
+      toast.error(`Failed to update status: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const handleCloseContainer = async (wo: WorkOrder) => {
+    const inboundId = getInboundIdForWO(wo.id);
+    if (!inboundId) {
+      toast.error("No linked inbound shipment found");
+      return;
+    }
+    const inbound = inboundShipments?.find((s) => s.id === inboundId);
+    if (!inbound) {
+      toast.error("Linked inbound shipment not found");
+      return;
+    }
+
+    try {
+      const receipt = closeInboundShipment(inbound, [], []);
+      await updateWorkOrder(wo.id, { status: "closed" });
+      await updateInboundShipmentRecord(inboundId, {
+        ...inbound,
+        status: "received",
+        receivedAt: receipt.closedAt,
+      });
+      toast.success(`Container closed - EDI 944 queued for transmission`);
+    } catch (e: unknown) {
+      toast.error(`Failed to close: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   const openEditDialog = (wo: WorkOrder) => {
     setWorkOrderToEdit(wo);
     setEditFormData({
@@ -98,8 +172,8 @@ function WorkOrdersPage() {
       toast.success("Work order updated");
       setWorkOrderToEdit(null);
       setEditFormData({});
-    } catch (e: any) {
-      toast.error(`Failed to update: ${e.message}`);
+    } catch (e: unknown) {
+      toast.error(`Failed to update: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -109,8 +183,8 @@ function WorkOrdersPage() {
       await deleteWorkOrder(workOrderToDelete.id);
       toast.success("Work order deleted");
       setWorkOrderToDelete(null);
-    } catch (e: any) {
-      toast.error(`Failed to delete: ${e.message}`);
+    } catch (e: unknown) {
+      toast.error(`Failed to delete: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -159,7 +233,7 @@ function WorkOrdersPage() {
           </div>
         )}
         {filtered.map((w) => {
-          const showActions = canEdit(w) || canDelete(w);
+          const hasActions = canEdit(w) || canDelete(w) || (statusTransitions[w.status] && hasPalletsBuilt(w));
           return (
             <div key={w.id} className="rounded-md border border-border bg-card overflow-hidden">
               <div className="flex items-start justify-between gap-4 px-4 py-3 border-b border-border bg-muted/20">
@@ -171,8 +245,8 @@ function WorkOrdersPage() {
                     >
                       {w.status.replace("_", " ")}
                     </span>
-                    {showActions && (
-                      <AlertTriangle className="h-3 w-3 text-muted-foreground" title="Editable - no pallets built" />
+                    {hasActions && (
+                      <AlertTriangle className="h-3 w-3 text-muted-foreground" />
                     )}
                   </div>
                   <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-[11px]">
@@ -191,32 +265,52 @@ function WorkOrdersPage() {
                     <span className="tabular-nums text-foreground">{w.totalUnits}</span>
                     <div className="text-xs">units</div>
                   </div>
-                  {showActions && (
-                    <div className="flex gap-2 justify-end">
-                      {canEdit(w) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-[10px] gap-1"
-                          onClick={() => openEditDialog(w)}
-                        >
-                          <Edit className="h-3 w-3" />
-                          Edit
-                        </Button>
-                      )}
-                      {canDelete(w) && (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="h-7 text-[10px] gap-1"
-                          onClick={() => setWorkOrderToDelete(w)}
-                        >
-                          <X className="h-3 w-3" />
-                          Delete
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex gap-2 justify-end">
+                    {canEdit(w) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] gap-1"
+                        onClick={() => openEditDialog(w)}
+                      >
+                        <Edit className="h-3 w-3" />
+                        Edit
+                      </Button>
+                    )}
+                    {canDelete(w) && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 text-[10px] gap-1"
+                        onClick={() => setWorkOrderToDelete(w)}
+                      >
+                        <X className="h-3 w-3" />
+                        Delete
+                      </Button>
+                    )}
+                    {statusTransitions[w.status as WorkOrderStatus] && hasPalletsBuilt(w) && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 text-[10px] gap-1"
+                        onClick={() => handleStatusTransition(w, statusTransitions[w.status as WorkOrderStatus]!)}
+                      >
+                        <ChevronRight className="h-3 w-3" />
+                        {w.status === "at_dock" ? "Mark Arrived" : w.status === "unloading" ? "Start Unload" : w.status === "received" ? "Mark Departed" : "Close"}
+                      </Button>
+                    )}
+                    {w.status === "received" && hasPalletsBuilt(w) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] gap-1"
+                        onClick={() => handleCloseContainer(w)}
+                      >
+                        <Check className="h-3 w-3" />
+                        Close
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -307,53 +401,135 @@ function EditWorkOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Edit Work Order</DialogTitle>
           <DialogDescription>
-            Edit container and client details for {workOrder.woNumber}.
+            Edit details for {workOrder.woNumber}. Changes will sync to related inbound shipment.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <Label className="text-[10px]">Client</Label>
-            <Input
-              value={editFormData.clientName || ""}
-              onChange={(e) => setEditFormData({ ...editFormData, clientName: e.target.value })}
-              className="h-8 text-xs"
-            />
+        <div className="flex-1 overflow-y-auto space-y-4">
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Header Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px]">Client</Label>
+                <Input
+                  value={editFormData.clientName || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, clientName: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Container Number</Label>
+                <Input
+                  value={editFormData.containerNumber || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, containerNumber: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Trailer Number</Label>
+                <Input
+                  value={editFormData.trailerNumber || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, trailerNumber: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Carrier</Label>
+                <Input
+                  value={editFormData.carrier || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, carrier: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">PO Number</Label>
+                <Input
+                  value={editFormData.poNumber || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, poNumber: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Seal Number</Label>
+                <Input
+                  value={editFormData.sealNumber || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, sealNumber: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">BOL Number</Label>
+                <Input
+                  value={editFormData.bolNumber || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, bolNumber: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Vessel</Label>
+                <Input
+                  value={editFormData.vessel || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, vessel: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Voyage</Label>
+                <Input
+                  value={editFormData.voyageNumber || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, voyageNumber: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Yard In Date</Label>
+                <Input
+                  type="datetime-local"
+                  value={editFormData.yardInDate || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, yardInDate: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Yard Leave Date</Label>
+                <Input
+                  type="datetime-local"
+                  value={editFormData.departureDate || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, departureDate: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-[10px]">Container Number</Label>
-            <Input
-              value={editFormData.containerNumber || ""}
-              onChange={(e) => setEditFormData({ ...editFormData, containerNumber: e.target.value })}
-              className="h-8 text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px]">Trailer Number</Label>
-            <Input
-              value={editFormData.trailerNumber || ""}
-              onChange={(e) => setEditFormData({ ...editFormData, trailerNumber: e.target.value })}
-              className="h-8 text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px]">Carrier</Label>
-            <Input
-              value={editFormData.carrier || ""}
-              onChange={(e) => setEditFormData({ ...editFormData, carrier: e.target.value })}
-              className="h-8 text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px]">PO Number</Label>
-            <Input
-              value={editFormData.poNumber || ""}
-              onChange={(e) => setEditFormData({ ...editFormData, poNumber: e.target.value })}
-              className="h-8 text-xs"
-            />
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Totals
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px]">Total Units</Label>
+                <Input
+                  type="number"
+                  value={editFormData.totalUnits || workOrder.totalUnits}
+                  onChange={(e) => setEditFormData({ ...editFormData, totalUnits: parseInt(e.target.value) || 0 })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Total Cartons</Label>
+                <Input
+                  type="number"
+                  value={editFormData.totalCartons || workOrder.totalCartons}
+                  onChange={(e) => setEditFormData({ ...editFormData, totalCartons: parseInt(e.target.value) || 0 })}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
           </div>
         </div>
         <DialogFooter>
