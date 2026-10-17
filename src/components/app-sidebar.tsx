@@ -44,6 +44,7 @@ import { useAuth } from "@/lib/auth";
 const operations = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Inbound", url: "/inbound", icon: Container },
+  { title: "Work Orders", url: "/workorders", icon: ClipboardList },
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Orders", url: "/orders", icon: ClipboardList },
   { title: "Allocation", url: "/allocation", icon: PackageSearch },
@@ -96,13 +97,7 @@ export function AppSidebar() {
     const remaining = pathname.slice(url.length + 1);
     if (remaining.includes("/")) return false;
 
-    const allItems = [
-      ...operations,
-      ...systems,
-      ...systemAdmin,
-      ...rfTerminal,
-      ...enterprise,
-    ];
+    const allItems = [...operations, ...systems, ...systemAdmin, ...rfTerminal, ...enterprise];
     return !allItems.some((item) => {
       if (item.url === url || item.url === "/") return false;
       if (pathname === item.url) return true;
@@ -196,7 +191,12 @@ export function AppSidebar() {
               {rfTerminal.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild isActive={false} tooltip={item.title}>
-                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2"
+                    >
                       <item.icon className="h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </a>
