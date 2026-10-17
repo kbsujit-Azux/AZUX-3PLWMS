@@ -528,7 +528,7 @@ export async function updateInboundShipmentRecord(
       poNumber?: string;
     }>;
     status?: "scheduled" | "arrived" | "unloading" | "received" | "exception";
-    receivedAt?: string;
+    receivedAt?: string | null;
     workOrderId?: string;
   }
 ) {

@@ -74,7 +74,7 @@ import { createPalletsFromInbound } from "@/lib/pallet-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
-import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment, updateInboundShipmentRecord } from "@/lib/firestore-data";
+import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment, updateInboundShipmentRecord, updateInboundLine } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
   head: () => ({
@@ -308,17 +308,17 @@ function InboundPage() {
             workOrders={workOrders}
             onBuildPallets={(l) => setActiveLine({ s, l })}
             onCloseContainer={
-              s.status !== "received" && s.lines.every((l) => l.palletIds.length > 0)
+              s.status !== "received" && s.lines && s.lines.every((l) => l.palletIds.length > 0)
                 ? () => setCloseContainer(s)
                 : undefined
             }
             onEdit={
-              s.status === "scheduled" && !s.lines.some((l) => l.palletIds.length > 0)
+              ["scheduled", "arrived"].includes(s.status)
                 ? () => setEditContainer(s)
                 : undefined
             }
             onDelete={
-              s.status === "scheduled" && !s.lines.some((l) => l.palletIds.length > 0)
+              s.status === "scheduled"
                 ? () => setDeleteContainer(s)
                 : undefined
             }
@@ -720,10 +720,10 @@ function ShipmentCard({
   const tenant = tenants.find((t) => t.id === shipment.tenantId);
   const wh = warehouses.find((w) => w.id === shipment.warehouseId);
   const pct = shipmentProgressPct(shipment);
-  const totalUnits = shipment.lines.reduce((a, l) => a + l.qtyExpected, 0);
-  const totalCartons = shipment.lines.reduce((a, l) => a + l.cartonsExpected, 0);
+  const totalUnits = shipment.lines ? shipment.lines.reduce((a, l) => a + (l.qtyExpected || 0), 0) : 0;
+  const totalCartons = shipment.lines ? shipment.lines.reduce((a, l) => a + (l.cartonsExpected || 0), 0) : 0;
 
-  const allLinesHavePallets = shipment.lines.every((l) => l.palletIds.length > 0);
+  const allLinesHavePallets = shipment.lines && shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
   const canClose = onCloseContainer && allLinesHavePallets;
   const hasReceipt = !!onPrintReceipt;
   const linkedWO = shipment.workOrderId ? workOrders.find((w) => w.id === shipment.workOrderId) : null;
@@ -828,7 +828,7 @@ function ShipmentCard({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {shipment.lines.map((l) => {
+          {shipment.lines && shipment.lines.map((l) => {
             const lPct = inboundProgressPct(l);
             const remaining = Math.max(0, l.qtyExpected - l.receivedQty);
             const palletsRemaining = Math.max(
@@ -872,7 +872,7 @@ function ShipmentCard({
                   </div>
                 </TableCell>
                 <TableCell className="py-2">
-                  {l.palletIds.length === 0 ? (
+                  {l.palletIds && l.palletIds.length === 0 ? (
                     <span
                       className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${lineStatusStyles[l.status]}`}
                     >
@@ -935,7 +935,7 @@ function ShipmentCard({
                             : `Build ${palletsRemaining} pallet${palletsRemaining === 1 ? "" : "s"}`}
                       </Button>
                     );
-                  })()}
+                  })}
                 </TableCell>
               </TableRow>
             );
@@ -1337,7 +1337,7 @@ function BuildPalletsDialog({
 
   const willReceive = Math.min(remaining, palletCount * unitsPerPallet);
 
-  const handleBuild = () => {
+  const handleBuild = async () => {
     if (palletCount <= 0 || unitsPerPallet <= 0) {
       toast.error("Pallet count and units per pallet must be > 0");
       return;
@@ -1373,13 +1373,33 @@ function BuildPalletsDialog({
     line.palletIds = [...line.palletIds, ...created.map((p) => p.id)];
     line.status = line.receivedQty >= line.qtyExpected ? "received" : "partial";
 
+    try {
+      await updateInboundLine(ship.id, line.lineNo - 1, {
+        receivedQty: line.receivedQty,
+        palletIds: created.map((p) => p.id),
+        status: line.status,
+      });
+    } catch (e) {
+      console.error("Failed to persist pallet build:", e);
+    }
+
     // Flip shipment status to unloading or received as appropriate
-    const allReceived = ship.lines.every((l) => l.status === "received");
+    const allReceived = ship.lines && ship.lines.every((l) => l.status === "received");
     if (allReceived) {
       ship.status = "received";
       ship.receivedAt = new Date().toISOString();
+      try {
+        await updateInboundShipmentRecord(ship.id, { ...ship, status: "received", receivedAt: ship.receivedAt });
+      } catch (e) {
+        console.error("Failed to update shipment status:", e);
+      }
     } else if (ship.status === "arrived" || ship.status === "scheduled") {
       ship.status = "unloading";
+      try {
+        await updateInboundShipmentRecord(ship.id, { ...ship, status: "unloading" });
+      } catch (e) {
+        console.error("Failed to update shipment status:", e);
+      }
     }
 
     toast.success(

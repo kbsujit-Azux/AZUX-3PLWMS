@@ -11,6 +11,7 @@ import { type WorkOrder, type WorkOrderStatus, closeInboundShipment } from "@/li
 import { useWmsData } from "@/components/db-context";
 import { deleteWorkOrder, updateWorkOrder, updateInboundShipmentRecord } from "@/lib/firestore-data";
 import { type InboundShipment } from "@/lib/inbound-data";
+import { inventoryItems } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/workorders")({
   head: () => ({
@@ -68,11 +69,58 @@ function WorkOrdersPage() {
   const hasPalletsBuilt = (wo: WorkOrder) => {
     if (!inboundShipments) return false;
     const relatedInbounds = inboundShipments.filter((s) => s.workOrderId === wo.id);
-    return relatedInbounds.some((s) => s.lines.some((l) => l.palletIds && l.palletIds.length > 0));
+    return relatedInbounds.some((s) => s.lines && s.lines.some((l) => l.palletIds && l.palletIds.length > 0));
   };
 
-  const canEdit = (wo: WorkOrder) => wo.status === "scheduled" && !hasPalletsBuilt(wo);
-  const canDelete = (wo: WorkOrder) => wo.status === "scheduled" && !hasPalletsBuilt(wo);
+  const getCasePackForSku = (sku: string, tenantId: string): number => {
+    if (!sku) return 1;
+    const item = inventoryItems.find((i) => i.sku === sku && i.tenantId === tenantId);
+    return item?.caseQty || 1;
+  };
+
+  const displayCartons = (wo: WorkOrder): number => {
+    if (!wo) return 0;
+    
+    const totalCartons = wo.totalCartons ?? 0;
+    const totalUnits = wo.totalUnits ?? 0;
+    
+    if (totalCartons > 0) return totalCartons;
+    if (totalUnits > 0) {
+      if (!wo.lines || wo.lines.length === 0) {
+        return Math.ceil(totalUnits / 1);
+      }
+      let sum = 0;
+      for (const line of wo.lines) {
+        if (line.cartons > 0) {
+          sum += line.cartons;
+        } else if (line.sku && line.qtyExpected > 0) {
+          const cp = getCasePackForSku(line.sku, wo.tenantId);
+          sum += Math.ceil(line.qtyExpected / cp);
+        } else if (line.qtyExpected > 0) {
+          sum += line.qtyExpected;
+        }
+      }
+      if (sum > 0) return sum;
+      return Math.ceil(totalUnits / 1);
+    }
+    
+    if (wo.lines && wo.lines.length > 0) {
+      let sum = 0;
+      for (const line of wo.lines) {
+        if (line.cartons > 0) sum += line.cartons;
+        else if (line.sku && line.qtyExpected > 0) {
+          const cp = getCasePackForSku(line.sku, wo.tenantId);
+          sum += Math.ceil(line.qtyExpected / cp);
+        } else if (line.qtyExpected > 0) sum += line.qtyExpected;
+      }
+      return sum;
+    }
+    
+    return 0;
+  };
+
+  const canEdit = (wo: WorkOrder) => ["scheduled", "at_dock", "unloading"].includes(wo.status);
+  const canDelete = (wo: WorkOrder) => wo.status === "scheduled";
 
   const statusTransitions: Record<WorkOrderStatus, WorkOrderStatus | null> = {
     scheduled: "at_dock",
@@ -96,7 +144,8 @@ function WorkOrdersPage() {
       const inboundId = getInboundIdForWO(wo.id);
       if (!inboundId) return false;
       const inbound = inboundShipments?.find((s) => s.id === inboundId);
-      return inbound && inbound.lines.every((l) => l.palletIds.length > 0);
+      if (!inbound) return false;
+      return inbound.lines.every((l) => l.palletIds.length > 0);
     }
     return true;
   };
@@ -264,6 +313,10 @@ function WorkOrdersPage() {
                   <div className="text-right text-[10px] text-muted-foreground">
                     <span className="tabular-nums text-foreground">{w.totalUnits}</span>
                     <div className="text-xs">units</div>
+                  </div>
+                  <div className="text-right text-[10px] text-muted-foreground">
+                    <span className="tabular-nums text-foreground">{displayCartons(w)}</span>
+                    <div className="text-xs">cartons</div>
                   </div>
                   <div className="flex gap-2 justify-end">
                     {canEdit(w) && (
@@ -515,18 +568,18 @@ function EditWorkOrderDialog({
                 <Label className="text-[10px]">Total Units</Label>
                 <Input
                   type="number"
-                  value={editFormData.totalUnits || workOrder.totalUnits}
+                  value={editFormData.totalUnits ?? workOrder.totalUnits}
                   onChange={(e) => setEditFormData({ ...editFormData, totalUnits: parseInt(e.target.value) || 0 })}
                   className="h-8 text-xs"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px]">Total Cartons</Label>
+                <Label className="text-[10px]">Total Cartons (auto)</Label>
                 <Input
                   type="number"
-                  value={editFormData.totalCartons || workOrder.totalCartons}
-                  onChange={(e) => setEditFormData({ ...editFormData, totalCartons: parseInt(e.target.value) || 0 })}
-                  className="h-8 text-xs"
+                  value={displayCartons(workOrder)}
+                  readOnly
+                  className="h-8 text-xs bg-muted/50"
                 />
               </div>
             </div>
