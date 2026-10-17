@@ -82,7 +82,7 @@ function WorkOrdersPage() {
     if (!wo) return 0;
     if (wo.totalCartons > 0) return wo.totalCartons;
     
-    if (wo.lines?.length > 0) {
+    if (Array.isArray(wo.lines) && wo.lines.length > 0) {
       let sum = 0;
       for (const line of wo.lines) {
         if (line.cartons > 0) {
