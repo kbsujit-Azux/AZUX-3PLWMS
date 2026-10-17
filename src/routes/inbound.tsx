@@ -1003,30 +1003,31 @@ function EditContainerDialog({
 
       const { updateInboundShipmentRecord } = await import("@/lib/firestore-data");
 
-      await updateInboundShipmentRecord(shipment.id, {
-        ediRef: header.ediRef,
-        poNumber: header.poNumber,
-        carrier: header.carrier,
-        trailerNumber: header.trailerNumber,
-        containerNumber: header.containerNumber,
-        sealNumber: header.sealNumber,
-        bolNumber: header.bolNumber,
-        origin: header.origin,
-        appointmentAt: header.appointmentAt,
-        lines: lines.map((l, idx) => ({
+      const cleanHeader = Object.fromEntries(
+        Object.entries(header).filter(([_, v]) => v !== undefined && v !== "")
+      );
+
+      const cleanLines = lines.map((l, idx) => {
+        const cleanLine: any = {
           lineNo: idx + 1,
           sku: l.sku,
-          upc: l.upc,
-          itemStyle: l.itemStyle,
-          description: l.description,
-          lot: l.lot,
-          expirationDate: l.expirationDate,
-          qtyExpected: l.qtyExpected,
-          cartonsExpected: l.cartonsExpected,
-          unitsPerPallet: l.unitsPerPallet,
-          weightLbsPerUnit: l.weightLbsPerUnit,
-          poNumber: l.poNumber,
-        })),
+          upc: l.upc || "",
+          itemStyle: l.itemStyle || "",
+          description: l.description || "",
+          lot: l.lot || "",
+          expirationDate: l.expirationDate || "2030-12-31",
+          qtyExpected: l.qtyExpected || 0,
+          cartonsExpected: l.cartonsExpected || 0,
+          unitsPerPallet: l.unitsPerPallet || 0,
+          weightLbsPerUnit: l.weightLbsPerUnit || 0,
+          poNumber: l.poNumber || "",
+        };
+        return cleanLine;
+      });
+
+      await updateInboundShipmentRecord(shipment.id, {
+        ...cleanHeader,
+        lines: cleanLines,
       });
 
       toast.success("Container updated successfully");
