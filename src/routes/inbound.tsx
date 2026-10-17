@@ -1104,9 +1104,12 @@ function EditContainerDialog({
         ...(Object.keys(cleanHeader).length > 0 && cleanHeader),
       };
 
+      // Use existing workOrderId or fall back to shipment ID
+      const woId = shipment.workOrderId || shipment.id;
+
       await updateInboundShipmentRecord(shipment.id, {
         ...fullHeader,
-        workOrderId: shipment.workOrderId,
+        workOrderId: woId,
         lines: lines.map((l, idx) => ({
           lineNo: idx + 1,
           sku: l.sku || "",
