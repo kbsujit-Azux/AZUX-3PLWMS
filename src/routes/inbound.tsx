@@ -67,6 +67,8 @@ import {
   warehouseCode,
   type InboundLine,
   type InboundShipment,
+  type WorkOrder,
+  inboundShipments,
   inboundReceipts,
   closeInboundShipment,
 } from "@/lib/inbound-data";
@@ -177,9 +179,11 @@ function InboundPage() {
       if (s.status === "scheduled") t.scheduled++;
       if (s.status === "arrived" || s.status === "unloading") t.atDoor++;
       if (s.status === "exception") t.exception++;
-      for (const l of s.lines) {
-        t.expectedUnits += l.qtyExpected;
-        t.expectedCartons += l.cartonsExpected;
+      if (s.lines && Array.isArray(s.lines)) {
+        for (const l of s.lines) {
+          t.expectedUnits += l.qtyExpected;
+          t.expectedCartons += l.cartonsExpected;
+        }
       }
     }
     return t;
@@ -745,7 +749,7 @@ function ShipmentCard({
             <span className="text-[10px] text-muted-foreground font-mono">
               EDI 943 · {shipment.ediRef}
             </span>
-            {linkedWO && linkedWO.workOrderId && (
+            {linkedWO && (
               <span
                 className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${woStatusColors[linkedWO.status] || woStatusColors.scheduled}`}
               >
@@ -2072,10 +2076,10 @@ function CloseContainerDialog({
           />
           <KV label="Client" value={tenant?.name ?? ""} />
           <KV label="PO" value={shipment.poNumber} />
-          <KV label="Total Lines" value={shipment.lines.length.toString()} />
+          <KV label="Total Lines" value={shipment.lines?.length.toString() ?? "0"} />
           <KV
             label="Total Pallets"
-            value={shipment.lines.reduce((a, l) => a + l.palletIds.length, 0).toString()}
+            value={shipment.lines?.reduce((a, l) => a + (l.palletIds?.length || 0), 0).toString() ?? "0"}
           />
         </div>
         <AlertDialogFooter>
@@ -2269,9 +2273,9 @@ function ReportDialog({
         tenants.find((t) => t.id === s.tenantId)?.code ?? "",
         fmtDateTime(s.appointmentAt),
         s.status,
-        s.lines.reduce((a, l) => a + l.qtyExpected, 0).toString(),
-        s.lines.reduce((a, l) => a + l.receivedQty, 0).toString(),
-        s.lines.reduce((a, l) => a + l.palletIds.length, 0).toString(),
+        (s.lines?.reduce((a, l) => a + (l.qtyExpected || 0), 0) ?? 0).toString(),
+        (s.lines?.reduce((a, l) => a + (l.receivedQty || 0), 0) ?? 0).toString(),
+        (s.lines?.reduce((a, l) => a + (l.palletIds?.length || 0), 0) ?? 0).toString(),
       ]),
     ];
 
