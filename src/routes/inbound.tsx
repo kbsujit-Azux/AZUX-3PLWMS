@@ -185,6 +185,27 @@ function InboundPage() {
     return t;
   }, [filtered]);
 
+  const inboundStatusTransitions: Record<InboundShipment["status"], InboundShipment["status"] | null> = {
+    scheduled: "arrived",
+    arrived: "unloading",
+    unloading: "received",
+    received: null,
+    exception: null,
+  };
+
+  const handleInboundStatusTransition = async (s: InboundShipment, newStatus: InboundShipment["status"]) => {
+    try {
+      await updateInboundShipmentRecord(s.id, {
+        ...s,
+        status: newStatus,
+      } as any);
+      toast.success(`Container status: ${newStatus}`);
+      refreshData();
+    } catch (e: unknown) {
+      toast.error(`Failed to update status: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   return (
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-end justify-between">
@@ -306,6 +327,7 @@ function InboundPage() {
                 ? () => setPrintReceipt(s.id)
                 : undefined
             }
+            onStatusTransition={handleInboundStatusTransition}
           />
         ))}
       </div>
@@ -682,6 +704,7 @@ function ShipmentCard({
   onEdit,
   onDelete,
   onPrintReceipt,
+  onStatusTransition,
 }: {
   shipment: InboundShipment;
   workOrders: WorkOrder[];
@@ -690,6 +713,7 @@ function ShipmentCard({
   onEdit?: () => void;
   onDelete?: () => void;
   onPrintReceipt?: () => void;
+  onStatusTransition?: (s: InboundShipment, status: InboundShipment["status"]) => void;
 }) {
   const tenant = tenants.find((t) => t.id === shipment.tenantId);
   const wh = warehouses.find((w) => w.id === shipment.warehouseId);
@@ -926,6 +950,30 @@ function ShipmentCard({
             onClick={onCloseContainer}
           >
             <Check className="h-3 w-3" /> Close Container
+          </Button>
+        </div>
+      )}
+      {shipment.status === "scheduled" && !allLinesHavePallets && onStatusTransition && (
+        <div className="px-4 py-3 border-t border-border bg-primary/5 flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="default"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => onStatusTransition(shipment, "arrived")}
+          >
+            <Truck className="h-3 w-3" /> Mark Arrived
+          </Button>
+        </div>
+      )}
+      {shipment.status === "arrived" && !allLinesHavePallets && onStatusTransition && (
+        <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => onStatusTransition(shipment, "unloading")}
+          >
+            <AlertTriangle className="h-3 w-3" /> Start Unloading
           </Button>
         </div>
       )}
