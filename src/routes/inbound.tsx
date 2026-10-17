@@ -1090,8 +1090,22 @@ function EditContainerDialog({
         Object.entries(header).filter(([_, v]) => v !== undefined && v !== "")
       );
 
+      // Full shipment header for proper sync to WorkOrder
+      const fullHeader = {
+        ediRef: shipment.ediRef,
+        poNumber: shipment.poNumber,
+        carrier: shipment.carrier,
+        trailerNumber: shipment.trailerNumber,
+        containerNumber: shipment.containerNumber,
+        sealNumber: shipment.sealNumber,
+        bolNumber: shipment.bolNumber,
+        origin: shipment.origin,
+        appointmentAt: shipment.appointmentAt,
+        ...(Object.keys(cleanHeader).length > 0 && cleanHeader),
+      };
+
       await updateInboundShipmentRecord(shipment.id, {
-        ...cleanHeader,
+        ...fullHeader,
         workOrderId: shipment.workOrderId,
         lines: lines.map((l, idx) => ({
           lineNo: idx + 1,
