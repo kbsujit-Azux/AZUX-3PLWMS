@@ -7,6 +7,16 @@
       "site": "wms-3pl-79a05",
       "public": "dist",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+            { "key": "Pragma", "value": "no-cache" },
+            { "key": "Expires", "value": "0" }
+          ]
+        }
+      ],
       "rewrites": [
         {
           "source": "**",
@@ -18,6 +28,16 @@
       "site": "rfgun",
       "public": "dist-rfgun",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+            { "key": "Pragma", "value": "no-cache" },
+            { "key": "Expires", "value": "0" }
+          ]
+        }
+      ],
       "rewrites": [
         {
           "source": "**",

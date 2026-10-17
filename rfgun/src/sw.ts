@@ -17,7 +17,7 @@ declare const self: ServiceWorkerGlobalScope;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)),
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS.filter((a) => !a.includes("src/")))),
   );
   self.skipWaiting();
 });
@@ -41,23 +41,19 @@ self.addEventListener("fetch", (event: any) => {
 
   if (request.method !== "GET") return;
 
-  if (url.origin === self.location.origin) {
-    event.respondWith(
-      caches.match(request).then((cached: any) => {
-        const fetchPromise = fetch(request).then((response: any) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache: any) => cache.put(request, clone));
-          }
-          return response;
-        }).catch(() => cached);
-        return cached || fetchPromise;
-      }),
-    );
+  // Bypass cache for Firestore API requests
+  if (url.hostname.includes("firebase") || url.hostname.includes("googleapis.com")) {
+    event.respondWith(fetch(request));
     return;
   }
 
-  if (url.hostname.includes("googleapis.com") || url.hostname.includes("firebase")) {
+  if (url.origin === self.location.origin) {
+    // Bypass cache for HTML (dynamic content)
+    if (url.pathname.endsWith(".html") || url.pathname === "/" || url.pathname.includes("index.html")) {
+      event.respondWith(fetch(request));
+      return;
+    }
+    
     event.respondWith(
       fetch(request).then((response: any) => {
         if (response && response.status === 200) {
@@ -65,7 +61,7 @@ self.addEventListener("fetch", (event: any) => {
           caches.open(CACHE_NAME).then((cache: any) => cache.put(request, clone));
         }
         return response;
-      }).catch(() => caches.match(request)),
+      }),
     );
     return;
   }
@@ -76,6 +72,11 @@ self.addEventListener("fetch", (event: any) => {
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
+  }
+  if (event.data && event.data.type === "CLEAR_CACHE") {
+    caches.keys().then((keys) =>
+      Promise.all(keys.map((key) => caches.delete(key))),
+    );
   }
 });
 
