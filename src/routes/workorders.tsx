@@ -145,7 +145,7 @@ function WorkOrdersPage() {
       if (!inboundId) return false;
       const inbound = inboundShipments?.find((s) => s.id === inboundId);
       if (!inbound) return false;
-      return inbound.lines.every((l) => l.palletIds.length > 0);
+      return inbound.lines && inbound.lines.every((l) => l.palletIds && l.palletIds.length > 0);
     }
     return true;
   };

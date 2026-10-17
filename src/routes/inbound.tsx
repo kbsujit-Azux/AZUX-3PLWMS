@@ -1030,7 +1030,7 @@ function EditContainerDialog({
     appointmentAt: shipment.appointmentAt,
   });
   const [lines, setLines] = useState(
-    shipment.lines.map((l) => ({
+    (shipment.lines || []).map((l) => ({
       lineNo: l.lineNo,
       sku: l.sku || "",
       upc: l.upc || "",
