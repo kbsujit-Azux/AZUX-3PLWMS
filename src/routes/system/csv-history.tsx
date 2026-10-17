@@ -45,20 +45,22 @@ function CsvHistoryPage() {
   const [detailOpen, setDetailOpen] = useState<string | null>(null);
 
   const histories = useMemo(() => {
-    return csvUploadHistory.filter((h) => {
-      if (tenantId !== "all" && h.tenantId !== tenantId) return false;
-      if (warehouseId !== "all" && h.warehouseId !== warehouseId) return false;
-      if (query) {
-        const q = query.toLowerCase();
-        return (
-          h.fileName.toLowerCase().includes(q) ||
-          h.uploadedBy.toLowerCase().includes(q) ||
-          h.source.toLowerCase().includes(q) ||
-          h.id.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
+    return csvUploadHistory
+      .filter((h) => {
+        if (tenantId !== "all" && h.tenantId !== tenantId) return false;
+        if (warehouseId !== "all" && h.warehouseId !== warehouseId) return false;
+        if (query) {
+          const q = query.toLowerCase();
+          return (
+            h.fileName.toLowerCase().includes(q) ||
+            h.uploadedBy.toLowerCase().includes(q) ||
+            h.source.toLowerCase().includes(q) ||
+            h.id.toLowerCase().includes(q)
+          );
+        }
+        return true;
+      })
+      .sort((a, b) => new Date(b.uploadAt).getTime() - new Date(a.uploadAt).getTime());
   }, [csvUploadHistory, tenantId, warehouseId, query]);
 
   const stats = useMemo(() => {
