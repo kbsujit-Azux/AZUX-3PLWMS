@@ -75,13 +75,26 @@ function WorkOrdersPage() {
 
   const openEditDialog = (wo: WorkOrder) => {
     setWorkOrderToEdit(wo);
-    setEditFormData({ ...wo });
+    setEditFormData({
+      clientName: wo.clientName,
+      containerNumber: wo.containerNumber,
+      trailerNumber: wo.trailerNumber,
+      carrier: wo.carrier,
+      poNumber: wo.poNumber,
+    });
   };
 
   const handleEdit = async () => {
     if (!workOrderToEdit) return;
     try {
-      await updateWorkOrder(workOrderToEdit.id, editFormData);
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(editFormData).filter(([_, v]) => v !== undefined && v !== "")
+      );
+      if (Object.keys(cleanUpdates).length === 0) {
+        toast.warning("No changes to save");
+        return;
+      }
+      await updateWorkOrder(workOrderToEdit.id, cleanUpdates);
       toast.success("Work order updated");
       setWorkOrderToEdit(null);
       setEditFormData({});
