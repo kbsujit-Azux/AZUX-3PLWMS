@@ -69,7 +69,7 @@ function WorkOrdersPage() {
   const hasPalletsBuilt = (wo: WorkOrder) => {
     if (!inboundShipments) return false;
     const relatedInbounds = inboundShipments.filter((s) => s.workOrderId === wo.id);
-    return relatedInbounds.some((s) => s.lines && s.lines.some((l) => l.palletIds && l.palletIds.length > 0));
+    return relatedInbounds.some((s) => Array.isArray(s.lines) && s.lines.some((l) => l.palletIds && l.palletIds.length > 0));
   };
 
   const getCasePackForSku = (sku: string, tenantId: string): number => {
@@ -124,7 +124,7 @@ function WorkOrdersPage() {
       if (!inboundId) return false;
       const inbound = inboundShipments?.find((s) => s.id === inboundId);
       if (!inbound) return false;
-      return inbound.lines && inbound.lines.every((l) => l.palletIds && l.palletIds.length > 0);
+      return Array.isArray(inbound.lines) && inbound.lines.every((l) => l.palletIds && l.palletIds.length > 0);
     }
     return true;
   };

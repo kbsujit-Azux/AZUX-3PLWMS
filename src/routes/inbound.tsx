@@ -312,7 +312,7 @@ function InboundPage() {
             workOrders={workOrders}
             onBuildPallets={(l) => setActiveLine({ s, l })}
             onCloseContainer={
-              s.status !== "received" && s.lines && s.lines.every((l) => l.palletIds.length > 0)
+              s.status !== "received" && Array.isArray(s.lines) && s.lines.every((l) => l.palletIds && l.palletIds.length > 0)
                 ? () => setCloseContainer(s)
                 : undefined
             }
@@ -727,7 +727,7 @@ function ShipmentCard({
   const totalUnits = shipment.lines ? shipment.lines.reduce((a, l) => a + (l.qtyExpected || 0), 0) : 0;
   const totalCartons = shipment.lines ? shipment.lines.reduce((a, l) => a + (l.cartonsExpected || 0), 0) : 0;
 
-  const allLinesHavePallets = shipment.lines && shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
+  const allLinesHavePallets = Array.isArray(shipment.lines) && shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
   const canClose = onCloseContainer && allLinesHavePallets;
   const hasReceipt = !!onPrintReceipt;
   const linkedWO = shipment.workOrderId ? workOrders.find((w) => w.id === shipment.workOrderId) : null;
@@ -1388,7 +1388,7 @@ function BuildPalletsDialog({
     }
 
     // Flip shipment status to unloading or received as appropriate
-    const allReceived = ship.lines && ship.lines.every((l) => l.status === "received");
+    const allReceived = Array.isArray(ship.lines) && ship.lines.every((l) => l.status === "received");
     if (allReceived) {
       ship.status = "received";
       ship.receivedAt = new Date().toISOString();
