@@ -158,6 +158,7 @@ async function seed() {
     carrierCredentials,
   };
 
+  const batchSize = 500;
   let batch = writeBatch(db);
   let count = 0;
 
