@@ -371,7 +371,7 @@ export async function createInboundShipmentRecord(
     .toString()
     .padStart(4, "0")}`;
 
-  const woId = `WO-${id.replace("INB-", "")}`;
+  const woId = id;
 
   const totalUnits = shipment.lines.reduce((sum, l) => sum + l.qtyExpected, 0);
   const totalCartons = shipment.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0);
