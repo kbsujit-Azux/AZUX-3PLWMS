@@ -1092,6 +1092,7 @@ function EditContainerDialog({
 
       await updateInboundShipmentRecord(shipment.id, {
         ...cleanHeader,
+        workOrderId: shipment.workOrderId,
         lines: lines.map((l, idx) => ({
           lineNo: idx + 1,
           sku: l.sku || "",
@@ -1114,8 +1115,8 @@ function EditContainerDialog({
       toast.success("Container updated successfully");
       onOpenChange(false);
       onEdited();
-    } catch (e: any) {
-      toast.error(`Failed to update container: ${e.message}`);
+    } catch (e: unknown) {
+      toast.error(`Failed to update container: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 

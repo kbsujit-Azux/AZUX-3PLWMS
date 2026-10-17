@@ -529,15 +529,41 @@ export async function updateInboundShipmentRecord(
     }>;
     status?: "scheduled" | "arrived" | "unloading" | "received" | "exception";
     receivedAt?: string;
+    workOrderId?: string;
   }
 ) {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
-  const { status, receivedAt, ...shipmentUpdates } = updates;
-  await updateDoc(shipmentRef, {
+  const { status, receivedAt, workOrderId, ...shipmentUpdates } = updates;
+  const batch = writeBatch(db);
+  batch.update(shipmentRef, {
     ...shipmentUpdates,
     ...(status && { status }),
     ...(receivedAt && { receivedAt }),
+    ...(workOrderId && { workOrderId }),
   });
+  
+  // Sync to WorkOrder if workOrderId is provided
+  if (workOrderId) {
+    const woRef = doc(db, "workOrders", workOrderId);
+    batch.update(woRef, {
+      ...shipmentUpdates,
+      ...(status && { status: mapInboundStatusToWoStatus(status) }),
+      updatedAt: serverTimestamp(),
+    });
+  }
+  
+  await batch.commit();
+}
+
+function mapInboundStatusToWoStatus(status: "scheduled" | "arrived" | "unloading" | "received" | "exception"): "scheduled" | "at_dock" | "unloading" | "received" | "departed" | "closed" {
+  const map: Record<string, string> = {
+    scheduled: "scheduled",
+    arrived: "at_dock",
+    unloading: "unloading",
+    received: "received",
+    exception: "closed",
+  };
+  return map[status] as any;
 }
 
 export async function createPalletsAndLinkToShipment(
