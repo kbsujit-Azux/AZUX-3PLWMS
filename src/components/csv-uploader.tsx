@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { Upload, FileSpreadsheet, ArrowRight, CheckCircle2, XCircle, FileDown, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +17,8 @@ const csvEscape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"
 
 type ErrorItem = { row: number; field: string; message: string };
 
+type TenantOption = { id: string; code: string; name: string };
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -23,9 +27,11 @@ type Props = {
   ediHint: string;
   targetFields: { key: string; label: string; required?: boolean }[];
   exampleHeaders: string[];
-  onConfirm?: (file: File) => void;
+  onConfirm?: (file: File, tenantId?: string) => void;
   errors?: ErrorItem[];
   warnings?: ErrorItem[];
+  tenants?: TenantOption[];
+  defaultTenantId?: string;
 };
 
 export function CsvUploader({
@@ -39,12 +45,15 @@ export function CsvUploader({
   onConfirm,
   errors,
   warnings,
+  tenants = [],
+  defaultTenantId,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>(() =>
     Object.fromEntries(targetFields.map((f, i) => [f.key, exampleHeaders[i] ?? ""])),
   );
+  const [selectedTenantId, setSelectedTenantId] = useState<string>(defaultTenantId || "");
 
   const hasErrors = errors && errors.length > 0;
   const hasWarnings = warnings && warnings.length > 0;
@@ -53,6 +62,7 @@ export function CsvUploader({
   const reset = () => {
     setFile(null);
     setMapping(Object.fromEntries(targetFields.map((f, i) => [f.key, exampleHeaders[i] ?? ""])));
+    setSelectedTenantId(defaultTenantId || "");
   };
 
   const handleFile = (f?: File | null) => {
@@ -62,7 +72,7 @@ export function CsvUploader({
 
   const confirm = () => {
     if (!file) return;
-    onConfirm?.(file);
+    onConfirm?.(file, selectedTenantId || defaultTenantId);
     toast.success("CSV ingested", {
       description: `${file.name} mapped to ${targetFields.length} fields · staged as fallback for ${ediHint}`,
     });
@@ -119,6 +129,26 @@ export function CsvUploader({
           <DialogTitle className="text-base">{title}</DialogTitle>
           <DialogDescription className="text-xs">{description}</DialogDescription>
         </DialogHeader>
+
+        {tenants.length > 0 && (
+          <div className="mb-3">
+            <div className="space-y-1">
+              <Label className="text-[10px]">Client *</Label>
+              <select
+                value={selectedTenantId}
+                onChange={(e) => setSelectedTenantId(e.target.value)}
+                className="h-8 text-xs rounded-md border border-input bg-background px-2 w-full"
+              >
+                <option value="">Select client...</option>
+                {tenants.filter((t) => t.id !== "all").map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.code} · {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
 
         {hasIssues && (
           <div className="mb-3">

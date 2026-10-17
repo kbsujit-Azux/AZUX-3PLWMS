@@ -445,7 +445,9 @@ function InboundPage() {
         ediHint="EDI 943"
         errors={csvErrors}
         warnings={csvWarnings}
-        onConfirm={async (file) => {
+        tenants={tenants}
+        defaultTenantId={tenantId !== "all" ? tenantId : undefined}
+        onConfirm={async (file, uploadTenantId) => {
           try {
             const text = await file.text();
             const parsed = Papa.parse(text, {
@@ -454,11 +456,11 @@ function InboundPage() {
             });
             const data = parsed.data as Record<string, string>[];
 
-            const tenantToUse = tenantId !== "all" ? tenantId : tenants[0]?.id || "acme";
+            const tenantToUse = uploadTenantId || (tenantId !== "all" ? tenantId : tenants[0]?.id || "acme");
             const warehouseToUse = warehouseId !== "all" ? warehouseId : warehouses[0]?.id || "atl1";
 
             const errors: Array<{ row: number; field: string; message: string }> = [];
-            const warnings: Array<{ row: number; field: string; message: string }> = [];
+            const warnings: Array<{ row: number; field: string; message }> = [];
             const shipmentMap = new Map<string, any>();
 
             const selectedTenant = tenants.find((t) => t.id === tenantToUse);
