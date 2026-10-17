@@ -503,30 +503,31 @@ type DatabaseContextType = {
   pallets: Pallet[];
   pickWaves: PickWave[];
   orders: Order[];
-inboundShipments: InboundShipment[];
-    carrierDispatches: CarrierDispatch[];
-    bols: Bol[];
-    billingClients: BillingClient[];
-    billingRules: ChargeRule[];
-    billableEvents: BillableEvent[];
-    invoices: Invoice[];
-    itemMaster: ItemMasterRecord[];
-    locationMaster: LocationRecord[];
-    ediLogs: EdiLog[];
-    clientAllocationConfigs: ClientAllocationConfig[];
-    pickTickets: PickTicket[];
-    employees: any[];
-    tenantPortalUsers: any[];
-    rmaOrders: any[];
-    rmaLines: any[];
-    rmaDispositions: any[];
-    returnProcessingFees: any[];
-    carrierCredentials: any[];
-    clients: SettingsClient[];
-    users: SettingsUser[];
-    carrierServices: CarrierServiceRecord[];
-    cartonizations: any[];
-    csvUploadHistory: CsvUploadHistory[];
+  inboundShipments: InboundShipment[];
+  workOrders: any[];
+  carrierDispatches: CarrierDispatch[];
+  bols: Bol[];
+  billingClients: BillingClient[];
+  billingRules: ChargeRule[];
+  billableEvents: BillableEvent[];
+  invoices: Invoice[];
+  itemMaster: ItemMasterRecord[];
+  locationMaster: LocationRecord[];
+  ediLogs: EdiLog[];
+  clientAllocationConfigs: ClientAllocationConfig[];
+  pickTickets: PickTicket[];
+  employees: any[];
+  tenantPortalUsers: any[];
+  rmaOrders: any[];
+  rmaLines: any[];
+  rmaDispositions: any[];
+  returnProcessingFees: any[];
+  carrierCredentials: any[];
+  clients: SettingsClient[];
+  users: SettingsUser[];
+  carrierServices: CarrierServiceRecord[];
+  cartonizations: any[];
+  csvUploadHistory: CsvUploadHistory[];
 };
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
@@ -540,6 +541,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [pickWaves, setPickWaves] = useState<PickWave[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [inboundShipments, setInboundShipments] = useState<InboundShipment[]>([]);
+  const [workOrders, setWorkOrders] = useState<any[]>([]);
   const [carrierDispatches, setCarrierDispatches] = useState<CarrierDispatch[]>([]);
   const [bols, setBols] = useState<Bol[]>([]);
   const [billingClients, setBillingClients] = useState<BillingClient[]>([]);
@@ -704,6 +706,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     syncCollection("pickWaves", setPickWaves, libPickWaves as unknown as PickWave[]);
     syncCollection("orders", setOrders, libOrders);
     syncCollection("inboundShipments", setInboundShipments, libInboundShipments);
+    syncCollection("workOrders", setWorkOrders);
     syncCollection("shipments", setCarrierDispatches, libCarrierDispatches);
     syncCollection("bols", setBols, libBols);
     syncCollection("billingClients", setBillingClients);
@@ -750,6 +753,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         pickWaves,
         orders,
         inboundShipments,
+        workOrders,
         carrierDispatches,
         bols,
         billingClients,

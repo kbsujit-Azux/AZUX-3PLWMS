@@ -1,14 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Search, Container, Truck, Ship, Hash, Calendar, Check } from "lucide-react";
+import { Search, Container, Truck, Ship, Hash, Calendar, Check, Edit, X, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { type WorkOrder } from "@/lib/inbound-data";
 import { useWmsData } from "@/components/db-context";
-import { deleteWorkOrder } from "@/lib/firestore-data";
+import { deleteWorkOrder, updateWorkOrder } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/workorders")({
   head: () => ({
@@ -35,8 +36,10 @@ const statusColors: Record<string, string> = {
 function WorkOrdersPage() {
   const [query, setQuery] = useState("");
   const [workOrderToDelete, setWorkOrderToDelete] = useState<WorkOrder | null>(null);
+  const [workOrderToEdit, setWorkOrderToEdit] = useState<WorkOrder | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<WorkOrder>>({});
 
-  const { workOrders } = useWmsData();
+  const { workOrders, inboundShipments } = useWmsData();
 
   const filtered = useMemo(() => {
     if (!workOrders) return [];
@@ -61,9 +64,36 @@ function WorkOrdersPage() {
     };
   }, [workOrders]);
 
-  const handleDelete = async (wo: WorkOrder) => {
+  const hasPalletsBuilt = (wo: WorkOrder) => {
+    if (!inboundShipments) return false;
+    const relatedInbounds = inboundShipments.filter((s) => s.workOrderId === wo.id);
+    return relatedInbounds.some((s) => s.lines.some((l) => l.palletIds && l.palletIds.length > 0));
+  };
+
+  const canEdit = (wo: WorkOrder) => wo.status === "scheduled" && !hasPalletsBuilt(wo);
+  const canDelete = (wo: WorkOrder) => wo.status === "scheduled" && !hasPalletsBuilt(wo);
+
+  const openEditDialog = (wo: WorkOrder) => {
+    setWorkOrderToEdit(wo);
+    setEditFormData({ ...wo });
+  };
+
+  const handleEdit = async () => {
+    if (!workOrderToEdit) return;
     try {
-      await deleteWorkOrder(wo.id);
+      await updateWorkOrder(workOrderToEdit.id, editFormData);
+      toast.success("Work order updated");
+      setWorkOrderToEdit(null);
+      setEditFormData({});
+    } catch (e: any) {
+      toast.error(`Failed to update: ${e.message}`);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!workOrderToDelete) return;
+    try {
+      await deleteWorkOrder(workOrderToDelete.id);
       toast.success("Work order deleted");
       setWorkOrderToDelete(null);
     } catch (e: any) {
@@ -115,44 +145,115 @@ function WorkOrdersPage() {
             No work orders match the current filter.
           </div>
         )}
-        {filtered.map((w) => (
-          <div key={w.id} className="rounded-md border border-border bg-card overflow-hidden">
-            <div className="flex items-start justify-between gap-4 px-4 py-3 border-b border-border bg-muted/20">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-xs font-semibold">{w.woNumber}</span>
-                  <span
-                    className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusColors[w.status]}`}
-                  >
-                    {w.status.replace("_", " ")}
-                  </span>
+        {filtered.map((w) => {
+          const showActions = canEdit(w) || canDelete(w);
+          return (
+            <div key={w.id} className="rounded-md border border-border bg-card overflow-hidden">
+              <div className="flex items-start justify-between gap-4 px-4 py-3 border-b border-border bg-muted/20">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-xs font-semibold">{w.woNumber}</span>
+                    <span
+                      className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusColors[w.status]}`}
+                    >
+                      {w.status.replace("_", " ")}
+                    </span>
+                    {showActions && (
+                      <AlertTriangle className="h-3 w-3 text-muted-foreground" title="Editable - no pallets built" />
+                    )}
+                  </div>
+                  <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-[11px]">
+                    <KeyVal label="Client" value={w.clientName} />
+                    <KeyVal icon={Container} label="Container" value={w.containerNumber} />
+                    <KeyVal icon={Truck} label="Trailer" value={w.trailerNumber} />
+                    <KeyVal icon={Ship} label="Carrier" value={w.carrier} />
+                    <KeyVal icon={Ship} label="Vessel" value={w.vessel} />
+                    <KeyVal icon={Hash} label="Voyage" value={w.voyageNumber} />
+                    <KeyVal icon={Calendar} label="Arrival" value={w.arrivalDate ? new Date(w.arrivalDate).toLocaleDateString() : "—"} />
+                    <KeyVal label="PO" value={w.poNumber} />
+                  </div>
                 </div>
-                <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-[11px]">
-                  <KeyVal label="Client" value={w.clientName} />
-                  <KeyVal icon={Container} label="Container" value={w.containerNumber} />
-                  <KeyVal icon={Truck} label="Trailer" value={w.trailerNumber} />
-                  <KeyVal icon={Ship} label="Carrier" value={w.carrier} />
-                  <KeyVal icon={Ship} label="Vessel" value={w.vessel} />
-                  <KeyVal icon={Hash} label="Voyage" value={w.voyageNumber} />
-                  <KeyVal icon={Calendar} label="Arrival" value={w.arrivalDate ? new Date(w.arrivalDate).toLocaleDateString() : "—"} />
-                  <KeyVal label="PO" value={w.poNumber} />
-                </div>
-              </div>
-              <div className="w-48 shrink-0">
-                <div className="text-right text-[10px] text-muted-foreground">
-                  <span className="tabular-nums text-foreground">{w.totalUnits}</span>
-                  <div className="text-xs">units</div>
+                <div className="w-48 shrink-0 flex flex-col gap-2">
+                  <div className="text-right text-[10px] text-muted-foreground">
+                    <span className="tabular-nums text-foreground">{w.totalUnits}</span>
+                    <div className="text-xs">units</div>
+                  </div>
+                  {showActions && (
+                    <div className="flex gap-2 justify-end">
+                      {canEdit(w) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[10px] gap-1"
+                          onClick={() => openEditDialog(w)}
+                        >
+                          <Edit className="h-3 w-3" />
+                          Edit
+                        </Button>
+                      )}
+                      {canDelete(w) && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-7 text-[10px] gap-1"
+                          onClick={() => setWorkOrderToDelete(w)}
+                        >
+                          <X className="h-3 w-3" />
+                          Delete
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+
+      {workOrderToDelete && (
+        <AlertDialog open={!!workOrderToDelete} onOpenChange={(o) => !o && setWorkOrderToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Work Order?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete the work order &quot;
+                {workOrderToDelete.woNumber} &quot;. This action cannot be undone.
+                <br />
+                <br />
+                Only scheduled work orders with no pallet builds can be deleted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setWorkOrderToDelete(null)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteConfirm}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                Delete Work Order
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {workOrderToEdit && (
+        <EditWorkOrderDialog
+          open={!!workOrderToEdit}
+          onOpenChange={(o) => !o && setWorkOrderToEdit(null)}
+          workOrder={workOrderToEdit}
+          editFormData={editFormData}
+          setEditFormData={setEditFormData}
+          onEdited={handleEdit}
+        />
+      )}
     </div>
   );
 }
 
-function StatCell({ icon: Icon, label, value }: { icon: typeof Container; label: string; value: number }) {
+function StatCell({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: number }) {
   return (
     <div className="px-4 py-2.5">
       <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -164,7 +265,7 @@ function StatCell({ icon: Icon, label, value }: { icon: typeof Container; label:
   );
 }
 
-function KeyVal({ icon: Icon, label, value }: { icon?: typeof Container; label: string; value: string }) {
+function KeyVal({ icon: Icon, label, value }: { icon?: React.ElementType; label: string; value: string }) {
   return (
     <div className="flex items-center gap-1.5 min-w-0">
       {Icon && <Icon className="h-3 w-3 text-muted-foreground shrink-0" />}
@@ -174,11 +275,88 @@ function KeyVal({ icon: Icon, label, value }: { icon?: typeof Container; label: 
   );
 }
 
-async function deleteWorkOrder(woId: string) {
-  const { getFirestoreDoc, deleteDoc } = await import("firebase/firestore");
-  const { db } = await import("@/lib/firebase");
-  const docRef = getFirestoreDoc(db, "workOrders", woId);
-  await deleteDoc(docRef);
+function EditWorkOrderDialog({
+  open,
+  onOpenChange,
+  workOrder,
+  editFormData,
+  setEditFormData,
+  onEdited,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  workOrder: WorkOrder | null;
+  editFormData: Partial<WorkOrder>;
+  setEditFormData: (data: Partial<WorkOrder>) => void;
+  onEdited: () => void;
+}) {
+  if (!workOrder) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Work Order</DialogTitle>
+          <DialogDescription>
+            Edit container and client details for {workOrder.woNumber}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-[10px]">Client</Label>
+            <Input
+              value={editFormData.clientName || ""}
+              onChange={(e) => setEditFormData({ ...editFormData, clientName: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Container Number</Label>
+            <Input
+              value={editFormData.containerNumber || ""}
+              onChange={(e) => setEditFormData({ ...editFormData, containerNumber: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Trailer Number</Label>
+            <Input
+              value={editFormData.trailerNumber || ""}
+              onChange={(e) => setEditFormData({ ...editFormData, trailerNumber: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Carrier</Label>
+            <Input
+              value={editFormData.carrier || ""}
+              onChange={(e) => setEditFormData({ ...editFormData, carrier: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">PO Number</Label>
+            <Input
+              value={editFormData.poNumber || ""}
+              onChange={(e) => setEditFormData({ ...editFormData, poNumber: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={() => {
+            onEdited();
+            onOpenChange(false);
+          }}>
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default WorkOrdersPage;
