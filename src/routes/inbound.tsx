@@ -961,8 +961,21 @@ function EditContainerDialog({
   });
   const [lines, setLines] = useState(
     shipment.lines.map((l) => ({
-      ...l,
       lineNo: l.lineNo,
+      sku: l.sku || "",
+      upc: l.upc || "",
+      itemStyle: l.itemStyle || "",
+      description: l.description || "",
+      lot: l.lot || "",
+      expirationDate: l.expirationDate || "2030-12-31",
+      qtyExpected: l.qtyExpected || 0,
+      cartonsExpected: l.cartonsExpected || 0,
+      unitsPerPallet: l.unitsPerPallet || 0,
+      weightLbsPerUnit: l.weightLbsPerUnit || 0,
+      receivedQty: l.receivedQty || 0,
+      palletIds: l.palletIds || [],
+      status: l.status || "expected",
+      poNumber: l.poNumber || "",
     }))
   );
   const [notes, setNotes] = useState("");
@@ -1007,10 +1020,11 @@ function EditContainerDialog({
         Object.entries(header).filter(([_, v]) => v !== undefined && v !== "")
       );
 
-      const cleanLines = lines.map((l, idx) => {
-        const cleanLine: any = {
+      await updateInboundShipmentRecord(shipment.id, {
+        ...cleanHeader,
+        lines: lines.map((l, idx) => ({
           lineNo: idx + 1,
-          sku: l.sku,
+          sku: l.sku || "",
           upc: l.upc || "",
           itemStyle: l.itemStyle || "",
           description: l.description || "",
@@ -1021,13 +1035,10 @@ function EditContainerDialog({
           unitsPerPallet: l.unitsPerPallet || 0,
           weightLbsPerUnit: l.weightLbsPerUnit || 0,
           poNumber: l.poNumber || "",
-        };
-        return cleanLine;
-      });
-
-      await updateInboundShipmentRecord(shipment.id, {
-        ...cleanHeader,
-        lines: cleanLines,
+          receivedQty: l.receivedQty || 0,
+          palletIds: l.palletIds || [],
+          status: l.status || "expected",
+        })),
       });
 
       toast.success("Container updated successfully");
