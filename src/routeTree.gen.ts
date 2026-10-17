@@ -29,7 +29,6 @@ import { Route as CountingRouteImport } from './routes/counting'
 import { Route as ComplianceRouteImport } from './routes/compliance'
 import { Route as CatchWeightRouteImport } from './routes/catch-weight'
 import { Route as BillingRouteImport } from './routes/billing'
-import { Route as Allocation_backupRouteImport } from './routes/allocation_backup'
 import { Route as AllocationRouteImport } from './routes/allocation'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantPortalIndexRouteImport } from './routes/tenant-portal/index'
@@ -147,11 +146,6 @@ const BillingRoute = BillingRouteImport.update({
   path: '/billing',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Allocation_backupRoute = Allocation_backupRouteImport.update({
-  id: '/allocation_backup',
-  path: '/allocation_backup',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AllocationRoute = AllocationRouteImport.update({
   id: '/allocation',
   path: '/allocation',
@@ -236,7 +230,6 @@ const MastersEmployeesRoute = MastersEmployeesRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/allocation': typeof AllocationRoute
-  '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
   '/catch-weight': typeof CatchWeightRoute
   '/compliance': typeof ComplianceRoute
@@ -275,7 +268,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/allocation': typeof AllocationRoute
-  '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
   '/catch-weight': typeof CatchWeightRoute
   '/compliance': typeof ComplianceRoute
@@ -315,7 +307,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/allocation': typeof AllocationRoute
-  '/allocation_backup': typeof Allocation_backupRoute
   '/billing': typeof BillingRoute
   '/catch-weight': typeof CatchWeightRoute
   '/compliance': typeof ComplianceRoute
@@ -356,7 +347,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/allocation'
-    | '/allocation_backup'
     | '/billing'
     | '/catch-weight'
     | '/compliance'
@@ -395,7 +385,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/allocation'
-    | '/allocation_backup'
     | '/billing'
     | '/catch-weight'
     | '/compliance'
@@ -434,7 +423,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/allocation'
-    | '/allocation_backup'
     | '/billing'
     | '/catch-weight'
     | '/compliance'
@@ -474,7 +462,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AllocationRoute: typeof AllocationRoute
-  Allocation_backupRoute: typeof Allocation_backupRoute
   BillingRoute: typeof BillingRoute
   CatchWeightRoute: typeof CatchWeightRoute
   ComplianceRoute: typeof ComplianceRoute
@@ -651,13 +638,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BillingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/allocation_backup': {
-      id: '/allocation_backup'
-      path: '/allocation_backup'
-      fullPath: '/allocation_backup'
-      preLoaderRoute: typeof Allocation_backupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/allocation': {
       id: '/allocation'
       path: '/allocation'
@@ -789,7 +769,6 @@ const MastersRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AllocationRoute: AllocationRoute,
-  Allocation_backupRoute: Allocation_backupRoute,
   BillingRoute: BillingRoute,
   CatchWeightRoute: CatchWeightRoute,
   ComplianceRoute: ComplianceRoute,

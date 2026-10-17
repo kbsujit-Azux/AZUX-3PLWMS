@@ -538,7 +538,7 @@ export function resolveDispute(invoice: Invoice, resolutionNotes: string): Invoi
 }
 
 export function lineTotal(inv: Invoice): number {
-  const sub = inv.lines.reduce((s, l) => s + l.total, 0);
+  const sub = Array.isArray(inv.lines) ? inv.lines.reduce((s, l) => s + l.total, 0) : 0;
   return +(sub * (1 + inv.taxRate)).toFixed(2);
 }
 

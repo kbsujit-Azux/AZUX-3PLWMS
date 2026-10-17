@@ -322,8 +322,8 @@ export function inboundProgressPct(line: InboundLine): number {
 }
 
 export function shipmentProgressPct(s: InboundShipment): number {
-  const exp = s.lines.reduce((a, l) => a + l.qtyExpected, 0);
-  const rec = s.lines.reduce((a, l) => a + l.receivedQty, 0);
+  const exp = Array.isArray(s.lines) ? s.lines.reduce((a, l) => a + l.qtyExpected, 0) : 0;
+  const rec = Array.isArray(s.lines) ? s.lines.reduce((a, l) => a + l.receivedQty, 0) : 0;
   return exp === 0 ? 0 : Math.min(100, Math.round((rec / exp) * 100));
 }
 
@@ -377,7 +377,7 @@ export function closeInboundShipment(
 ): InboundReceipt {
   const ts = (d: string) => new Date(d).toISOString();
 
-  const lines: InboundReceiptLine[] = shipment.lines.map((l, idx) => {
+  const lines: InboundReceiptLine[] = Array.isArray(shipment.lines) ? shipment.lines.map((l, idx) => {
     const putaway = putawayInfo.find((p) => p.lineNo === l.lineNo);
     const osd = osdInfo.find((o) => o.lineNo === l.lineNo);
     const cartonsPerUnit = l.qtyExpected > 0 ? l.cartonsExpected / l.qtyExpected : 0;
@@ -399,7 +399,7 @@ export function closeInboundShipment(
       osdQty: osd?.osdQty ?? 0,
       osdReason: osd?.osdReason ?? "",
     };
-  });
+  }) : [];
 
   const receipt: InboundReceipt = {
     id: genReceiptId(),

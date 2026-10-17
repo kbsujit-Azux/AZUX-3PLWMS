@@ -371,16 +371,16 @@ function PicksPage() {
       const shipmentId = `SHP-${firstPallet.sscc18.slice(-8)}`;
       const totalPallets = pendingOutboundPallets.length;
       const totalUnits = pendingOutboundPallets.reduce(
-        (s, p) => s + p.lines.reduce((ls, l) => ls + l.unitsPicked, 0),
+        (s, p) => s + (Array.isArray(p.lines) ? p.lines.reduce((ls, l) => ls + l.unitsPicked, 0) : 0),
         0,
       );
       const totalWeightLbs = pendingOutboundPallets.reduce(
-        (s, p) => s + p.lines.reduce((ls, l) => ls + l.weightLbs, 0),
+        (s, p) => s + (Array.isArray(p.lines) ? p.lines.reduce((ls, l) => ls + l.weightLbs, 0) : 0),
         0,
       );
       const totalCartons = pendingOutboundPallets.reduce(
         (s, p) =>
-          s + p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0),
+          s + (Array.isArray(p.lines) ? p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0) : 0),
         0,
       );
 
@@ -404,7 +404,7 @@ function PicksPage() {
         pallets: totalPallets,
         cartons: totalCartons,
         weightLbs: Math.round(totalWeightLbs * 10) / 10,
-        declaredValue: palletizeOrderOpen.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0),
+        declaredValue: Array.isArray(palletizeOrderOpen.lines) ? palletizeOrderOpen.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0) : 0,
       });
 
       for (const pallet of pendingOutboundPallets) {
@@ -497,7 +497,7 @@ function PicksPage() {
               <TableBody>
                 {fullyPickedOrders.map(({ order }) => {
                   const tenant = ordersMap.get(order.id);
-                  const totalUnits = order.lines.reduce((s, l) => s + l.qtyOrdered, 0);
+                  const totalUnits = Array.isArray(order.lines) ? order.lines.reduce((s, l) => s + l.qtyOrdered, 0) : 0;
                   return (
                     <TableRow key={order.id} className="text-xs hover:bg-muted/30">
                       <TableCell className="py-2 font-mono font-medium">{order.id}</TableCell>
@@ -506,7 +506,7 @@ function PicksPage() {
                       <TableCell className="py-2">{order.carrier}</TableCell>
                       <TableCell className="py-2 text-right tabular-nums">{totalUnits}</TableCell>
                       <TableCell className="py-2 text-right tabular-nums">
-                        {order.lines.length}
+                        {Array.isArray(order.lines) ? order.lines.length : 0}
                       </TableCell>
                       <TableCell className="py-2 text-right">
                         <Button
@@ -969,12 +969,12 @@ function PicksPage() {
                       </div>
                     </div>
                     <div className="grid grid-cols-5 gap-2 text-[10px]">
-                      {pallet.lines.map((line, idx) => (
+                      {Array.isArray(pallet.lines) ? pallet.lines.map((line, idx) => (
                         <div key={idx} className="truncate">
                           <span className="font-mono text-muted-foreground">{line.sku}</span>
                           <span className="text-foreground ml-1">{line.unitsPicked} units</span>
                         </div>
-                      ))}
+                      )) : null}
                     </div>
                     <div className="mt-2 pt-2 border-t border-border">
                       <div className="flex items-center justify-between text-[10px]">

@@ -581,7 +581,7 @@ function ConsolidateDialog({
                           {o.poNumber}
                         </span>
                         <span className="flex-1 truncate text-muted-foreground">
-                          {o.lines.map((l) => `${l.qtyOrdered}× ${l.sku}`).join(" · ")}
+                          {Array.isArray(o.lines) ? o.lines.map((l) => `${l.qtyOrdered}× ${l.sku}`).join(" · ") : ""}
                         </span>
                         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                           {o.status}

@@ -889,7 +889,7 @@ function NewOrderDialog({
   const updateLine = (idx: number, patch: Partial<OrderLine>) => {
     setForm((prev) => ({
       ...prev,
-      lines: prev.lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
+      lines: Array.isArray(prev.lines) ? prev.lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)) : [],
     }));
   };
 
@@ -936,14 +936,14 @@ function NewOrderDialog({
     if (lineDeleteIdx === null) return;
     setForm((prev) => ({
       ...prev,
-      lines: prev.lines.filter((_, i) => i !== lineDeleteIdx),
+      lines: Array.isArray(prev.lines) ? prev.lines.filter((_, i) => i !== lineDeleteIdx) : [],
     }));
     setEditingLineIdx(null);
     setLineDeleteIdx(null);
   };
 
   const handleSave = () => {
-    const lines = form.lines.filter((l) => l.sku.trim() !== "" || l.description.trim() !== "");
+    const lines = Array.isArray(form.lines) ? form.lines.filter((l) => l.sku.trim() !== "" || l.description.trim() !== "") : [];
     const newOrder: Order = {
       id: form.id || nextOrderId(),
       poNumber: form.poNumber,
@@ -981,8 +981,8 @@ function NewOrderDialog({
 
   const tenant = tenants.find((t) => t.id === form.tenantId);
   const warehouse = warehouses.find((w) => w.id === form.warehouseId);
-  const totalUnits = form.lines.reduce((s, l) => s + l.qtyOrdered, 0);
-  const totalValue = form.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0);
+  const totalUnits = Array.isArray(form.lines) ? form.lines.reduce((s, l) => s + l.qtyOrdered, 0) : 0;
+  const totalValue = Array.isArray(form.lines) ? form.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0) : 0;
 
   return (
     <>
@@ -1419,7 +1419,7 @@ function NewOrderDialog({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {form.lines.length === 0 && (
+                      {(!Array.isArray(form.lines) || form.lines.length === 0) && (
                         <TableRow>
                           <TableCell
                             colSpan={11}
@@ -1429,7 +1429,7 @@ function NewOrderDialog({
                           </TableCell>
                         </TableRow>
                       )}
-                      {form.lines.map((l, idx) => {
+                      {Array.isArray(form.lines) && form.lines.map((l, idx) => {
                         const editing = editingLineIdx === idx;
                         return (
                           <TableRow key={idx} className="text-xs">

@@ -832,9 +832,11 @@ function PickRoutePanel({ waveId, strategy }: { waveId: string; strategy: "LIFO"
 
   const route = useMemo(() => {
     if (!order) return [];
-    return order.lines.flatMap((line) =>
-      buildPickWave(order.id, line.sku, line.qtyOrdered, order.warehouseId, strategy),
-    );
+    return Array.isArray(order.lines)
+      ? order.lines.flatMap((line) =>
+          buildPickWave(order.id, line.sku, line.qtyOrdered, order.warehouseId, strategy),
+        )
+      : [];
   }, [order, strategy]);
 
   return (

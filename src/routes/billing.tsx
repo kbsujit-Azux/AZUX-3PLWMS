@@ -1664,7 +1664,7 @@ function InvoicePreview({
   onViewAuditLog?: () => void;
 }) {
   const client = clients.find((c) => c.id === invoice.clientId) as BillingClient | undefined;
-  const sub = invoice.lines.reduce((s, l) => s + l.total, 0);
+  const sub = Array.isArray(invoice.lines) ? invoice.lines.reduce((s, l) => s + l.total, 0) : 0;
   const tax = +(sub * invoice.taxRate).toFixed(2);
   const total = +(sub + tax).toFixed(2);
 
@@ -1809,7 +1809,7 @@ function InvoicePreview({
               </tr>
             </thead>
             <tbody>
-              {invoice.lines.map((l) => (
+              {Array.isArray(invoice.lines) && invoice.lines.map((l) => (
                 <tr key={l.id} className="border-b">
                   <td className="p-2 align-top">{l.activityType}</td>
                   <td className="p-2 align-top">{l.description}</td>

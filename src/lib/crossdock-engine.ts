@@ -37,7 +37,7 @@ export function findOpenOrdersForSku(
   return orders.filter((o) => {
     const closed = ["shipped", "exception"];
     if (closed.includes(o.status)) return false;
-    return o.lines.some((l) => l.qtyOrdered - l.qtyAllocated > 0);
+    return Array.isArray(o.lines) && o.lines.some((l) => l.qtyOrdered - l.qtyAllocated > 0);
   });
 }
 

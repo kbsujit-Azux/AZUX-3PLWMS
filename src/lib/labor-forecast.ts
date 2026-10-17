@@ -93,11 +93,11 @@ export function forecastLaborFromEdi(
     });
 
     const inboundPallets = daysInbound.length;
-    const inboundCases = daysInbound.reduce((sum, s) => sum + s.lines.reduce((s2, l) => s2 + (l.cartonsExpected || 0), 0), 0);
-    const inboundLines = daysInbound.reduce((sum, s) => sum + s.lines.length, 0);
+    const inboundCases = daysInbound.reduce((sum, s) => sum + (Array.isArray(s.lines) ? s.lines.reduce((s2, l) => s2 + (l.cartonsExpected || 0), 0) : 0), 0);
+    const inboundLines = daysInbound.reduce((sum, s) => sum + (Array.isArray(s.lines) ? s.lines.length : 0), 0);
     const outboundOrders = daysOrders.length;
-    const outboundPicks = daysOrders.reduce((sum, o) => sum + o.lines.length, 0);
-    const outboundCartons = daysOrders.reduce((sum, o) => sum + o.lines.reduce((s2, l) => s2 + (l.cartons || l.qtyOrdered || 0), 0), 0);
+    const outboundPicks = daysOrders.reduce((sum, o) => sum + (Array.isArray(o.lines) ? o.lines.length : 0), 0);
+    const outboundCartons = daysOrders.reduce((sum, o) => sum + (Array.isArray(o.lines) ? o.lines.reduce((s2, l) => s2 + (l.cartons || l.qtyOrdered || 0), 0) : 0), 0);
 
     const receivingStandard = laborStandards.find((s) => s.taskType === "DOCK_RECEIVING");
     const putawayStandard = laborStandards.find((s) => s.taskType === "PUTAWAY");

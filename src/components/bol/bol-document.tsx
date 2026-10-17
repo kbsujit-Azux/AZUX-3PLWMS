@@ -90,7 +90,7 @@ export function BolDocument({ bol }: { bol: BillOfLading }) {
           </thead>
           <tbody>
             {bol.childOrderIds.map((oid, idx) => {
-              const olines = bol.lines.filter((l) => l.orderId === oid);
+              const olines = Array.isArray(bol.lines) ? bol.lines.filter((l) => l.orderId === oid) : [];
               const pkgs = olines.reduce((a, l) => a + l.qty, 0);
               const wt = olines.reduce((a, l) => a + l.weightLbs, 0).toFixed(1);
               const hasPallet = olines.some((l) => l.pkgType === "PLT");
@@ -135,7 +135,7 @@ export function BolDocument({ bol }: { bol: BillOfLading }) {
             </tr>
           </thead>
           <tbody>
-            {bol.lines.map((l, i) => (
+            {Array.isArray(bol.lines) && bol.lines.map((l, i) => (
               <tr key={i} className="border-t border-black/30">
                 <Td className="text-right tabular-nums">{l.qty}</Td>
                 <Td mono>{l.pkgType}</Td>

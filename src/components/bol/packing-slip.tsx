@@ -62,7 +62,7 @@ export function PackingSlip({ bol }: { bol: BillOfLading }) {
           </tr>
         </thead>
         <tbody>
-          {bol.lines.map((l, i) => (
+          {Array.isArray(bol.lines) && bol.lines.map((l, i) => (
             <tr key={i} className="border-t border-black/30">
               <Td mono>{l.sku}</Td>
               <Td>{l.description}</Td>

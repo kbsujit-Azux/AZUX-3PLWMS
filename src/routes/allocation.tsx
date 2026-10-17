@@ -485,12 +485,12 @@ function AllocationPage() {
       const firstPallet = outboundPallets[0];
       const shipmentId = `SHP-${firstPallet.sscc18.slice(-8)}`;
       const totalWeight = outboundPallets.reduce(
-        (s, p) => s + p.lines.reduce((ls, l) => ls + l.weightLbs, 0),
+        (s, p) => s + (Array.isArray(p.lines) ? p.lines.reduce((ls, l) => ls + l.weightLbs, 0) : 0),
         0,
       );
       const totalCartons = outboundPallets.reduce(
         (s, p) =>
-          s + p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0),
+          s + (Array.isArray(p.lines) ? p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0) : 0),
         0,
       );
 
@@ -514,7 +514,7 @@ function AllocationPage() {
         pallets: outboundPallets.length,
         cartons: totalCartons,
         weightLbs: Math.round(totalWeight * 10) / 10,
-        declaredValue: order.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0),
+        declaredValue: Array.isArray(order.lines) ? order.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0) : 0,
       });
 
       for (const pallet of outboundPallets) {
@@ -698,7 +698,7 @@ function AllocationPage() {
               )}
               {allocatableOrders.map((o) => {
                 const config = configMap.get(o.tenantId);
-                const totalUnits = o.lines.reduce((s, l) => s + l.qtyOrdered, 0);
+                const totalUnits = Array.isArray(o.lines) ? o.lines.reduce((s, l) => s + l.qtyOrdered, 0) : 0;
                 return (
                   <TableRow key={o.id}>
                     <TableCell className="text-xs font-mono">{o.id}</TableCell>

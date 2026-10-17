@@ -373,10 +373,10 @@ export async function createInboundShipmentRecord(
 
   const woId = id;
 
-  const totalUnits = shipment.lines.reduce((sum, l) => sum + l.qtyExpected, 0);
-  const totalCartons = shipment.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0);
+  const totalUnits = Array.isArray(shipment.lines) ? shipment.lines.reduce((sum, l) => sum + l.qtyExpected, 0) : 0;
+  const totalCartons = Array.isArray(shipment.lines) ? shipment.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0) : 0;
 
-  const lines: InboundLine[] = shipment.lines.map((l, idx) => ({
+  const lines: InboundLine[] = Array.isArray(shipment.lines) ? shipment.lines.map((l, idx) => ({
     lineNo: l.lineNo,
     sku: l.sku,
     upc: l.upc || "",
@@ -392,7 +392,7 @@ export async function createInboundShipmentRecord(
     receivedQty: 0,
     palletIds: [],
     status: "expected",
-  }));
+  })) : [];
 
   const fullShipment: InboundShipment = {
     id,
@@ -420,7 +420,7 @@ export async function createInboundShipmentRecord(
 
   await setDoc(doc(db, "inboundShipments", id), fullShipment);
 
-  const workOrderLines = shipment.lines.map((l, idx) => ({
+  const workOrderLines = Array.isArray(shipment.lines) ? shipment.lines.map((l, idx) => ({
     lineNo: idx + 1,
     sku: l.sku,
     upc: l.upc || "",
@@ -430,7 +430,7 @@ export async function createInboundShipmentRecord(
     qtyReceived: 0,
     cartons: l.cartonsExpected || 0,
     status: "pending" as const,
-  }));
+  })) : [];
 
   await createWorkOrder({
     id: woId,

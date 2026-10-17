@@ -724,8 +724,8 @@ function ShipmentCard({
   const tenant = tenants.find((t) => t.id === shipment.tenantId);
   const wh = warehouses.find((w) => w.id === shipment.warehouseId);
   const pct = shipmentProgressPct(shipment);
-  const totalUnits = shipment.lines ? shipment.lines.reduce((a, l) => a + (l.qtyExpected || 0), 0) : 0;
-  const totalCartons = shipment.lines ? shipment.lines.reduce((a, l) => a + (l.cartonsExpected || 0), 0) : 0;
+  const totalUnits = Array.isArray(shipment.lines) ? shipment.lines.reduce((a, l) => a + (l.qtyExpected || 0), 0) : 0;
+  const totalCartons = Array.isArray(shipment.lines) ? shipment.lines.reduce((a, l) => a + (l.cartonsExpected || 0), 0) : 0;
 
   const allLinesHavePallets = Array.isArray(shipment.lines) && shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
   const canClose = onCloseContainer && allLinesHavePallets;
@@ -832,7 +832,7 @@ function ShipmentCard({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {shipment.lines && shipment.lines.map((l) => {
+          {Array.isArray(shipment.lines) && shipment.lines.map((l) => {
             const lPct = inboundProgressPct(l);
             const remaining = Math.max(0, l.qtyExpected - l.receivedQty);
             const palletsRemaining = Math.max(
@@ -2123,14 +2123,16 @@ function ReceiptPreviewDialog({
       `Seal/BOL: ${receipt.sealNumber} / ${receipt.bolNumber}`,
       "",
       "SKU SUMMARY:",
-      ...receipt.lines.map(
-        (l) =>
-          `  ${l.sku} | Exp: ${l.qtyExpected} | Rec: ${l.qtyReceived} | Pallets: ${l.palletCount} | Putaway: ${l.putawayDate ? fmtDateYear(l.putawayDate) : "—"} | OSD: ${l.osdQty || 0}`,
-      ),
+      ...(Array.isArray(receipt.lines)
+        ? receipt.lines.map(
+            (l) =>
+              `  ${l.sku} | Exp: ${l.qtyExpected} | Rec: ${l.qtyReceived} | Pallets: ${l.palletCount} | Putaway: ${l.putawayDate ? fmtDateYear(l.putawayDate) : "—"} | OSD: ${l.osdQty || 0}`,
+          )
+        : []),
       "",
-      `Total Units Received: ${receipt.lines.reduce((a, l) => a + l.qtyReceived, 0)}`,
-      `Total Pallets: ${receipt.lines.reduce((a, l) => a + l.palletCount, 0)}`,
-      `Total OSD Qty: ${receipt.lines.reduce((a, l) => a + l.osdQty, 0)}`,
+      `Total Units Received: ${Array.isArray(receipt.lines) ? receipt.lines.reduce((a, l) => a + l.qtyReceived, 0) : 0}`,
+      `Total Pallets: ${Array.isArray(receipt.lines) ? receipt.lines.reduce((a, l) => a + l.palletCount, 0) : 0}`,
+      `Total OSD Qty: ${Array.isArray(receipt.lines) ? receipt.lines.reduce((a, l) => a + l.osdQty, 0) : 0}`,
     ].join("\n");
 
     const blob = new Blob([content], { type: "text/plain" });
@@ -2181,7 +2183,7 @@ function ReceiptPreviewDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {receipt.lines.map((l) => (
+              {Array.isArray(receipt.lines) && receipt.lines.map((l) => (
                 <TableRow key={l.lineNo}>
                   <TableCell className="py-2 font-mono text-xs">{l.sku}</TableCell>
                   <TableCell className="py-2 text-xs">{l.lot}</TableCell>

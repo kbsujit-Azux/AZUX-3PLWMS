@@ -302,40 +302,44 @@ function ShipmentsPage() {
           createdAt: new Date().toISOString(),
           childOrderIds: [orderId],
           lines: palletsForOrder.flatMap((p: any) =>
-            p.lines.map((l: any) => ({
-              qty: Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)),
-              pkgType: "CTN" as const,
-              weightLbs: l.weightLbs,
-              nmfc: "999999",
-              freightClass: "100",
-              hazmat: false,
-              description: l.description,
-              sku: l.sku,
-              poNumber: poNumber,
-              orderId,
-            })),
+            Array.isArray(p.lines)
+              ? p.lines.map((l: any) => ({
+                  qty: Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)),
+                  pkgType: "CTN" as const,
+                  weightLbs: l.weightLbs,
+                  nmfc: "999999",
+                  freightClass: "100",
+                  hazmat: false,
+                  description: l.description,
+                  sku: l.sku,
+                  poNumber: poNumber,
+                  orderId,
+                }))
+              : [],
           ),
           totals: {
             units: palletsForOrder.reduce(
               (s: number, p: any) =>
-                s + p.lines.reduce((ls: number, l: any) => ls + l.unitsPicked, 0),
+                s + (Array.isArray(p.lines) ? p.lines.reduce((ls: number, l: any) => ls + l.unitsPicked, 0) : 0),
               0,
             ),
             pallets: palletsForOrder.length,
             cartons: palletsForOrder.reduce(
               (s: number, p: any) =>
                 s +
-                p.lines.reduce(
-                  (ls: number, l: any) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)),
-                  0,
-                ),
+                (Array.isArray(p.lines)
+                  ? p.lines.reduce(
+                      (ls: number, l: any) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)),
+                      0,
+                    )
+                  : 0),
               0,
             ),
             weightLbs:
               Math.round(
                 palletsForOrder.reduce(
                   (s: number, p: any) =>
-                    s + p.lines.reduce((ls: number, l: any) => ls + l.weightLbs, 0),
+                    s + (Array.isArray(p.lines) ? p.lines.reduce((ls: number, l: any) => ls + l.weightLbs, 0) : 0),
                   0,
                 ) * 10,
               ) / 10,
