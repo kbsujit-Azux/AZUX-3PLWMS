@@ -117,6 +117,31 @@ const woStatusColors: Record<string, string> = {
   closed: "bg-green-500/15 text-green-600 border-green-500/30",
 };
 
+function parseFlexibleDate(input: string): Date | null {
+  const s = input.trim();
+  if (!s) return null;
+
+  // Try ISO format first
+  let d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+
+  // MM/DD/YYYY, MM-DD-YYYY, M/D/YYYY
+  const mdy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (mdy) {
+    d = new Date(parseInt(mdy[3]), parseInt(mdy[1]) - 1, parseInt(mdy[2]));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // YYYY-MM-DD
+  const ymd = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (ymd) {
+    d = new Date(parseInt(ymd[1]), parseInt(ymd[2]) - 1, parseInt(ymd[3]));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  return null;
+}
+
 function InboundPage() {
   const { tenantId, warehouseId } = useWorkspace();
   const { inboundShipments, workOrders, refreshData } = useWmsData();
@@ -587,14 +612,15 @@ function InboundPage() {
                   warnings.push({ row: rowNum, field: "carrier", message: "Carrier is recommended" });
                 }
 
-                const expectedAtStr = getField("expected_at") || getField("appointment") || "";
+                const expectedAtStr = getField("expected_at") || getField("appointment") || getField("eta") || "";
                 if (!expectedAtStr) {
                   errors.push({ row: rowNum, field: "expected_at", message: "Expected/Appointment date is required" });
                   return;
                 } else {
-                  const expectedAt = new Date(expectedAtStr);
-                  if (isNaN(expectedAt.getTime())) {
+                  const expectedAt = parseFlexibleDate(expectedAtStr);
+                  if (!expectedAt) {
                     errors.push({ row: rowNum, field: "expected_at", message: `Invalid appointment date format: ${expectedAtStr}` });
+                    return;
                   } else if (expectedAt < new Date(new Date().setHours(0, 0, 0, 0))) {
                     warnings.push({ row: rowNum, field: "expected_at", message: "Appointment date is in the past" });
                   }
@@ -673,10 +699,11 @@ function InboundPage() {
                 warnings.push({ row: rowNum, field: "cartons", message: `Cartons not entered — auto-calculated as ${cartonsExpected} (Units/${itemMasterItem?.caseQty || 1} pack size)` });
               }
 
-              if (getField("expiration_date")) {
-                const expDate = new Date(getField("expiration_date"));
-                if (isNaN(expDate.getTime())) {
-                  warnings.push({ row: rowNum, field: "expiration_date", message: "Invalid expiration date format" });
+              if (getField("expiration_date") || getField("exp")) {
+                const expStr = getField("expiration_date") || getField("exp") || "";
+                const expDate = parseFlexibleDate(expStr);
+                if (!expDate) {
+                  warnings.push({ row: rowNum, field: "expiration_date", message: `Invalid expiration date format: ${expStr}` });
                 } else if (expDate < new Date(new Date().setHours(0, 0, 0, 0))) {
                   warnings.push({ row: rowNum, field: "expiration_date", message: "Expiration date is in the past" });
                 }
@@ -1217,7 +1244,10 @@ function EditContainerDialog({
 
   const handleSave = async () => {
     try {
-      const ts = (d: string) => new Date(d).toISOString();
+const ts = (d: string) => {
+      const parsed = parseFlexibleDate(d);
+      return parsed ? parsed.toISOString() : new Date().toISOString();
+    };
 
       const { updateInboundShipmentRecord } = await import("@/lib/firestore-data");
 
@@ -1800,8 +1830,8 @@ function AddContainerDialog({
         validationErrors.push(`Line ${i + 1}: Valid quantity is required`);
       }
       if (l.expirationDate) {
-        const exp = new Date(l.expirationDate);
-        if (isNaN(exp.getTime())) {
+        const exp = parseFlexibleDate(l.expirationDate);
+        if (!exp) {
           validationWarnings.push(`Line ${i + 1}: Invalid expiration date`);
         } else if (exp < new Date(new Date().setHours(0, 0, 0, 0))) {
           validationWarnings.push(`Line ${i + 1}: Expiration date is in the past`);
@@ -1810,8 +1840,8 @@ function AddContainerDialog({
     }
 
     if (header.appointmentAt) {
-      const appt = new Date(header.appointmentAt);
-      if (isNaN(appt.getTime())) {
+      const appt = parseFlexibleDate(header.appointmentAt);
+      if (!appt) {
         validationWarnings.push("Invalid appointment date format");
       } else if (appt < new Date(new Date().setHours(0, 0, 0, 0))) {
         validationWarnings.push("Appointment date is in the past");
@@ -2469,9 +2499,10 @@ function ReportDialog({
 }) {
   const handleGenerateReport = () => {
     const filtered = inboundShipments.filter((s) => {
-      const d = new Date(s.appointmentAt);
-      const start = startDate ? new Date(startDate) : null;
-      const end = endDate ? new Date(endDate) : null;
+      const d = parseFlexibleDate(s.appointmentAt);
+      const start = startDate ? parseFlexibleDate(startDate) : null;
+      const end = endDate ? parseFlexibleDate(endDate) : null;
+      if (!d) return true;
       if (start && d < start) return false;
       if (end && d > end) return false;
       return true;
