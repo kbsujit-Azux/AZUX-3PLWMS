@@ -497,8 +497,8 @@ function InboundPage() {
             });
             const data = parsed.data as Record<string, string>[];
 
-            const tenantToUse = uploadTenantId || (tenantId !== "all" ? tenantId : tenants[0]?.id || "acme");
-            const warehouseToUse = warehouseId !== "all" ? warehouseId : warehouses[0]?.id || "atl1";
+            const tenantToUse = uploadTenantId || (tenantId !== "all" ? tenantId : tenants.find((t) => t.id !== "all")?.id || "acme");
+            const warehouseToUse = warehouseId !== "all" ? warehouseId : warehouses.find((w) => w.id !== "all")?.id || "atl1";
 
             const errors: Array<{ row: number; field: string; message: string }> = [];
             const warnings: Array<{ row: number; field: string; message: string }> = [];
@@ -524,23 +524,32 @@ function InboundPage() {
                 return "";
               };
 
-              // Resolve client/warehouse from CSV columns (fall back to dropdown)
+              // Resolve client/warehouse from CSV columns (required — no fallback)
               const csvClient = getField("client") || getField("tenant") || "";
               const csvWarehouse = getField("warehouse") || getField("wh") || "";
               const csvLocation = getField("location") || getField("rack") || "";
 
-              const rowTenantId = csvClient || tenantToUse;
-              const rowWarehouseId = csvWarehouse || warehouseToUse;
+              if (!csvClient) {
+                errors.push({ row: rowNum, field: "client", message: "Client/Tenant is required in CSV" });
+                return;
+              }
+              if (!csvWarehouse) {
+                errors.push({ row: rowNum, field: "warehouse", message: "Warehouse is required in CSV" });
+                return;
+              }
+
+              const rowTenantId = csvClient;
+              const rowWarehouseId = csvWarehouse;
 
               const rowTenant = tenants.find((t) => t.id === rowTenantId);
               const rowWarehouse = warehouses.find((w) => w.id === rowWarehouseId);
 
               if (!rowTenant) {
-                errors.push({ row: rowNum, field: "client", message: `Client "${csvClient || tenantToUse}" not found` });
+                errors.push({ row: rowNum, field: "client", message: `Client "${csvClient}" not found` });
                 return;
               }
               if (!rowWarehouse) {
-                errors.push({ row: rowNum, field: "warehouse", message: `Warehouse "${csvWarehouse || warehouseToUse}" not found` });
+                errors.push({ row: rowNum, field: "warehouse", message: `Warehouse "${csvWarehouse}" not found` });
                 return;
               }
 
@@ -637,26 +646,33 @@ function InboundPage() {
                 return;
               }
 
-              const itemMasterItem = inventoryItems.find((i) => i.sku === sku && i.tenantId === tenantToUse);
+              const itemMasterItem = inventoryItems.find((i) => i.sku === sku && i.tenantId === rowTenantId);
               if (!itemMasterItem) {
-                errors.push({ row: rowNum, field: "sku", message: `SKU "${sku}" not found in Item Master for tenant "${tenantToUse}"` });
+                errors.push({ row: rowNum, field: "sku", message: `SKU "${sku}" not found in Item Master for tenant "${rowTenantId}"` });
                 return;
               }
 
-              // Carton calculation: if not entered, compute as Units / PackSize (caseQty)
+              // Carton calculation: if not entered or zero, compute as Units / PackSize (caseQty)
               const cartonsEntered = getField("cartons");
               let cartonsExpected: number;
               if (cartonsEntered) {
-                cartonsExpected = parseInt(cartonsEntered, 10);
-                if (isNaN(cartonsExpected) || cartonsExpected < 0) {
+                const parsedCartons = parseInt(cartonsEntered, 10);
+                if (isNaN(parsedCartons) || parsedCartons < 0) {
                   warnings.push({ row: rowNum, field: "cartons", message: `Invalid cartons value: ${cartonsEntered}` });
                   cartonsExpected = 0;
+                } else if (parsedCartons === 0) {
+                  // Zero entered → auto-calculate
+                  cartonsExpected = Math.ceil(qty / Math.max(1, itemMasterItem?.caseQty || 1));
+                  if (cartonsExpected === 0) cartonsExpected = 1;
+                  warnings.push({ row: rowNum, field: "cartons", message: `Cartons entered as 0 — auto-calculated as ${cartonsExpected} (Units/${itemMasterItem?.caseQty || 1} pack size)` });
+                } else {
+                  cartonsExpected = parsedCartons;
                 }
               } else {
                 // Default: Units / caseQty (pack size), rounded up
-                cartonsExpected = Math.ceil(qty / Math.max(1, itemMasterItem.caseQty));
+                cartonsExpected = Math.ceil(qty / Math.max(1, itemMasterItem?.caseQty || 1));
                 if (cartonsExpected === 0) cartonsExpected = 1;
-                warnings.push({ row: rowNum, field: "cartons", message: `Cartons not entered — auto-calculated as ${cartonsExpected} (Units/${itemMasterItem.caseQty} pack size)` });
+                warnings.push({ row: rowNum, field: "cartons", message: `Cartons not entered — auto-calculated as ${cartonsExpected} (Units/${itemMasterItem?.caseQty || 1} pack size)` });
               }
 
               if (getField("expiration_date")) {
