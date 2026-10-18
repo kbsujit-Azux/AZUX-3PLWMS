@@ -63,14 +63,26 @@ const toDate = (v: string | { toDate?: () => Date; seconds?: number; nanoseconds
   return new Date(v as string);
 };
 
-export const fmtDateTime = (iso: string | { toDate?: () => Date; seconds?: number }) =>
-  dtf.format(toDate(iso));
-export const fmtDate = (iso: string | { toDate?: () => Date; seconds?: number }) =>
-  df.format(toDate(iso));
-export const fmtDateYear = (iso: string | { toDate?: () => Date; seconds?: number }) =>
-  dfYear.format(toDate(iso));
-export const fmtTime = (iso: string | { toDate?: () => Date; seconds?: number }) =>
-  tf.format(toDate(iso));
+export const fmtDateTime = (iso: string | { toDate?: () => Date; seconds?: number }) => {
+  const d = toDate(iso);
+  if (isNaN(d.getTime())) return "—";
+  return dtf.format(d);
+};
+export const fmtDate = (iso: string | { toDate?: () => Date; seconds?: number }) => {
+  const d = toDate(iso);
+  if (isNaN(d.getTime())) return "—";
+  return df.format(d);
+};
+export const fmtDateYear = (iso: string | { toDate?: () => Date; seconds?: number }) => {
+  const d = toDate(iso);
+  if (isNaN(d.getTime())) return "—";
+  return dfYear.format(d);
+};
+export const fmtTime = (iso: string | { toDate?: () => Date; seconds?: number }) => {
+  const d = toDate(iso);
+  if (isNaN(d.getTime())) return "—";
+  return tf.format(d);
+};
 
 export function downloadExcel<T>(
   filename: string,

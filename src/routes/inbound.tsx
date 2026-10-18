@@ -593,10 +593,13 @@ function InboundPage() {
                 }
 
                 const expectedAtStr = getField("expected_at") || getField("appointment") || "";
-                if (expectedAtStr) {
+                if (!expectedAtStr) {
+                  errors.push({ row: rowNum, field: "expected_at", message: "Expected/Appointment date is required" });
+                  return;
+                } else {
                   const expectedAt = new Date(expectedAtStr);
                   if (isNaN(expectedAt.getTime())) {
-                    warnings.push({ row: rowNum, field: "expected_at", message: "Invalid appointment date format" });
+                    errors.push({ row: rowNum, field: "expected_at", message: `Invalid appointment date format: ${expectedAtStr}` });
                   } else if (expectedAt < new Date(new Date().setHours(0, 0, 0, 0))) {
                     warnings.push({ row: rowNum, field: "expected_at", message: "Appointment date is in the past" });
                   }
