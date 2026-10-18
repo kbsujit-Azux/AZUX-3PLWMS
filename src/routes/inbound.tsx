@@ -75,9 +75,9 @@ import {
 import { createPalletsFromInbound } from "@/lib/pallet-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
-import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
+import { validateLineAgainstItemMaster, masterReasonLabel, itemMaster } from "@/lib/master-data";
 import { locationMaster } from "@/lib/master-data";
-import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment, updateInboundShipmentRecord, updateInboundLine, updateWorkOrder, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive } from "@/lib/firestore-data";
+import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment, updateInboundShipmentRecord, updateInboundLine, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive, deleteWorkOrder, updateWorkOrder } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
   head: () => ({
@@ -153,6 +153,8 @@ function InboundPage() {
   const [closeContainer, setCloseContainer] = useState<InboundShipment | null>(null);
   const [editContainer, setEditContainer] = useState<InboundShipment | null>(null);
   const [deleteContainer, setDeleteContainer] = useState<InboundShipment | null>(null);
+  const [deleteWorkOrder, setDeleteWorkOrder] = useState<WorkOrder | null>(null);
+  const [editWorkOrder, setEditWorkOrder] = useState<WorkOrder | null>(null);
   const [printReceipt, setPrintReceipt] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportStart, setReportStart] = useState(() => localStorage.getItem("inbound-report-start") || "");
@@ -272,6 +274,28 @@ function InboundPage() {
     }
   };
 
+  const handleDeleteWorkOrder = async (wo: WorkOrder) => {
+    try {
+      await deleteWorkOrder(wo.id);
+      toast.success(`Work order ${wo.woNumber} deleted`);
+      setDeleteWorkOrder(null);
+      refreshData();
+    } catch (e: unknown) {
+      toast.error(`Failed to delete work order: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const handleEditWorkOrder = async (wo: WorkOrder, updates: Partial<WorkOrder>) => {
+    try {
+      await updateWorkOrder(wo.id, updates);
+      toast.success(`Work order ${wo.woNumber} updated`);
+      setEditWorkOrder(null);
+      refreshData();
+    } catch (e: unknown) {
+      toast.error(`Failed to update work order: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   return (
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-end justify-between">
@@ -373,6 +397,8 @@ function InboundPage() {
             shipment={s}
             workOrders={workOrders}
             onBuildPallets={(l) => setActiveLine({ s, l })}
+            onEditWorkOrder={setEditWorkOrder}
+            onDeleteWorkOrder={setDeleteWorkOrder}
             onCloseContainer={
               s.status === "putaway" && Array.isArray(s.lines) && s.lines.every((l) => l.palletIds && l.palletIds.length > 0)
                 ? () => setCloseContainer(s)
@@ -486,6 +512,43 @@ function InboundPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      )}
+
+      {deleteWorkOrder && (
+        <AlertDialog
+          open={!!deleteWorkOrder}
+          onOpenChange={(o) => !o && setDeleteWorkOrder(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Work Order?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete work order &quot;{deleteWorkOrder.woNumber}&quot; and its linked inbound shipment.
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteWorkOrder(null)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => handleDeleteWorkOrder(deleteWorkOrder)}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                Delete Work Order
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {editWorkOrder && (
+        <EditWorkOrderInboundDialog
+          open={!!editWorkOrder}
+          onOpenChange={(o) => !o && setEditWorkOrder(null)}
+          workOrder={editWorkOrder}
+          onEdited={(updates) => handleEditWorkOrder(editWorkOrder, updates)}
+        />
       )}
 
       {editContainer && (
@@ -670,7 +733,7 @@ function InboundPage() {
                 return;
               }
 
-              const itemMasterItem = inventoryItems.find((i) => i.sku === sku && i.tenantId === rowTenantId);
+              const itemMasterItem = itemMaster.find((i) => i.sku === sku && i.tenantId === rowTenantId);
               if (!itemMasterItem) {
                 errors.push({ row: rowNum, field: "sku", message: `SKU "${sku}" not found in Item Master for tenant "${rowTenantId}"` });
                 return;
@@ -843,6 +906,8 @@ function ShipmentCard({
   onCloseContainer,
   onEdit,
   onDelete,
+  onEditWorkOrder,
+  onDeleteWorkOrder,
   onPrintReceipt,
   onStatusTransition,
 }: {
@@ -852,6 +917,8 @@ function ShipmentCard({
   onCloseContainer?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onEditWorkOrder?: (wo: WorkOrder) => void;
+  onDeleteWorkOrder?: (wo: WorkOrder) => void;
   onPrintReceipt?: () => void;
   onStatusTransition?: (s: InboundShipment, status: InboundShipment["status"]) => void;
 }) {
@@ -889,6 +956,22 @@ function ShipmentCard({
               >
                 WO: {linkedWO.status.replace("_", " ")}
               </span>
+            )}
+            {linkedWO && onEditWorkOrder && (
+              <button
+                onClick={() => onEditWorkOrder(linkedWO)}
+                className="inline-flex items-center rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-mono hover:bg-muted/60"
+              >
+                <Edit className="h-2.5 w-2.5 mr-0.5" /> Edit WO
+              </button>
+            )}
+            {linkedWO && onDeleteWorkOrder && (
+              <button
+                onClick={() => onDeleteWorkOrder(linkedWO)}
+                className="inline-flex items-center rounded-sm border border-destructive/30 bg-destructive/5 px-1.5 py-0.5 text-[10px] font-mono hover:bg-destructive/10"
+              >
+                <X className="h-2.5 w-2.5 mr-0.5" /> Delete WO
+              </button>
             )}
           </div>
           <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-[11px]">
@@ -1721,7 +1804,7 @@ function AddContainerDialog({
   });
   const validSkus = useMemo(() => {
     const tenantToUse = selectedTenantId || (tenantId !== "all" ? tenantId : tenants[0].id);
-    return inventoryItems
+    return itemMaster
       .filter((i) => i.tenantId === tenantToUse)
       .map((i) => ({ sku: i.sku, upc: i.upc, itemStyle: i.itemStyle, description: i.description }));
   }, [selectedTenantId, tenantId]);
@@ -2598,6 +2681,152 @@ function ReportDialog({
           </Button>
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleGenerateReport}>
             <Download className="h-3.5 w-3.5" /> Download Report
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditWorkOrderInboundDialog({
+  open,
+  onOpenChange,
+  workOrder,
+  onEdited,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  workOrder: WorkOrder | null;
+  onEdited: (updates: Partial<WorkOrder>) => void;
+}) {
+  if (!workOrder) return null;
+
+  const [formData, setFormData] = useState({
+    clientName: workOrder.clientName || "",
+    containerNumber: workOrder.containerNumber || "",
+    trailerNumber: workOrder.trailerNumber || "",
+    carrier: workOrder.carrier || "",
+    poNumber: workOrder.poNumber || "",
+    vessel: workOrder.vessel || "",
+    voyageNumber: workOrder.voyageNumber || "",
+    port: workOrder.port || "",
+    origin: workOrder.origin || "",
+    arrivalDate: workOrder.arrivalDate || "",
+    notes: workOrder.notes || "",
+  });
+
+  const handleSubmit = () => {
+    onEdited(formData);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Edit Work Order {workOrder.woNumber}</DialogTitle>
+          <DialogDescription>
+            Edit work order details. Changes will sync to related inbound shipment.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[10px]">Client</Label>
+              <Input
+                value={formData.clientName}
+                onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Container Number</Label>
+              <Input
+                value={formData.containerNumber}
+                onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Trailer Number</Label>
+              <Input
+                value={formData.trailerNumber}
+                onChange={(e) => setFormData({ ...formData, trailerNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Carrier</Label>
+              <Input
+                value={formData.carrier}
+                onChange={(e) => setFormData({ ...formData, carrier: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">PO Number</Label>
+              <Input
+                value={formData.poNumber}
+                onChange={(e) => setFormData({ ...formData, poNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Vessel</Label>
+              <Input
+                value={formData.vessel}
+                onChange={(e) => setFormData({ ...formData, vessel: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Voyage Number</Label>
+              <Input
+                value={formData.voyageNumber}
+                onChange={(e) => setFormData({ ...formData, voyageNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Port</Label>
+              <Input
+                value={formData.port}
+                onChange={(e) => setFormData({ ...formData, port: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Origin</Label>
+              <Input
+                value={formData.origin}
+                onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Arrival Date</Label>
+              <Input
+                value={formData.arrivalDate}
+                onChange={(e) => setFormData({ ...formData, arrivalDate: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Notes</Label>
+            <Textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="h-20 text-xs"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleSubmit}>
+            Save Changes
           </Button>
         </DialogFooter>
       </DialogContent>

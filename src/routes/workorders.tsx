@@ -98,8 +98,8 @@ function WorkOrdersPage() {
     return relatedInbounds.some((s) => Array.isArray(s.lines) && s.lines.some((l) => l.palletIds && l.palletIds.length > 0));
   };
 
-  const canEdit = (wo: WorkOrder) => ["scheduled", "at_dock", "unloading"].includes(wo.status);
-  const canDelete = (wo: WorkOrder) => wo.status === "scheduled";
+  const canEdit = (wo: WorkOrder) => wo.status !== "closed";
+  const canDelete = (wo: WorkOrder) => !hasPalletsBuilt(wo);
 
   const statusTransitions: Record<WorkOrderStatus, WorkOrderStatus | null> = {
     scheduled: "at_dock",

@@ -117,6 +117,11 @@ import { DROP001_LOCATION } from "./mock-data";
 import type { Pallet } from "./pallet-data";
 import type { ItemMasterRecord, LocationRecord, LocationType } from "./master-data";
 import type { InboundShipment, InboundLine } from "./inbound-data";
+import { tenants as _tenants } from "./mock-data";
+
+function getTenantName(id: string): string {
+  return _tenants.find((t) => t.id === id)?.name || id;
+}
 import type { Order, EdiLog } from "./edi-data";
 import type { OutboundPallet } from "./outbound-pallet-data";
 import type {
@@ -439,7 +444,7 @@ export async function createInboundShipmentRecord(
     woNumber: woId,
     tenantId: shipment.tenantId,
     warehouseId: shipment.warehouseId,
-    clientName: "",
+    clientName: getTenantName(shipment.tenantId),
     containerNumber: shipment.containerNumber || "—",
     trailerNumber: shipment.trailerNumber || "—",
     sealNumber: shipment.sealNumber || "",
@@ -3453,6 +3458,16 @@ export async function updateWorkOrder(id: string, updates: any): Promise<void> {
 }
 
 export async function deleteWorkOrder(id: string): Promise<void> {
+  // Also remove linked inbound shipment
+  try {
+    const allShipments = await fetchInboundShipments();
+    const linked = allShipments.find((s) => s.workOrderId === id);
+    if (linked) {
+      await deleteDoc(doc(db, "inboundShipments", linked.id));
+    }
+  } catch (e) {
+    console.error("Failed to delete linked inbound shipment:", e);
+  }
   await deleteDoc(doc(db, "workOrders", id));
 }
 
