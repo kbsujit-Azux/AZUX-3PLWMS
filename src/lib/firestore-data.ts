@@ -370,15 +370,14 @@ export async function createInboundShipmentRecord(
     }>;
   },
 ): Promise<string> {
+  // Generate ID in format: INB-YYYYMMDD-XXXX (same for both Inbound and WorkOrder)
   const id = `INB-${new Date().getFullYear()}${(new Date().getMonth() + 1)
     .toString()
     .padStart(2, "0")}${(new Date().getDate()).toString().padStart(2, "0")}-${Math.floor(Math.random() * 10000)
     .toString()
     .padStart(4, "0")}`;
 
-  // Generate unique WorkOrder number: INB/YYYY-MM-DD/Sequence
-  const woNumber = await getNextInboundSeq();
-  const woId = woNumber;
+  const woId = id; // Use SAME ID for WorkOrder
 
   const totalUnits = Array.isArray(shipment.lines) ? shipment.lines.reduce((sum, l) => sum + l.qtyExpected, 0) : 0;
   const totalCartons = Array.isArray(shipment.lines) ? shipment.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0) : 0;
@@ -428,8 +427,6 @@ export async function createInboundShipmentRecord(
     lines,
   };
 
-  await setDoc(doc(db, "inboundShipments", id), fullShipment);
-
   const workOrderLines = Array.isArray(shipment.lines) ? shipment.lines.map((l, idx) => ({
     lineNo: idx + 1,
     sku: l.sku,
@@ -442,7 +439,7 @@ export async function createInboundShipmentRecord(
     status: "pending" as const,
   })) : [];
 
-  await createWorkOrder({
+  const workOrderData = {
     id: woId,
     woNumber: woId,
     tenantId: shipment.tenantId,
@@ -473,7 +470,14 @@ export async function createInboundShipmentRecord(
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     notes: "",
-  });
+    doorAssigned: shipment.doorAssigned || null,
+  };
+
+  // Use batch write for atomic creation of both inbound shipment and work order
+  const batch = writeBatch(db);
+  batch.set(doc(db, "inboundShipments", id), fullShipment);
+  batch.set(doc(db, "workOrders", woId), workOrderData);
+  await batch.commit();
 
   return id;
 }
@@ -543,26 +547,93 @@ export async function updateInboundShipmentRecord(
     status?: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception";
     receivedAt?: string | null;
     workOrderId?: string;
+    vessel?: string;
+    voyageNumber?: string;
+    port?: string;
   }
 ) {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
+  
+  // Get current shipment to check workOrderId
+  const shipmentSnap = await getDoc(shipmentRef);
+  if (!shipmentSnap.exists()) {
+    throw new Error(`Shipment ${shipmentId} not found`);
+  }
+  const currentShipment = shipmentSnap.data() as InboundShipment;
+  
   const { status, receivedAt, workOrderId, ...shipmentUpdates } = updates;
+  const woId = workOrderId || currentShipment.workOrderId || shipmentId; // Use inbound ID as work order ID
+  
   const batch = writeBatch(db);
   batch.update(shipmentRef, {
     ...shipmentUpdates,
     ...(status && { status }),
     ...(receivedAt && { receivedAt }),
     ...(workOrderId && { workOrderId }),
+    workOrderId: woId, // Ensure workOrderId is set
   });
   
-  // Sync to WorkOrder if workOrderId is provided
-  if (workOrderId) {
-    const woRef = doc(db, "workOrders", workOrderId);
+  // Sync to WorkOrder - create if doesn't exist, update if exists
+  const woRef = doc(db, "workOrders", woId);
+  const woSnap = await getDoc(woRef);
+  
+  const totalUnits = Array.isArray(updates.lines) ? updates.lines.reduce((sum, l) => sum + l.qtyExpected, 0) : 0;
+  const totalCartons = Array.isArray(updates.lines) ? updates.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0) : 0;
+  
+  const workOrderLines = Array.isArray(updates.lines) ? updates.lines.map((l, idx) => ({
+    lineNo: idx + 1,
+    sku: l.sku,
+    upc: l.upc || "",
+    description: l.description || "",
+    lot: l.lot || "",
+    qtyExpected: l.qtyExpected,
+    qtyReceived: 0,
+    cartons: l.cartonsExpected || 0,
+    status: "pending" as const,
+  })) : [];
+  
+  const workOrderData = {
+    id: woId,
+    woNumber: woId,
+    tenantId: currentShipment.tenantId,
+    warehouseId: currentShipment.warehouseId,
+    clientName: getTenantName(currentShipment.tenantId),
+    containerNumber: updates.containerNumber || "—",
+    trailerNumber: updates.trailerNumber || "—",
+    sealNumber: updates.sealNumber || "",
+    bolNumber: updates.bolNumber || "",
+    poNumber: updates.poNumber,
+    ediRef: updates.ediRef,
+    carrier: updates.carrier,
+    vessel: updates.vessel || "",
+    voyageNumber: updates.voyageNumber || "",
+    port: updates.port || "",
+    origin: updates.origin || "",
+    arrivalDate: updates.appointmentAt,
+    departureDate: null,
+    yardInDate: null,
+    yardLeaveDate: null,
+    inboundEntryDate: new Date().toISOString(),
+    receivedDate: receivedAt || null,
+    status: status ? mapInboundStatusToWoStatus(status) : "scheduled",
+    totalUnits,
+    totalCartons,
+    lineCount: updates.lines.length,
+    lines: workOrderLines,
+    createdAt: woSnap.exists() ? woSnap.data().createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    notes: woSnap.exists() ? (woSnap.data().notes || "") : "",
+    doorAssigned: updates.doorAssigned ?? currentShipment.doorAssigned ?? null,
+  };
+  
+  if (woSnap.exists()) {
     batch.update(woRef, {
-      ...shipmentUpdates,
-      ...(status && { status: mapInboundStatusToWoStatus(status) }),
+      ...workOrderData,
+      createdAt: woSnap.data().createdAt, // Preserve original createdAt
       updatedAt: serverTimestamp(),
     });
+  } else {
+    batch.set(woRef, workOrderData);
   }
   
   await batch.commit();
@@ -1474,12 +1545,12 @@ export async function getNextInboundSeq(): Promise<string> {
     const snap = await transaction.get(counterRef);
     if (!snap.exists()) {
       transaction.set(counterRef, { seq: 1, date: dateStr });
-      return `INB/${dateStr}/0001`;
+      return `INB-${dateStr}-0001`;
     }
     const currentSeq = snap.data().seq as number;
     const nextSeq = currentSeq + 1;
     transaction.update(counterRef, { seq: nextSeq });
-    return `INB/${dateStr}/${nextSeq.toString().padStart(4, "0")}`;
+    return `INB-${dateStr}-${nextSeq.toString().padStart(4, "0")}`;
   });
 }
 

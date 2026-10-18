@@ -478,6 +478,7 @@ export type WorkOrder = {
   notes?: string;
   osdQty?: number;
   odReason?: string;
+  doorAssigned?: string | null;
 };
 
 export function genWorkOrderId(): string {
