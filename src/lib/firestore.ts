@@ -27,7 +27,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
   initializeFirestore,
-  persistentLocalCache,
+  memoryLocalCache,
   connectFirestoreEmulator,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
@@ -55,10 +55,10 @@ const firebaseConfig = {
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ synchronizeTabs: true }),
+  localCache: memoryLocalCache(),
 });
-export const auth = getAuth(app);
 export const rtdb = getDatabase(app);
 export { app };
 

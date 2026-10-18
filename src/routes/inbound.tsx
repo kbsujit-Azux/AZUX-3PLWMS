@@ -477,13 +477,13 @@ function InboundPage() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Container?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the inbound shipment &quot;
-                {deleteContainer.id} &quot; (ASN: {deleteContainer.ediRef}) and all
+<AlertDialogDescription>
+                This will permanently delete the inbound shipment "
+                {deleteContainer.id} " (ASN: {deleteContainer.ediRef}) and all
                 associated lines. This action cannot be undone.
                 <br />
                 <br />
-                Only scheduled containers with no pallet builds can be deleted.
+                Only scheduled containers can be deleted.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -928,7 +928,7 @@ function ShipmentCard({
   const totalUnits = Array.isArray(shipment.lines) ? shipment.lines.reduce((a, l) => a + (l.qtyExpected || 0), 0) : 0;
   const totalCartons = Array.isArray(shipment.lines) ? shipment.lines.reduce((a, l) => a + (l.cartonsExpected || 0), 0) : 0;
 
-  const allLinesHavePallets = Array.isArray(shipment.lines) && shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
+  const allLinesHavePallets = Array.isArray(shipment.lines) && shipment.lines.length > 0 && shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
   const canClose = onCloseContainer && allLinesHavePallets;
   const hasReceipt = !!onPrintReceipt;
   const linkedWO = shipment.workOrderId ? workOrders.find((w) => w.id === shipment.workOrderId) : null;
@@ -1224,28 +1224,28 @@ function ShipmentCard({
           </Button>
         </div>
       )}
-      {shipment.status === "scheduled" && !allLinesHavePallets && !hasReceipt && (
+      {(shipment.status === "scheduled" || shipment.status === "arrived") && !hasReceipt && onEdit && (
         <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end gap-2">
-          {onEdit && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1.5"
-              onClick={onEdit}
-            >
-              <Edit className="h-3 w-3" /> Edit Container
-            </Button>
-          )}
-          {onDelete && (
-            <Button
-              size="sm"
-              variant="destructive"
-              className="h-7 text-xs gap-1.5"
-              onClick={onDelete}
-            >
-              <X className="h-3 w-3" /> Delete Container
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={onEdit}
+          >
+            <Edit className="h-3 w-3" /> Edit Container
+          </Button>
+        </div>
+      )}
+      {shipment.status === "scheduled" && !hasReceipt && onDelete && (
+        <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="destructive"
+            className="h-7 text-xs gap-1.5"
+            onClick={onDelete}
+          >
+            <X className="h-3 w-3" /> Delete Container
+          </Button>
         </div>
       )}
     </div>
