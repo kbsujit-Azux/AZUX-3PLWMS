@@ -76,6 +76,9 @@ export type InboundShipment = {
   status: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception";
   source: "EDI_943" | "EDI_944" | "CSV" | "MANUAL";
   workOrderId?: string;
+  vessel?: string;
+  voyageNumber?: string;
+  port?: string;
   lines: InboundLine[];
 };
 

@@ -702,6 +702,9 @@ function InboundPage() {
                     sealNumber: getField("seal_number") || "",
                     bolNumber: getField("bol_number") || "",
                     origin: getField("origin") || "",
+                    vessel: getField("vessel") || "",
+                    voyageNumber: getField("voyage_number") || getField("voyage") || "",
+                    port: getField("port") || getField("port_of_loading") || "",
                     appointmentAt: expectedAtStr,
                     lines: [],
                   });
@@ -789,25 +792,28 @@ function InboundPage() {
             });
 
             for (const [, shipment] of shipmentMap) {
-              try {
-                  await createInboundShipmentRecord({
-                    tenantId: shipment.tenantId,
-                    warehouseId: shipment.warehouseId,
-                    ediRef: shipment.ediRef,
-                    poNumber: shipment.poNumber,
-                    carrier: shipment.carrier,
-                    trailerNumber: shipment.trailerNumber,
-                    containerNumber: shipment.containerNumber,
-                    sealNumber: shipment.sealNumber,
-                    bolNumber: shipment.bolNumber,
-                    origin: shipment.origin,
-                    doorAssigned: shipment.location || null,
-                    appointmentAt: shipment.appointmentAt,
-                    expectedAt: shipment.appointmentAt,
-                    status: "scheduled",
-                    source: "CSV",
-                    lines: shipment.lines,
-                  });
+try {
+                    await createInboundShipmentRecord({
+                      tenantId: shipment.tenantId,
+                      warehouseId: shipment.warehouseId,
+                      ediRef: shipment.ediRef,
+                      poNumber: shipment.poNumber,
+                      carrier: shipment.carrier,
+                      trailerNumber: shipment.trailerNumber,
+                      containerNumber: shipment.containerNumber,
+                      sealNumber: shipment.sealNumber,
+                      bolNumber: shipment.bolNumber,
+                      origin: shipment.origin,
+                      vessel: shipment.vessel,
+                      voyageNumber: shipment.voyageNumber,
+                      port: shipment.port,
+                      doorAssigned: shipment.location || null,
+                      appointmentAt: shipment.appointmentAt,
+                      expectedAt: shipment.appointmentAt,
+                      status: "scheduled",
+                      source: "CSV",
+                      lines: shipment.lines,
+                    });
               } catch (e: any) {
                 errors.push({ row: 0, field: "server", message: `Server error: ${e.message}` });
               }
@@ -863,11 +869,14 @@ function InboundPage() {
           { key: "asn_ref", label: "ASN / Reference", required: true },
           { key: "po_number", label: "PO number", required: true },
           { key: "trailer_number", label: "Trailer Number" },
-          { key: "container_number", label: "Container Number" },
+          { key: "container_number", label: "Container Number", required: true },
           { key: "seal_number", label: "Seal Number" },
           { key: "bol_number", label: "BOL Number" },
           { key: "origin", label: "Origin" },
           { key: "carrier", label: "Carrier", required: true },
+          { key: "vessel", label: "Vessel Name" },
+          { key: "voyage_number", label: "Voyage Number" },
+          { key: "port", label: "Port of Loading" },
           { key: "expected_at", label: "Appointment", required: true },
           { key: "sku", label: "Line SKU", required: true },
           { key: "lot", label: "LOT / Batch" },
@@ -887,6 +896,9 @@ function InboundPage() {
           "BOL",
           "Origin",
           "Carrier",
+          "Vessel",
+          "Voyage",
+          "Port",
           "ETA",
           "Item",
           "Lot",
@@ -1272,6 +1284,9 @@ function EditContainerDialog({
     sealNumber: shipment.sealNumber,
     bolNumber: shipment.bolNumber,
     origin: shipment.origin,
+    vessel: shipment.vessel || "",
+    voyageNumber: shipment.voyageNumber || "",
+    port: shipment.port || "",
     appointmentAt: shipment.appointmentAt,
   });
   const [lines, setLines] = useState(
@@ -1461,6 +1476,30 @@ const ts = (d: string) => {
               <Input
                 value={header.origin}
                 onChange={(e) => setHeader({ ...header, origin: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Vessel Name</Label>
+              <Input
+                value={header.vessel}
+                onChange={(e) => setHeader({ ...header, vessel: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Voyage Number</Label>
+              <Input
+                value={header.voyageNumber}
+                onChange={(e) => setHeader({ ...header, voyageNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Port of Loading</Label>
+              <Input
+                value={header.port}
+                onChange={(e) => setHeader({ ...header, port: e.target.value })}
                 className="h-8 text-xs"
               />
             </div>
@@ -1801,6 +1840,9 @@ function AddContainerDialog({
     doorAssigned: "",
     appointmentAt: "",
     origin: "",
+    vessel: "",
+    voyageNumber: "",
+    port: "",
   });
   const validSkus = useMemo(() => {
     const tenantToUse = selectedTenantId || (tenantId !== "all" ? tenantId : tenants[0].id);
@@ -1960,6 +2002,9 @@ function AddContainerDialog({
         sealNumber: header.sealNumber || "",
         bolNumber: header.bolNumber || "",
         origin: header.origin || "",
+        vessel: header.vessel || "",
+        voyageNumber: header.voyageNumber || "",
+        port: header.port || "",
         appointmentAt: header.appointmentAt ? ts(header.appointmentAt) : new Date().toISOString(),
         expectedAt: header.appointmentAt ? ts(header.appointmentAt) : new Date().toISOString(),
         status: "scheduled",
@@ -1994,6 +2039,9 @@ function AddContainerDialog({
         doorAssigned: "",
         appointmentAt: "",
         origin: "",
+        vessel: "",
+        voyageNumber: "",
+        port: "",
       });
       setSelectedWarehouseId(wsToSelect);
       setLines([]);
@@ -2136,6 +2184,33 @@ function AddContainerDialog({
                   value={header.origin}
                   onChange={(e) => setHeader({ ...header, origin: e.target.value })}
                   className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Vessel Name</Label>
+                <Input
+                  value={header.vessel}
+                  onChange={(e) => setHeader({ ...header, vessel: e.target.value })}
+                  className="h-8 text-xs"
+                  placeholder="Maersk Edinburgh"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Voyage Number</Label>
+                <Input
+                  value={header.voyageNumber}
+                  onChange={(e) => setHeader({ ...header, voyageNumber: e.target.value })}
+                  className="h-8 text-xs"
+                  placeholder="2415N"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Port of Loading</Label>
+                <Input
+                  value={header.port}
+                  onChange={(e) => setHeader({ ...header, port: e.target.value })}
+                  className="h-8 text-xs"
+                  placeholder="Long Beach, CA"
                 />
               </div>
               <div className="col-span-3 space-y-1">

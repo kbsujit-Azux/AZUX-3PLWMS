@@ -418,10 +418,13 @@ export async function createInboundShipmentRecord(
     appointmentAt: shipment.appointmentAt || new Date().toISOString(),
     expectedAt: shipment.appointmentAt || new Date().toISOString(),
     receivedAt: null,
-    doorAssigned: null,
+    doorAssigned: shipment.doorAssigned || null,
     status: "scheduled",
     source: "CSV",
     workOrderId: woId,
+    vessel: shipment.vessel || "",
+    voyageNumber: shipment.voyageNumber || "",
+    port: shipment.port || "",
     lines,
   };
 
@@ -452,12 +455,14 @@ export async function createInboundShipmentRecord(
     poNumber: shipment.poNumber,
     ediRef: shipment.ediRef,
     carrier: shipment.carrier,
-    vessel: "",
-    voyageNumber: "",
-    port: "",
+    vessel: shipment.vessel || "",
+    voyageNumber: shipment.voyageNumber || "",
+    port: shipment.port || "",
     origin: shipment.origin || "",
     arrivalDate: shipment.appointmentAt,
     departureDate: null,
+    yardInDate: null,
+    yardLeaveDate: null,
     inboundEntryDate: new Date().toISOString(),
     receivedDate: null,
     status: "scheduled",
@@ -467,6 +472,7 @@ export async function createInboundShipmentRecord(
     lines: workOrderLines,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    notes: "",
   });
 
   return id;
