@@ -35,6 +35,32 @@ const statusColors: Record<string, string> = {
   closed: "bg-green-500/15 text-green-600 border-green-500/30",
 };
 
+const getCasePackForSku = (sku: string, tenantId: string): number => {
+  if (!sku) return 1;
+  const item = inventoryItems?.find?.((i) => i.sku === sku && i.tenantId === tenantId);
+  return item?.caseQty || 1;
+};
+
+const displayCartons = (wo: WorkOrder): number => {
+  if (!wo) return 0;
+  if (wo.totalCartons > 0) return wo.totalCartons;
+
+  if (Array.isArray(wo.lines) && wo.lines.length > 0) {
+    let sum = 0;
+    for (const line of wo.lines) {
+      if (line.cartons > 0) {
+        sum += line.cartons;
+      } else if (line.sku && line.qtyExpected > 0) {
+        const cp = getCasePackForSku(line.sku, wo.tenantId);
+        sum += Math.ceil(line.qtyExpected / cp);
+      }
+    }
+    if (sum > 0) return sum;
+  }
+
+  return Math.max(1, Math.ceil((wo.totalUnits ?? 0) / 1));
+};
+
 function WorkOrdersPage() {
   const [query, setQuery] = useState("");
   const [workOrderToDelete, setWorkOrderToDelete] = useState<WorkOrder | null>(null);
@@ -70,32 +96,6 @@ function WorkOrdersPage() {
     if (!inboundShipments) return false;
     const relatedInbounds = inboundShipments.filter((s) => s.workOrderId === wo.id);
     return relatedInbounds.some((s) => Array.isArray(s.lines) && s.lines.some((l) => l.palletIds && l.palletIds.length > 0));
-  };
-
-  const getCasePackForSku = (sku: string, tenantId: string): number => {
-    if (!sku) return 1;
-    const item = inventoryItems?.find?.((i) => i.sku === sku && i.tenantId === tenantId);
-    return item?.caseQty || 1;
-  };
-
-  const displayCartons = (wo: WorkOrder): number => {
-    if (!wo) return 0;
-    if (wo.totalCartons > 0) return wo.totalCartons;
-    
-    if (Array.isArray(wo.lines) && wo.lines.length > 0) {
-      let sum = 0;
-      for (const line of wo.lines) {
-        if (line.cartons > 0) {
-          sum += line.cartons;
-        } else if (line.sku && line.qtyExpected > 0) {
-          const cp = getCasePackForSku(line.sku, wo.tenantId);
-          sum += Math.ceil(line.qtyExpected / cp);
-        }
-      }
-      if (sum > 0) return sum;
-    }
-    
-    return Math.max(1, Math.ceil((wo.totalUnits ?? 0) / 1));
   };
 
   const canEdit = (wo: WorkOrder) => ["scheduled", "at_dock", "unloading"].includes(wo.status);

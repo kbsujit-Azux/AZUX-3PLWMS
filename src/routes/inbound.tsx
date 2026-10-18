@@ -76,7 +76,8 @@ import { createPalletsFromInbound } from "@/lib/pallet-data";
 import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
-import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment, updateInboundShipmentRecord, updateInboundLine } from "@/lib/firestore-data";
+import { locationMaster } from "@/lib/master-data";
+import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment, updateInboundShipmentRecord, updateInboundLine, updateWorkOrder, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
   head: () => ({
@@ -95,7 +96,8 @@ export const Route = createFileRoute("/inbound")({
 const statusStyles: Record<InboundShipment["status"], string> = {
   scheduled: "bg-muted text-muted-foreground border-border",
   arrived: "bg-chart-4/15 text-chart-4 border-chart-4/30",
-  unloading: "bg-primary/15 text-primary border-primary/30",
+  on_dock: "bg-primary/15 text-primary border-primary/30",
+  putaway: "bg-amber-500/15 text-amber-600 border-amber-500/30",
   received: "bg-chart-3/15 text-chart-3 border-chart-3/30",
   exception: "bg-destructive/15 text-destructive border-destructive/30",
 };
@@ -177,7 +179,7 @@ function InboundPage() {
     const t = { scheduled: 0, atDoor: 0, exception: 0, expectedUnits: 0, expectedCartons: 0 };
     for (const s of filtered) {
       if (s.status === "scheduled") t.scheduled++;
-      if (s.status === "arrived" || s.status === "unloading") t.atDoor++;
+      if (s.status === "arrived" || s.status === "on_dock") t.atDoor++;
       if (s.status === "exception") t.exception++;
       if (s.lines && Array.isArray(s.lines)) {
         for (const l of s.lines) {
@@ -191,18 +193,53 @@ function InboundPage() {
 
   const inboundStatusTransitions: Record<InboundShipment["status"], InboundShipment["status"] | null> = {
     scheduled: "arrived",
-    arrived: "unloading",
-    unloading: "received",
+    arrived: "on_dock",
+    on_dock: "putaway",
+    putaway: "received",
     received: null,
     exception: null,
   };
 
   const handleInboundStatusTransition = async (s: InboundShipment, newStatus: InboundShipment["status"]) => {
     try {
+      // Map inbound status to work order status
+      const woStatusMap: Record<InboundShipment["status"], string> = {
+        scheduled: "scheduled",
+        arrived: "at_dock",
+        on_dock: "at_dock",
+        putaway: "unloading",
+        received: "received",
+        exception: "closed",
+      };
+
       await updateInboundShipmentRecord(s.id, {
         ...s,
         status: newStatus,
       } as any);
+
+      // Sync to linked WorkOrder
+      if (s.workOrderId) {
+        await updateWorkOrder(s.workOrderId, {
+          status: woStatusMap[newStatus] as any,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // Autobilling: putaway charge when moving to putaway status
+      if (newStatus === "putaway") {
+        for (const line of s.lines || []) {
+          for (const palletId of line.palletIds || []) {
+            await captureBillableEventForPutaway({
+              clientId: s.tenantId,
+              tenantId: s.tenantId,
+              warehouseId: s.warehouseId,
+              palletId,
+              qtyPutAway: line.qtyExpected,
+            });
+          }
+        }
+      }
+
       toast.success(`Container status: ${newStatus}`);
       refreshData();
     } catch (e: unknown) {
@@ -312,7 +349,7 @@ function InboundPage() {
             workOrders={workOrders}
             onBuildPallets={(l) => setActiveLine({ s, l })}
             onCloseContainer={
-              s.status !== "received" && Array.isArray(s.lines) && s.lines.every((l) => l.palletIds && l.palletIds.length > 0)
+              s.status === "putaway" && Array.isArray(s.lines) && s.lines.every((l) => l.palletIds && l.palletIds.length > 0)
                 ? () => setCloseContainer(s)
                 : undefined
             }
@@ -464,17 +501,17 @@ function InboundPage() {
             const warehouseToUse = warehouseId !== "all" ? warehouseId : warehouses[0]?.id || "atl1";
 
             const errors: Array<{ row: number; field: string; message: string }> = [];
-            const warnings: Array<{ row: number; field: string; message }> = [];
+            const warnings: Array<{ row: number; field: string; message: string }> = [];
             const shipmentMap = new Map<string, any>();
 
-            const selectedTenant = tenants.find((t) => t.id === tenantToUse);
-            const selectedWarehouse = warehouses.find((w) => w.id === warehouseToUse);
-
-            if (!selectedTenant) {
-              errors.push({ row: 0, field: "client", message: `Selected tenant "${tenantToUse}" not found` });
-            }
-            if (!selectedWarehouse) {
-              errors.push({ row: 0, field: "warehouse", message: `Selected warehouse "${warehouseToUse}" not found` });
+            // Build warehouse location lookup for validation
+            const locationByWarehouse = new Map<string, string[]>();
+            for (const w of warehouses) {
+              if (w.id === "all") continue;
+              locationByWarehouse.set(
+                w.id,
+                locationMaster.filter((l) => l.warehouseId === w.id).map((l) => l.id),
+              );
             }
 
             data.forEach((row, idx) => {
@@ -486,6 +523,36 @@ function InboundPage() {
                 }
                 return "";
               };
+
+              // Resolve client/warehouse from CSV columns (fall back to dropdown)
+              const csvClient = getField("client") || getField("tenant") || "";
+              const csvWarehouse = getField("warehouse") || getField("wh") || "";
+              const csvLocation = getField("location") || getField("rack") || "";
+
+              const rowTenantId = csvClient || tenantToUse;
+              const rowWarehouseId = csvWarehouse || warehouseToUse;
+
+              const rowTenant = tenants.find((t) => t.id === rowTenantId);
+              const rowWarehouse = warehouses.find((w) => w.id === rowWarehouseId);
+
+              if (!rowTenant) {
+                errors.push({ row: rowNum, field: "client", message: `Client "${csvClient || tenantToUse}" not found` });
+                return;
+              }
+              if (!rowWarehouse) {
+                errors.push({ row: rowNum, field: "warehouse", message: `Warehouse "${csvWarehouse || warehouseToUse}" not found` });
+                return;
+              }
+
+              // Validate location against warehouse location master
+              if (csvLocation) {
+                const validLocations = locationByWarehouse.get(rowWarehouseId) || [];
+                if (!validLocations.includes(csvLocation)) {
+                  warnings.push({ row: rowNum, field: "location", message: `Location "${csvLocation}" not found in warehouse "${rowWarehouse.code}" location master` });
+                }
+              } else {
+                warnings.push({ row: rowNum, field: "location", message: "Location not entered — defaulting to warehouse drop zone" });
+              }
 
               const asnRef = getField("asn_ref") || getField("asn");
               const poNumber = getField("po_number") || getField("po");
@@ -526,20 +593,22 @@ function InboundPage() {
                   }
                 }
 
-                shipmentMap.set(key, {
-                  ediRef: asnRef,
-                  poNumber: poNumber || "",
-                  tenantId: tenantToUse,
-                  warehouseId: warehouseToUse,
-                  carrier: carrier,
-                  trailerNumber: getField("trailer_number") || getField("trailer"),
-                  containerNumber: containerNumber,
-                  sealNumber: getField("seal_number") || "",
-                  bolNumber: getField("bol_number") || "",
-                  origin: getField("origin") || "",
-                  appointmentAt: expectedAtStr,
-                  lines: [],
-                });
+                shipmentMap.set(key,
+                  {
+                    ediRef: asnRef,
+                    poNumber: poNumber || "",
+                    tenantId: rowTenantId,
+                    warehouseId: rowWarehouseId,
+                    location: csvLocation || "",
+                    carrier: carrier,
+                    trailerNumber: getField("trailer_number") || getField("trailer"),
+                    containerNumber: containerNumber,
+                    sealNumber: getField("seal_number") || "",
+                    bolNumber: getField("bol_number") || "",
+                    origin: getField("origin") || "",
+                    appointmentAt: expectedAtStr,
+                    lines: [],
+                  });
               }
 
               const shipment = shipmentMap.get(key);
@@ -570,7 +639,24 @@ function InboundPage() {
 
               const itemMasterItem = inventoryItems.find((i) => i.sku === sku && i.tenantId === tenantToUse);
               if (!itemMasterItem) {
-                warnings.push({ row: rowNum, field: "sku", message: `SKU "${sku}" not found in Item Master for tenant "${tenantToUse}"` });
+                errors.push({ row: rowNum, field: "sku", message: `SKU "${sku}" not found in Item Master for tenant "${tenantToUse}"` });
+                return;
+              }
+
+              // Carton calculation: if not entered, compute as Units / PackSize (caseQty)
+              const cartonsEntered = getField("cartons");
+              let cartonsExpected: number;
+              if (cartonsEntered) {
+                cartonsExpected = parseInt(cartonsEntered, 10);
+                if (isNaN(cartonsExpected) || cartonsExpected < 0) {
+                  warnings.push({ row: rowNum, field: "cartons", message: `Invalid cartons value: ${cartonsEntered}` });
+                  cartonsExpected = 0;
+                }
+              } else {
+                // Default: Units / caseQty (pack size), rounded up
+                cartonsExpected = Math.ceil(qty / Math.max(1, itemMasterItem.caseQty));
+                if (cartonsExpected === 0) cartonsExpected = 1;
+                warnings.push({ row: rowNum, field: "cartons", message: `Cartons not entered — auto-calculated as ${cartonsExpected} (Units/${itemMasterItem.caseQty} pack size)` });
               }
 
               if (getField("expiration_date")) {
@@ -580,6 +666,8 @@ function InboundPage() {
                 } else if (expDate < new Date(new Date().setHours(0, 0, 0, 0))) {
                   warnings.push({ row: rowNum, field: "expiration_date", message: "Expiration date is in the past" });
                 }
+              } else {
+                warnings.push({ row: rowNum, field: "expiration_date", message: "Expiration date not entered — defaulting to 12/31/2099" });
               }
 
               shipment.lines.push({
@@ -589,30 +677,33 @@ function InboundPage() {
                 itemStyle: itemMasterItem?.itemStyle || "",
                 description: itemMasterItem?.description || "",
                 lot,
-                expirationDate: getField("expiration_date") || "2030-12-31",
+                expirationDate: getField("expiration_date") || "2099-12-31",
                 qtyExpected: qty,
-                cartonsExpected: parseInt(getField("cartons") || "0", 10) || 0,
+                cartonsExpected,
                 poNumber: poNumber || undefined,
               });
             });
 
             for (const [, shipment] of shipmentMap) {
               try {
-                await createInboundShipmentRecord({
-                  tenantId: shipment.tenantId,
-                  warehouseId: shipment.warehouseId,
-                  ediRef: shipment.ediRef,
-                  poNumber: shipment.poNumber,
-                  carrier: shipment.carrier,
-                  trailerNumber: shipment.trailerNumber,
-                  containerNumber: shipment.containerNumber,
-                  sealNumber: shipment.sealNumber,
-                  bolNumber: shipment.bolNumber,
-                  origin: shipment.origin,
-                  appointmentAt: shipment.appointmentAt,
-                  source: "CSV",
-                  lines: shipment.lines,
-                });
+                  await createInboundShipmentRecord({
+                    tenantId: shipment.tenantId,
+                    warehouseId: shipment.warehouseId,
+                    ediRef: shipment.ediRef,
+                    poNumber: shipment.poNumber,
+                    carrier: shipment.carrier,
+                    trailerNumber: shipment.trailerNumber,
+                    containerNumber: shipment.containerNumber,
+                    sealNumber: shipment.sealNumber,
+                    bolNumber: shipment.bolNumber,
+                    origin: shipment.origin,
+                    doorAssigned: shipment.location || null,
+                    appointmentAt: shipment.appointmentAt,
+                    expectedAt: shipment.appointmentAt,
+                    status: "scheduled",
+                    source: "CSV",
+                    lines: shipment.lines,
+                  });
               } catch (e: any) {
                 errors.push({ row: 0, field: "server", message: `Server error: ${e.message}` });
               }
@@ -664,6 +755,7 @@ function InboundPage() {
         targetFields={[
           { key: "client", label: "Client / Tenant", required: true },
           { key: "warehouse", label: "Warehouse", required: true },
+          { key: "location", label: "Location / Rack", required: true },
           { key: "asn_ref", label: "ASN / Reference", required: true },
           { key: "po_number", label: "PO number", required: true },
           { key: "trailer_number", label: "Trailer Number" },
@@ -682,6 +774,7 @@ function InboundPage() {
         exampleHeaders={[
           "Client",
           "Warehouse",
+          "Location",
           "ASN",
           "PO",
           "Trailer",
@@ -971,15 +1064,39 @@ function ShipmentCard({
           </Button>
         </div>
       )}
-      {shipment.status === "arrived" && !allLinesHavePallets && onStatusTransition && (
+      {shipment.status === "arrived" && onStatusTransition && (
         <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end gap-2">
           <Button
             size="sm"
             variant="outline"
             className="h-7 text-xs gap-1.5"
-            onClick={() => onStatusTransition(shipment, "unloading")}
+            onClick={() => onStatusTransition(shipment, "on_dock")}
           >
-            <AlertTriangle className="h-3 w-3" /> Start Unloading
+            <DoorOpen className="h-3 w-3" /> Move to On-Dock
+          </Button>
+        </div>
+      )}
+      {shipment.status === "on_dock" && onStatusTransition && (
+        <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => onStatusTransition(shipment, "putaway")}
+          >
+            <ScanLine className="h-3 w-3" /> Start Putaway
+          </Button>
+        </div>
+      )}
+      {shipment.status === "putaway" && onStatusTransition && (
+        <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="default"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => onStatusTransition(shipment, "received")}
+          >
+            <Check className="h-3 w-3" /> Mark Received
           </Button>
         </div>
       )}
@@ -1121,7 +1238,7 @@ function EditContainerDialog({
           itemStyle: l.itemStyle || "",
           description: l.description || "",
           lot: l.lot || "",
-          expirationDate: l.expirationDate || "2030-12-31",
+      expirationDate: l.expirationDate || "2099-12-31",
           qtyExpected: l.qtyExpected || 0,
           cartonsExpected: l.cartonsExpected || 0,
           unitsPerPallet: l.unitsPerPallet || 0,
@@ -1398,9 +1515,9 @@ function BuildPalletsDialog({
         console.error("Failed to update shipment status:", e);
       }
     } else if (ship.status === "arrived" || ship.status === "scheduled") {
-      ship.status = "unloading";
+      ship.status = "on_dock";
       try {
-        await updateInboundShipmentRecord(ship.id, { ...ship, status: "unloading" });
+        await updateInboundShipmentRecord(ship.id, { ...ship, status: "on_dock" });
       } catch (e) {
         console.error("Failed to update shipment status:", e);
       }
@@ -1717,7 +1834,10 @@ function AddContainerDialog({
         bolNumber: header.bolNumber || "",
         origin: header.origin || "",
         appointmentAt: header.appointmentAt ? ts(header.appointmentAt) : new Date().toISOString(),
-        source: "MANUAL",
+        expectedAt: header.appointmentAt ? ts(header.appointmentAt) : new Date().toISOString(),
+        status: "scheduled",
+        doorAssigned: header.doorAssigned || null,
+        source: "CSV",
         lines: lines.map((l, idx) => ({
           lineNo: idx + 1,
           sku: l.sku,
@@ -1725,7 +1845,7 @@ function AddContainerDialog({
           itemStyle: l.itemStyle,
           description: l.description,
           lot: l.lot,
-          expirationDate: l.expirationDate ? ts(l.expirationDate) : "2030-12-31",
+          expirationDate: l.expirationDate ? ts(l.expirationDate) : "2099-12-31",
           qtyExpected: l.qtyExpected,
           cartonsExpected: l.cartonsExpected,
           unitsPerPallet: l.unitsPerPallet,
@@ -2049,8 +2169,104 @@ function CloseContainerDialog({
 }) {
   const tenant = tenants.find((t) => t.id === shipment.tenantId);
 
-  const handleClose = () => {
+  const handleClose = async () => {
     closeInboundShipment(shipment, [], []);
+
+    // Create inventory batches for each received line
+    for (const line of shipment.lines || []) {
+      if (!line.palletIds || line.palletIds.length === 0) continue;
+
+      const skuItem = inventoryItems.find((i) => i.sku === line.sku && i.tenantId === shipment.tenantId);
+      const batches: Array<{
+        batchId: string;
+        palletId: string;
+        receivedAt: string;
+        qty: number;
+        location: string;
+        poNumber: string;
+        ediSource: "EDI_943" | "EDI_944" | "CSV" | "MANUAL";
+        qtyAllocated: number;
+      }> = line.palletIds.map((palletId, idx) => ({
+        batchId: `${line.sku}-${palletId}`,
+        palletId,
+        receivedAt: new Date().toISOString(),
+        qty: Math.ceil(line.receivedQty / line.palletIds.length),
+        location: shipment.doorAssigned || `DOCK-${shipment.trailerNumber}`,
+        poNumber: shipment.poNumber,
+        ediSource: shipment.source,
+        qtyAllocated: 0,
+      }));
+
+      if (skuItem) {
+        await upsertInventoryItem({
+          ...skuItem,
+          batches: [
+            ...skuItem.batches.filter((b) => !line.palletIds.includes(b.palletId)),
+            ...batches,
+          ],
+        });
+      } else {
+        await upsertInventoryItem({
+          sku: line.sku,
+          upc: line.upc,
+          itemStyle: line.itemStyle,
+          description: line.description,
+          category: "",
+          uom: line.uom,
+          unitCost: 0,
+          unitPrice: 0,
+          caseQty: 1,
+          weightLbs: line.weightLbsPerUnit,
+          tenantId: shipment.tenantId,
+          warehouseId: shipment.warehouseId,
+          status: "active",
+          batches,
+        });
+      }
+
+      // Log PUTAWAY transaction per pallet
+      for (const b of batches) {
+        await logInventoryTransaction({
+          sku: line.sku,
+          palletId: b.palletId,
+          location: b.location,
+          type: "PUTAWAY",
+          qtyChange: b.qty,
+          qtyBefore: 0,
+          qtyAfter: b.qty,
+          cartons: Math.ceil(b.qty / (line.cartonsExpected || 1)),
+          user: "wms-user",
+          notes: `Putaway from container ${shipment.id}`,
+        });
+
+        // Autobilling: putaway charge per pallet
+        await captureBillableEventForPutaway({
+          clientId: shipment.tenantId,
+          tenantId: shipment.tenantId,
+          warehouseId: shipment.warehouseId,
+          palletId: b.palletId,
+          qtyPutAway: b.qty,
+        });
+      }
+
+      // Autobilling: inbound receive charge per line
+      await captureBillableEventForInboundReceive({
+        clientId: shipment.tenantId,
+        tenantId: shipment.tenantId,
+        warehouseId: shipment.warehouseId,
+        shipmentId: shipment.id,
+        lineNo: line.lineNo,
+        receivedQty: line.receivedQty,
+      });
+    }
+
+    // Persist inbound shipment to Firestore
+    await updateInboundShipmentRecord(shipment.id, {
+      ...shipment,
+      status: "received",
+      receivedAt: new Date().toISOString(),
+    });
+
     toast.success(`Container ${shipment.trailerNumber || shipment.containerNumber} closed`);
     onOpenChange(false);
     onClosed();

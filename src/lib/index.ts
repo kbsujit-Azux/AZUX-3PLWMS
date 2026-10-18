@@ -564,6 +564,7 @@ export {
   getNextOrderSeq,
   getNextPickTicketSeq,
   getNextBolNumber,
+  getNextInboundSeq,
   shipOrder,
   allocateOrderTransactional,
   deallocateOrderTransactional,

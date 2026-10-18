@@ -371,7 +371,9 @@ export async function createInboundShipmentRecord(
     .toString()
     .padStart(4, "0")}`;
 
-  const woId = id;
+  // Generate unique WorkOrder number: INB/YYYY-MM-DD/Sequence
+  const woNumber = await getNextInboundSeq();
+  const woId = woNumber;
 
   const totalUnits = Array.isArray(shipment.lines) ? shipment.lines.reduce((sum, l) => sum + l.qtyExpected, 0) : 0;
   const totalCartons = Array.isArray(shipment.lines) ? shipment.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0) : 0;
@@ -383,7 +385,7 @@ export async function createInboundShipmentRecord(
     itemStyle: l.itemStyle || "",
     description: l.description || "",
     lot: l.lot,
-    expirationDate: l.expirationDate || "2030-12-31",
+    expirationDate: l.expirationDate || "2099-12-31",
     qtyExpected: l.qtyExpected,
     cartonsExpected: l.cartonsExpected || 0,
     uom: "EA",
@@ -478,7 +480,7 @@ export async function updateInboundLineFields(
 
 export async function updateInboundShipmentStatus(
   shipmentId: string,
-  status: "scheduled" | "arrived" | "unloading" | "received" | "exception",
+  status: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception",
   receivedAt?: string,
 ) {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
@@ -527,7 +529,7 @@ export async function updateInboundShipmentRecord(
       weightLbsPerUnit: number;
       poNumber?: string;
     }>;
-    status?: "scheduled" | "arrived" | "unloading" | "received" | "exception";
+    status?: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception";
     receivedAt?: string | null;
     workOrderId?: string;
   }
@@ -555,11 +557,12 @@ export async function updateInboundShipmentRecord(
   await batch.commit();
 }
 
-function mapInboundStatusToWoStatus(status: "scheduled" | "arrived" | "unloading" | "received" | "exception"): "scheduled" | "at_dock" | "unloading" | "received" | "departed" | "closed" {
+function mapInboundStatusToWoStatus(status: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception"): "scheduled" | "at_dock" | "unloading" | "received" | "departed" | "closed" {
   const map: Record<string, string> = {
     scheduled: "scheduled",
     arrived: "at_dock",
-    unloading: "unloading",
+    on_dock: "at_dock",
+    putaway: "unloading",
     received: "received",
     exception: "closed",
   };
@@ -1449,6 +1452,23 @@ export async function getNextBolNumber(): Promise<string> {
     const nextSeq = currentSeq + 1;
     transaction.update(counterRef, { seq: nextSeq });
     return `MBOL-${nextSeq.toString().padStart(12, "0")}`;
+  });
+}
+
+export async function getNextInboundSeq(): Promise<string> {
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}`;
+  const counterRef = doc(db, "counters", `inbound_${dateStr}`);
+  return await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(counterRef);
+    if (!snap.exists()) {
+      transaction.set(counterRef, { seq: 1, date: dateStr });
+      return `INB/${dateStr}/0001`;
+    }
+    const currentSeq = snap.data().seq as number;
+    const nextSeq = currentSeq + 1;
+    transaction.update(counterRef, { seq: nextSeq });
+    return `INB/${dateStr}/${nextSeq.toString().padStart(4, "0")}`;
   });
 }
 
@@ -3402,6 +3422,34 @@ export async function updateWorkOrder(id: string, updates: any): Promise<void> {
     ...updates,
     updatedAt: serverTimestamp(),
   });
+
+  // Sync back to linked InboundShipment when status changes
+  if (updates.status) {
+    try {
+      const allShipments = await fetchInboundShipments();
+      const linked = allShipments.find((s) => s.workOrderId === id);
+      if (linked) {
+        const woToInbound: Record<string, "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception"> = {
+          scheduled: "scheduled",
+          at_dock: "arrived",
+          unloading: "putaway",
+          received: "received",
+          departed: "received",
+          closed: "received",
+        };
+        const inboundStatus = woToInbound[updates.status as string];
+        if (inboundStatus && linked.status !== inboundStatus) {
+          await updateInboundShipmentRecord(linked.id, {
+            ...linked,
+            status: inboundStatus,
+            ...(inboundStatus === "received" ? { receivedAt: new Date().toISOString() } : {}),
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to sync WorkOrder to inbound:", e);
+    }
+  }
 }
 
 export async function deleteWorkOrder(id: string): Promise<void> {

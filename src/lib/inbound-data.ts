@@ -73,7 +73,7 @@ export type InboundShipment = {
   expectedAt: string;
   receivedAt: string | null;
   doorAssigned: string | null;
-  status: "scheduled" | "arrived" | "unloading" | "received" | "exception";
+  status: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception";
   source: "EDI_943" | "EDI_944" | "CSV" | "MANUAL";
   workOrderId?: string;
   lines: InboundLine[];
@@ -174,7 +174,7 @@ export const inboundShipments: InboundShipment[] = [
     expectedAt: ts("2026-05-19T11:30:00Z"),
     receivedAt: null,
     doorAssigned: "D-12",
-    status: "unloading",
+    status: "on_dock",
     source: "EDI_943",
     lines: [
       {
