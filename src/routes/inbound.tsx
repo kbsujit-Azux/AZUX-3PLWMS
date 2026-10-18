@@ -486,9 +486,7 @@ function InboundPage() {
         ediHint="EDI 943"
         errors={csvErrors}
         warnings={csvWarnings}
-        tenants={tenants}
-        defaultTenantId={tenantId !== "all" ? tenantId : undefined}
-        onConfirm={async (file, uploadTenantId) => {
+        onConfirm={async (file) => {
           try {
             const text = await file.text();
             const parsed = Papa.parse(text, {
@@ -496,9 +494,6 @@ function InboundPage() {
               skipEmptyLines: true,
             });
             const data = parsed.data as Record<string, string>[];
-
-            const tenantToUse = uploadTenantId || (tenantId !== "all" ? tenantId : tenants.find((t) => t.id !== "all")?.id || "acme");
-            const warehouseToUse = warehouseId !== "all" ? warehouseId : warehouses.find((w) => w.id !== "all")?.id || "atl1";
 
             const errors: Array<{ row: number; field: string; message: string }> = [];
             const warnings: Array<{ row: number; field: string; message: string }> = [];
@@ -733,8 +728,8 @@ function InboundPage() {
 
             const recordId = await createCsvUploadRecord({
               id: "",
-              tenantId: tenantToUse,
-              warehouseId: warehouseToUse,
+              tenantId: tenantId !== "all" ? tenantId : (tenants.find((t) => t.id !== "all")?.id || "acme"),
+              warehouseId: warehouseId !== "all" ? warehouseId : (warehouses.find((w) => w.id !== "all")?.id || "atl1"),
               fileName: file.name,
               fileSize: file.size,
               uploadAt: new Date().toISOString(),
@@ -774,7 +769,7 @@ function InboundPage() {
         targetFields={[
           { key: "client", label: "Client / Tenant", required: true },
           { key: "warehouse", label: "Warehouse", required: true },
-          { key: "location", label: "Location / Rack", required: true },
+          { key: "location", label: "Location / Rack" },
           { key: "asn_ref", label: "ASN / Reference", required: true },
           { key: "po_number", label: "PO number", required: true },
           { key: "trailer_number", label: "Trailer Number" },
@@ -785,7 +780,7 @@ function InboundPage() {
           { key: "carrier", label: "Carrier", required: true },
           { key: "expected_at", label: "Appointment", required: true },
           { key: "sku", label: "Line SKU", required: true },
-          { key: "lot", label: "LOT / Batch", required: true },
+          { key: "lot", label: "LOT / Batch" },
           { key: "expiration_date", label: "Expiration date" },
           { key: "qty_expected", label: "Units expected", required: true },
           { key: "cartons", label: "Cartons expected" },
