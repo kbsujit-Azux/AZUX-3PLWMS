@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { type WorkOrder, type WorkOrderStatus, closeInboundShipment } from "@/lib/inbound-data";
 import { useWmsData } from "@/components/db-context";
+import { useWorkspace } from "@/components/workspace-context";
 import { deleteWorkOrder, updateWorkOrder, updateInboundShipmentRecord } from "@/lib/firestore-data";
 import { type InboundShipment } from "@/lib/inbound-data";
 import { inventoryItems } from "@/lib/mock-data";
@@ -62,6 +63,7 @@ const displayCartons = (wo: WorkOrder): number => {
 };
 
 function WorkOrdersPage() {
+  const { tenantId, warehouseId } = useWorkspace();
   const [query, setQuery] = useState("");
   const [workOrderToDelete, setWorkOrderToDelete] = useState<WorkOrder | null>(null);
   const [workOrderToEdit, setWorkOrderToEdit] = useState<WorkOrder | null>(null);
@@ -71,26 +73,30 @@ function WorkOrdersPage() {
 
   const filtered = useMemo(() => {
     if (!workOrders) return [];
-    return workOrders.filter((w) => {
-      if (query) {
-        const q = query.toLowerCase();
-        const blob = `${w.woNumber} ${w.clientName} ${w.containerNumber} ${w.carrier}`.toLowerCase();
-        return blob.includes(q);
-      }
-      return true;
-    });
-  }, [workOrders, query]);
+    return workOrders
+      .filter((w) => {
+        if (tenantId !== "all" && w.tenantId !== tenantId) return false;
+        if (warehouseId !== "all" && w.warehouseId !== warehouseId) return false;
+        if (query) {
+          const q = query.toLowerCase();
+          const blob = `${w.woNumber} ${w.clientName} ${w.containerNumber} ${w.carrier}`.toLowerCase();
+          return blob.includes(q);
+        }
+        return true;
+      })
+      .sort((a, b) => b.woNumber.localeCompare(a.woNumber));
+  }, [workOrders, tenantId, warehouseId, query]);
 
   const stats = useMemo(() => {
-    if (!workOrders) return { scheduled: 0, atDock: 0, unloading: 0, received: 0, departed: 0 };
+    if (!filtered) return { scheduled: 0, atDock: 0, unloading: 0, received: 0, departed: 0 };
     return {
-      scheduled: workOrders.filter((w) => w.status === "scheduled").length,
-      atDock: workOrders.filter((w) => w.status === "at_dock").length,
-      unloading: workOrders.filter((w) => w.status === "unloading").length,
-      received: workOrders.filter((w) => w.status === "received").length,
-      departed: workOrders.filter((w) => w.status === "departed").length,
+      scheduled: filtered.filter((w) => w.status === "scheduled").length,
+      atDock: filtered.filter((w) => w.status === "at_dock").length,
+      unloading: filtered.filter((w) => w.status === "unloading").length,
+      received: filtered.filter((w) => w.status === "received").length,
+      departed: filtered.filter((w) => w.status === "departed").length,
     };
-  }, [workOrders]);
+  }, [filtered]);
 
   const hasPalletsBuilt = (wo: WorkOrder) => {
     if (!inboundShipments) return false;
