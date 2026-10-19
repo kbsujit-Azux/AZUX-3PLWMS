@@ -266,6 +266,37 @@ export async function updateItemInMaster(sku: string, updates: Partial<ItemMaste
 }
 
 // ============================================================
+// Location Master
+// ============================================================
+export async function addLocationToMaster(loc: LocationRecord): Promise<LocationRecord> {
+  const full: LocationRecord = {
+    ...loc,
+    cubicFeet: loc.lengthFt && loc.widthFt && loc.heightFt ? loc.lengthFt * loc.widthFt * loc.heightFt : 0,
+    effectiveAt: new Date().toISOString(),
+  };
+  await setDoc(doc(db, "locationMaster", full.id), full);
+  return full;
+}
+
+export async function updateLocationInMaster(id: string, updates: Partial<LocationRecord>): Promise<void> {
+  const full = {
+    ...updates,
+    cubicFeet:
+      updates.lengthFt && updates.widthFt && updates.heightFt
+        ? updates.lengthFt * updates.widthFt * updates.heightFt
+        : undefined,
+    effectiveAt: new Date().toISOString(),
+  };
+  const clean = Object.fromEntries(Object.entries(full).filter(([_, v]) => v !== undefined));
+  await updateDoc(doc(db, "locationMaster", id), clean);
+}
+
+export async function deleteLocationFromMaster(id: string): Promise<{ ok: true }> {
+  await deleteDoc(doc(db, "locationMaster", id));
+  return { ok: true };
+}
+
+// ============================================================
 // Inbound Shipments
 // ============================================================
 export async function fetchInboundShipments(

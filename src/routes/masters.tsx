@@ -57,8 +57,6 @@ import {
   locationMaster as staticLocationMaster,
   collectMasterExceptions,
   locationOccupancyPct,
-  updateLocationInMaster,
-  deleteLocationFromMaster,
   hasInventoryForSku,
   nmfcFor,
   type ItemMasterRecord,
@@ -75,6 +73,9 @@ import {
   addItemToMaster,
   deleteItemFromMaster,
   updateItemInMaster,
+  addLocationToMaster,
+  deleteLocationFromMaster,
+  updateLocationInMaster,
 } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/masters")({
@@ -852,14 +853,18 @@ function MastersPage() {
             <Button
               size="sm"
               className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (toDeleteLoc) {
-                  deleteLocationFromMaster(toDeleteLoc.id);
-                  toast.success(`Deleted location ${toDeleteLoc.id}`);
-                  force((n) => n + 1);
-                }
-                setToDeleteLoc(null);
-              }}
+onClick={async () => {
+                  if (toDeleteLoc) {
+                    try {
+                      await deleteLocationFromMaster(toDeleteLoc.id);
+                      toast.success(`Deleted location ${toDeleteLoc.id}`);
+                      force((n) => n + 1);
+                    } catch (e) {
+                      toast.error(`Failed to delete: ${e instanceof Error ? e.message : String(e)}`);
+                    }
+                  }
+                  setToDeleteLoc(null);
+                }}
             >
               Delete
             </Button>
@@ -1185,29 +1190,39 @@ function AddLocationDialog({
   const set = <K extends keyof LocationRecord>(k: K, v: LocationRecord[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const save = () => {
+  const save = async () => {
     if (!form.id || !form.warehouseId || !form.type) {
       toast.error("Location ID, warehouse and type are required");
       return;
     }
     if (isEdit && prefill) {
-      updateLocationInMaster(prefill.id, form as Partial<LocationRecord>);
-      toast.success(`Updated location ${form.id}`);
+      try {
+        await updateLocationInMaster(prefill.id, form as Partial<LocationRecord>);
+        toast.success(`Updated location ${form.id}`);
+      } catch (e) {
+        toast.error(`Failed to update: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
     } else {
-      const newLoc: LocationRecord = {
-        id: form.id,
-        warehouseId: form.warehouseId,
-        tenantId: form.tenantId,
-        type: form.type,
-        zone: form.zone ?? "",
-        capacityPallets: form.capacityPallets ?? 1,
-        occupiedPallets: form.occupiedPallets ?? 0,
-        pickable: form.pickable ?? true,
-        allowedItemStyles: form.allowedItemStyles ?? null,
-        notes: form.notes,
-      };
-      locationMaster.push(newLoc);
-      toast.success(`Added location ${newLoc.id}`);
+      try {
+        const newLoc: LocationRecord = {
+          id: form.id,
+          warehouseId: form.warehouseId,
+          tenantId: form.tenantId,
+          type: form.type,
+          zone: form.zone ?? "",
+          capacityPallets: form.capacityPallets ?? 1,
+          occupiedPallets: form.occupiedPallets ?? 0,
+          pickable: form.pickable ?? true,
+          allowedItemStyles: form.allowedItemStyles ?? null,
+          notes: form.notes,
+        };
+        await addLocationToMaster(newLoc);
+        toast.success(`Added location ${newLoc.id}`);
+      } catch (e) {
+        toast.error(`Failed to add: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
     }
     onSaved();
     onOpenChange(false);
