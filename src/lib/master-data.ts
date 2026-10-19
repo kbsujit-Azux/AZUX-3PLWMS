@@ -44,28 +44,225 @@
 import { inventoryItems } from "./mock-data";
 import { inboundShipments } from "./inbound-data";
 import { orders } from "./edi-data";
+
+// ============================================================
+// New Enhanced Types
+// ============================================================
+
+/** Pack level in GTIN hierarchy */
+export type PackLevel = "each" | "inner" | "master" | "pallet";
+
+/** GTIN Hierarchy — Parent/Child pack structure */
+export type GTINHierarchy = {
+  /** Parent GTIN (e.g., Case/Inner Pack GTIN-14) */
+  parentGtin?: string;
+  /** Child GTIN (e.g., Each/Unit GTIN-14) */
+  childGtin?: string;
+  /** Quantity of child units in parent pack */
+  qtyPerParent: number;
+  /** Pack level: 'each' | 'inner' | 'master' | 'pallet' */
+  packLevel: PackLevel;
+  /** Dimensions at this pack level (inches) */
+  packLengthIn?: number;
+  packWidthIn?: number;
+  packHeightIn?: number;
+  /** Weight at this pack level (lbs) */
+  packWeightLbs?: number;
+  /** Is this the base sellable unit? */
+  isBaseUnit: boolean;
+};
+
+/** Apparel Attribute Matrix (Style/Color/Size) */
+export type ApparelAttributes = {
+  /** Style identifier (e.g., "HOODIE-PULLOVER") */
+  style: string;
+  /** Color code + name (e.g., "BLK-Black", "NVY-Navy") */
+  color: { code: string; name: string };
+  /** Size code + dimension overrides */
+  size: {
+    code: string;           // S, M, L, XL, 2XL
+    lengthIn?: number;      // Override base dimensions
+    widthIn?: number;
+    heightIn?: number;
+    weightLbs?: number;
+  };
+  /** Fit type: regular, slim, relaxed, oversized */
+  fit?: "regular" | "slim" | "relaxed" | "oversized";
+  /** Fabric composition for storage requirements */
+  fabric?: {
+    primary: string;        // cotton, polyester, blend
+    pct: number;
+    careCode?: string;      // wash/dry instructions
+  };
+  /** Season: Spring, Summer, Fall, Winter, Core */
+  season?: string;
+  /** Gender: Mens, Womens, Unisex, Kids */
+  gender?: string;
+};
+
+/** Pallet Build Intelligence Configuration */
+export type PalletBuildConfig = {
+  /** Max pallet height (inches) - warehouse default 60" */
+  maxPalletHeightIn: number;
+  /** Max pallet weight (lbs) - warehouse default 2500 */
+  maxPalletWeightLbs: number;
+  /** Max cases per layer (auto-calc from dims) */
+  maxCasesPerLayer?: number;
+  /** Max layers per pallet */
+  maxLayers?: number;
+  /** Stackability: 'full' | 'limited' | 'non-stackable' | 'crushable' */
+  stackability: "full" | "limited" | "non-stackable" | "crushable";
+  /** Max stack height for limited stackability (inches) */
+  maxStackHeightIn?: number;
+  /** Pallet pattern: 'column' | 'interlock' | 'brick' | 'pinwheel' */
+  palletPattern: "column" | "interlock" | "brick" | "pinwheel";
+  /** Allow mixed SKU on pallet */
+  allowMixedSku: boolean;
+  /** Allowed mixed SKU families (by itemStyle) */
+  mixedSkuStyles?: string[];
+  /** Overhang allowed (inches) */
+  overhangIn?: number;
+  /** Pallet type: 'standard_48x40' | 'euro_48x32' | 'half_48x20' | 'custom' */
+  palletType: "standard_48x40" | "euro_48x32" | "half_48x20" | "custom";
+  /** Custom pallet dims if type=custom */
+  customPalletDimsIn?: { l: number; w: number; h: number };
+};
+
+/** Velocity & Slotting Classification */
+export type VelocityClassification = {
+  /** ABC classification: A (fast), B (medium), C (slow) */
+  abcClass: "A" | "B" | "C";
+  /** Annual picks per year */
+  annualPicks: number;
+  /** Lines per order (avg) */
+  linesPerOrder: number;
+  /** Seasonal peak months (1-12) */
+  peakMonths?: number[];
+  /** Storage class: 'forward' | 'reserve' | 'bulk' | 'cold' | 'hazmat' */
+  storageClass: "forward" | "reserve" | "bulk" | "cold" | "hazmat";
+  /** Replenishment trigger (days of supply) */
+  reorderDays?: number;
+};
+
+/** Substitution Rule */
+export type SubstitutionRule = {
+  /** Alternate SKU */
+  alternateSku: string;
+  /** Type: 'substitute' | 'upgrade' | 'downgrade' | 'equivalent' */
+  type: "substitute" | "upgrade" | "downgrade" | "equivalent";
+  /** Priority (1 = first choice) */
+  priority: number;
+  /** Condition: 'always' | 'stockout' | 'customer_request' */
+  condition: "always" | "stockout" | "customer_request";
+  /** Cost impact % */
+  costImpactPct?: number;
+};
+
+/** Slotting Intelligence Rules */
+export type SlottingRules = {
+  /** Storage class compatibility: which item storage classes can go here */
+  allowedStorageClasses: ("forward" | "reserve" | "bulk" | "cold" | "hazmat")[];
+  /** Required item attributes for this location */
+  requiredItemAttrs?: {
+    hazmatAllowed?: boolean;
+    tempControlled?: boolean;
+    tempMin?: number;
+    tempMax?: number;
+    maxWeightLbs?: number;
+    maxDimIn?: { l: number; w: number; h: number };
+    abcClass?: ("A" | "B" | "C")[];
+  };
+  /** Adjacent zone affinity (for putaway sequencing) */
+  adjacentZones?: string[];
+  /** Putaway sequence priority (lower = first) */
+  putawayPriority: number;
+  /** Replenishment priority */
+  replenPriority: number;
+  /** Allowed pallet types */
+  allowedPalletTypes: ("standard_48x40" | "euro_48x32" | "half_48x20")[];
+};
+
+/** Dynamic Velocity Metrics */
+export type VelocityMetrics = {
+  /** Auto-calculated: picks per day (30-day rolling) */
+  picksPerDay: number;
+  /** Auto-calculated: lines per day */
+  linesPerDay: number;
+  /** Auto-calculated: cubic velocity (cuft picked/day) */
+  cubicVelocity: number;
+  /** Last updated timestamp */
+  lastCalculated: string;
+  /** Manual override flag */
+  manualOverride: boolean;
+};
+
+/** Zone Adjacency & Travel Distance */
+export type ZoneAdjacency = {
+  /** Adjacent zones with travel time (seconds) */
+  adjacent: { zone: string; travelTimeSec: number }[];
+  /** Distance to shipping dock (seconds) */
+  toShippingDockSec: number;
+  /** Distance to receiving dock (seconds) */
+  toReceivingDockSec: number;
+};
+
 export type ItemMasterRecord = {
+  // ─── Core Identity ────────────────────────────────────────────────
   sku: string; // Vendor SKU (EDI 832 LIN03)
   upc: string; // GTIN / UPC (EDI 832 LIN05)
+  gtin?: string; // GS1 GTIN-14
   itemStyle: string; // Pallet build grouping
   description: string;
   category: string;
   uom: string;
-  caseQty: number; // EDI 832 PO4
-  unitCost: number; // EDI 832 PRC02
-  unitPrice: number;
-  weightLbs: number;
-  /** Case dimensions in inches (EDI 832 MEA — LN / WD / HT) */
+  tenantId: string;
+
+  // ─── Pack Hierarchy ──────────────────────────────────────────────
+  packHierarchy: GTINHierarchy[]; // Parent/child pack levels
+  basePackLevel: PackLevel; // Which level is stocked
+  caseQty: number; // EDI 832 PO4 - Units per case (at base pack level)
+  innerPackQty?: number; // Units per inner pack
+  masterPackQty?: number; // Cases per master pack
+
+  // ─── Apparel Attributes ──────────────────────────────────────────
+  apparelAttrs?: ApparelAttributes; // Null if not apparel
+
+  // ─── Dimensions & Weight ─────────────────────────────────────────
+  // At base pack level (each)
   lengthIn: number;
   widthIn: number;
   heightIn: number;
-  /** Case gross weight in lbs (EDI 832 MEA — G) */
+  weightLbs: number;
+
+  // At case level (derived or override)
+  caseLengthIn?: number;
+  caseWidthIn?: number;
+  caseHeightIn?: number;
   caseWeightLbs: number;
-  /** Cubic meters per case — derived from L×W×H (EDI 832 MEA — CB) */
   cbmPerCase: number;
-  /** NMFC commodity code (National Motor Freight Classification) */
+
+  // At master pack level
+  masterLengthIn?: number;
+  masterWidthIn?: number;
+  masterHeightIn?: number;
+  masterWeightLbs?: number;
+  masterCbm?: number;
+
+  // ─── Pallet Build Intelligence ───────────────────────────────────
+  palletBuild: PalletBuildConfig;
+
+  // ─── Velocity & Slotting ─────────────────────────────────────────
+  velocity?: VelocityClassification;
+
+  // ─── Substitutions ───────────────────────────────────────────────
+  substitutions?: SubstitutionRule[];
+
+  // ─── Commercial ──────────────────────────────────────────────────
+  unitCost: number; // EDI 832 PRC02
+  unitPrice: number;
+
+  // ─── Freight ─────────────────────────────────────────────────────
   nmfc: string;
-  /** Freight class — NMFTA standard density-based class for LTL rating */
   freightClass:
     | "50"
     | "55"
@@ -85,29 +282,26 @@ export type ItemMasterRecord = {
     | "300"
     | "400"
     | "500";
-  tenantId: string;
+
+  // ─── Compliance & Governance ─────────────────────────────────────
+  lotControl: boolean;
+  expiryControl: boolean;
+  serialControl: boolean;
+  shelfLifeDays?: number;
+  storageTempMin?: number;
+  storageTempMax?: number;
+  storageTempUnit?: "F" | "C";
   hazmat: boolean;
   active: boolean;
   source: "EDI_832" | "CSV" | "MANUAL";
   effectiveAt: string; // EDI 832 DTM/007
 
-  // ─── Enterprise Compliance & Governance ─────────────────────────────
-  /** GS1 GTIN-14 identifier (derived from UPC if not provided) */
-  gtin?: string;
-  /** Lot/batch control required */
-  lotControl: boolean;
-  /** Expiration date control required */
-  expiryControl: boolean;
-  /** Serial number control required (unit-level) */
-  serialControl: boolean;
-  /** Shelf life in days — used for FEFO */
-  shelfLifeDays?: number;
-  /** Preferred storage temperature min °F */
-  storageTempMin?: number;
-  /** Preferred storage temperature max °F */
-  storageTempMax?: number;
-  /** Temperature unit: F or C */
-  storageTempUnit?: "F" | "C";
+  // ─── Additional Compliance ───────────────────────────────────────
+  countryOfOrigin?: string;
+  harmonizedCode?: string; // HS/HTS code
+  brand?: string;
+  manufacturer?: string;
+  manufacturerSku?: string;
 };
 
 const ts = (d: string) => new Date(d).toISOString();
@@ -148,7 +342,55 @@ export function nmfcFor(sku: string, category: string) {
   return NMFC_BY_SKU[sku] ?? NMFC_BY_CATEGORY[category] ?? NMFC_BY_CATEGORY.Default;
 }
 
-/** Per-SKU case dimension + weight overrides, keyed by SKU. */
+// ============================================================
+// Default Configurations
+// ============================================================
+
+/** Default pallet build config */
+const defaultPalletBuild: PalletBuildConfig = {
+  maxPalletHeightIn: 60,
+  maxPalletWeightLbs: 2500,
+  stackability: "full",
+  palletPattern: "interlock",
+  allowMixedSku: false,
+  palletType: "standard_48x40",
+};
+
+/** Default velocity classification */
+const defaultVelocity: VelocityClassification = {
+  abcClass: "B",
+  annualPicks: 500,
+  linesPerOrder: 3,
+  storageClass: "reserve",
+};
+
+/** Default slotting rules */
+const defaultSlottingRules: SlottingRules = {
+  allowedStorageClasses: ["forward", "reserve", "bulk"],
+  putawayPriority: 50,
+  replenPriority: 50,
+  allowedPalletTypes: ["standard_48x40"],
+};
+
+/** Default velocity metrics */
+const defaultVelocityMetrics: VelocityMetrics = {
+  picksPerDay: 0,
+  linesPerDay: 0,
+  cubicVelocity: 0,
+  lastCalculated: new Date().toISOString(),
+  manualOverride: false,
+};
+
+/** Default zone adjacency */
+const defaultZoneAdjacency: ZoneAdjacency = {
+  adjacent: [],
+  toShippingDockSec: 300,
+  toReceivingDockSec: 300,
+};
+
+// ============================================================
+// Seed Data
+// ============================================================
 const CASE_SPECS: Record<string, { l: number; w: number; h: number; caseLbs: number }> = {
   "ACM-TENT-2P-OLV": { l: 26, w: 10, h: 10, caseLbs: 26.4 },
   "ACM-STV-CMP-01": { l: 18, w: 14, h: 8, caseLbs: 23.2 },
@@ -177,29 +419,74 @@ export const itemMaster: ItemMasterRecord[] = [
     return {
       sku: i.sku,
       upc: i.upc,
+      gtin: i.upc.length === 12 ? `0${i.upc}` : i.upc,
       itemStyle: i.itemStyle,
       description: i.description,
       category: i.category,
       uom: i.uom,
+      tenantId: i.tenantId,
+      packHierarchy: [
+        {
+          parentGtin: undefined,
+          childGtin: i.upc.length === 12 ? `0${i.upc}` : i.upc,
+          qtyPerParent: 1,
+          packLevel: "each",
+          isBaseUnit: true,
+        },
+        {
+          parentGtin: i.upc.length === 12 ? `0${i.upc}` : i.upc,
+          childGtin: undefined,
+          qtyPerParent: i.caseQty,
+          packLevel: "inner",
+          packLengthIn: s.l,
+          packWidthIn: s.w,
+          packHeightIn: s.h,
+          packWeightLbs: s.caseLbs,
+          isBaseUnit: false,
+        },
+      ],
+      basePackLevel: "each",
       caseQty: i.caseQty,
-      unitCost: i.unitCost,
-      unitPrice: i.unitPrice,
-      weightLbs: i.weightLbs,
+      innerPackQty: 1,
+      masterPackQty: undefined,
+      apparelAttrs: undefined,
       lengthIn: s.l,
       widthIn: s.w,
       heightIn: s.h,
+      weightLbs: i.weightLbs,
+      caseLengthIn: s.l,
+      caseWidthIn: s.w,
+      caseHeightIn: s.h,
       caseWeightLbs: s.caseLbs,
       cbmPerCase: cbmFromInches(s.l, s.w, s.h),
+      masterLengthIn: undefined,
+      masterWidthIn: undefined,
+      masterHeightIn: undefined,
+      masterWeightLbs: undefined,
+      masterCbm: undefined,
+      palletBuild: defaultPalletBuild,
+      velocity: defaultVelocity,
+      substitutions: undefined,
+      unitCost: i.unitCost,
+      unitPrice: i.unitPrice,
       nmfc: f.nmfc,
       freightClass: f.freightClass,
-      tenantId: i.tenantId,
+      lotControl: false,
+      expiryControl: false,
+      serialControl: false,
+      shelfLifeDays: undefined,
+      storageTempMin: undefined,
+      storageTempMax: undefined,
+      storageTempUnit: "F",
       hazmat: false,
       active: true,
       source: "EDI_832",
       effectiveAt: ts("2026-05-01T00:00:00Z"),
-      lotControl: false,
-      expiryControl: false,
-      serialControl: false,
+      countryOfOrigin: "US",
+      harmonizedCode: undefined,
+      brand: undefined,
+      manufacturer: undefined,
+      manufacturerSku: undefined,
     } satisfies ItemMasterRecord;
   }),
   (() => {
@@ -208,29 +495,91 @@ export const itemMaster: ItemMasterRecord[] = [
     return {
       sku: "ACM-SLPBG-20F",
       upc: "081234500031",
+      gtin: "00812345000031",
       itemStyle: "SLPBG-20F",
       description: "Mummy Sleeping Bag, 20°F",
       category: "Camping",
       uom: "EA",
+      tenantId: "acme",
+      packHierarchy: [
+        {
+          parentGtin: undefined,
+          childGtin: "00812345000031",
+          qtyPerParent: 1,
+          packLevel: "each",
+          isBaseUnit: true,
+        },
+        {
+          parentGtin: "00812345000031",
+          childGtin: "10812345000038",
+          qtyPerParent: 6,
+          packLevel: "inner",
+          packLengthIn: s.l,
+          packWidthIn: s.w,
+          packHeightIn: s.h,
+          packWeightLbs: s.caseLbs,
+          isBaseUnit: false,
+        },
+      ],
+      basePackLevel: "each",
       caseQty: 6,
-      unitCost: 38.0,
-      unitPrice: 119,
-      weightLbs: 3.4,
+      innerPackQty: 1,
+      masterPackQty: undefined,
+      apparelAttrs: undefined,
       lengthIn: s.l,
       widthIn: s.w,
       heightIn: s.h,
+      weightLbs: 3.4,
+      caseLengthIn: s.l,
+      caseWidthIn: s.w,
+      caseHeightIn: s.h,
       caseWeightLbs: s.caseLbs,
       cbmPerCase: cbmFromInches(s.l, s.w, s.h),
+      masterLengthIn: undefined,
+      masterWidthIn: undefined,
+      masterHeightIn: undefined,
+      masterWeightLbs: undefined,
+      masterCbm: undefined,
+      palletBuild: {
+        ...defaultPalletBuild,
+        stackability: "limited",
+        maxStackHeightIn: 48,
+      },
+      velocity: {
+        ...defaultVelocity,
+        abcClass: "B",
+        annualPicks: 200,
+        storageClass: "reserve",
+      },
+      substitutions: [
+        {
+          alternateSku: "ACM-SLPBG-00F",
+          type: "substitute",
+          priority: 1,
+          condition: "stockout",
+          costImpactPct: 5,
+        },
+      ],
+      unitCost: 38.0,
+      unitPrice: 119,
       nmfc: f.nmfc,
       freightClass: f.freightClass,
-      tenantId: "acme",
+      lotControl: false,
+      expiryControl: false,
+      serialControl: false,
+      shelfLifeDays: undefined,
+      storageTempMin: undefined,
+      storageTempMax: undefined,
+      storageTempUnit: "F",
       hazmat: false,
       active: true,
       source: "EDI_832",
       effectiveAt: ts("2026-05-12T00:00:00Z"),
-      lotControl: false,
-      expiryControl: false,
-      serialControl: false,
+      countryOfOrigin: "CN",
+      harmonizedCode: "9404.30.0000",
+      brand: "Acme Outdoors",
+      manufacturer: "Acme Mfg",
+      manufacturerSku: "SLPBG-20F",
     } satisfies ItemMasterRecord;
   })(),
   (() => {
@@ -239,31 +588,645 @@ export const itemMaster: ItemMasterRecord[] = [
     return {
       sku: "VRD-MAG-GLY",
       upc: "076500011137",
+      gtin: "0076500011137",
       itemStyle: "MAG-GLY",
       description: "Magnesium Glycinate 120ct",
       category: "Supplements",
       uom: "EA",
+      tenantId: "verdant",
+      packHierarchy: [
+        {
+          parentGtin: undefined,
+          childGtin: "0076500011137",
+          qtyPerParent: 1,
+          packLevel: "each",
+          isBaseUnit: true,
+        },
+        {
+          parentGtin: "0076500011137",
+          childGtin: "1076500011134",
+          qtyPerParent: 36,
+          packLevel: "inner",
+          packLengthIn: s.l,
+          packWidthIn: s.w,
+          packHeightIn: s.h,
+          packWeightLbs: s.caseLbs,
+          isBaseUnit: false,
+        },
+        {
+          parentGtin: "1076500011134",
+          childGtin: undefined,
+          qtyPerParent: 4,
+          packLevel: "master",
+          packLengthIn: 18,
+          packWidthIn: 16,
+          packHeightIn: 12,
+          packWeightLbs: 80,
+          isBaseUnit: false,
+        },
+      ],
+      basePackLevel: "each",
       caseQty: 36,
-      unitCost: 7.2,
-      unitPrice: 24,
-      weightLbs: 0.5,
+      innerPackQty: 1,
+      masterPackQty: 4,
+      apparelAttrs: undefined,
       lengthIn: s.l,
       widthIn: s.w,
       heightIn: s.h,
+      weightLbs: 0.5,
+      caseLengthIn: s.l,
+      caseWidthIn: s.w,
+      caseHeightIn: s.h,
       caseWeightLbs: s.caseLbs,
       cbmPerCase: cbmFromInches(s.l, s.w, s.h),
+      masterLengthIn: 18,
+      masterWidthIn: 16,
+      masterHeightIn: 12,
+      masterWeightLbs: 80,
+      masterCbm: cbmFromInches(18, 16, 12),
+      palletBuild: {
+        ...defaultPalletBuild,
+        maxPalletHeightIn: 55,
+        stackability: "full",
+        palletPattern: "column",
+      },
+      velocity: {
+        ...defaultVelocity,
+        abcClass: "A",
+        annualPicks: 5000,
+        storageClass: "forward",
+        peakMonths: [1, 2, 11, 12],
+      },
+      substitutions: [
+        {
+          alternateSku: "VRD-MAG-CIT",
+          type: "substitute",
+          priority: 1,
+          condition: "stockout",
+          costImpactPct: -2,
+        },
+        {
+          alternateSku: "VRD-MAG-OXIDE",
+          type: "downgrade",
+          priority: 2,
+          condition: "stockout",
+          costImpactPct: -15,
+        },
+      ],
+      unitCost: 7.2,
+      unitPrice: 24,
       nmfc: f.nmfc,
       freightClass: f.freightClass,
-      tenantId: "verdant",
+      lotControl: true,
+      expiryControl: true,
+      serialControl: false,
+      shelfLifeDays: 730,
+      storageTempMin: 50,
+      storageTempMax: 80,
+      storageTempUnit: "F",
       hazmat: false,
       active: true,
       source: "EDI_832",
       effectiveAt: ts("2026-05-02T00:00:00Z"),
-      lotControl: false,
-      expiryControl: false,
-      serialControl: false,
+      countryOfOrigin: "US",
+      harmonizedCode: "2106.90.0000",
+      brand: "Verdant Health",
+      manufacturer: "Verdant Labs",
+      manufacturerSku: "MAG-GLY-120",
     } satisfies ItemMasterRecord;
   })(),
+  // Additional test records for apparel and GTIN hierarchy
+  {
+    sku: "NSA-HOOD-BLK-M",
+    upc: "081001234567",
+    gtin: "0081001234567",
+    itemStyle: "HOOD-CLASSIC",
+    description: "Classic Hoodie - Black - Medium",
+    category: "Apparel",
+    uom: "EA",
+    tenantId: "northstar",
+    packHierarchy: [
+      {
+        parentGtin: undefined,
+        childGtin: "0081001234567",
+        qtyPerParent: 1,
+        packLevel: "each",
+        isBaseUnit: true,
+      },
+      {
+        parentGtin: "0081001234567",
+        childGtin: "1081001234564",
+        qtyPerParent: 24,
+        packLevel: "inner",
+        packLengthIn: 22,
+        packWidthIn: 16,
+        packHeightIn: 14,
+        packWeightLbs: 27.8,
+        isBaseUnit: false,
+      },
+      {
+        parentGtin: "1081001234564",
+        childGtin: undefined,
+        qtyPerParent: 2,
+        packLevel: "master",
+        packLengthIn: 24,
+        packWidthIn: 22,
+        packHeightIn: 16,
+        packWeightLbs: 60,
+        isBaseUnit: false,
+      },
+    ],
+    basePackLevel: "each",
+    caseQty: 24,
+    innerPackQty: 1,
+    masterPackQty: 2,
+    apparelAttrs: {
+      style: "HOODIE-PULLOVER",
+      color: { code: "BLK", name: "Black" },
+      size: { code: "M", lengthIn: 28, widthIn: 22, heightIn: 2, weightLbs: 1.2 },
+      fit: "regular",
+      fabric: { primary: "cotton", pct: 80, careCode: "Machine wash cold" },
+      season: "Fall",
+      gender: "Unisex",
+    },
+    lengthIn: 12,
+    widthIn: 10,
+    heightIn: 2,
+    weightLbs: 1.2,
+    caseLengthIn: 22,
+    caseWidthIn: 16,
+    caseHeightIn: 14,
+    caseWeightLbs: 27.8,
+    cbmPerCase: cbmFromInches(22, 16, 14),
+    masterLengthIn: 24,
+    masterWidthIn: 22,
+    masterHeightIn: 16,
+    masterWeightLbs: 60,
+    masterCbm: cbmFromInches(24, 22, 16),
+    palletBuild: {
+      ...defaultPalletBuild,
+      maxPalletHeightIn: 55,
+      stackability: "full",
+      palletPattern: "brick",
+    },
+    velocity: {
+      ...defaultVelocity,
+      abcClass: "A",
+      annualPicks: 15000,
+      storageClass: "forward",
+      peakMonths: [9, 10, 11, 12],
+    },
+    substitutions: [
+      {
+        alternateSku: "NSA-HOOD-NVY-M",
+        type: "substitute",
+        priority: 1,
+        condition: "stockout",
+        costImpactPct: 0,
+      },
+      {
+        alternateSku: "NSA-HOOD-GRY-M",
+        type: "substitute",
+        priority: 2,
+        condition: "stockout",
+        costImpactPct: 0,
+      },
+    ],
+    unitCost: 18.5,
+    unitPrice: 49.99,
+    nmfc: "049880",
+    freightClass: "125",
+    lotControl: false,
+    expiryControl: false,
+    serialControl: false,
+    shelfLifeDays: undefined,
+    storageTempMin: undefined,
+    storageTempMax: undefined,
+    storageTempUnit: "F",
+    hazmat: false,
+    active: true,
+    source: "EDI_832",
+    effectiveAt: ts("2026-06-15T00:00:00Z"),
+    countryOfOrigin: "VN",
+    harmonizedCode: "6110.20.2020",
+    brand: "NorthStar Apparel",
+    manufacturer: "NorthStar Mfg",
+    manufacturerSku: "HOOD-CLASSIC-BLK-M",
+  },
+  {
+    sku: "NSA-TEE-WHT-L",
+    upc: "081001234574",
+    gtin: "0081001234574",
+    itemStyle: "TEE-PREMIUM",
+    description: "Premium Tee - White - Large",
+    category: "Apparel",
+    uom: "EA",
+    tenantId: "northstar",
+    packHierarchy: [
+      {
+        parentGtin: undefined,
+        childGtin: "0081001234574",
+        qtyPerParent: 1,
+        packLevel: "each",
+        isBaseUnit: true,
+      },
+      {
+        parentGtin: "0081001234574",
+        childGtin: "1081001234571",
+        qtyPerParent: 36,
+        packLevel: "inner",
+        packLengthIn: 20,
+        packWidthIn: 14,
+        packHeightIn: 12,
+        packWeightLbs: 20.4,
+        isBaseUnit: false,
+      },
+      {
+        parentGtin: "1081001234571",
+        childGtin: undefined,
+        qtyPerParent: 3,
+        packLevel: "master",
+        packLengthIn: 22,
+        packWidthIn: 20,
+        packHeightIn: 14,
+        packWeightLbs: 65,
+        isBaseUnit: false,
+      },
+    ],
+    basePackLevel: "each",
+    caseQty: 36,
+    innerPackQty: 1,
+    masterPackQty: 3,
+    apparelAttrs: {
+      style: "TEE-CREWNECK",
+      color: { code: "WHT", name: "White" },
+      size: { code: "L", lengthIn: 30, widthIn: 24, heightIn: 1, weightLbs: 0.6 },
+      fit: "slim",
+      fabric: { primary: "cotton", pct: 100, careCode: "Machine wash warm" },
+      season: "Core",
+      gender: "Mens",
+    },
+    lengthIn: 11,
+    widthIn: 9,
+    heightIn: 1,
+    weightLbs: 0.6,
+    caseLengthIn: 20,
+    caseWidthIn: 14,
+    caseHeightIn: 12,
+    caseWeightLbs: 20.4,
+    cbmPerCase: cbmFromInches(20, 14, 12),
+    masterLengthIn: 22,
+    masterWidthIn: 20,
+    masterHeightIn: 14,
+    masterWeightLbs: 65,
+    masterCbm: cbmFromInches(22, 20, 14),
+    palletBuild: {
+      ...defaultPalletBuild,
+      maxPalletHeightIn: 50,
+      stackability: "full",
+      palletPattern: "column",
+    },
+    velocity: {
+      ...defaultVelocity,
+      abcClass: "A",
+      annualPicks: 25000,
+      storageClass: "forward",
+      peakMonths: [5, 6, 7, 8],
+    },
+    substitutions: [
+      {
+        alternateSku: "NSA-TEE-BLK-L",
+        type: "substitute",
+        priority: 1,
+        condition: "stockout",
+        costImpactPct: 0,
+      },
+    ],
+    unitCost: 8.0,
+    unitPrice: 24.99,
+    nmfc: "049880",
+    freightClass: "125",
+    lotControl: false,
+    expiryControl: false,
+    serialControl: false,
+    shelfLifeDays: undefined,
+    storageTempMin: undefined,
+    storageTempMax: undefined,
+    storageTempUnit: "F",
+    hazmat: false,
+    active: true,
+    source: "EDI_832",
+    effectiveAt: ts("2026-06-15T00:00:00Z"),
+    countryOfOrigin: "VN",
+    harmonizedCode: "6109.10.0010",
+    brand: "NorthStar Apparel",
+    manufacturer: "NorthStar Mfg",
+    manufacturerSku: "TEE-PREMIUM-WHT-L",
+  },
+  {
+    sku: "HLE-EARB-PRO",
+    upc: "084001234567",
+    gtin: "0084001234567",
+    itemStyle: "EARB-PRO",
+    description: "Pro Earbuds - Wireless ANC",
+    category: "Electronics",
+    uom: "EA",
+    tenantId: "harborlite",
+    packHierarchy: [
+      {
+        parentGtin: undefined,
+        childGtin: "0084001234567",
+        qtyPerParent: 1,
+        packLevel: "each",
+        isBaseUnit: true,
+      },
+      {
+        parentGtin: "0084001234567",
+        childGtin: "1084001234564",
+        qtyPerParent: 20,
+        packLevel: "inner",
+        packLengthIn: 16,
+        packWidthIn: 12,
+        packHeightIn: 8,
+        packWeightLbs: 7.2,
+        isBaseUnit: false,
+      },
+      {
+        parentGtin: "1084001234564",
+        childGtin: undefined,
+        qtyPerParent: 5,
+        packLevel: "master",
+        packLengthIn: 18,
+        packWidthIn: 16,
+        packHeightIn: 10,
+        packWeightLbs: 38,
+        isBaseUnit: false,
+      },
+    ],
+    basePackLevel: "each",
+    caseQty: 20,
+    innerPackQty: 1,
+    masterPackQty: 5,
+    apparelAttrs: undefined,
+    lengthIn: 8,
+    widthIn: 6,
+    heightIn: 3,
+    weightLbs: 0.3,
+    caseLengthIn: 16,
+    caseWidthIn: 12,
+    caseHeightIn: 8,
+    caseWeightLbs: 7.2,
+    cbmPerCase: cbmFromInches(16, 12, 8),
+    masterLengthIn: 18,
+    masterWidthIn: 16,
+    masterHeightIn: 10,
+    masterWeightLbs: 38,
+    masterCbm: cbmFromInches(18, 16, 10),
+    palletBuild: {
+      ...defaultPalletBuild,
+      maxPalletHeightIn: 48,
+      stackability: "full",
+      palletPattern: "column",
+    },
+    velocity: {
+      ...defaultVelocity,
+      abcClass: "A",
+      annualPicks: 8000,
+      storageClass: "forward",
+      peakMonths: [11, 12],
+    },
+    substitutions: [
+      {
+        alternateSku: "HLE-EARB-STD",
+        type: "downgrade",
+        priority: 1,
+        condition: "stockout",
+        costImpactPct: -30,
+      },
+    ],
+    unitCost: 85.0,
+    unitPrice: 199.99,
+    nmfc: "063270-04",
+    freightClass: "92.5",
+    lotControl: false,
+    expiryControl: false,
+    serialControl: true,
+    shelfLifeDays: undefined,
+    storageTempMin: 32,
+    storageTempMax: 95,
+    storageTempUnit: "F",
+    hazmat: false,
+    active: true,
+    source: "EDI_832",
+    effectiveAt: ts("2026-04-01T00:00:00Z"),
+    countryOfOrigin: "CN",
+    harmonizedCode: "8518.30.2000",
+    brand: "Harbor Audio",
+    manufacturer: "Harbor Electronics",
+    manufacturerSku: "EARB-PRO-BLK",
+  },
+  {
+    sku: "HLE-CHRG-65W",
+    upc: "084001234574",
+    gtin: "0084001234574",
+    itemStyle: "CHRG-65W",
+    description: "65W GaN Charger - USB-C PD",
+    category: "Electronics",
+    uom: "EA",
+    tenantId: "harborlite",
+    packHierarchy: [
+      {
+        parentGtin: undefined,
+        childGtin: "0084001234574",
+        qtyPerParent: 1,
+        packLevel: "each",
+        isBaseUnit: true,
+      },
+      {
+        parentGtin: "0084001234574",
+        childGtin: "1084001234571",
+        qtyPerParent: 40,
+        packLevel: "inner",
+        packLengthIn: 14,
+        packWidthIn: 10,
+        packHeightIn: 6,
+        packWeightLbs: 13.5,
+        isBaseUnit: false,
+      },
+      {
+        parentGtin: "1084001234571",
+        childGtin: undefined,
+        qtyPerParent: 4,
+        packLevel: "master",
+        packLengthIn: 16,
+        packWidthIn: 14,
+        packHeightIn: 8,
+        packWeightLbs: 56,
+        isBaseUnit: false,
+      },
+    ],
+    basePackLevel: "each",
+    caseQty: 40,
+    innerPackQty: 1,
+    masterPackQty: 4,
+    apparelAttrs: undefined,
+    lengthIn: 5,
+    widthIn: 3,
+    heightIn: 1.5,
+    weightLbs: 0.3,
+    caseLengthIn: 14,
+    caseWidthIn: 10,
+    caseHeightIn: 6,
+    caseWeightLbs: 13.5,
+    cbmPerCase: cbmFromInches(14, 10, 6),
+    masterLengthIn: 16,
+    masterWidthIn: 14,
+    masterHeightIn: 8,
+    masterWeightLbs: 56,
+    masterCbm: cbmFromInches(16, 14, 8),
+    palletBuild: {
+      ...defaultPalletBuild,
+      maxPalletHeightIn: 48,
+      stackability: "full",
+      palletPattern: "column",
+    },
+    velocity: {
+      ...defaultVelocity,
+      abcClass: "B",
+      annualPicks: 3000,
+      storageClass: "reserve",
+    },
+    substitutions: [
+      {
+        alternateSku: "HLE-CHRG-100W",
+        type: "upgrade",
+        priority: 1,
+        condition: "customer_request",
+        costImpactPct: 50,
+      },
+    ],
+    unitCost: 22.0,
+    unitPrice: 54.99,
+    nmfc: "063270-02",
+    freightClass: "92.5",
+    lotControl: false,
+    expiryControl: false,
+    serialControl: true,
+    shelfLifeDays: undefined,
+    storageTempMin: 32,
+    storageTempMax: 95,
+    storageTempUnit: "F",
+    hazmat: false,
+    active: true,
+    source: "EDI_832",
+    effectiveAt: ts("2026-04-01T00:00:00Z"),
+    countryOfOrigin: "CN",
+    harmonizedCode: "8504.40.9540",
+    brand: "Harbor Audio",
+    manufacturer: "Harbor Electronics",
+    manufacturerSku: "CHRG-65W-GAN",
+  },
+  {
+    sku: "VRD-COLL-30CT",
+    upc: "076500011120",
+    gtin: "0076500011120",
+    itemStyle: "COLL-PWDR",
+    description: "Collagen Peptides Powder 30ct",
+    category: "Supplements",
+    uom: "EA",
+    tenantId: "verdant",
+    packHierarchy: [
+      {
+        parentGtin: undefined,
+        childGtin: "0076500011120",
+        qtyPerParent: 1,
+        packLevel: "each",
+        isBaseUnit: true,
+      },
+      {
+        parentGtin: "0076500011120",
+        childGtin: "1076500011127",
+        qtyPerParent: 12,
+        packLevel: "inner",
+        packLengthIn: 18,
+        packWidthIn: 12,
+        packHeightIn: 10,
+        packWeightLbs: 20.8,
+        isBaseUnit: false,
+      },
+      {
+        parentGtin: "1076500011127",
+        childGtin: undefined,
+        qtyPerParent: 6,
+        packLevel: "master",
+        packLengthIn: 20,
+        packWidthIn: 18,
+        packHeightIn: 12,
+        packWeightLbs: 130,
+        isBaseUnit: false,
+      },
+    ],
+    basePackLevel: "each",
+    caseQty: 12,
+    innerPackQty: 1,
+    masterPackQty: 6,
+    apparelAttrs: undefined,
+    lengthIn: 6,
+    widthIn: 4,
+    heightIn: 8,
+    weightLbs: 1.5,
+    caseLengthIn: 18,
+    caseWidthIn: 12,
+    caseHeightIn: 10,
+    caseWeightLbs: 20.8,
+    cbmPerCase: cbmFromInches(18, 12, 10),
+    masterLengthIn: 20,
+    masterWidthIn: 18,
+    masterHeightIn: 12,
+    masterWeightLbs: 130,
+    masterCbm: cbmFromInches(20, 18, 12),
+    palletBuild: {
+      ...defaultPalletBuild,
+      maxPalletHeightIn: 55,
+      stackability: "full",
+      palletPattern: "interlock",
+    },
+    velocity: {
+      ...defaultVelocity,
+      abcClass: "B",
+      annualPicks: 2000,
+      storageClass: "reserve",
+    },
+    substitutions: [
+      {
+        alternateSku: "VRD-COLL-60CT",
+        type: "upgrade",
+        priority: 1,
+        condition: "customer_request",
+        costImpactPct: 40,
+      },
+    ],
+    unitCost: 15.0,
+    unitPrice: 39.99,
+    nmfc: "157800",
+    freightClass: "100",
+    lotControl: true,
+    expiryControl: true,
+    serialControl: false,
+    shelfLifeDays: 730,
+    storageTempMin: 50,
+    storageTempMax: 80,
+    storageTempUnit: "F",
+    hazmat: false,
+    active: true,
+    source: "EDI_832",
+    effectiveAt: ts("2026-03-01T00:00:00Z"),
+    countryOfOrigin: "US",
+    harmonizedCode: "2106.90.0000",
+    brand: "Verdant Health",
+    manufacturer: "Verdant Labs",
+    manufacturerSku: "COLL-PWDR-30",
+  },
 ];
 
 export function findItem(sku: string): ItemMasterRecord | undefined {
@@ -365,36 +1328,53 @@ export function collectMasterExceptions(): MasterException[] {
 export type LocationType = "FLR" | "DROP" | "RACK";
 
 export type LocationRecord = {
+  // ─── Core Identity ────────────────────────────────────────────────
   id: string; // e.g. A12-03-B
   warehouseId: string;
   tenantId?: string; // Client / tenant that owns or is assigned this location
   type: LocationType; // FLR / DROP / RACK
-  zone: string; // Receiving, Reserve, Forward, Hazmat…
+  zone: string;
   capacityPallets: number;
   occupiedPallets: number;
   pickable: boolean; // If false → excluded from allocation
   allowedItemStyles: string[] | null; // null = any
   notes?: string;
-  /** Location dimensions in feet (for volumetric billing) */
+
+  // ─── Dimensions ──────────────────────────────────────────────────
   lengthFt?: number;
   widthFt?: number;
   heightFt?: number;
-  /** Pre-computed cubic feet (lengthFt * widthFt * heightFt) */
   cubicFeet?: number;
-  /** Slotting zone classification for dynamic reslotting */
+
+  // ─── Slotting Intelligence ───────────────────────────────────────
+  slottingRules: SlottingRules;
+  velocityMetrics?: VelocityMetrics;
+  zoneAdjacency?: ZoneAdjacency;
+
+  // ─── Existing Enhanced Fields ────────────────────────────────────
   zoneType?: "forward_pick" | "reserve" | "staging" | "hazmat" | "cold";
-  /** Velocity score for this location (picks per day) */
-  velocityScore?: number;
-  /** Recommended SKU(s) for this location */
+  velocityScore?: number; // Legacy - replaced by velocityMetrics
   recommendedSku?: string;
-  /** Hazmat-approved location */
   hazmatAllowed?: boolean;
-  /** Climate-controlled / temperature-controlled location */
   tempControlled?: boolean;
-  /** Minimum temperature in °F */
   tempMin?: number;
-  /** Maximum temperature in °F */
   tempMax?: number;
+
+  // ─── New Operational Fields ──────────────────────────────────────
+  /** Location status */
+  status: "active" | "maintenance" | "damaged" | "quarantine" | "retired";
+  /** Last cycle count date */
+  lastCycleCount?: string;
+  /** Cycle count frequency (days) */
+  cycleCountFreqDays?: number;
+  /** Assigned putaway sequence group */
+  putawaySequence?: number;
+  /** Maximum weight per pallet position (lbs) */
+  maxPalletWeightLbs?: number;
+  /** Maximum height per pallet (inches) */
+  maxPalletHeightIn?: number;
+  /** Sprinkler/clearance height (inches) */
+  clearanceHeightIn?: number;
 };
 
 export const locationMaster: LocationRecord[] = [

@@ -48,6 +48,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { CsvUploader } from "@/components/csv-uploader";
 import { useWorkspace } from "@/components/workspace-context";
@@ -928,19 +936,57 @@ function AddItemDialog({
       setForm({
         sku: seed.sku ?? prefill?.sku ?? "",
         upc: seed.upc ?? prefill?.upc ?? "",
+        gtin: seed.gtin ?? prefill?.gtin ?? "",
         itemStyle: seed.itemStyle ?? prefill?.itemStyle ?? "",
         description: seed.description ?? prefill?.description ?? "",
         category: seed.category ?? prefill?.category ?? "Accessories",
         uom: seed.uom ?? prefill?.uom ?? "EA",
         caseQty: seed.caseQty ?? prefill?.caseQty ?? 1,
+        innerPackQty: seed.innerPackQty ?? prefill?.innerPackQty ?? 1,
+        masterPackQty: seed.masterPackQty ?? prefill?.masterPackQty ?? undefined,
         unitCost: seed.unitCost ?? prefill?.unitCost ?? 0,
         unitPrice: seed.unitPrice ?? prefill?.unitPrice ?? 0,
         weightLbs: seed.weightLbs ?? prefill?.weightLbs ?? 0.5,
         lengthIn: seed.lengthIn ?? prefill?.lengthIn ?? 12,
         widthIn: seed.widthIn ?? prefill?.widthIn ?? 10,
         heightIn: seed.heightIn ?? prefill?.heightIn ?? 8,
+        caseLengthIn: seed.caseLengthIn ?? prefill?.caseLengthIn ?? undefined,
+        caseWidthIn: seed.caseWidthIn ?? prefill?.caseWidthIn ?? undefined,
+        caseHeightIn: seed.caseHeightIn ?? prefill?.caseHeightIn ?? undefined,
         caseWeightLbs: seed.caseWeightLbs ?? prefill?.caseWeightLbs ?? 1,
+        masterLengthIn: seed.masterLengthIn ?? prefill?.masterLengthIn ?? undefined,
+        masterWidthIn: seed.masterWidthIn ?? prefill?.masterWidthIn ?? undefined,
+        masterHeightIn: seed.masterHeightIn ?? prefill?.masterHeightIn ?? undefined,
+        masterWeightLbs: seed.masterWeightLbs ?? prefill?.masterWeightLbs ?? undefined,
         tenantId: seed.tenantId ?? prefill?.tenantId ?? "",
+        palletBuild: seed.palletBuild ?? prefill?.palletBuild ?? {
+          maxPalletHeightIn: 60,
+          maxPalletWeightLbs: 2500,
+          stackability: "full",
+          palletPattern: "interlock",
+          allowMixedSku: false,
+          palletType: "standard_48x40",
+        },
+        velocity: seed.velocity ?? prefill?.velocity ?? {
+          abcClass: "B",
+          annualPicks: 500,
+          linesPerOrder: 3,
+          storageClass: "reserve",
+        },
+        substitutions: seed.substitutions ?? prefill?.substitutions ?? [],
+        lotControl: seed.lotControl ?? prefill?.lotControl ?? false,
+        expiryControl: seed.expiryControl ?? prefill?.expiryControl ?? false,
+        serialControl: seed.serialControl ?? prefill?.serialControl ?? false,
+        shelfLifeDays: seed.shelfLifeDays ?? prefill?.shelfLifeDays ?? undefined,
+        storageTempMin: seed.storageTempMin ?? prefill?.storageTempMin ?? undefined,
+        storageTempMax: seed.storageTempMax ?? prefill?.storageTempMax ?? undefined,
+        storageTempUnit: seed.storageTempUnit ?? prefill?.storageTempUnit ?? "F",
+        hazmat: seed.hazmat ?? prefill?.hazmat ?? false,
+        countryOfOrigin: seed.countryOfOrigin ?? prefill?.countryOfOrigin ?? "US",
+        harmonizedCode: seed.harmonizedCode ?? prefill?.harmonizedCode ?? undefined,
+        brand: seed.brand ?? prefill?.brand ?? undefined,
+        manufacturer: seed.manufacturer ?? prefill?.manufacturer ?? undefined,
+        manufacturerSku: seed.manufacturerSku ?? prefill?.manufacturerSku ?? undefined,
       });
     }
   }, [open, editItem, prefill]);
@@ -957,18 +1003,56 @@ function AddItemDialog({
     const payload = {
       sku: form.sku,
       upc: form.upc ?? "",
+      gtin: form.gtin ?? "",
       itemStyle: form.itemStyle ?? form.sku.split("-")[1] ?? form.sku,
       description: form.description,
       category: form.category ?? "Accessories",
       uom: form.uom ?? "EA",
       caseQty: Number(form.caseQty) || 1,
+      innerPackQty: Number(form.innerPackQty) || 1,
+      masterPackQty: Number(form.masterPackQty) || undefined,
       unitCost: Number(form.unitCost) || 0,
       unitPrice: Number(form.unitPrice) || 0,
       weightLbs: Number(form.weightLbs) || 0,
       lengthIn: Number(form.lengthIn) || 0,
       widthIn: Number(form.widthIn) || 0,
       heightIn: Number(form.heightIn) || 0,
+      caseLengthIn: Number(form.caseLengthIn) || undefined,
+      caseWidthIn: Number(form.caseWidthIn) || undefined,
+      caseHeightIn: Number(form.caseHeightIn) || undefined,
       caseWeightLbs: Number(form.caseWeightLbs) || 0,
+      masterLengthIn: Number(form.masterLengthIn) || undefined,
+      masterWidthIn: Number(form.masterWidthIn) || undefined,
+      masterHeightIn: Number(form.masterHeightIn) || undefined,
+      masterWeightLbs: Number(form.masterWeightLbs) || undefined,
+      palletBuild: form.palletBuild ?? {
+        maxPalletHeightIn: 60,
+        maxPalletWeightLbs: 2500,
+        stackability: "full",
+        palletPattern: "interlock",
+        allowMixedSku: false,
+        palletType: "standard_48x40",
+      },
+      velocity: form.velocity ?? {
+        abcClass: "B",
+        annualPicks: 500,
+        linesPerOrder: 3,
+        storageClass: "reserve",
+      },
+      substitutions: form.substitutions ?? [],
+      lotControl: form.lotControl ?? false,
+      expiryControl: form.expiryControl ?? false,
+      serialControl: form.serialControl ?? false,
+      shelfLifeDays: Number(form.shelfLifeDays) || undefined,
+      storageTempMin: Number(form.storageTempMin) || undefined,
+      storageTempMax: Number(form.storageTempMax) || undefined,
+      storageTempUnit: form.storageTempUnit ?? "F",
+      hazmat: form.hazmat ?? false,
+      countryOfOrigin: form.countryOfOrigin ?? "US",
+      harmonizedCode: form.harmonizedCode ?? undefined,
+      brand: form.brand ?? undefined,
+      manufacturer: form.manufacturer ?? undefined,
+      manufacturerSku: form.manufacturerSku ?? undefined,
       nmfc: form.nmfc ?? f.nmfc,
       freightClass: (form.freightClass as ItemMasterRecord["freightClass"]) ?? f.freightClass,
       tenantId: form.tenantId,
@@ -1117,6 +1201,81 @@ function AddItemDialog({
               className="h-8 text-xs text-right"
             />
           </Field>
+          <Field label="Case Length (in)">
+            <Input
+              type="number"
+              value={form.caseLengthIn ?? 0}
+              onChange={(e) => set("caseLengthIn", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Case Width (in)">
+            <Input
+              type="number"
+              value={form.caseWidthIn ?? 0}
+              onChange={(e) => set("caseWidthIn", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Case Height (in)">
+            <Input
+              type="number"
+              value={form.caseHeightIn ?? 0}
+              onChange={(e) => set("caseHeightIn", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Inner Pack Qty">
+            <Input
+              type="number"
+              min={1}
+              value={form.innerPackQty ?? 1}
+              onChange={(e) => set("innerPackQty", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Master Pack Qty">
+            <Input
+              type="number"
+              min={1}
+              value={form.masterPackQty ?? 1}
+              onChange={(e) => set("masterPackQty", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Master Length (in)">
+            <Input
+              type="number"
+              value={form.masterLengthIn ?? 0}
+              onChange={(e) => set("masterLengthIn", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Master Width (in)">
+            <Input
+              type="number"
+              value={form.masterWidthIn ?? 0}
+              onChange={(e) => set("masterWidthIn", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Master Height (in)">
+            <Input
+              type="number"
+              value={form.masterHeightIn ?? 0}
+              onChange={(e) => set("masterHeightIn", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Master Weight (lb)">
+            <Input
+              type="number"
+              step="0.1"
+              value={form.masterWeightLbs ?? 0}
+              onChange={(e) => set("masterWeightLbs", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
           <Field label="Unit cost ($)">
             <Input
               type="number"
@@ -1134,6 +1293,153 @@ function AddItemDialog({
               onChange={(e) => set("unitPrice", Number(e.target.value))}
               className="h-8 text-xs text-right"
             />
+          </Field>
+          <Field label="Max Pallet Height (in)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.palletBuild?.maxPalletHeightIn ?? 60}
+              onChange={(e) => set("palletBuild", { ...form.palletBuild, maxPalletHeightIn: Number(e.target.value) })}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Max Pallet Weight (lb)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.palletBuild?.maxPalletWeightLbs ?? 2500}
+              onChange={(e) => set("palletBuild", { ...form.palletBuild, maxPalletWeightLbs: Number(e.target.value) })}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Stackability" className="col-span-2">
+            <Select value={form.palletBuild?.stackability ?? "full"} onValueChange={(v) => set("palletBuild", { ...form.palletBuild, stackability: v as any })}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full">Full</SelectItem>
+                <SelectItem value="limited">Limited</SelectItem>
+                <SelectItem value="non-stackable">Non-Stackable</SelectItem>
+                <SelectItem value="crushable">Crushable</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Pallet Pattern" className="col-span-2">
+            <Select value={form.palletBuild?.palletPattern ?? "interlock"} onValueChange={(v) => set("palletBuild", { ...form.palletBuild, palletPattern: v as any })}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="column">Column</SelectItem>
+                <SelectItem value="interlock">Interlock</SelectItem>
+                <SelectItem value="brick">Brick</SelectItem>
+                <SelectItem value="pinwheel">Pinwheel</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Allow Mixed SKU" className="col-span-2">
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.palletBuild?.allowMixedSku ?? false} onCheckedChange={(c) => set("palletBuild", { ...form.palletBuild, allowMixedSku: c })} />
+              Allow mixed SKU on pallet
+            </label>
+          </Field>
+          <Field label="Pallet Type" className="col-span-2">
+            <Select value={form.palletBuild?.palletType ?? "standard_48x40"} onValueChange={(v) => set("palletBuild", { ...form.palletBuild, palletType: v as any })}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="standard_48x40">Standard 48x40</SelectItem>
+                <SelectItem value="euro_48x32">Euro 48x32</SelectItem>
+                <SelectItem value="half_48x20">Half 48x20</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="ABC Class" className="col-span-2">
+            <Select value={form.velocity?.abcClass ?? "B"} onValueChange={(v) => set("velocity", { ...form.velocity, abcClass: v as any })}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="A">A - Fast</SelectItem>
+                <SelectItem value="B">B - Medium</SelectItem>
+                <SelectItem value="C">C - Slow</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Annual Picks" className="col-span-2">
+            <Input
+              type="number"
+              value={form.velocity?.annualPicks ?? 500}
+              onChange={(e) => set("velocity", { ...form.velocity, annualPicks: Number(e.target.value) })}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Storage Class" className="col-span-2">
+            <Select value={form.velocity?.storageClass ?? "reserve"} onValueChange={(v) => set("velocity", { ...form.velocity, storageClass: v as any })}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="forward">Forward Pick</SelectItem>
+                <SelectItem value="reserve">Reserve</SelectItem>
+                <SelectItem value="bulk">Bulk</SelectItem>
+                <SelectItem value="cold">Cold</SelectItem>
+                <SelectItem value="hazmat">Hazmat</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Lot Control" className="col-span-2">
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.lotControl ?? false} onCheckedChange={(c) => set("lotControl", c)} />
+              Require lot/batch tracking
+            </label>
+          </Field>
+          <Field label="Expiry Control" className="col-span-2">
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.expiryControl ?? false} onCheckedChange={(c) => set("expiryControl", c)} />
+              Require expiration date tracking
+            </label>
+          </Field>
+          <Field label="Serial Control" className="col-span-2">
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.serialControl ?? false} onCheckedChange={(c) => set("serialControl", c)} />
+              Require serial number tracking
+            </label>
+          </Field>
+          <Field label="Shelf Life (days)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.shelfLifeDays ?? ""}
+              onChange={(e) => set("shelfLifeDays", e.target.value ? Number(e.target.value) : undefined)}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Storage Temp Min (°F)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.storageTempMin ?? ""}
+              onChange={(e) => set("storageTempMin", e.target.value ? Number(e.target.value) : undefined)}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Storage Temp Max (°F)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.storageTempMax ?? ""}
+              onChange={(e) => set("storageTempMax", e.target.value ? Number(e.target.value) : undefined)}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Hazmat" className="col-span-2">
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.hazmat ?? false} onCheckedChange={(c) => set("hazmat", c)} />
+              Hazardous material
+            </label>
+          </Field>
+          <Field label="Country of Origin" className="col-span-2">
+            <Input value={form.countryOfOrigin ?? "US"} onChange={(e) => set("countryOfOrigin", e.target.value)} className="h-8 text-xs" />
+          </Field>
+          <Field label="HS/HTS Code" className="col-span-2">
+            <Input value={form.harmonizedCode ?? ""} onChange={(e) => set("harmonizedCode", e.target.value)} className="h-8 text-xs" placeholder="e.g., 6110.20.2020" />
+          </Field>
+          <Field label="Brand" className="col-span-2">
+            <Input value={form.brand ?? ""} onChange={(e) => set("brand", e.target.value)} className="h-8 text-xs" />
+          </Field>
+          <Field label="Manufacturer" className="col-span-2">
+            <Input value={form.manufacturer ?? ""} onChange={(e) => set("manufacturer", e.target.value)} className="h-8 text-xs" />
+          </Field>
+          <Field label="Mfg SKU" className="col-span-2">
+            <Input value={form.manufacturerSku ?? ""} onChange={(e) => set("manufacturerSku", e.target.value)} className="h-8 text-xs" />
           </Field>
         </div>
 
@@ -1188,6 +1494,38 @@ function AddLocationDialog({
         pickable: true,
         allowedItemStyles: null,
         notes: "",
+        slottingRules: {
+          allowedStorageClasses: ["forward", "reserve", "bulk"],
+          putawayPriority: 50,
+          replenPriority: 50,
+          allowedPalletTypes: ["standard_48x40"],
+        },
+        velocityMetrics: {
+          picksPerDay: 0,
+          linesPerDay: 0,
+          cubicVelocity: 0,
+          lastCalculated: new Date().toISOString(),
+          manualOverride: false,
+        },
+        zoneAdjacency: {
+          adjacent: [],
+          toShippingDockSec: 300,
+          toReceivingDockSec: 300,
+        },
+        zoneType: "reserve",
+        velocityScore: 0,
+        recommendedSku: undefined,
+        hazmatAllowed: false,
+        tempControlled: false,
+        tempMin: undefined,
+        tempMax: undefined,
+        status: "active",
+        lastCycleCount: new Date().toISOString(),
+        cycleCountFreqDays: 90,
+        putawaySequence: 50,
+        maxPalletWeightLbs: 2500,
+        maxPalletHeightIn: 72,
+        clearanceHeightIn: 96,
       });
     }
   }, [open, prefill, defaultWarehouseId, workspaceTenantId, workspaceWarehouseId]);
@@ -1221,6 +1559,42 @@ function AddLocationDialog({
           pickable: form.pickable ?? true,
           allowedItemStyles: form.allowedItemStyles ?? null,
           notes: form.notes,
+          lengthFt: form.lengthFt,
+          widthFt: form.widthFt,
+          heightFt: form.heightFt,
+          cubicFeet: form.cubicFeet,
+          slottingRules: form.slottingRules ?? {
+            allowedStorageClasses: ["forward", "reserve", "bulk"],
+            putawayPriority: 50,
+            replenPriority: 50,
+            allowedPalletTypes: ["standard_48x40"],
+          },
+          velocityMetrics: form.velocityMetrics ?? {
+            picksPerDay: 0,
+            linesPerDay: 0,
+            cubicVelocity: 0,
+            lastCalculated: new Date().toISOString(),
+            manualOverride: false,
+          },
+          zoneAdjacency: form.zoneAdjacency ?? {
+            adjacent: [],
+            toShippingDockSec: 300,
+            toReceivingDockSec: 300,
+          },
+          zoneType: form.zoneType ?? "reserve",
+          velocityScore: form.velocityScore ?? 0,
+          recommendedSku: form.recommendedSku,
+          hazmatAllowed: form.hazmatAllowed ?? false,
+          tempControlled: form.tempControlled ?? false,
+          tempMin: form.tempMin,
+          tempMax: form.tempMax,
+          status: form.status ?? "active",
+          lastCycleCount: form.lastCycleCount ?? new Date().toISOString(),
+          cycleCountFreqDays: form.cycleCountFreqDays ?? 90,
+          putawaySequence: form.putawaySequence ?? 50,
+          maxPalletWeightLbs: form.maxPalletWeightLbs ?? 2500,
+          maxPalletHeightIn: form.maxPalletHeightIn ?? 72,
+          clearanceHeightIn: form.clearanceHeightIn ?? 96,
         };
         await addLocationToMaster(newLoc);
         toast.success(`Added location ${newLoc.id}`);
@@ -1352,6 +1726,148 @@ function AddLocationDialog({
             <Input
               value={form.notes ?? ""}
               onChange={(e) => set("notes", e.target.value)}
+              className="h-8 text-xs"
+            />
+          </Field>
+          <Field label="Length (ft)" className="col-span-2">
+            <Input
+              type="number"
+              step="0.1"
+              value={form.lengthFt ?? ""}
+              onChange={(e) => set("lengthFt", e.target.value ? Number(e.target.value) : undefined)}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Width (ft)" className="col-span-2">
+            <Input
+              type="number"
+              step="0.1"
+              value={form.widthFt ?? ""}
+              onChange={(e) => set("widthFt", e.target.value ? Number(e.target.value) : undefined)}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Height (ft)" className="col-span-2">
+            <Input
+              type="number"
+              step="0.1"
+              value={form.heightFt ?? ""}
+              onChange={(e) => set("heightFt", e.target.value ? Number(e.target.value) : undefined)}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Cubic Feet" className="col-span-2">
+            <Input
+              type="number"
+              value={form.cubicFeet ?? ""}
+              onChange={(e) => set("cubicFeet", e.target.value ? Number(e.target.value) : undefined)}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Max Pallet Weight (lb)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.maxPalletWeightLbs ?? 2500}
+              onChange={(e) => set("maxPalletWeightLbs", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Max Pallet Height (in)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.maxPalletHeightIn ?? 72}
+              onChange={(e) => set("maxPalletHeightIn", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Clearance Height (in)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.clearanceHeightIn ?? 96}
+              onChange={(e) => set("clearanceHeightIn", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Zone Type" className="col-span-2">
+            <Select value={form.zoneType ?? "reserve"} onValueChange={(v) => set("zoneType", v as any)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="forward_pick">Forward Pick</SelectItem>
+                <SelectItem value="reserve">Reserve</SelectItem>
+                <SelectItem value="staging">Staging</SelectItem>
+                <SelectItem value="hazmat">Hazmat</SelectItem>
+                <SelectItem value="cold">Cold</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Status" className="col-span-2">
+            <Select value={form.status ?? "active"} onValueChange={(v) => set("status", v as any)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="maintenance">Maintenance</SelectItem>
+                <SelectItem value="damaged">Damaged</SelectItem>
+                <SelectItem value="quarantine">Quarantine</SelectItem>
+                <SelectItem value="retired">Retired</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Hazmat Allowed" className="col-span-2">
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.hazmatAllowed ?? false} onCheckedChange={(c) => set("hazmatAllowed", c)} />
+              Allow hazardous materials
+            </label>
+          </Field>
+          <Field label="Temp Controlled" className="col-span-2">
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.tempControlled ?? false} onCheckedChange={(c) => set("tempControlled", c)} />
+              Temperature controlled
+            </label>
+          </Field>
+          <Field label="Temp Min (°F)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.tempMin ?? ""}
+              onChange={(e) => set("tempMin", e.target.value ? Number(e.target.value) : undefined)}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Temp Max (°F)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.tempMax ?? ""}
+              onChange={(e) => set("tempMax", e.target.value ? Number(e.target.value) : undefined)}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Cycle Count Freq (days)" className="col-span-2">
+            <Input
+              type="number"
+              value={form.cycleCountFreqDays ?? 90}
+              onChange={(e) => set("cycleCountFreqDays", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Putaway Sequence" className="col-span-2">
+            <Input
+              type="number"
+              value={form.putawaySequence ?? 50}
+              onChange={(e) => set("putawaySequence", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Velocity Score" className="col-span-2">
+            <Input
+              type="number"
+              value={form.velocityScore ?? 0}
+              onChange={(e) => set("velocityScore", Number(e.target.value))}
+              className="h-8 text-xs text-right"
+            />
+          </Field>
+          <Field label="Recommended SKU" className="col-span-2">
+            <Input
+              value={form.recommendedSku ?? ""}
+              onChange={(e) => set("recommendedSku", e.target.value)}
               className="h-8 text-xs"
             />
           </Field>
