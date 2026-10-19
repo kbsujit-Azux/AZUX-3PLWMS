@@ -27,7 +27,15 @@ type Props = {
   ediHint: string;
   targetFields: { key: string; label: string; required?: boolean }[];
   exampleHeaders: string[];
-  onConfirm?: (file: File, tenantId?: string) => void;
+  /**
+   * Receives the selected file, the chosen tenant and the user's column
+   * mapping (target field key -> CSV header name).
+   */
+  onConfirm?: (
+    file: File,
+    tenantId: string | undefined,
+    mapping: Record<string, string>,
+  ) => void;
   errors?: ErrorItem[];
   warnings?: ErrorItem[];
   tenants?: TenantOption[];
@@ -72,7 +80,7 @@ export function CsvUploader({
 
   const confirm = () => {
     if (!file) return;
-    onConfirm?.(file, selectedTenantId || defaultTenantId);
+    onConfirm?.(file, selectedTenantId || defaultTenantId, mapping);
     toast.success("CSV ingested", {
       description: `${file.name} mapped to ${targetFields.length} fields · staged as fallback for ${ediHint}`,
     });

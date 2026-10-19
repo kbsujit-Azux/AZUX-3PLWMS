@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
 import {
   Search,
@@ -82,6 +82,14 @@ import {
   closeInboundShipment,
 } from "@/lib/inbound-data";
 import { createPalletsFromInbound } from "@/lib/pallet-data";
+import {
+  recommendPalletBuild,
+  type PalletBuildRecommendation,
+} from "@/lib/pallet-build-engine";
+import {
+  recommendPutaway,
+  type PutawayCandidate,
+} from "@/lib/putaway-engine";
 import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
 import { validateLineAgainstItemMaster, masterReasonLabel, itemMaster } from "@/lib/master-data";
@@ -1641,6 +1649,87 @@ function BuildPalletsDialog({
 
   const [palletCount, setPalletCount] = useState(defaultPallets);
   const [unitsPerPallet, setUnitsPerPallet] = useState(defaultUpp);
+  const [recommendation, setRecommendation] = useState<PalletBuildRecommendation | null>(null);
+  const [appliedRec, setAppliedRec] = useState(false);
+
+  // Live Item Master so the recommendation uses real dimensions / constraints
+  const { itemMaster: liveItemMaster, locationMaster: liveLocations, pallets: livePallets } =
+    useWmsData();
+
+  const masterItem = useMemo(
+    () => (line ? liveItemMaster.find((i) => i.sku === line.sku) : undefined),
+    [liveItemMaster, line?.sku],
+  );
+
+  /** Ask the engine for the optimal pallet configuration */
+  const runRecommendation = useCallback(() => {
+    if (!masterItem || remaining <= 0) {
+      setRecommendation(null);
+      return;
+    }
+    const rec = recommendPalletBuild({ item: masterItem, quantity: remaining });
+    setRecommendation(rec);
+    if (rec.valid) {
+      setPalletCount(rec.palletCount);
+      setUnitsPerPallet(rec.unitsPerPallet);
+      setAppliedRec(true);
+    }
+  }, [masterItem, remaining]);
+
+  /**
+   * Directed putaway suggestions for the pallet we are about to build.
+   * Uses the real Location Master (slotting rules, velocity, adjacency)
+   * and the live pallet list for zone affinity.
+   */
+  const putawaySuggestions = useMemo<PutawayCandidate[]>(() => {
+    if (!ship || !line || !masterItem || remaining <= 0) return [];
+    const casePack = masterItem.caseQty || 1;
+    const casesPerPallet = Math.max(1, Math.round(unitsPerPallet / casePack));
+    const layers = recommendation?.layersPerPallet ?? 1;
+    const caseH = masterItem.caseHeightIn ?? masterItem.heightIn;
+    const caseL = masterItem.caseLengthIn ?? masterItem.lengthIn;
+    const caseW = masterItem.caseWidthIn ?? masterItem.widthIn;
+
+    return recommendPutaway({
+      input: {
+        sku: line.sku,
+        itemStyle: line.itemStyle,
+        tenantId: ship.tenantId,
+        warehouseId: ship.warehouseId,
+        weightLbs: +(unitsPerPallet * line.weightLbsPerUnit).toFixed(1),
+        lengthIn: caseL,
+        widthIn: caseW,
+        heightIn: +(layers * caseH).toFixed(1),
+        existingPallets: (livePallets ?? []).map((p) => ({
+          sku: p.sku,
+          location: p.location,
+        })),
+      },
+      locations: liveLocations ?? [],
+      item: masterItem,
+      limit: 5,
+    });
+  }, [
+    ship,
+    line,
+    masterItem,
+    remaining,
+    unitsPerPallet,
+    recommendation,
+    liveLocations,
+    livePallets,
+  ]);
+
+  // Auto-recommend when the dialog opens for a new line
+  useEffect(() => {
+    setAppliedRec(false);
+    setRecommendation(null);
+    if (masterItem && remaining > 0) {
+      const rec = recommendPalletBuild({ item: masterItem, quantity: remaining });
+      setRecommendation(rec);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context?.l.lineNo, context?.s.id, masterItem?.sku]);
 
   // Sync defaults when context changes
   useEffect(() => {
@@ -1682,6 +1771,7 @@ function BuildPalletsDialog({
       weightLbsPerUnit: line.weightLbsPerUnit,
       builtBy: "Live receiver",
       prefix: `PLT-${warehouseCode(ship.warehouseId)}`,
+      locationSuggestions: putawaySuggestions.map((c) => c.locationId),
     });
 
     // Mutate the mock line so the UI reflects receipt progress
@@ -1750,6 +1840,121 @@ function BuildPalletsDialog({
           <KV label="Remaining" value={`${remaining.toLocaleString()} units`} />
         </div>
 
+        {recommendation && (
+          <div
+            className={`rounded-md border px-3 py-2 text-[11px] space-y-2 ${
+              recommendation.valid
+                ? "border-primary/30 bg-primary/5"
+                : "border-destructive/40 bg-destructive/10"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-semibold uppercase tracking-wider">
+                {recommendation.valid ? "Recommended build" : "Cannot satisfy constraints"}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-[10px] gap-1"
+                onClick={runRecommendation}
+                disabled={!masterItem}
+              >
+                <RefreshCw className="h-3 w-3" /> Recalculate
+              </Button>
+            </div>
+
+            {recommendation.valid ? (
+              <>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                  <KV label="Pallets" value={String(recommendation.palletCount)} />
+                  <KV label="Units / pallet" value={String(recommendation.unitsPerPallet)} />
+                  <KV label="Cases / layer" value={String(recommendation.casesPerLayer)} />
+                  <KV label="Layers" value={String(recommendation.layersPerPallet)} />
+                  <KV label="Pattern" value={recommendation.pattern} />
+                  <KV
+                    label="Stack height"
+                    value={`${recommendation.stackedHeightIn}"`}
+                  />
+                  <KV
+                    label="Pallet weight"
+                    value={`${recommendation.weightPerPalletLbs} lb`}
+                  />
+                  <KV label="Footprint" value={recommendation.footprint.label} />
+                </div>
+                {recommendation.notes.length > 0 && (
+                  <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+                    {recommendation.notes.map((n, i) => (
+                      <li key={i}>{n}</li>
+                    ))}
+                  </ul>
+                )}
+                <div className="text-muted-foreground">
+                  {appliedRec
+                    ? "Applied to the build — adjust the fields below if you need to override."
+                    : "Click Recalculate to apply these values."}
+                </div>
+              </>
+            ) : (
+              <ul className="list-disc pl-4 space-y-0.5">
+                {recommendation.violations.map((v, i) => (
+                  <li key={i} className="font-mono text-[10px]">
+                    {v}
+                  </li>
+                ))}
+                {recommendation.notes.map((n, i) => (
+                  <li key={`n${i}`}>{n}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {!masterItem && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px]">
+            No Item Master record for <span className="font-mono">{line.sku}</span> —
+            recommendations are unavailable. Add it under Master Data → Item Master.
+          </div>
+        )}
+
+        {putawaySuggestions.length > 0 && (
+          <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-[11px] space-y-1.5">
+            <div className="font-semibold uppercase tracking-wider text-muted-foreground">
+              Directed putaway — top locations
+            </div>
+            <div className="space-y-1">
+              {putawaySuggestions.map((c, idx) => (
+                <div
+                  key={c.locationId}
+                  className="flex items-start gap-2 rounded-sm border border-border/60 bg-background/60 px-2 py-1"
+                >
+                  <span className="font-mono text-[10px] text-muted-foreground w-4 shrink-0">
+                    {idx + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-semibold">{c.locationId}</span>
+                      <span className="text-muted-foreground truncate">{c.zone}</span>
+                      <span className="ml-auto font-mono font-semibold text-primary">
+                        {c.score}
+                      </span>
+                    </div>
+                    {c.reasons.slice(0, 2).map((r, i) => (
+                      <div key={i} className="text-muted-foreground truncate">
+                        • {r}
+                      </div>
+                    ))}
+                    {c.warnings.slice(0, 1).map((w, i) => (
+                      <div key={`w${i}`} className="text-amber-600 truncate">
+                        ⚠ {w}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3 mt-1">
           <div className="space-y-1">
             <Label
@@ -1763,7 +1968,10 @@ function BuildPalletsDialog({
               type="number"
               min={1}
               value={palletCount}
-              onChange={(e) => setPalletCount(Math.max(0, parseInt(e.target.value || "0", 10)))}
+              onChange={(e) => {
+                setAppliedRec(false);
+                setPalletCount(Math.max(0, parseInt(e.target.value || "0", 10)));
+              }}
               className="h-8 text-xs"
             />
           </div>
@@ -1779,7 +1987,10 @@ function BuildPalletsDialog({
               type="number"
               min={1}
               value={unitsPerPallet}
-              onChange={(e) => setUnitsPerPallet(Math.max(0, parseInt(e.target.value || "0", 10)))}
+              onChange={(e) => {
+                setAppliedRec(false);
+                setUnitsPerPallet(Math.max(0, parseInt(e.target.value || "0", 10)));
+              }}
               className="h-8 text-xs"
             />
           </div>

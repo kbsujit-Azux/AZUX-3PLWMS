@@ -59,6 +59,12 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { CsvUploader } from "@/components/csv-uploader";
+import Papa from "papaparse";
+import {
+  ITEM_MASTER_CSV_FIELDS,
+  ITEM_MASTER_CSV_HEADERS,
+  parseItemMasterCsv,
+} from "@/lib/item-master-csv";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { tenants, warehouses } from "@/lib/mock-data";
@@ -763,40 +769,72 @@ function MastersPage() {
         open={csv832Open}
         onOpenChange={setCsv832Open}
         title="Ingest Item Master"
-        description="Upload an EDI 832 export or vendor CSV. Fields below mirror the LIN/PO4/PRC segments."
+        description="Upload an EDI 832 export or vendor CSV. Maps to the full Item Master contract including GTIN pack hierarchy, apparel matrix, pallet build intelligence, velocity and substitutions."
         ediHint="EDI 832"
-        targetFields={[
-          { key: "sku", label: "Vendor SKU (LIN03)", required: true },
-          { key: "upc", label: "UPC / GTIN (LIN05)", required: true },
-          { key: "itemStyle", label: "Item style" },
-          { key: "description", label: "Description (PID05)", required: true },
-          { key: "uom", label: "Unit of measure" },
-          { key: "caseQty", label: "Case quantity (PO404)" },
-          { key: "unitCost", label: "Unit cost (PRC02)", required: true },
-          { key: "unitPrice", label: "Unit price (CTP08)" },
-          { key: "weightLbs", label: "Unit weight, lbs (MEA-G)" },
-          { key: "caseWeightLbs", label: "Case weight, lbs (MEA-G)" },
-          { key: "lengthIn", label: "Case length, in (MEA-LN)" },
-          { key: "widthIn", label: "Case width, in (MEA-WD)" },
-          { key: "heightIn", label: "Case height, in (MEA-HT)" },
-          { key: "cbmPerCase", label: "CBM per case (MEA-CB)" },
-        ]}
-        exampleHeaders={[
-          "sku",
-          "upc",
-          "style",
-          "description",
-          "uom",
-          "case_qty",
-          "unit_cost",
-          "unit_price",
-          "weight_lbs",
-          "case_weight_lbs",
-          "length_in",
-          "width_in",
-          "height_in",
-          "cbm",
-        ]}
+        targetFields={ITEM_MASTER_CSV_FIELDS.map((f) => ({
+          key: f.key,
+          label: f.label,
+          required: f.required,
+        }))}
+        exampleHeaders={ITEM_MASTER_CSV_HEADERS}
+        onConfirm={async (file, csvTenantId, mapping) => {
+          try {
+            const tenant =
+              csvTenantId || (tenantId !== "all" ? tenantId : tenants[0]?.id) || "acme";
+            const text = await file.text();
+            const parsed = Papa.parse<Record<string, string>>(text, {
+              header: true,
+              skipEmptyLines: true,
+            });
+            if (parsed.errors.length) {
+              toast.error("CSV parse error", {
+                description: parsed.errors[0].message,
+              });
+              return;
+            }
+            const result = parseItemMasterCsv(parsed.data, mapping, tenant);
+            if (result.errors.length) {
+              toast.error(`${result.errors.length} row(s) failed validation`, {
+                description: result.errors
+                  .slice(0, 3)
+                  .map((e) => `Row ${e.row}: ${e.message}`)
+                  .join(" · "),
+              });
+              return;
+            }
+            let saved = 0;
+            const failures: string[] = [];
+            for (const rec of result.records) {
+              try {
+                await addItemToMaster(rec);
+                saved++;
+              } catch (e) {
+                failures.push(`${rec.sku}: ${e instanceof Error ? e.message : String(e)}`);
+              }
+            }
+            if (failures.length) {
+              toast.error(`${failures.length} record(s) failed to save`, {
+                description: failures.slice(0, 3).join(" · "),
+              });
+            }
+            if (saved > 0) {
+              toast.success(`Imported ${saved} SKU(s) into Item Master`, {
+                description: `Tenant: ${tenant}`,
+              });
+            }
+            if (result.warnings.length) {
+              toast.warning(`${result.warnings.length} row(s) imported with warnings`, {
+                description: result.warnings
+                  .slice(0, 2)
+                  .map((w) => `Row ${w.row}: ${w.message}`)
+                  .join(" · "),
+              });
+            }
+            force((n) => n + 1);
+          } catch (e) {
+            toast.error(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }}
       />
 
       <CsvUploader

@@ -86,6 +86,25 @@ export function suggestPutawayLocation(itemStyle: string, warehouseId: string): 
   return `${whCode}·${zone}${aisle.toString().padStart(2, "0")}-${shelf.toString().padStart(2, "0")}-${bin}`;
 }
 
+/**
+ * Derive the pallet zone from a location reference.
+ *
+ * Handles both the legacy synthetic format ("ATL·A12-03-B") and real
+ * Location Master IDs ("A12-03-B", "DOCK-D07", "FLR-ATL1-01").
+ */
+export function deriveZoneFromLocation(location: string): Pallet["zone"] {
+  if (!location) return "A";
+  // Legacy format: WH·ZONE-SHELF-BIN
+  if (location.includes("·")) {
+    const zone = location.split("·")[1]?.[0];
+    if (zone) return zone as Pallet["zone"];
+  }
+  // Real location IDs: A12-03-B → "A", DOCK-D07 → "D", FLR-ATL1-01 → "F"
+  const first = location.charAt(0).toUpperCase();
+  if (/[A-Z]/.test(first)) return first as Pallet["zone"];
+  return "A";
+}
+
 function buildSeedPallets(): Pallet[] {
   const out: Pallet[] = [];
   for (const item of inventoryItems) {
@@ -222,12 +241,22 @@ export function createPalletsFromInbound(args: {
   weightLbsPerUnit: number;
   builtBy: string;
   prefix: string; // e.g. PLT-ATL1
+  /**
+   * Directed putaway suggestions produced by the PutawayEngine, in
+   * priority order. When supplied these are used for the staged
+   * pallets; otherwise the legacy deterministic fallback is used.
+   */
+  locationSuggestions?: string[];
 }): Pallet[] {
   const now = new Date().toISOString();
   const created: Pallet[] = [];
   const startSeq = Math.floor(Math.random() * 9000) + 1000;
   for (let i = 0; i < args.palletCount; i++) {
-    const suggested = suggestPutawayLocation(args.itemStyle + i, args.warehouseId);
+    const suggestionPool = args.locationSuggestions?.filter(Boolean) ?? [];
+    const suggested =
+      suggestionPool.length > 0
+        ? suggestionPool[i % suggestionPool.length]
+        : suggestPutawayLocation(args.itemStyle + i, args.warehouseId);
     const id = `${args.prefix}-${(startSeq + i).toString().padStart(5, "0")}`;
     const basePallet = {
       id,
@@ -247,7 +276,7 @@ export function createPalletsFromInbound(args: {
       status: "staged" as PalletStatus,
       location: null,
       suggestedLocation: suggested,
-      zone: (suggested.split("·")[1]?.[0] ?? "A") as Pallet["zone"],
+      zone: deriveZoneFromLocation(suggested),
       receivedAt: now,
     };
     created.push({

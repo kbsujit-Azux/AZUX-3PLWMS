@@ -13,6 +13,7 @@
     "seed:employees": "npx tsx scripts/seed-employees.ts",
     "seed:new-features": "npx tsx scripts/seed-new-features.ts",
     "clear:transactions": "npx tsx scripts/clear-transactions.ts",
+    "migrate:master-enhancements": "npx tsx scripts/migrate-master-enhancements.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
