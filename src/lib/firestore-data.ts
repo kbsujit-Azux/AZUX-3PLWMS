@@ -418,6 +418,7 @@ export async function createInboundShipmentRecord(
     expectedAt: shipment.appointmentAt || new Date().toISOString(),
     receivedAt: null,
     doorAssigned: shipment.doorAssigned || null,
+    warehouseLocation: shipment.warehouseLocation || null,
     status: "scheduled",
     source: "CSV",
     workOrderId: woId,
@@ -471,6 +472,7 @@ export async function createInboundShipmentRecord(
     updatedAt: new Date().toISOString(),
     notes: "",
     doorAssigned: shipment.doorAssigned || null,
+    warehouseLocation: shipment.warehouseLocation || null,
   };
 
   // Use batch write for atomic creation of both inbound shipment and work order
@@ -624,6 +626,7 @@ export async function updateInboundShipmentRecord(
     updatedAt: new Date().toISOString(),
     notes: woSnap.exists() ? (woSnap.data().notes || "") : "",
     doorAssigned: updates.doorAssigned ?? currentShipment.doorAssigned ?? null,
+    warehouseLocation: updates.warehouseLocation ?? currentShipment.warehouseLocation ?? null,
   };
   
   if (woSnap.exists()) {

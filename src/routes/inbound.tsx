@@ -25,6 +25,7 @@ import {
   Check,
   Edit,
   Plus,
+  Warehouse,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -706,6 +707,8 @@ function InboundPage() {
                     vessel: getField("vessel") || "",
                     voyageNumber: getField("voyage_number") || getField("voyage") || "",
                     port: getField("port") || getField("port_of_loading") || "",
+                    warehouseLocation: getField("warehouse_location") || getField("wh_location") || getField("location") || "",
+                    door: getField("door") || getField("door_assigned") || getField("dock") || "",
                     appointmentAt: expectedAtStr,
                     lines: [],
                   });
@@ -808,6 +811,7 @@ try {
                       vessel: shipment.vessel,
                       voyageNumber: shipment.voyageNumber,
                       port: shipment.port,
+                      warehouseLocation: shipment.warehouseLocation,
                       doorAssigned: shipment.door || shipment.location || null,
                       appointmentAt: shipment.appointmentAt,
                       expectedAt: shipment.appointmentAt,
@@ -867,6 +871,7 @@ try {
           { key: "client", label: "Client / Tenant", required: true },
           { key: "warehouse", label: "Warehouse", required: true },
           { key: "location", label: "Location / Rack" },
+          { key: "warehouse_location", label: "Warehouse Location" },
           { key: "door", label: "Door / Dock" },
           { key: "asn_ref", label: "ASN / Reference", required: true },
           { key: "po_number", label: "PO number", required: true },
@@ -890,6 +895,7 @@ try {
           "Client",
           "Warehouse",
           "Location",
+          "Warehouse Location",
           "Door",
           "ASN",
           "PO",
@@ -1004,6 +1010,7 @@ function ShipmentCard({
               value={`${shipment.sealNumber} · ${shipment.bolNumber}`}
             />
             <KV icon={DoorOpen} label="Door" value={shipment.doorAssigned ?? "Unassigned"} />
+            <KV icon={Warehouse} label="WH Location" value={shipment.warehouseLocation ?? "Unassigned"} />
             <KV
               icon={CalendarClock}
               label="Appointment"
@@ -1290,6 +1297,7 @@ function EditContainerDialog({
     vessel: shipment.vessel || "",
     voyageNumber: shipment.voyageNumber || "",
     port: shipment.port || "",
+    warehouseLocation: shipment.warehouseLocation || "",
     appointmentAt: shipment.appointmentAt,
   });
   const [lines, setLines] = useState(
@@ -1480,6 +1488,15 @@ const ts = (d: string) => {
                 value={header.origin}
                 onChange={(e) => setHeader({ ...header, origin: e.target.value })}
                 className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Warehouse Location</Label>
+              <Input
+                value={header.warehouseLocation}
+                onChange={(e) => setHeader({ ...header, warehouseLocation: e.target.value })}
+                className="h-8 text-xs"
+                placeholder="e.g., DOCK-D07, A12-03-B"
               />
             </div>
             <div className="space-y-1">
@@ -1841,6 +1858,7 @@ function AddContainerDialog({
     sealNumber: "",
     bolNumber: "",
     doorAssigned: "",
+    warehouseLocation: "",
     appointmentAt: "",
     origin: "",
     vessel: "",
@@ -2008,6 +2026,7 @@ function AddContainerDialog({
         vessel: header.vessel || "",
         voyageNumber: header.voyageNumber || "",
         port: header.port || "",
+        warehouseLocation: header.warehouseLocation || null,
         appointmentAt: header.appointmentAt ? ts(header.appointmentAt) : new Date().toISOString(),
         expectedAt: header.appointmentAt ? ts(header.appointmentAt) : new Date().toISOString(),
         status: "scheduled",
@@ -2040,6 +2059,7 @@ function AddContainerDialog({
         sealNumber: "",
         bolNumber: "",
         doorAssigned: "",
+        warehouseLocation: "",
         appointmentAt: "",
         origin: "",
         vessel: "",
@@ -2170,6 +2190,15 @@ function AddContainerDialog({
                   value={header.doorAssigned}
                   onChange={(e) => setHeader({ ...header, doorAssigned: e.target.value })}
                   className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Warehouse Location</Label>
+                <Input
+                  value={header.warehouseLocation}
+                  onChange={(e) => setHeader({ ...header, warehouseLocation: e.target.value })}
+                  className="h-8 text-xs"
+                  placeholder="e.g., DOCK-D07, A12-03-B"
                 />
               </div>
               <div className="space-y-1">
