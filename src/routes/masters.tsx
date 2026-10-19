@@ -161,8 +161,12 @@ function MastersPage() {
     tenantId !== "all" ? liveItemMaster.filter((i) => i.tenantId === tenantId) : liveItemMaster;
 
   const locationMaster =
-    warehouseId !== "all"
-      ? liveLocationMaster.filter((l) => l.warehouseId === warehouseId)
+    (warehouseId !== "all" || tenantId !== "all")
+      ? liveLocationMaster.filter((l) => {
+          const warehouseMatch = warehouseId === "all" || l.warehouseId === warehouseId;
+          const tenantMatch = tenantId === "all" || l.tenantId === tenantId;
+          return warehouseMatch && tenantMatch;
+        })
       : liveLocationMaster;
 
   const items = useMemo(() => {
@@ -1165,6 +1169,7 @@ function AddLocationDialog({
   onOpenChange: (o: boolean) => void;
   onSaved: () => void;
 }) {
+  const { tenantId: workspaceTenantId, warehouseId: workspaceWarehouseId } = useWorkspace();
   const isEdit = !!prefill;
   const [form, setForm] = useState<Partial<LocationRecord>>({});
 
@@ -1174,8 +1179,8 @@ function AddLocationDialog({
     } else if (open) {
       setForm({
         id: "",
-        warehouseId: defaultWarehouseId ?? "",
-        tenantId: undefined,
+        warehouseId: defaultWarehouseId ?? workspaceWarehouseId ?? "",
+        tenantId: workspaceTenantId !== "all" ? workspaceTenantId : undefined,
         type: "RACK",
         zone: "",
         capacityPallets: 1,
@@ -1185,7 +1190,7 @@ function AddLocationDialog({
         notes: "",
       });
     }
-  }, [open, prefill, defaultWarehouseId]);
+  }, [open, prefill, defaultWarehouseId, workspaceTenantId, workspaceWarehouseId]);
 
   const set = <K extends keyof LocationRecord>(k: K, v: LocationRecord[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
