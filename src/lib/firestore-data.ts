@@ -251,6 +251,20 @@ export async function deleteItemFromMaster(sku: string): Promise<{ ok: true }> {
   return { ok: true };
 }
 
+export async function updateItemInMaster(sku: string, updates: Partial<ItemMasterRecord>): Promise<void> {
+  const full = {
+    ...updates,
+    cbmPerCase:
+      updates.lengthIn && updates.widthIn && updates.heightIn
+        ? +(updates.lengthIn * updates.widthIn * updates.heightIn * 0.000016387064).toFixed(4)
+        : undefined,
+    effectiveAt: new Date().toISOString(),
+  };
+  // Remove undefined values
+  const clean = Object.fromEntries(Object.entries(full).filter(([_, v]) => v !== undefined));
+  await updateDoc(doc(db, "itemMaster", sku), clean);
+}
+
 // ============================================================
 // Inbound Shipments
 // ============================================================

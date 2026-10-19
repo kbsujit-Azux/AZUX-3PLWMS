@@ -57,7 +57,6 @@ import {
   locationMaster as staticLocationMaster,
   collectMasterExceptions,
   locationOccupancyPct,
-  updateItemInMaster,
   updateLocationInMaster,
   deleteLocationFromMaster,
   hasInventoryForSku,
@@ -75,6 +74,7 @@ import {
   type InventoryTransaction,
   addItemToMaster,
   deleteItemFromMaster,
+  updateItemInMaster,
 } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/masters")({
@@ -939,7 +939,7 @@ function AddItemDialog({
   const set = <K extends keyof ItemMasterRecord>(k: K, v: ItemMasterRecord[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const save = () => {
+  const save = async () => {
     if (!form.sku || !form.tenantId || !form.description) {
       toast.error("SKU, client and description are required");
       return;
@@ -965,11 +965,21 @@ function AddItemDialog({
       tenantId: form.tenantId,
     };
     if (editItem) {
-      updateItemInMaster(editItem.sku, payload);
-      toast.success(`Updated ${payload.sku} in Item Master`);
+      try {
+        await updateItemInMaster(editItem.sku, payload);
+        toast.success(`Updated ${payload.sku} in Item Master`);
+      } catch (e) {
+        toast.error(`Failed to update: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
     } else {
-      addItemToMaster(payload);
-      toast.success(`Added ${payload.sku} to Item Master`);
+      try {
+        await addItemToMaster(payload);
+        toast.success(`Added ${payload.sku} to Item Master`);
+      } catch (e) {
+        toast.error(`Failed to add: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
     }
     onSaved();
   };
