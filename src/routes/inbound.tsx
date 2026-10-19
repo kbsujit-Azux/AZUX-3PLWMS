@@ -2812,13 +2812,24 @@ function EditWorkOrderInboundDialog({
     clientName: workOrder.clientName || "",
     containerNumber: workOrder.containerNumber || "",
     trailerNumber: workOrder.trailerNumber || "",
+    sealNumber: workOrder.sealNumber || "",
+    bolNumber: workOrder.bolNumber || "",
     carrier: workOrder.carrier || "",
     poNumber: workOrder.poNumber || "",
+    ediRef: workOrder.ediRef || "",
     vessel: workOrder.vessel || "",
     voyageNumber: workOrder.voyageNumber || "",
     port: workOrder.port || "",
     origin: workOrder.origin || "",
     arrivalDate: workOrder.arrivalDate || "",
+    departureDate: workOrder.departureDate || "",
+    yardInDate: workOrder.yardInDate || "",
+    yardLeaveDate: workOrder.yardLeaveDate || "",
+    inboundEntryDate: workOrder.inboundEntryDate || "",
+    receivedDate: workOrder.receivedDate || "",
+    status: workOrder.status || "scheduled",
+    doorAssigned: workOrder.doorAssigned || "",
+    warehouseLocation: workOrder.warehouseLocation || "",
     notes: workOrder.notes || "",
   });
 
@@ -2863,6 +2874,22 @@ function EditWorkOrderInboundDialog({
               />
             </div>
             <div className="space-y-1">
+              <Label className="text-[10px]">Seal Number</Label>
+              <Input
+                value={formData.sealNumber}
+                onChange={(e) => setFormData({ ...formData, sealNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">BOL Number</Label>
+              <Input
+                value={formData.bolNumber}
+                onChange={(e) => setFormData({ ...formData, bolNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
               <Label className="text-[10px]">Carrier</Label>
               <Input
                 value={formData.carrier}
@@ -2875,6 +2902,14 @@ function EditWorkOrderInboundDialog({
               <Input
                 value={formData.poNumber}
                 onChange={(e) => setFormData({ ...formData, poNumber: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">EDI Reference</Label>
+              <Input
+                value={formData.ediRef}
+                onChange={(e) => setFormData({ ...formData, ediRef: e.target.value })}
                 className="h-8 text-xs"
               />
             </div>
@@ -2915,6 +2950,81 @@ function EditWorkOrderInboundDialog({
               <Input
                 value={formData.arrivalDate}
                 onChange={(e) => setFormData({ ...formData, arrivalDate: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Departure Date</Label>
+              <Input
+                value={formData.departureDate}
+                onChange={(e) => setFormData({ ...formData, departureDate: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Yard In Date</Label>
+              <Input
+                value={formData.yardInDate}
+                onChange={(e) => setFormData({ ...formData, yardInDate: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Yard Leave Date</Label>
+              <Input
+                value={formData.yardLeaveDate}
+                onChange={(e) => setFormData({ ...formData, yardLeaveDate: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Inbound Entry Date</Label>
+              <Input
+                value={formData.inboundEntryDate}
+                onChange={(e) => setFormData({ ...formData, inboundEntryDate: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Received Date</Label>
+              <Input
+                value={formData.receivedDate}
+                onChange={(e) => setFormData({ ...formData, receivedDate: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Status</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(v) => setFormData({ ...formData, status: v as WorkOrderStatus })}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="at_dock">At Dock</SelectItem>
+                  <SelectItem value="unloading">Unloading</SelectItem>
+                  <SelectItem value="received">Received</SelectItem>
+                  <SelectItem value="departed">Departed</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Door Assigned</Label>
+              <Input
+                value={formData.doorAssigned}
+                onChange={(e) => setFormData({ ...formData, doorAssigned: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Warehouse Location</Label>
+              <Input
+                value={formData.warehouseLocation}
+                onChange={(e) => setFormData({ ...formData, warehouseLocation: e.target.value })}
                 className="h-8 text-xs"
               />
             </div>

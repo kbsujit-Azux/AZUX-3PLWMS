@@ -3553,12 +3553,13 @@ export async function updateWorkOrder(id: string, updates: any): Promise<void> {
     updatedAt: serverTimestamp(),
   });
 
-  // Sync back to linked InboundShipment when status changes
-  if (updates.status) {
-    try {
-      const allShipments = await fetchInboundShipments();
-      const linked = allShipments.find((s) => s.workOrderId === id);
-      if (linked) {
+  // Sync back to linked InboundShipment for all relevant fields
+  try {
+    const allShipments = await fetchInboundShipments();
+    const linked = allShipments.find((s) => s.workOrderId === id);
+    if (linked) {
+      // Sync status
+      if (updates.status) {
         const woToInbound: Record<string, "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception"> = {
           scheduled: "scheduled",
           at_dock: "arrived",
@@ -3576,9 +3577,45 @@ export async function updateWorkOrder(id: string, updates: any): Promise<void> {
           });
         }
       }
-    } catch (e) {
-      console.error("Failed to sync WorkOrder to inbound:", e);
+
+      // Sync other fields that map between WorkOrder and InboundShipment
+      const inboundUpdates: Partial<InboundShipment> = {};
+      const fieldMap: Record<string, string> = {
+        carrier: "carrier",
+        containerNumber: "containerNumber",
+        trailerNumber: "trailerNumber",
+        sealNumber: "sealNumber",
+        bolNumber: "bolNumber",
+        poNumber: "poNumber",
+        ediRef: "ediRef",
+        vessel: "vessel",
+        voyageNumber: "voyageNumber",
+        port: "port",
+        origin: "origin",
+        arrivalDate: "appointmentAt",
+        departureDate: "receivedAt", // Not exact mapping but close
+        yardInDate: "receivedAt",
+        yardLeaveDate: "receivedAt",
+        doorAssigned: "doorAssigned",
+        warehouseLocation: "warehouseLocation",
+        notes: "notes",
+      };
+
+      for (const [woField, inboundField] of Object.entries(fieldMap)) {
+        if (updates[woField] !== undefined && updates[woField] !== linked[inboundField]) {
+          inboundUpdates[inboundField] = updates[woField];
+        }
+      }
+
+      if (Object.keys(inboundUpdates).length > 0) {
+        await updateInboundShipmentRecord(linked.id, {
+          ...linked,
+          ...inboundUpdates,
+        });
+      }
     }
+  } catch (e) {
+    console.error("Failed to sync WorkOrder to inbound:", e);
   }
 }
 
