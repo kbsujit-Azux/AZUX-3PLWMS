@@ -73,7 +73,7 @@ export type InboundShipment = {
   expectedAt: string;
   receivedAt: string | null;
   doorAssigned: string | null;
-  warehouseLocation: string | null; // Warehouse location from locationMaster (e.g., DOCK-D07, A12-03-B)
+  warehouseLocation?: string | null; // Warehouse location from locationMaster (e.g., DOCK-D07, A12-03-B)
   status: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception";
   source: "EDI_943" | "EDI_944" | "CSV" | "MANUAL";
   workOrderId?: string;

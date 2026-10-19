@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -70,6 +71,12 @@ import {
   type ItemMasterRecord,
   type LocationRecord,
   type LocationType,
+  type PalletBuildConfig,
+  type VelocityClassification,
+  type ApparelAttributes,
+  type SlottingRules,
+  type VelocityMetrics,
+  type ZoneAdjacency,
 } from "@/lib/master-data";
 import { fmtDateYear } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -106,6 +113,43 @@ const typeStyles: Record<LocationType, string> = {
   RACK: "bg-chart-2/15 text-chart-2 border-chart-2/30",
 };
 
+const DEFAULT_PALLET_BUILD: PalletBuildConfig = {
+  maxPalletHeightIn: 60,
+  maxPalletWeightLbs: 2500,
+  stackability: "full",
+  palletPattern: "interlock",
+  allowMixedSku: false,
+  palletType: "standard_48x40",
+};
+
+const DEFAULT_VELOCITY: VelocityClassification = {
+  abcClass: "B",
+  annualPicks: 500,
+  linesPerOrder: 3,
+  storageClass: "reserve",
+};
+
+const DEFAULT_SLOTTING: SlottingRules = {
+  allowedStorageClasses: ["forward", "reserve", "bulk"],
+  putawayPriority: 50,
+  replenPriority: 50,
+  allowedPalletTypes: ["standard_48x40"],
+};
+
+const DEFAULT_VELOCITY_METRICS: VelocityMetrics = {
+  picksPerDay: 0,
+  linesPerDay: 0,
+  cubicVelocity: 0,
+  lastCalculated: new Date().toISOString(),
+  manualOverride: false,
+};
+
+const DEFAULT_ZONE_ADJACENCY: ZoneAdjacency = {
+  adjacent: [],
+  toShippingDockSec: 300,
+  toReceivingDockSec: 300,
+};
+
 function MastersPage() {
   const mastersMatch = useMatch({ from: "/masters" });
   const warehousesMatch = useMatch({ from: "/masters/warehouses", shouldThrow: false });
@@ -130,6 +174,7 @@ function MastersPage() {
   const [editLoc, setEditLoc] = useState<LocationRecord | null>(null);
   const [toDeleteItem, setToDeleteItem] = useState<ItemMasterRecord | null>(null);
   const [toDeleteLoc, setToDeleteLoc] = useState<LocationRecord | null>(null);
+  const [, force] = useState(0);
 
   // Admin cleanup state
   const { user } = useAuth();
@@ -994,6 +1039,42 @@ function AddItemDialog({
   const set = <K extends keyof ItemMasterRecord>(k: K, v: ItemMasterRecord[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  const updatePalletBuild = (patch: Partial<PalletBuildConfig>) =>
+    setForm((f) => ({
+      ...f,
+      palletBuild: { ...DEFAULT_PALLET_BUILD, ...f.palletBuild, ...patch },
+    }));
+
+  const updateVelocity = (patch: Partial<VelocityClassification>) =>
+    setForm((f) => ({
+      ...f,
+      velocity: { ...DEFAULT_VELOCITY, ...f.velocity, ...patch },
+    }));
+
+  const updateApparel = (patch: Partial<ApparelAttributes>) =>
+    setForm((f) => {
+      const base = f.apparelAttrs;
+      const next: ApparelAttributes = {
+        style: patch.style ?? base?.style ?? "",
+        color: {
+          code: patch.color?.code ?? base?.color?.code ?? "",
+          name: patch.color?.name ?? base?.color?.name ?? "",
+        },
+        size: {
+          code: patch.size?.code ?? base?.size?.code ?? "",
+          lengthIn: patch.size?.lengthIn ?? base?.size?.lengthIn,
+          widthIn: patch.size?.widthIn ?? base?.size?.widthIn,
+          heightIn: patch.size?.heightIn ?? base?.size?.heightIn,
+          weightLbs: patch.size?.weightLbs ?? base?.size?.weightLbs,
+        },
+        fit: patch.fit ?? base?.fit,
+        fabric: patch.fabric ?? base?.fabric,
+        season: patch.season ?? base?.season,
+        gender: patch.gender ?? base?.gender,
+      };
+      return { ...f, apparelAttrs: next };
+    });
+
   const save = async () => {
     if (!form.sku || !form.tenantId || !form.description) {
       toast.error("SKU, client and description are required");
@@ -1296,7 +1377,7 @@ function AddItemDialog({
             <Field label="Apparel Style">
               <Input
                 value={form.apparelAttrs?.style ?? ""}
-                onChange={(e) => set("apparelAttrs", { ...form.apparelAttrs, style: e.target.value })}
+                onChange={(e) => updateApparel({ style: e.target.value })}
                 className="h-8 text-xs"
                 placeholder="HOODIE-PULLOVER"
               />
@@ -1305,13 +1386,13 @@ function AddItemDialog({
               <div className="flex gap-2">
                 <Input
                   value={form.apparelAttrs?.color?.code ?? ""}
-                  onChange={(e) => set("apparelAttrs", { ...form.apparelAttrs, color: { code: e.target.value, name: form.apparelAttrs?.color?.name ?? "" } })}
+                  onChange={(e) => updateApparel({ color: { code: e.target.value, name: form.apparelAttrs?.color?.name ?? "" } })}
                   className="h-8 text-xs w-1/2"
                   placeholder="BLK"
                 />
                 <Input
                   value={form.apparelAttrs?.color?.name ?? ""}
-                  onChange={(e) => set("apparelAttrs", { ...form.apparelAttrs, color: { code: form.apparelAttrs?.color?.code ?? "", name: e.target.value } })}
+                  onChange={(e) => updateApparel({ color: { code: form.apparelAttrs?.color?.code ?? "", name: e.target.value } })}
                   className="h-8 text-xs w-1/2"
                   placeholder="Black"
                 />
@@ -1320,20 +1401,20 @@ function AddItemDialog({
             <Field label="Size Code">
               <Input
                 value={form.apparelAttrs?.size?.code ?? ""}
-                onChange={(e) => set("apparelAttrs", { ...form.apparelAttrs, size: { ...form.apparelAttrs?.size, code: e.target.value } })}
+                onChange={(e) => updateApparel({ size: { ...form.apparelAttrs?.size, code: e.target.value } })}
                 className="h-8 text-xs"
                 placeholder="M"
               />
             </Field>
             <Field label="Size L / W / H (in)">
               <div className="flex gap-2">
-                <Input type="number" value={form.apparelAttrs?.size?.lengthIn ?? 0} onChange={(e) => set("apparelAttrs", { ...form.apparelAttrs, size: { ...form.apparelAttrs?.size, lengthIn: Number(e.target.value) } })} className="h-8 text-xs text-right w-1/3" placeholder="L" />
-                <Input type="number" value={form.apparelAttrs?.size?.widthIn ?? 0} onChange={(e) => set("apparelAttrs", { ...form.apparelAttrs, size: { ...form.apparelAttrs?.size, widthIn: Number(e.target.value) } })} className="h-8 text-xs text-right w-1/3" placeholder="W" />
-                <Input type="number" value={form.apparelAttrs?.size?.heightIn ?? 0} onChange={(e) => set("apparelAttrs", { ...form.apparelAttrs, size: { ...form.apparelAttrs?.size, heightIn: Number(e.target.value) } })} className="h-8 text-xs text-right w-1/3" placeholder="H" />
+                <Input type="number" value={form.apparelAttrs?.size?.lengthIn ?? 0} onChange={(e) => updateApparel({ size: { code: form.apparelAttrs?.size?.code ?? "", lengthIn: Number(e.target.value) } })} className="h-8 text-xs text-right w-1/3" placeholder="L" />
+                <Input type="number" value={form.apparelAttrs?.size?.widthIn ?? 0} onChange={(e) => updateApparel({ size: { code: form.apparelAttrs?.size?.code ?? "", widthIn: Number(e.target.value) } })} className="h-8 text-xs text-right w-1/3" placeholder="W" />
+                <Input type="number" value={form.apparelAttrs?.size?.heightIn ?? 0} onChange={(e) => updateApparel({ size: { code: form.apparelAttrs?.size?.code ?? "", heightIn: Number(e.target.value) } })} className="h-8 text-xs text-right w-1/3" placeholder="H" />
               </div>
             </Field>
             <Field label="Fit">
-              <Select value={form.apparelAttrs?.fit ?? "regular"} onValueChange={(v) => set("apparelAttrs", { ...form.apparelAttrs, fit: v as any })}>
+              <Select value={form.apparelAttrs?.fit ?? "regular"} onValueChange={(v) => updateApparel({ fit: v as any })}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="regular">Regular</SelectItem>
@@ -1346,7 +1427,7 @@ function AddItemDialog({
             <Field label="Fabric">
               <Input
                 value={form.apparelAttrs?.fabric?.primary ?? ""}
-                onChange={(e) => set("apparelAttrs", { ...form.apparelAttrs, fabric: { primary: e.target.value, pct: form.apparelAttrs?.fabric?.pct ?? 100 } })}
+                onChange={(e) => updateApparel({ fabric: { primary: e.target.value, pct: form.apparelAttrs?.fabric?.pct ?? 100 } })}
                 className="h-8 text-xs"
                 placeholder="cotton 80%"
               />
@@ -1354,13 +1435,13 @@ function AddItemDialog({
             <Field label="Season">
               <Input
                 value={form.apparelAttrs?.season ?? ""}
-                onChange={(e) => set("apparelAttrs", { ...form.apparelAttrs, season: e.target.value })}
+                onChange={(e) => updateApparel({ season: e.target.value })}
                 className="h-8 text-xs"
                 placeholder="Fall / Core"
               />
             </Field>
             <Field label="Gender">
-              <Select value={form.apparelAttrs?.gender ?? "Unisex"} onValueChange={(v) => set("apparelAttrs", { ...form.apparelAttrs, gender: v })}>
+              <Select value={form.apparelAttrs?.gender ?? "Unisex"} onValueChange={(v) => updateApparel({ gender: v })}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Mens">Mens</SelectItem>
@@ -1377,19 +1458,19 @@ function AddItemDialog({
         <TabsContent value="pallet" className="mt-0">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Max Pallet Height (in)">
-            <Input type="number" value={form.palletBuild?.maxPalletHeightIn ?? 60} onChange={(e) => set("palletBuild", { ...form.palletBuild, maxPalletHeightIn: Number(e.target.value) })} className="h-8 text-xs text-right" />
+            <Input type="number" value={form.palletBuild?.maxPalletHeightIn ?? 60} onChange={(e) => updatePalletBuild({ maxPalletHeightIn: Number(e.target.value) })} className="h-8 text-xs text-right" />
           </Field>
           <Field label="Max Pallet Weight (lb)">
-            <Input type="number" value={form.palletBuild?.maxPalletWeightLbs ?? 2500} onChange={(e) => set("palletBuild", { ...form.palletBuild, maxPalletWeightLbs: Number(e.target.value) })} className="h-8 text-xs text-right" />
+            <Input type="number" value={form.palletBuild?.maxPalletWeightLbs ?? 2500} onChange={(e) => updatePalletBuild({ maxPalletWeightLbs: Number(e.target.value) })} className="h-8 text-xs text-right" />
           </Field>
           <Field label="Max Stack Height (in)">
-            <Input type="number" value={form.palletBuild?.maxStackHeightIn ?? ""} onChange={(e) => set("palletBuild", { ...form.palletBuild, maxStackHeightIn: e.target.value ? Number(e.target.value) : undefined })} className="h-8 text-xs text-right" />
+            <Input type="number" value={form.palletBuild?.maxStackHeightIn ?? ""} onChange={(e) => updatePalletBuild({ maxStackHeightIn: e.target.value ? Number(e.target.value) : undefined })} className="h-8 text-xs text-right" />
           </Field>
           <Field label="Overhang (in)">
-            <Input type="number" value={form.palletBuild?.overhangIn ?? ""} onChange={(e) => set("palletBuild", { ...form.palletBuild, overhangIn: e.target.value ? Number(e.target.value) : undefined })} className="h-8 text-xs text-right" />
+            <Input type="number" value={form.palletBuild?.overhangIn ?? ""} onChange={(e) => updatePalletBuild({ overhangIn: e.target.value ? Number(e.target.value) : undefined })} className="h-8 text-xs text-right" />
           </Field>
           <Field label="Stackability">
-            <Select value={form.palletBuild?.stackability ?? "full"} onValueChange={(v) => set("palletBuild", { ...form.palletBuild, stackability: v as any })}>
+            <Select value={form.palletBuild?.stackability ?? "full"} onValueChange={(v) => updatePalletBuild({ stackability: v as any })}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="full">Full</SelectItem>
@@ -1400,7 +1481,7 @@ function AddItemDialog({
             </Select>
           </Field>
           <Field label="Pallet Pattern">
-            <Select value={form.palletBuild?.palletPattern ?? "interlock"} onValueChange={(v) => set("palletBuild", { ...form.palletBuild, palletPattern: v as any })}>
+            <Select value={form.palletBuild?.palletPattern ?? "interlock"} onValueChange={(v) => updatePalletBuild({ palletPattern: v as any })}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="column">Column</SelectItem>
@@ -1411,7 +1492,7 @@ function AddItemDialog({
             </Select>
           </Field>
           <Field label="Pallet Type">
-            <Select value={form.palletBuild?.palletType ?? "standard_48x40"} onValueChange={(v) => set("palletBuild", { ...form.palletBuild, palletType: v as any })}>
+            <Select value={form.palletBuild?.palletType ?? "standard_48x40"} onValueChange={(v) => updatePalletBuild({ palletType: v as any })}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="standard_48x40">Standard 48x40</SelectItem>
@@ -1422,14 +1503,14 @@ function AddItemDialog({
           </Field>
           <Field label="Allow Mixed SKU">
             <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.palletBuild?.allowMixedSku ?? false} onCheckedChange={(c) => set("palletBuild", { ...form.palletBuild, allowMixedSku: c })} />
+              <Checkbox checked={form.palletBuild?.allowMixedSku ?? false} onCheckedChange={(c) => updatePalletBuild({ allowMixedSku: c === true })} />
               Allow mixed SKU on pallet
             </label>
           </Field>
           <Field label="Mixed SKU Styles (comma-separated)" className="col-span-2">
             <Input
               value={form.palletBuild?.mixedSkuStyles?.join(", ") ?? ""}
-              onChange={(e) => set("palletBuild", { ...form.palletBuild, mixedSkuStyles: e.target.value ? e.target.value.split(",").map(s => s.trim()).filter(Boolean) : undefined })}
+              onChange={(e) => updatePalletBuild({ mixedSkuStyles: e.target.value ? e.target.value.split(",").map(s => s.trim()).filter(Boolean) : undefined })}
               className="h-8 text-xs"
               placeholder="STV-CMP, TENT-2P"
             />
@@ -1440,7 +1521,7 @@ function AddItemDialog({
         <TabsContent value="velocity" className="mt-0">
         <div className="grid grid-cols-2 gap-3">
           <Field label="ABC Class">
-            <Select value={form.velocity?.abcClass ?? "B"} onValueChange={(v) => set("velocity", { ...form.velocity, abcClass: v as any })}>
+            <Select value={form.velocity?.abcClass ?? "B"} onValueChange={(v) => updateVelocity({ abcClass: v as any })}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="A">A - Fast</SelectItem>
@@ -1450,7 +1531,7 @@ function AddItemDialog({
             </Select>
           </Field>
           <Field label="Storage Class">
-            <Select value={form.velocity?.storageClass ?? "reserve"} onValueChange={(v) => set("velocity", { ...form.velocity, storageClass: v as any })}>
+            <Select value={form.velocity?.storageClass ?? "reserve"} onValueChange={(v) => updateVelocity({ storageClass: v as any })}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="forward">Forward Pick</SelectItem>
@@ -1462,18 +1543,18 @@ function AddItemDialog({
             </Select>
           </Field>
           <Field label="Annual Picks">
-            <Input type="number" value={form.velocity?.annualPicks ?? 500} onChange={(e) => set("velocity", { ...form.velocity, annualPicks: Number(e.target.value) })} className="h-8 text-xs text-right" />
+            <Input type="number" value={form.velocity?.annualPicks ?? 500} onChange={(e) => updateVelocity({ annualPicks: Number(e.target.value) })} className="h-8 text-xs text-right" />
           </Field>
           <Field label="Lines per Order">
-            <Input type="number" step="0.1" value={form.velocity?.linesPerOrder ?? 3} onChange={(e) => set("velocity", { ...form.velocity, linesPerOrder: Number(e.target.value) })} className="h-8 text-xs text-right" />
+            <Input type="number" step="0.1" value={form.velocity?.linesPerOrder ?? 3} onChange={(e) => updateVelocity({ linesPerOrder: Number(e.target.value) })} className="h-8 text-xs text-right" />
           </Field>
           <Field label="Reorder Days">
-            <Input type="number" value={form.velocity?.reorderDays ?? ""} onChange={(e) => set("velocity", { ...form.velocity, reorderDays: e.target.value ? Number(e.target.value) : undefined })} className="h-8 text-xs text-right" />
+            <Input type="number" value={form.velocity?.reorderDays ?? ""} onChange={(e) => updateVelocity({ reorderDays: e.target.value ? Number(e.target.value) : undefined })} className="h-8 text-xs text-right" />
           </Field>
           <Field label="Peak Months (comma-separated)">
             <Input
               value={form.velocity?.peakMonths?.join(", ") ?? ""}
-              onChange={(e) => set("velocity", { ...form.velocity, peakMonths: e.target.value ? e.target.value.split(",").map(s => Number(s.trim())).filter(Boolean) : undefined })}
+              onChange={(e) => updateVelocity({ peakMonths: e.target.value ? e.target.value.split(",").map(s => Number(s.trim())).filter(Boolean) : undefined })}
               className="h-8 text-xs"
               placeholder="1,2,11,12"
             />
@@ -1498,25 +1579,25 @@ function AddItemDialog({
         <div className="grid grid-cols-2 gap-3">
           <Field label="Lot Control">
             <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.lotControl ?? false} onCheckedChange={(c) => set("lotControl", c)} />
+              <Checkbox checked={form.lotControl ?? false} onCheckedChange={(c) => set("lotControl", c === true)} />
               Require lot/batch tracking
             </label>
           </Field>
           <Field label="Expiry Control">
             <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.expiryControl ?? false} onCheckedChange={(c) => set("expiryControl", c)} />
+              <Checkbox checked={form.expiryControl ?? false} onCheckedChange={(c) => set("expiryControl", c === true)} />
               Require expiration tracking
             </label>
           </Field>
           <Field label="Serial Control">
             <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.serialControl ?? false} onCheckedChange={(c) => set("serialControl", c)} />
+              <Checkbox checked={form.serialControl ?? false} onCheckedChange={(c) => set("serialControl", c === true)} />
               Require serial tracking
             </label>
           </Field>
           <Field label="Hazmat">
             <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.hazmat ?? false} onCheckedChange={(c) => set("hazmat", c)} />
+              <Checkbox checked={form.hazmat ?? false} onCheckedChange={(c) => set("hazmat", c === true)} />
               Hazardous material
             </label>
           </Field>
@@ -1686,6 +1767,36 @@ function AddLocationDialog({
 
   const set = <K extends keyof LocationRecord>(k: K, v: LocationRecord[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  const updateSlotting = (patch: Partial<SlottingRules>) =>
+    setForm((f) => ({
+      ...f,
+      slottingRules: { ...DEFAULT_SLOTTING, ...f.slottingRules, ...patch },
+    }));
+
+  const updateSlottingAttrs = (
+    patch: NonNullable<SlottingRules["requiredItemAttrs"]>,
+  ) =>
+    setForm((f) => ({
+      ...f,
+      slottingRules: {
+        ...DEFAULT_SLOTTING,
+        ...f.slottingRules,
+        requiredItemAttrs: { ...f.slottingRules?.requiredItemAttrs, ...patch },
+      },
+    }));
+
+  const updateVelocityMetrics = (patch: Partial<VelocityMetrics>) =>
+    setForm((f) => ({
+      ...f,
+      velocityMetrics: { ...DEFAULT_VELOCITY_METRICS, ...f.velocityMetrics, ...patch },
+    }));
+
+  const updateZoneAdjacency = (patch: Partial<ZoneAdjacency>) =>
+    setForm((f) => ({
+      ...f,
+      zoneAdjacency: { ...DEFAULT_ZONE_ADJACENCY, ...f.zoneAdjacency, ...patch },
+    }));
 
   const save = async () => {
     if (!form.id || !form.warehouseId || !form.type) {
@@ -1966,7 +2077,7 @@ function AddLocationDialog({
                     onCheckedChange={(c) => {
                       const current = form.slottingRules?.allowedStorageClasses ?? [];
                       const next = c ? [...current, sc] : current.filter((x) => x !== sc);
-                      set("slottingRules", { ...form.slottingRules, allowedStorageClasses: next });
+                      updateSlotting({ allowedStorageClasses: next });
                     }}
                   />
                   {sc}
@@ -1978,7 +2089,7 @@ function AddLocationDialog({
             <Input
               type="number"
               value={form.slottingRules?.putawayPriority ?? 50}
-              onChange={(e) => set("slottingRules", { ...form.slottingRules, putawayPriority: Number(e.target.value) })}
+              onChange={(e) => updateSlotting({ putawayPriority: Number(e.target.value) })}
               className="h-8 text-xs text-right"
             />
           </Field>
@@ -1986,7 +2097,7 @@ function AddLocationDialog({
             <Input
               type="number"
               value={form.slottingRules?.replenPriority ?? 50}
-              onChange={(e) => set("slottingRules", { ...form.slottingRules, replenPriority: Number(e.target.value) })}
+              onChange={(e) => updateSlotting({ replenPriority: Number(e.target.value) })}
               className="h-8 text-xs text-right"
             />
           </Field>
@@ -1994,7 +2105,7 @@ function AddLocationDialog({
             <Input
               type="number"
               value={form.slottingRules?.requiredItemAttrs?.maxWeightLbs ?? ""}
-              onChange={(e) => set("slottingRules", { ...form.slottingRules, requiredItemAttrs: { ...form.slottingRules?.requiredItemAttrs, maxWeightLbs: e.target.value ? Number(e.target.value) : undefined } })}
+              onChange={(e) => updateSlottingAttrs({ maxWeightLbs: e.target.value ? Number(e.target.value) : undefined })}
               className="h-8 text-xs text-right"
             />
           </Field>
@@ -2007,7 +2118,7 @@ function AddLocationDialog({
                     onCheckedChange={(c) => {
                       const current = form.slottingRules?.allowedPalletTypes ?? [];
                       const next = c ? [...current, pt] : current.filter((x) => x !== pt);
-                      set("slottingRules", { ...form.slottingRules, allowedPalletTypes: next });
+                      updateSlotting({ allowedPalletTypes: next });
                     }}
                   />
                   {pt}
@@ -2023,8 +2134,8 @@ function AddLocationDialog({
                     checked={form.slottingRules?.requiredItemAttrs?.abcClass?.includes(abc) ?? false}
                     onCheckedChange={(c) => {
                       const current = form.slottingRules?.requiredItemAttrs?.abcClass ?? [];
-                      const next = c ? [...current, abc] : current.filter((x) => x !== abc);
-                      set("slottingRules", { ...form.slottingRules, requiredItemAttrs: { ...form.slottingRules?.requiredItemAttrs, abcClass: next } });
+                      const next = c === true ? [...current, abc] : current.filter((x) => x !== abc);
+                      updateSlottingAttrs({ abcClass: next });
                     }}
                   />
                   {abc}
@@ -2035,7 +2146,7 @@ function AddLocationDialog({
           <Field label="Adjacent Zones (comma-separated)" className="col-span-2">
             <Input
               value={form.slottingRules?.adjacentZones?.join(", ") ?? ""}
-              onChange={(e) => set("slottingRules", { ...form.slottingRules, adjacentZones: e.target.value ? e.target.value.split(",").map((s) => s.trim()).filter(Boolean) : undefined })}
+              onChange={(e) => updateSlotting({ adjacentZones: e.target.value ? e.target.value.split(",").map((s) => s.trim()).filter(Boolean) : undefined })}
               className="h-8 text-xs"
               placeholder="Reserve, Forward Pick"
             />
@@ -2050,7 +2161,7 @@ function AddLocationDialog({
               type="number"
               step="0.1"
               value={form.velocityMetrics?.picksPerDay ?? 0}
-              onChange={(e) => set("velocityMetrics", { ...form.velocityMetrics, picksPerDay: Number(e.target.value) })}
+              onChange={(e) => updateVelocityMetrics({ picksPerDay: Number(e.target.value) })}
               className="h-8 text-xs text-right"
             />
           </Field>
@@ -2059,7 +2170,7 @@ function AddLocationDialog({
               type="number"
               step="0.1"
               value={form.velocityMetrics?.linesPerDay ?? 0}
-              onChange={(e) => set("velocityMetrics", { ...form.velocityMetrics, linesPerDay: Number(e.target.value) })}
+              onChange={(e) => updateVelocityMetrics({ linesPerDay: Number(e.target.value) })}
               className="h-8 text-xs text-right"
             />
           </Field>
@@ -2068,7 +2179,7 @@ function AddLocationDialog({
               type="number"
               step="0.1"
               value={form.velocityMetrics?.cubicVelocity ?? 0}
-              onChange={(e) => set("velocityMetrics", { ...form.velocityMetrics, cubicVelocity: Number(e.target.value) })}
+              onChange={(e) => updateVelocityMetrics({ cubicVelocity: Number(e.target.value) })}
               className="h-8 text-xs text-right"
             />
           </Field>
@@ -2084,7 +2195,7 @@ function AddLocationDialog({
             <Input
               type="number"
               value={form.zoneAdjacency?.toShippingDockSec ?? 300}
-              onChange={(e) => set("zoneAdjacency", { ...form.zoneAdjacency, toShippingDockSec: Number(e.target.value) })}
+              onChange={(e) => updateZoneAdjacency({ toShippingDockSec: Number(e.target.value) })}
               className="h-8 text-xs text-right"
             />
           </Field>
@@ -2092,7 +2203,7 @@ function AddLocationDialog({
             <Input
               type="number"
               value={form.zoneAdjacency?.toReceivingDockSec ?? 300}
-              onChange={(e) => set("zoneAdjacency", { ...form.zoneAdjacency, toReceivingDockSec: Number(e.target.value) })}
+              onChange={(e) => updateZoneAdjacency({ toReceivingDockSec: Number(e.target.value) })}
               className="h-8 text-xs text-right"
             />
           </Field>
@@ -2103,13 +2214,13 @@ function AddLocationDialog({
         <div className="grid grid-cols-2 gap-3">
           <Field label="Hazmat Allowed" className="col-span-2">
             <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.hazmatAllowed ?? false} onCheckedChange={(c) => set("hazmatAllowed", c)} />
+              <Checkbox checked={form.hazmatAllowed ?? false} onCheckedChange={(c) => set("hazmatAllowed", c === true)} />
               Allow hazardous materials
             </label>
           </Field>
           <Field label="Temp Controlled" className="col-span-2">
             <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.tempControlled ?? false} onCheckedChange={(c) => set("tempControlled", c)} />
+              <Checkbox checked={form.tempControlled ?? false} onCheckedChange={(c) => set("tempControlled", c === true)} />
               Temperature controlled
             </label>
           </Field>

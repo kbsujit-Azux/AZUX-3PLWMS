@@ -272,7 +272,6 @@ export async function addLocationToMaster(loc: LocationRecord): Promise<Location
   const full: LocationRecord = {
     ...loc,
     cubicFeet: loc.lengthFt && loc.widthFt && loc.heightFt ? loc.lengthFt * loc.widthFt * loc.heightFt : 0,
-    effectiveAt: new Date().toISOString(),
   };
   await setDoc(doc(db, "locationMaster", full.id), full);
   return full;
@@ -285,7 +284,6 @@ export async function updateLocationInMaster(id: string, updates: Partial<Locati
       updates.lengthFt && updates.widthFt && updates.heightFt
         ? updates.lengthFt * updates.widthFt * updates.heightFt
         : undefined,
-    effectiveAt: new Date().toISOString(),
   };
   const clean = Object.fromEntries(Object.entries(full).filter(([_, v]) => v !== undefined));
   await updateDoc(doc(db, "locationMaster", id), clean);
@@ -597,6 +595,8 @@ export async function updateInboundShipmentRecord(
     vessel?: string;
     voyageNumber?: string;
     port?: string;
+    doorAssigned?: string | null;
+    warehouseLocation?: string | null;
   }
 ) {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
@@ -1975,6 +1975,32 @@ export async function rebuildLocationMasterFromInventory(): Promise<{
             occupiedPallets: 0,
             pickable,
             allowedItemStyles: null,
+            slottingRules: {
+              allowedStorageClasses: isFloor
+                ? ["bulk", "reserve"]
+                : isDrop
+                  ? ["forward", "reserve", "bulk", "staging"]
+                  : ["reserve", "bulk"],
+              putawayPriority: isDrop ? 20 : isFloor ? 80 : 50,
+              replenPriority: isDrop ? 20 : isFloor ? 80 : 50,
+              allowedPalletTypes: ["standard_48x40"],
+            },
+            velocityMetrics: {
+              picksPerDay: 0,
+              linesPerDay: 0,
+              cubicVelocity: 0,
+              lastCalculated: new Date().toISOString(),
+              manualOverride: false,
+            },
+            zoneAdjacency: {
+              adjacent: [],
+              toShippingDockSec: 300,
+              toReceivingDockSec: isDrop ? 30 : 180,
+            },
+            status: "active",
+            maxPalletWeightLbs: isFloor ? 3000 : 2500,
+            maxPalletHeightIn: isFloor ? 96 : 72,
+            clearanceHeightIn: isFloor ? 120 : 96,
           });
           created++;
         }
@@ -3579,7 +3605,7 @@ export async function updateWorkOrder(id: string, updates: any): Promise<void> {
       }
 
       // Sync other fields that map between WorkOrder and InboundShipment
-      const inboundUpdates: Partial<InboundShipment> = {};
+      const inboundUpdates: Record<string, unknown> = {};
       const fieldMap: Record<string, string> = {
         carrier: "carrier",
         containerNumber: "containerNumber",
@@ -3602,8 +3628,10 @@ export async function updateWorkOrder(id: string, updates: any): Promise<void> {
       };
 
       for (const [woField, inboundField] of Object.entries(fieldMap)) {
-        if (updates[woField] !== undefined && updates[woField] !== linked[inboundField]) {
-          inboundUpdates[inboundField] = updates[woField];
+        const newVal = (updates as Record<string, unknown>)[woField];
+        const curVal = (linked as unknown as Record<string, unknown>)[inboundField];
+        if (newVal !== undefined && newVal !== curVal) {
+          inboundUpdates[inboundField] = newVal;
         }
       }
 

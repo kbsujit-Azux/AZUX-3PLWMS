@@ -59,6 +59,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { tenants, warehouses, inventoryItems } from "@/lib/mock-data";
@@ -69,6 +76,7 @@ import {
   type InboundLine,
   type InboundShipment,
   type WorkOrder,
+  type WorkOrderStatus,
   inboundShipments,
   inboundReceipts,
   closeInboundShipment,
@@ -78,7 +86,7 @@ import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
 import { validateLineAgainstItemMaster, masterReasonLabel, itemMaster } from "@/lib/master-data";
 import { locationMaster } from "@/lib/master-data";
-import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment, updateInboundShipmentRecord, updateInboundLine, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive, deleteWorkOrder, updateWorkOrder } from "@/lib/firestore-data";
+import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment, updateInboundShipmentRecord, updateInboundLine, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive, deleteWorkOrder as deleteWorkOrderRecord, updateWorkOrder } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
   head: () => ({
@@ -277,7 +285,7 @@ function InboundPage() {
 
   const handleDeleteWorkOrder = async (wo: WorkOrder) => {
     try {
-      await deleteWorkOrder(wo.id);
+      await deleteWorkOrderRecord(wo.id);
       toast.success(`Work order ${wo.woNumber} deleted`);
       setDeleteWorkOrder(null);
       refreshData();
@@ -708,7 +716,6 @@ function InboundPage() {
                     voyageNumber: getField("voyage_number") || getField("voyage") || "",
                     port: getField("port") || getField("port_of_loading") || "",
                     warehouseLocation: getField("warehouse_location") || getField("wh_location") || getField("location") || "",
-                    door: getField("door") || getField("door_assigned") || getField("dock") || "",
                     appointmentAt: expectedAtStr,
                     lines: [],
                   });
@@ -828,12 +835,10 @@ try {
             setCsvWarnings(warnings);
 
             const recordId = await createCsvUploadRecord({
-              id: "",
               tenantId: tenantId !== "all" ? tenantId : (tenants.find((t) => t.id !== "all")?.id || "acme"),
               warehouseId: warehouseId !== "all" ? warehouseId : (warehouses.find((w) => w.id !== "all")?.id || "atl1"),
               fileName: file.name,
               fileSize: file.size,
-              uploadAt: new Date().toISOString(),
               uploadedBy: "Manual Upload",
               source: "inbound_asn",
               status: errors.length === 0 ? "completed" : "failed",
@@ -1178,7 +1183,7 @@ function ShipmentCard({
                             : `Build ${palletsRemaining} pallet${palletsRemaining === 1 ? "" : "s"}`}
                       </Button>
                     );
-                  })}
+                  })()}
                 </TableCell>
               </TableRow>
             );
@@ -1300,24 +1305,27 @@ function EditContainerDialog({
     warehouseLocation: shipment.warehouseLocation || "",
     appointmentAt: shipment.appointmentAt,
   });
-  const [lines, setLines] = useState(
-    (shipment.lines || []).map((l) => ({
-      lineNo: l.lineNo,
-      sku: l.sku || "",
-      upc: l.upc || "",
-      itemStyle: l.itemStyle || "",
-      description: l.description || "",
-      lot: l.lot || "",
-      expirationDate: l.expirationDate || "2030-12-31",
-      qtyExpected: l.qtyExpected || 0,
-      cartonsExpected: l.cartonsExpected || 0,
-      unitsPerPallet: l.unitsPerPallet || 0,
-      weightLbsPerUnit: l.weightLbsPerUnit || 0,
-      receivedQty: l.receivedQty || 0,
-      palletIds: l.palletIds || [],
-      status: l.status || "expected",
-      poNumber: l.poNumber || "",
-    }))
+  const [lines, setLines] = useState<InboundLine[]>(
+    (shipment.lines || []).map(
+      (l): InboundLine => ({
+        lineNo: l.lineNo,
+        sku: l.sku || "",
+        upc: l.upc || "",
+        itemStyle: l.itemStyle || "",
+        description: l.description || "",
+        lot: l.lot || "",
+        expirationDate: l.expirationDate || "2030-12-31",
+        qtyExpected: l.qtyExpected || 0,
+        cartonsExpected: l.cartonsExpected || 0,
+        uom: l.uom || "EA",
+        unitsPerPallet: l.unitsPerPallet || 0,
+        weightLbsPerUnit: l.weightLbsPerUnit || 0,
+        receivedQty: l.receivedQty || 0,
+        palletIds: l.palletIds || [],
+        status: l.status || "expected",
+        poNumber: l.poNumber || "",
+      }),
+    ),
   );
   const [notes, setNotes] = useState("");
 
@@ -1338,6 +1346,7 @@ function EditContainerDialog({
         expirationDate: "2030-12-31",
         qtyExpected: 0,
         cartonsExpected: 0,
+        uom: "EA",
         unitsPerPallet: 0,
         weightLbsPerUnit: 0,
         receivedQty: 0,

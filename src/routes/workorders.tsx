@@ -267,7 +267,7 @@ function WorkOrdersPage() {
           </div>
         )}
         {filtered.map((w) => {
-          const hasActions = canEdit(w) || canDelete(w) || (statusTransitions[w.status] && hasPalletsBuilt(w));
+          const hasActions = canEdit(w) || canDelete(w) || (statusTransitions[w.status as WorkOrderStatus] && hasPalletsBuilt(w));
           return (
             <div key={w.id} className="rounded-md border border-border bg-card overflow-hidden">
               <div className="flex items-start justify-between gap-4 px-4 py-3 border-b border-border bg-muted/20">

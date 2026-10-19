@@ -161,7 +161,7 @@ export type SubstitutionRule = {
 /** Slotting Intelligence Rules */
 export type SlottingRules = {
   /** Storage class compatibility: which item storage classes can go here */
-  allowedStorageClasses: ("forward" | "reserve" | "bulk" | "cold" | "hazmat")[];
+  allowedStorageClasses: ("forward" | "reserve" | "bulk" | "cold" | "hazmat" | "staging")[];
   /** Required item attributes for this location */
   requiredItemAttrs?: {
     hazmatAllowed?: boolean;
@@ -1377,7 +1377,18 @@ export type LocationRecord = {
   clearanceHeightIn?: number;
 };
 
-export const locationMaster: LocationRecord[] = [
+/**
+ * Base seed location definitions. Enhanced fields (slotting rules, velocity
+ * metrics, zone adjacency, operational status) are applied programmatically
+ * in `locationMaster` below so the seed stays readable and every record
+ * receives a complete, valid shape.
+ */
+type LocationSeed = Omit<
+  LocationRecord,
+  "slottingRules" | "velocityMetrics" | "zoneAdjacency" | "status"
+>;
+
+const locationSeeds: LocationSeed[] = [
   {
     id: "DOCK-D07",
     warehouseId: "atl1",
@@ -1685,6 +1696,87 @@ export const locationMaster: LocationRecord[] = [
     cubicFeet: 4800,
   },
 ];
+
+/**
+ * Slotting defaults derived from the location's zone / type so every seeded
+ * location carries intelligent, warehouse-consistent rules.
+ */
+function seedSlottingRules(seed: LocationSeed): SlottingRules {
+  const zone = seed.zone.toLowerCase();
+  const isStaging = seed.type === "DROP" || zone.includes("dock") || zone.includes("staging") || zone.includes("drop");
+  const isBulk = seed.type === "FLR" || zone.includes("bulk");
+  const isForward = zone.includes("forward");
+  const isHazmat = zone.includes("hazmat");
+  const isCold = zone.includes("cold") || seed.tempControlled === true;
+
+  const allowedStorageClasses: SlottingRules["allowedStorageClasses"] = isHazmat
+    ? ["hazmat"]
+    : isCold
+      ? ["cold", "forward", "reserve"]
+      : isStaging
+        ? ["forward", "reserve", "bulk", "staging"]
+        : isBulk
+          ? ["bulk", "reserve"]
+          : isForward
+            ? ["forward", "reserve"]
+            : ["reserve", "bulk"];
+  return {
+    ...defaultSlottingRules,
+    allowedStorageClasses,
+    requiredItemAttrs: {
+      hazmatAllowed: isHazmat,
+      tempControlled: isCold,
+      tempMin: seed.tempMin,
+      tempMax: seed.tempMax,
+      maxWeightLbs: seed.maxPalletWeightLbs ?? (isBulk ? 3000 : 2500),
+      maxDimIn: { l: 48, w: 40, h: isBulk ? 96 : 60 },
+      abcClass: isForward ? ["A", "B"] : isBulk ? ["C"] : ["B", "C"],
+    },
+    adjacentZones: [],
+    putawayPriority: isStaging ? 20 : isForward ? 30 : isBulk ? 80 : 50,
+    replenPriority: isForward ? 10 : isBulk ? 80 : 50,
+    allowedPalletTypes: ["standard_48x40", "euro_48x32"],
+  };
+}
+
+function seedVelocityMetrics(seed: LocationSeed): VelocityMetrics {
+  const isForward = seed.zone.toLowerCase().includes("forward");
+  const isBulk = seed.type === "FLR";
+  const score = seed.velocityScore ?? 0;
+  return {
+    picksPerDay: isForward ? Math.max(score / 10, 0) : isBulk ? score / 10 : score / 10,
+    linesPerDay: isForward ? Math.max(score / 5, 0) : score / 5,
+    cubicVelocity: score,
+    lastCalculated: new Date().toISOString(),
+    manualOverride: false,
+  };
+}
+
+function seedZoneAdjacency(seed: LocationSeed): ZoneAdjacency {
+  const isDock = seed.type === "DROP";
+  const isForward = seed.zone.toLowerCase().includes("forward");
+  return {
+    ...defaultZoneAdjacency,
+    adjacent: [],
+    toShippingDockSec: isForward ? 60 : isDock ? 300 : 300,
+    toReceivingDockSec: isDock ? 30 : 180,
+  };
+}
+
+/** Fully enriched Location Master with intelligent slotting defaults. */
+export const locationMaster: LocationRecord[] = locationSeeds.map((seed) => ({
+  ...seed,
+  slottingRules: seedSlottingRules(seed),
+  velocityMetrics: seedVelocityMetrics(seed),
+  zoneAdjacency: seedZoneAdjacency(seed),
+  status: seed.notes?.toLowerCase().includes("hold") ? "quarantine" : "active",
+  lastCycleCount: new Date().toISOString(),
+  cycleCountFreqDays: seed.type === "FLR" ? 180 : seed.pickable ? 30 : 90,
+  putawaySequence: seedSlottingRules(seed).putawayPriority,
+  maxPalletWeightLbs: seed.maxPalletWeightLbs ?? (seed.type === "FLR" ? 3000 : 2500),
+  maxPalletHeightIn: seed.maxPalletHeightIn ?? (seed.type === "FLR" ? 96 : 72),
+  clearanceHeightIn: seed.clearanceHeightIn ?? (seed.type === "FLR" ? 120 : 96),
+}));
 
 export function pickableLocations(warehouseId?: string): LocationRecord[] {
   return locationMaster.filter(
