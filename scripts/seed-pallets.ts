@@ -287,6 +287,15 @@ async function main() {
     if (!DRY_RUN) {
       batch.set(db.collection("pallets").doc(palletId), pallet);
 
+      // Track the pallet created in this run so the received quantity is
+      // derived from the pallets that actually exist after the write.
+      // (Replace any earlier entry with the same id — the ids are deterministic.)
+      const list = (palletsForShipment.get(shipment.id) ?? []).filter(
+        (p: any) => p.id !== palletId,
+      );
+      list.push(pallet);
+      palletsForShipment.set(shipment.id, list);
+
       // Link the pallet back to the inbound line and advance the line status.
       // NOTE: the whole `lines` array is rewritten — a dotted path such as
       // `lines.0.receivedQty` would replace the array with a map and destroy

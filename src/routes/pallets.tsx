@@ -122,10 +122,6 @@ function PalletsPage() {
     container: "",
   });
   const [isCreating, setIsCreating] = useState(false);
-  /** Pallets that have been scan-confirmed in this session (id → location). */
-  const [confirmed, setConfirmed] = useState<Record<string, string>>({});
-  /** Pallet IDs deleted in this session (non-putaway only). */
-  const [deleted, setDeleted] = useState<Set<string>>(new Set());
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Keep the selected wave valid once live waves arrive (or change).
@@ -206,12 +202,6 @@ function PalletsPage() {
   const visiblePallets = useMemo(
     () =>
       palletList
-        .filter((p) => !deleted.has(p.id))
-        .map((p) =>
-          confirmed[p.id]
-            ? { ...p, status: "putaway" as PalletStatus, location: confirmed[p.id] }
-            : p,
-        )
         .filter((p) => {
           if (tenantId !== "all" && p.tenantId !== tenantId) return false;
           if (warehouseId !== "all" && p.warehouseId !== warehouseId) return false;
@@ -224,7 +214,7 @@ function PalletsPage() {
           }
           return true;
         }),
-    [tenantId, warehouseId, query, confirmed, poRefs, deleted],
+    [tenantId, warehouseId, query, poRefs, palletList],
   );
 
   const handleDeleteConfirm = async () => {
@@ -239,14 +229,10 @@ function PalletsPage() {
       return;
     }
     try {
-      // Persist the deletion to Firestore — the live subscription refreshes
-      // the list automatically once the document is gone.
+      // Persist the deletion to Firestore. The live subscription refreshes
+      // the list, and deletePallet() reconciles the linked inbound container
+      // so both screens show the same receipt state.
       await deletePallet(p.id);
-      setDeleted((prev) => {
-        const next = new Set(prev);
-        next.add(p.id);
-        return next;
-      });
       toast.success("Pallet removed", {
         description: `${p.id} · ${p.units} units (${Math.ceil(p.units / Math.max(1, p.casePack))} cases @ ${p.casePack}/case) returned to inbound pool.`,
       });
@@ -818,7 +804,6 @@ const reportData = visiblePallets.map((p) => ({
               putawayAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             });
-            setConfirmed((c) => ({ ...c, [palletId]: location }));
             toast.success("Putaway posted", {
               description: `${palletId} → ${location} · status → putaway`,
             });

@@ -639,6 +639,23 @@ export async function deleteInboundShipment(shipmentId: string, workOrderId?: st
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
   await deleteDoc(shipmentRef);
 
+  // Remove the pallets that were built from this container so the Pallet
+  // screen does not keep showing orphans.
+  try {
+    const [byShipment, byInbound] = await Promise.all([
+      getDocs(query(collection(db, "pallets"), where("shipmentId", "==", shipmentId))),
+      getDocs(query(collection(db, "pallets"), where("inboundShipmentId", "==", shipmentId))),
+    ]);
+    const refs = [...byShipment.docs, ...byInbound.docs].map((d) => d.ref);
+    if (refs.length) {
+      const batch = writeBatch(db);
+      refs.forEach((r) => batch.delete(r));
+      await batch.commit();
+    }
+  } catch (e) {
+    console.warn("Could not remove linked pallets:", e);
+  }
+
   if (workOrderId) {
     try {
       await deleteDoc(doc(db, "workOrders", workOrderId));
@@ -869,15 +886,22 @@ export async function updatePallet(palletId: string, updates: Partial<Pallet>) {
  *
  * The location occupancy counter is decremented in the same transaction so
  * the Location Master never drifts out of sync with the pallet records.
+ *
+ * The linked inbound container is then reconciled (see
+ * `syncInboundFromPallets`) so the Inbound screen and the Pallet screen
+ * always show the same receipt state.
  */
 export async function deletePallet(palletId: string): Promise<void> {
   const palletRef = doc(db, "pallets", palletId);
+  let shipmentId: string | null = null;
+
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(palletRef);
     if (!snap.exists()) return;
 
     const pallet = snap.data() as any;
     transaction.delete(palletRef);
+    shipmentId = pallet?.shipmentId ?? pallet?.inboundShipmentId ?? null;
 
     const locationId = pallet?.location;
     if (locationId) {
@@ -891,6 +915,72 @@ export async function deletePallet(palletId: string): Promise<void> {
         });
       }
     }
+  });
+
+  if (shipmentId) {
+    await syncInboundFromPallets(shipmentId);
+  }
+}
+
+/**
+ * Recompute an inbound container's line receipts from the pallets that
+ * actually exist, then write the shipment back.
+ *
+ * The pallets are the source of truth for what was received. This keeps the
+ * Inbound screen and the Pallet screen in agreement after a pallet is
+ * deleted (or created) so neither can drift from the other.
+ */
+export async function syncInboundFromPallets(shipmentId: string): Promise<void> {
+  const shipmentRef = doc(db, "inboundShipments", shipmentId);
+  const shipSnap = await getDoc(shipmentRef);
+  if (!shipSnap.exists()) return;
+
+  const ship = shipSnap.data() as any;
+  const lines: any[] = Array.isArray(ship.lines) ? [...ship.lines] : [];
+
+  // Pallets can carry either link field depending on how they were created.
+  const [byShipment, byInbound] = await Promise.all([
+    getDocs(query(collection(db, "pallets"), where("shipmentId", "==", shipmentId))),
+    getDocs(query(collection(db, "pallets"), where("inboundShipmentId", "==", shipmentId))),
+  ]);
+  const palletMap = new Map<string, any>();
+  [...byShipment.docs, ...byInbound.docs].forEach((d) => {
+    const p = d.data() as any;
+    palletMap.set(d.id, p);
+  });
+  const pallets = [...palletMap.values()];
+
+  let changed = false;
+  lines.forEach((line, idx) => {
+    const linked = pallets.filter((p) => p.sku === line.sku);
+    const units = linked.reduce((sum, p) => sum + (Number(p.units) || 0), 0);
+    const qtyExpected = Number(line.qtyExpected) || 0;
+    const received = Math.min(qtyExpected, units);
+    const status: "expected" | "partial" | "received" =
+      qtyExpected > 0 && received >= qtyExpected
+        ? "received"
+        : received > 0
+          ? "partial"
+          : "expected";
+    const palletIds = linked.map((p) => p.id);
+
+    if (
+      line.receivedQty !== received ||
+      line.status !== status ||
+      JSON.stringify(line.palletIds ?? []) !== JSON.stringify(palletIds)
+    ) {
+      lines[idx] = { ...line, receivedQty: received, status, palletIds };
+      changed = true;
+    }
+  });
+
+  if (!changed) return;
+
+  const allReceived = lines.length > 0 && lines.every((l) => l.status === "received");
+  await updateDoc(shipmentRef, {
+    lines,
+    status: allReceived ? "received" : "on_dock",
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -3761,11 +3851,22 @@ export async function updateWorkOrder(id: string, updates: any): Promise<void> {
 }
 
 export async function deleteWorkOrder(id: string): Promise<void> {
-  // Also remove linked inbound shipment
+  // Also remove the linked inbound shipment and the pallets built from it so
+  // no orphan records are left behind on the Pallet screen.
   try {
     const allShipments = await fetchInboundShipments();
     const linked = allShipments.find((s) => s.workOrderId === id);
     if (linked) {
+      const [byShipment, byInbound] = await Promise.all([
+        getDocs(query(collection(db, "pallets"), where("shipmentId", "==", linked.id))),
+        getDocs(query(collection(db, "pallets"), where("inboundShipmentId", "==", linked.id))),
+      ]);
+      const palletRefs = [...byShipment.docs, ...byInbound.docs].map((d) => d.ref);
+      if (palletRefs.length) {
+        const batch = writeBatch(db);
+        palletRefs.forEach((r) => batch.delete(r));
+        await batch.commit();
+      }
       await deleteDoc(doc(db, "inboundShipments", linked.id));
     }
   } catch (e) {
