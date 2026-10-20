@@ -586,12 +586,13 @@ export async function recordInboundPalletBuild(
     const lines: any[] = Array.isArray(data.lines) ? [...data.lines] : [];
 
     const line = lines[lineNo] ?? {};
-    const nextReceived = Math.min(
-      Number(line.qtyExpected ?? 0),
-      Number(line.receivedQty ?? 0) + receivedDelta,
-    );
+    // The received quantity is the ACTUAL total in the linked pallets, not
+    // capped at the expected quantity — otherwise an over-receipt would be
+    // invisible and a deleted pallet would not change anything.
+    const nextReceived = Math.max(0, Number(line.receivedQty ?? 0) + receivedDelta);
     const nextLineStatus: "expected" | "partial" | "received" =
-      nextReceived >= Number(line.qtyExpected ?? 0) && Number(line.qtyExpected ?? 0) > 0
+      Number(line.qtyExpected ?? 0) > 0 &&
+      nextReceived >= Number(line.qtyExpected ?? 0)
         ? "received"
         : nextReceived > 0
           ? "partial"
@@ -954,8 +955,12 @@ export async function syncInboundFromPallets(shipmentId: string): Promise<void> 
   lines.forEach((line, idx) => {
     const linked = pallets.filter((p) => p.sku === line.sku);
     const units = linked.reduce((sum, p) => sum + (Number(p.units) || 0), 0);
+    // The received quantity is the ACTUAL number of units in the linked
+    // pallets — it is deliberately NOT capped at the expected quantity.
+    // Capping would hide over-receipts and would make a deleted pallet
+    // invisible (the value would simply stay pinned at the cap).
+    const received = units;
     const qtyExpected = Number(line.qtyExpected) || 0;
-    const received = Math.min(qtyExpected, units);
     const status: "expected" | "partial" | "received" =
       qtyExpected > 0 && received >= qtyExpected
         ? "received"

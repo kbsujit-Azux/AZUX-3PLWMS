@@ -7,6 +7,7 @@ import {
   Search,
   Plus,
   Printer,
+  Pencil,
   ScanLine,
   ArrowRight,
   CheckCircle2,
@@ -24,6 +25,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
@@ -61,7 +69,7 @@ import {
   type PalletStatus,
 } from "@/lib/pallet-data";
 import { recommendPutaway } from "@/lib/putaway-engine";
-import { createPallet, deletePallet, updatePallet } from "@/lib/firestore-data";
+import { createPallet, deletePallet, updatePallet, syncInboundFromPallets } from "@/lib/firestore-data";
 import { orders } from "@/lib/edi-data";
 import { fmtDateTime, fmtDateYear, fmtTime, downloadExcel } from "@/lib/utils";
 
@@ -97,6 +105,7 @@ function PalletsPage() {
     inboundShipments: liveInboundShipments,
     locationMaster: liveLocationMaster,
     itemMaster: liveItemMaster,
+    warehouses: liveWarehouses,
   } = useWmsData();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"build" | "putaway" | "pick">("build");
@@ -123,6 +132,7 @@ function PalletsPage() {
   });
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editPallet, setEditPallet] = useState<Pallet | null>(null);
 
   // Keep the selected wave valid once live waves arrive (or change).
   useEffect(() => {
@@ -213,6 +223,14 @@ function PalletsPage() {
             if (!blob.includes(q)) return false;
           }
           return true;
+        })
+        // Latest build first — the most recent pallets are the ones an
+        // operator is working on.
+        .sort((a, b) => {
+          const ta = Date.parse(a.builtAt || "") || 0;
+          const tb = Date.parse(b.builtAt || "") || 0;
+          if (tb !== ta) return tb - ta;
+          return b.id.localeCompare(a.id);
         }),
     [tenantId, warehouseId, query, poRefs, palletList],
   );
@@ -604,6 +622,15 @@ const reportData = visiblePallets.map((p) => ({
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-7 w-7"
+                            title="Edit pallet"
+                            onClick={() => setEditPallet(p)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-7 w-7 text-destructive hover:text-destructive disabled:opacity-30"
                             title={
                               p.status === "putaway" ||
@@ -814,6 +841,23 @@ const reportData = visiblePallets.map((p) => ({
             return;
           }
           setScanTarget(null);
+        }}
+      />
+
+      <PalletEditDialog
+        pallet={editPallet}
+        locations={liveLocationMaster ?? []}
+        onClose={() => setEditPallet(null)}
+        onSaved={async (palletId, updates) => {
+          await updatePallet(palletId, updates);
+          // Re-derive the receipt on the linked inbound container so the
+          // Inbound screen reflects the new unit count immediately.
+          const target = palletList.find((p) => p.id === palletId);
+          const shipmentId = target?.shipmentId ?? target?.inboundShipmentId;
+          if (shipmentId) {
+            await syncInboundFromPallets(shipmentId);
+          }
+          await refreshData();
         }}
       />
 
@@ -1077,6 +1121,216 @@ function StatCell({
       </div>
       <div className={`text-base font-semibold tabular-nums ${tone}`}>{value.toLocaleString()}</div>
     </div>
+  );
+}
+
+/* ───── Edit Pallet ──────────────────────────────────────────────────── */
+
+type PalletEditForm = {
+  units: string;
+  casePack: string;
+  status: PalletStatus;
+  location: string;
+  suggestedLocation: string;
+  poNumber: string;
+  description: string;
+};
+
+/**
+ * Edit a pallet.
+ *
+ * Changing the unit count immediately re-derives the receipt on the linked
+ * inbound container, so the Inbound and Pallet screens never disagree.
+ */
+function PalletEditDialog({
+  pallet,
+  locations,
+  onClose,
+  onSaved,
+}: {
+  pallet: Pallet | null;
+  locations: any[];
+  onClose: () => void;
+  onSaved: (palletId: string, updates: Partial<Pallet>) => Promise<void>;
+}) {
+  const [form, setForm] = useState<PalletEditForm>({
+    units: "",
+    casePack: "1",
+    status: "staged",
+    location: "",
+    suggestedLocation: "",
+    poNumber: "",
+    description: "",
+  });
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!pallet) return;
+    setForm({
+      units: String(pallet.units ?? 0),
+      casePack: String(pallet.casePack ?? 1),
+      status: pallet.status,
+      location: pallet.location ?? "",
+      suggestedLocation: pallet.suggestedLocation ?? "",
+      poNumber: pallet.poNumber ?? "",
+      description: pallet.description ?? "",
+    });
+  }, [pallet]);
+
+  if (!pallet) return null;
+
+  const units = Number(form.units) || 0;
+  const casePack = Math.max(1, Number(form.casePack) || 1);
+  const cases = units / casePack;
+  const weight = +(units * (pallet.weightLbs / Math.max(1, pallet.units))).toFixed(1);
+
+  const save = async () => {
+    if (units < 0) {
+      toast.error("Units cannot be negative");
+      return;
+    }
+    setBusy(true);
+    try {
+      await onSaved(pallet.id, {
+        units,
+        casePack,
+        capacityUnits: Math.max(units, Math.ceil(units * 1.15)),
+        weightLbs: weight,
+        status: form.status,
+        location: form.location.trim() ? form.location.trim() : null,
+        suggestedLocation: form.suggestedLocation.trim(),
+        poNumber: form.poNumber,
+        description: form.description,
+        updatedAt: new Date().toISOString(),
+      });
+      toast.success(`Pallet ${pallet.id} updated`, {
+        description: `${units} units · ${Math.round(cases * 100) / 100} cases @ ${casePack}/case`,
+      });
+      onClose();
+    } catch (e) {
+      toast.error("Could not update pallet", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!pallet} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-base">Edit Pallet {pallet.id}</DialogTitle>
+          <DialogDescription className="text-xs">
+            Changes save to Firestore and re-derive the receipt on the linked
+            inbound container.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label className="text-[10px]">Units on pallet</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.units}
+              onChange={(e) => setForm({ ...form, units: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Case pack</Label>
+            <Input
+              type="number"
+              min={1}
+              value={form.casePack}
+              onChange={(e) => setForm({ ...form, casePack: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Status</Label>
+            <Select
+              value={form.status}
+              onValueChange={(v) => setForm({ ...form, status: v as PalletStatus })}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="building">Building</SelectItem>
+                <SelectItem value="staged">Staged</SelectItem>
+                <SelectItem value="putaway">Putaway</SelectItem>
+                <SelectItem value="picking">Picking</SelectItem>
+                <SelectItem value="shipped">Shipped</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">PO number</Label>
+            <Input
+              value={form.poNumber}
+              onChange={(e) => setForm({ ...form, poNumber: e.target.value })}
+              className="h-8 text-xs font-mono"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Location</Label>
+            <Select
+              value={form.location || "__none__"}
+              onValueChange={(v) =>
+                setForm({ ...form, location: v === "__none__" ? "" : v })
+              }
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Not put away" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Not put away</SelectItem>
+                {locations.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.id} — {l.zone}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Suggested location</Label>
+            <Input
+              value={form.suggestedLocation}
+              onChange={(e) => setForm({ ...form, suggestedLocation: e.target.value })}
+              className="h-8 text-xs font-mono"
+              placeholder="e.g. A12-03-B"
+            />
+          </div>
+          <div className="space-y-1 col-span-2">
+            <Label className="text-[10px]">Description</Label>
+            <Input
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-[11px] flex justify-between">
+          <span className="text-muted-foreground">Calculated</span>
+          <span className="font-mono tabular-nums">
+            {Math.round(cases * 100) / 100} cases @ {casePack}/case · {weight} lb
+          </span>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" className="h-8 text-xs" onClick={save} disabled={busy}>
+            {busy ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

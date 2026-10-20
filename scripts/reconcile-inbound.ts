@@ -47,7 +47,10 @@ async function reconcile(shipmentId: string): Promise<string> {
     const linked = pallets.filter((p) => p.sku === line.sku);
     const units = linked.reduce((s, p) => s + (Number(p.units) || 0), 0);
     const qtyExpected = Number(line.qtyExpected) || 0;
-    const received = Math.min(qtyExpected, units);
+    // The received quantity is the ACTUAL total in the linked pallets — it is
+    // NOT capped at the expected quantity, so over-receipts stay visible and
+    // a deleted pallet is reflected immediately.
+    const received = units;
     const status =
       qtyExpected > 0 && received >= qtyExpected
         ? "received"

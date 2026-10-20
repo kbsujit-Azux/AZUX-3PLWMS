@@ -308,10 +308,7 @@ async function main() {
       const linkedUnits = (palletsForShipment.get(shipment.id) ?? [])
         .filter((p: any) => p.sku === line.sku)
         .reduce((sum: number, p: any) => sum + (Number(p.units) || 0), 0);
-      const nextReceived = Math.min(
-        Number(currentLine.qtyExpected) || 0,
-        linkedUnits || Number(currentLine.receivedQty ?? 0),
-      );
+      const nextReceived = linkedUnits;
       const lineStatus =
         nextReceived >= (Number(currentLine.qtyExpected) || 0) && Number(currentLine.qtyExpected) > 0
           ? "received"

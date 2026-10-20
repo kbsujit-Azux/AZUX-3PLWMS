@@ -115,10 +115,11 @@ async function main() {
         .reduce((sum, p) => sum + (Number(p.units) || 0), 0);
 
       const qtyExpected = Number(wl.qtyExpected) || 0;
-      const receivedQty = Math.min(
-        qtyExpected,
-        Math.max(Number(existing.receivedQty) || 0, palletUnits),
-      );
+      // The received quantity reflects the ACTUAL units held by the linked
+      // pallets (not capped at the expected quantity) so over-receipts stay
+      // visible and pallet deletions are reflected immediately.
+      const received =
+        palletUnits > 0 ? palletUnits : Math.max(Number(existing.receivedQty) || 0, 0);
 
       return {
         lineNo: idx + 1,

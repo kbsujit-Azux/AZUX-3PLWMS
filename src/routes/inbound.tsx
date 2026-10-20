@@ -1086,6 +1086,9 @@ function ShipmentCard({
         <TableBody>
           {Array.isArray(shipment.lines) && shipment.lines.map((l) => {
             const lPct = inboundProgressPct(l);
+            // Variance is shown whenever the received units differ from the
+            // expected units — an over-receipt must be visible, not capped away.
+            const variance = (l.receivedQty || 0) - (l.qtyExpected || 0);
             const remaining = Math.max(0, l.qtyExpected - l.receivedQty);
             const palletsRemaining = Math.max(
               0,
@@ -1126,6 +1129,16 @@ function ShipmentCard({
                   <div className="text-[10px] text-muted-foreground tabular-nums mt-0.5">
                     {l.receivedQty.toLocaleString()} / {l.qtyExpected.toLocaleString()}
                   </div>
+                  {variance !== 0 && (
+                    <div
+                      className={`text-[10px] font-medium tabular-nums mt-0.5 ${
+                        variance > 0 ? "text-amber-600" : "text-destructive"
+                      }`}
+                    >
+                      {variance > 0 ? "Over" : "Short"} by{" "}
+                      {Math.abs(variance).toLocaleString()}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="py-2">
                   {l.palletIds && l.palletIds.length === 0 ? (

@@ -23,7 +23,9 @@ function reconcile(lines: Line[], pallets: Pallet[]): { lines: Line[]; status: s
     const linked = pallets.filter((p) => p.sku === line.sku);
     const units = linked.reduce((s, p) => s + (Number(p.units) || 0), 0);
     const qtyExpected = Number(line.qtyExpected) || 0;
-    const received = Math.min(qtyExpected, units);
+    // Mirrors syncInboundFromPallets(): the received quantity is the ACTUAL
+    // total in the linked pallets — deliberately NOT capped.
+    const received = units;
     const status: Line["status"] =
       qtyExpected > 0 && received >= qtyExpected
         ? "received"
@@ -75,9 +77,20 @@ describe("Inbound ↔ Pallet reconciliation", () => {
     expect(result.lines[0].status).toBe("received");
   });
 
-  it("never exceeds the expected quantity", () => {
+  it("reflects an over-receipt instead of capping it at the expected qty", () => {
+    // The received quantity is the ACTUAL total in the linked pallets. Capping
+    // it would hide over-receipts and would make a deleted pallet invisible.
     const result = reconcile(lines, [{ id: "PLT-9", sku: "A", units: 9999 }]);
-    expect(result.lines[0].receivedQty).toBe(200);
+    expect(result.lines[0].receivedQty).toBe(9999);
+    expect(result.lines[0].status).toBe("received");
+  });
+
+  it("drops by exactly the deleted pallet's units", () => {
+    const before = reconcile(lines, [{ id: "PLT-1", sku: "A", units: 40 }]);
+    const after = reconcile(lines, []);
+    expect(before.lines[0].receivedQty).toBe(40);
+    expect(after.lines[0].receivedQty).toBe(0);
+    expect(before.lines[0].receivedQty - after.lines[0].receivedQty).toBe(40);
   });
 
   it("marks the container received only when every line is received", () => {
