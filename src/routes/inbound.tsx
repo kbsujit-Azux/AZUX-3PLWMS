@@ -94,7 +94,7 @@ import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
 import { validateLineAgainstItemMaster, masterReasonLabel, itemMaster } from "@/lib/master-data";
 import { locationMaster } from "@/lib/master-data";
-import { createCsvUploadRecord, createInboundShipmentRecord, deleteInboundShipment, updateInboundShipmentRecord, updateInboundLine, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive, deleteWorkOrder as deleteWorkOrderRecord, updateWorkOrder } from "@/lib/firestore-data";
+import { createCsvUploadRecord, createInboundShipmentRecord, createPalletsAndLinkToShipment, deleteInboundShipment, recordInboundPalletBuild, updateInboundShipmentRecord, updateInboundLine, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive, deleteWorkOrder as deleteWorkOrderRecord, updateWorkOrder } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
   head: () => ({
@@ -1779,33 +1779,37 @@ function BuildPalletsDialog({
     line.palletIds = [...line.palletIds, ...created.map((p) => p.id)];
     line.status = line.receivedQty >= line.qtyExpected ? "received" : "partial";
 
+    // Persist the built pallets to Firestore FIRST so the pallet documents
+    // exist before the inbound line references them.
     try {
-      await updateInboundLine(ship.id, line.lineNo - 1, {
-        receivedQty: line.receivedQty,
-        palletIds: created.map((p) => p.id),
-        status: line.status,
-      });
+      await createPalletsAndLinkToShipment(ship.id, created);
     } catch (e) {
-      console.error("Failed to persist pallet build:", e);
+      console.error("Failed to persist built pallets:", e);
+      toast.error("Could not save the built pallets", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+      return;
     }
 
-    // Flip shipment status to unloading or received as appropriate
-    const allReceived = Array.isArray(ship.lines) && ship.lines.every((l) => l.status === "received");
-    if (allReceived) {
-      ship.status = "received";
-      ship.receivedAt = new Date().toISOString();
-      try {
-        await updateInboundShipmentRecord(ship.id, { ...ship, status: "received", receivedAt: ship.receivedAt });
-      } catch (e) {
-        console.error("Failed to update shipment status:", e);
+    // Update the inbound line + shipment status in a single transaction.
+    // Field-level paths keep the rest of the line intact.
+    try {
+      const { shipmentStatus } = await recordInboundPalletBuild(
+        ship.id,
+        line.lineNo - 1,
+        willReceive,
+        created.map((p) => p.id),
+        line.status,
+      );
+      ship.status = shipmentStatus;
+      if (shipmentStatus === "received") {
+        ship.receivedAt = new Date().toISOString();
       }
-    } else if (ship.status === "arrived" || ship.status === "scheduled") {
-      ship.status = "on_dock";
-      try {
-        await updateInboundShipmentRecord(ship.id, { ...ship, status: "on_dock" });
-      } catch (e) {
-        console.error("Failed to update shipment status:", e);
-      }
+    } catch (e) {
+      console.error("Failed to persist pallet build:", e);
+      toast.error("Pallets saved, but the inbound line could not be updated", {
+        description: e instanceof Error ? e.message : String(e),
+      });
     }
 
     toast.success(

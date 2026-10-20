@@ -331,14 +331,34 @@ export function subscribeInboundShipments(
   });
 }
 
+/**
+ * Update a single line of an inbound shipment.
+ *
+ * IMPORTANT: Firestore's `update()` treats a dotted path such as
+ * `lines.0.receivedQty` as a MAP key path, which replaces the whole `lines`
+ * array with an object and destroys every other line (and every other field
+ * of the targeted line). To stay safe the whole array is read, the single
+ * line is merged in memory, and the array is written back.
+ */
 export async function updateInboundLine(
   shipmentId: string,
   lineNo: number,
   updates: Partial<InboundLine>,
 ) {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
-  await updateDoc(shipmentRef, {
-    [`lines.${lineNo}`]: updates,
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(shipmentRef);
+    if (!snap.exists()) {
+      throw new Error(`Shipment ${shipmentId} not found`);
+    }
+    const data = snap.data() as any;
+    const lines: any[] = Array.isArray(data.lines) ? [...data.lines] : [];
+    const idx = Math.max(0, lineNo);
+    lines[idx] = { ...(lines[idx] ?? {}), ...updates };
+    transaction.update(shipmentRef, {
+      lines,
+      updatedAt: new Date().toISOString(),
+    });
   });
 }
 
@@ -532,9 +552,74 @@ export async function updateInboundLineFields(
   lineNo: number,
   updates: Partial<InboundLine> & { receivedQty?: number; palletIds?: string[]; status?: "expected" | "partial" | "received" },
 ) {
+  // Delegates to the array-safe implementation (see updateInboundLine).
+  return updateInboundLine(shipmentId, lineNo, updates as Partial<InboundLine>);
+}
+
+/**
+ * Record a pallet build against an inbound line.
+ *
+ * Uses field-level paths (not a whole-line replace) so the rest of the line
+ * (sku, description, qtyExpected, …) is preserved. Pallet IDs are unioned
+ * so repeated builds accumulate instead of overwriting each other.
+ *
+ * Also advances the shipment status:
+ *   - all lines received  → "received"
+ *   - otherwise           → "on_dock"
+ */
+export async function recordInboundPalletBuild(
+  shipmentId: string,
+  lineNo: number,
+  receivedDelta: number,
+  palletIds: string[],
+  lineStatus: "expected" | "partial" | "received",
+): Promise<{ shipmentStatus: "on_dock" | "received" }> {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
-  await updateDoc(shipmentRef, {
-    [`lines.${lineNo}`]: updates,
+
+  return await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(shipmentRef);
+    if (!snap.exists()) {
+      throw new Error(`Shipment ${shipmentId} not found`);
+    }
+    const data = snap.data() as any;
+    // Copy the array — never mutate the snapshot in place.
+    const lines: any[] = Array.isArray(data.lines) ? [...data.lines] : [];
+
+    const line = lines[lineNo] ?? {};
+    const nextReceived = Math.min(
+      Number(line.qtyExpected ?? 0),
+      Number(line.receivedQty ?? 0) + receivedDelta,
+    );
+    const nextLineStatus: "expected" | "partial" | "received" =
+      nextReceived >= Number(line.qtyExpected ?? 0) && Number(line.qtyExpected ?? 0) > 0
+        ? "received"
+        : nextReceived > 0
+          ? "partial"
+          : "expected";
+
+    const mergedPalletIds = Array.from(
+      new Set([...(Array.isArray(line.palletIds) ? line.palletIds : []), ...palletIds]),
+    );
+
+    lines[lineNo] = {
+      ...line,
+      receivedQty: nextReceived,
+      status: nextLineStatus,
+      palletIds: mergedPalletIds,
+    };
+
+    const allReceived = lines.every(
+      (l, i) => (i === lineNo ? nextLineStatus : l?.status) === "received",
+    );
+    const shipmentStatus: "on_dock" | "received" = allReceived ? "received" : "on_dock";
+
+    transaction.update(shipmentRef, {
+      lines,
+      status: shipmentStatus,
+      ...(shipmentStatus === "received" ? { receivedAt: new Date().toISOString() } : {}),
+      updatedAt: new Date().toISOString(),
+    });
+    return { shipmentStatus };
   });
 }
 
@@ -699,34 +784,24 @@ function mapInboundStatusToWoStatus(status: "scheduled" | "arrived" | "on_dock" 
   return map[status] as any;
 }
 
+/**
+ * Persist built pallets to Firestore and link them to an inbound shipment.
+ *
+ * The shipment reference is written onto each pallet so the Inbound screen
+ * and the Pallet screen stay bound to the same records.
+ */
 export async function createPalletsAndLinkToShipment(
   shipmentId: string,
-  pallets: Array<{
-    id: string;
-    itemStyle: string;
-    tenantId: string;
-    warehouseId: string;
-    sku: string;
-    description: string;
-    units: number;
-    capacityUnits: number;
-    casePack: number;
-    weightLbs: number;
-    builtAt: string;
-    builtBy: string;
-    poNumber: string;
-    ediSource: string;
-    status: "building" | "putaway" | "staged" | "picking" | "shipped";
-    location: string | null;
-    suggestedLocation: string;
-    zone: string;
-    receivedAt: string;
-    cubeCuFt: number;
-  }>,
+  pallets: Pallet[],
 ): Promise<void> {
   const batch = writeBatch(db);
   pallets.forEach((pallet) => {
-    batch.set(doc(db, "pallets", pallet.id), pallet);
+    batch.set(doc(db, "pallets", pallet.id), {
+      ...pallet,
+      shipmentId,
+      inboundShipmentId: shipmentId,
+      updatedAt: new Date().toISOString(),
+    });
   });
   await batch.commit();
 }
@@ -786,6 +861,36 @@ export async function updatePallet(palletId: string, updates: Partial<Pallet>) {
       ...updates,
       updatedAt: new Date().toISOString(),
     });
+  });
+}
+
+/**
+ * Delete a pallet and release its location slot.
+ *
+ * The location occupancy counter is decremented in the same transaction so
+ * the Location Master never drifts out of sync with the pallet records.
+ */
+export async function deletePallet(palletId: string): Promise<void> {
+  const palletRef = doc(db, "pallets", palletId);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(palletRef);
+    if (!snap.exists()) return;
+
+    const pallet = snap.data() as any;
+    transaction.delete(palletRef);
+
+    const locationId = pallet?.location;
+    if (locationId) {
+      const locRef = doc(db, "locationMaster", locationId);
+      const locSnap = await transaction.get(locRef);
+      if (locSnap.exists()) {
+        const current = Number(locSnap.data()?.occupiedPallets ?? 0);
+        transaction.update(locRef, {
+          occupiedPallets: Math.max(0, current - 1),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
   });
 }
 
@@ -1043,13 +1148,21 @@ export async function fetchEdiLogs(tenantId?: string, warehouseId?: string): Pro
 // ============================================================
 // Locations (Master Data)
 // ============================================================
+/**
+ * Read the Location Master.
+ *
+ * These read from the `locationMaster` collection — the single source of
+ * truth used by the Masters screen, the Putaway Engine and the RF gun.
+ * (A legacy `locations` collection used to exist as a stale duplicate; it
+ * has been consolidated into `locationMaster`.)
+ */
 export async function fetchLocations(): Promise<LocationRecord[]> {
-  const snap = await getDocs(collection(db, "locations"));
+  const snap = await getDocs(collection(db, "locationMaster"));
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as LocationRecord);
 }
 
 export function subscribeLocations(callback: (locations: LocationRecord[]) => void): Unsubscribe {
-  return onSnapshot(collection(db, "locations"), (snap: QuerySnapshot) => {
+  return onSnapshot(collection(db, "locationMaster"), (snap: QuerySnapshot) => {
     callback(
       snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as LocationRecord),
     );

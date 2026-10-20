@@ -61,6 +61,14 @@ export type Pallet = {
   receivedAt: string;
   cubeCuFt?: number;
   container?: string;
+  /** Inbound container this pallet was built from (links Pallet ↔ Inbound). */
+  shipmentId?: string;
+  /** Inbound container this pallet was built from (alias used by the UI). */
+  inboundShipmentId?: string;
+  /** Timestamp the pallet was put away into its location. */
+  putawayAt?: string;
+  /** Last modification timestamp (maintained by the Firestore layer). */
+  updatedAt?: string;
 };
 
 const ts = (d: string) => new Date(d).toISOString();

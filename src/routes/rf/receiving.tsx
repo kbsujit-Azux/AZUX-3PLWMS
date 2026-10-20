@@ -42,7 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useRfSession } from "@/lib/rf-session";
-import { fetchInboundShipments, receiveInboundShipment } from "@/lib/firestore-data";
+import { fetchInboundShipments, receiveInboundShipment, createPalletsAndLinkToShipment, recordInboundPalletBuild } from "@/lib/firestore-data";
 import { createPalletsFromInbound } from "@/lib/pallet-data";
 import { DROP001_LOCATION } from "@/lib/mock-data";
 import { type InboundShipment, type InboundLine } from "@/lib/inbound-data";
@@ -275,6 +275,17 @@ function ReceivingInner() {
         builtBy: employee.name,
         prefix,
       });
+
+      // Persist the pallets to Firestore and link them to the inbound line
+      await createPalletsAndLinkToShipment(shipment.id, newPallets);
+      await recordInboundPalletBuild(
+        shipment.id,
+        lineIdx,
+        totalUnits,
+        newPallets.map((p) => p.id),
+        line.status,
+      );
+
       toast.success(`${palletCount} pallet(s) created for ${line.sku}`);
       playChime("ok");
       setStep("complete");

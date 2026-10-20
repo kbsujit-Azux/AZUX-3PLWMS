@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Boxes,
   MapPin,
@@ -54,18 +54,15 @@ import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { tenants, warehouses, inventoryItems } from "@/lib/mock-data";
 import {
-  pallets,
-  pickWaves,
   buildPickWave,
   suggestPutawayLocation,
-  removePallets,
-  appendPallets,
+  deriveZoneFromLocation,
   type Pallet,
   type PalletStatus,
 } from "@/lib/pallet-data";
-import { createPallet } from "@/lib/firestore-data";
+import { recommendPutaway } from "@/lib/putaway-engine";
+import { createPallet, deletePallet, updatePallet } from "@/lib/firestore-data";
 import { orders } from "@/lib/edi-data";
-import { inboundShipments } from "@/lib/inbound-data";
 import { fmtDateTime, fmtDateYear, fmtTime, downloadExcel } from "@/lib/utils";
 
 export const Route = createFileRoute("/pallets")({
@@ -91,12 +88,25 @@ const statusStyles: Record<PalletStatus, string> = {
 
 function PalletsPage() {
   const { tenantId, warehouseId, strategy } = useWorkspace();
-  const { refreshData, pickWaves: livePickWaves } = useWmsData();
+  // Live Firestore data — the Pallet screen is bound to the same records the
+  // Inbound screen writes, so a build in one is instantly visible in the other.
+  const {
+    refreshData,
+    pallets: livePallets,
+    pickWaves: livePickWaves,
+    inboundShipments: liveInboundShipments,
+    locationMaster: liveLocationMaster,
+    itemMaster: liveItemMaster,
+  } = useWmsData();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"build" | "putaway" | "pick">("build");
   const [labelPallet, setLabelPallet] = useState<Pallet | null>(null);
-  // Prefer live Firestore pick waves; fall back to the bundled seed list.
-  const waveList = livePickWaves?.length ? livePickWaves : pickWaves;
+  // Firestore is the single source of truth. The bundled seed lists are NOT
+  // used as a fallback here — showing them would surface stale records that
+  // no longer exist in the database.
+  const palletList = livePallets ?? [];
+  const inboundList = liveInboundShipments ?? [];
+  const waveList = livePickWaves ?? [];
   const [selectedWave, setSelectedWave] = useState<string>(waveList[0]?.id ?? "");
   const [scanTarget, setScanTarget] = useState<Pallet | null>(null);
   const [newPalletOpen, setNewPalletOpen] = useState(false);
@@ -132,16 +142,70 @@ function PalletsPage() {
   /** PO# → { container, trailer } lookup sourced from inbound ASNs. */
   const poRefs = useMemo(() => {
     const m = new Map<string, { container: string; trailer: string }>();
-    for (const s of inboundShipments) {
+    for (const s of inboundList) {
       m.set(s.poNumber, { container: s.containerNumber, trailer: s.trailerNumber });
     }
     return m;
-  }, []);
+  }, [inboundList]);
   const refFor = (po: string) => poRefs.get(po) ?? { container: "—", trailer: "—" };
+
+  /** Inbound container id → shipment (direct pallet ↔ inbound link). */
+  const shipmentById = useMemo(() => {
+    const m = new Map<string, (typeof inboundList)[number]>();
+    for (const s of inboundList) m.set(s.id, s);
+    return m;
+  }, [inboundList]);
+
+  /** Resolve the inbound container a pallet was built from. */
+  const shipmentFor = useCallback(
+    (p: Pallet) => {
+      const sid = p.shipmentId ?? p.inboundShipmentId;
+      if (sid && shipmentById.has(sid)) return shipmentById.get(sid)!;
+      // Fall back to the PO reference for pallets created before the link existed.
+      return inboundList.find((s) => s.poNumber === p.poNumber) ?? null;
+    },
+    [shipmentById, inboundList],
+  );
+
+  /**
+   * Directed putaway suggestion backed by the live Location Master and
+   * Item Master (velocity, storage class, slotting rules, travel distance).
+   */
+  const suggestLocationFor = useCallback(
+    (args: {
+      sku: string;
+      itemStyle: string;
+      tenantId: string;
+      warehouseId: string;
+      weightLbs: number;
+      fallback: string;
+    }): string => {
+      const locations = liveLocationMaster ?? [];
+      if (locations.length === 0) return args.fallback;
+      const item = liveItemMaster?.find((i) => i.sku === args.sku);
+      const best = recommendPutaway({
+        input: {
+          sku: args.sku,
+          itemStyle: args.itemStyle,
+          tenantId: args.tenantId,
+          warehouseId: args.warehouseId,
+          weightLbs: args.weightLbs,
+          lengthIn: 48,
+          widthIn: 40,
+          heightIn: 48,
+        },
+        locations,
+        item,
+        limit: 1,
+      });
+      return best[0]?.locationId ?? args.fallback;
+    },
+    [liveLocationMaster, liveItemMaster],
+  );
 
   const visiblePallets = useMemo(
     () =>
-      pallets
+      palletList
         .filter((p) => !deleted.has(p.id))
         .map((p) =>
           confirmed[p.id]
@@ -163,9 +227,9 @@ function PalletsPage() {
     [tenantId, warehouseId, query, confirmed, poRefs, deleted],
   );
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteConfirmId) return;
-    const p = pallets.find((p) => p.id === deleteConfirmId);
+    const p = palletList.find((p) => p.id === deleteConfirmId);
     if (!p) return;
     if (p.status === "putaway" || p.status === "picking" || p.status === "shipped") {
       toast.error("Cannot delete", {
@@ -174,15 +238,24 @@ function PalletsPage() {
       setDeleteConfirmId(null);
       return;
     }
-    removePallets([p.id]);
-    setDeleted((prev) => {
-      const next = new Set(prev);
-      next.add(p.id);
-      return next;
-    });
-    toast.success("Pallet removed", {
-      description: `${p.id} · ${p.units} units (${Math.ceil(p.units / Math.max(1, p.casePack))} cases @ ${p.casePack}/case) returned to inbound pool.`,
-    });
+    try {
+      // Persist the deletion to Firestore — the live subscription refreshes
+      // the list automatically once the document is gone.
+      await deletePallet(p.id);
+      setDeleted((prev) => {
+        const next = new Set(prev);
+        next.add(p.id);
+        return next;
+      });
+      toast.success("Pallet removed", {
+        description: `${p.id} · ${p.units} units (${Math.ceil(p.units / Math.max(1, p.casePack))} cases @ ${p.casePack}/case) returned to inbound pool.`,
+      });
+    } catch (e) {
+      toast.error("Could not remove pallet", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+      return;
+    }
     setDeleteConfirmId(null);
   };
 
@@ -226,8 +299,15 @@ function PalletsPage() {
       const seq = Math.floor(Math.random() * 90000) + 10000;
       const palletId = `PLT-${whCode}-${seq.toString().padStart(5, "0")}`;
       const now = new Date().toISOString();
-      const suggested = suggestPutawayLocation(newPalletData.itemStyle, newPalletData.warehouseId);
-      const zone = (suggested.split("·")[1]?.[0] ?? "A") as Pallet["zone"];
+      const suggested = suggestLocationFor({
+        sku: newPalletData.sku,
+        itemStyle: newPalletData.itemStyle,
+        tenantId: newPalletData.tenantId,
+        warehouseId: newPalletData.warehouseId,
+        weightLbs: newPalletData.units * newPalletData.weightLbsPerUnit,
+        fallback: suggestPutawayLocation(newPalletData.itemStyle, newPalletData.warehouseId),
+      });
+      const zone = deriveZoneFromLocation(suggested);
 
       const newPallet: Pallet = {
         id: palletId,
@@ -253,7 +333,6 @@ function PalletsPage() {
       };
 
       await createPallet(newPallet);
-      appendPallets([newPallet]);
 
       toast.success("Pallet created", {
         description: `${palletId} · ${newPalletData.units} units · staged for putaway`,
@@ -440,12 +519,25 @@ const reportData = visiblePallets.map((p) => ({
                   const tenant = tenants.find((t) => t.id === p.tenantId);
                   const wh = warehouses.find((w) => w.id === p.warehouseId);
                   const fill = Math.round((p.units / p.capacityUnits) * 100);
-                  const r = refFor(p.poNumber);
+                  const shipment = shipmentFor(p);
+                  const r = shipment
+                    ? {
+                        container: shipment.containerNumber,
+                        trailer: shipment.trailerNumber,
+                      }
+                    : refFor(p.poNumber);
                   const container = r.container && r.container !== "—" ? r.container : null;
                   const trailer = r.trailer && r.trailer !== "—" ? r.trailer : null;
                   return (
                     <TableRow key={p.id} className="text-xs hover:bg-muted/30">
-                      <TableCell className="py-2 font-mono font-medium">{p.id}</TableCell>
+                      <TableCell className="py-2 font-mono font-medium">
+                        {p.id}
+                        {shipment && (
+                          <div className="text-[9px] text-muted-foreground truncate max-w-[12rem]">
+                            {shipment.id}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="py-2 font-mono text-[11px]">{p.itemStyle}</TableCell>
                       <TableCell className="py-2">
                         <div className="font-mono text-[11px]">{p.sku}</div>
@@ -607,7 +699,14 @@ const reportData = visiblePallets.map((p) => ({
                         ...p,
                         status: "staged" as PalletStatus,
                         location: null,
-                        suggestedLocation: suggestPutawayLocation(p.itemStyle, p.warehouseId),
+                        suggestedLocation: suggestLocationFor({
+                          sku: p.sku,
+                          itemStyle: p.itemStyle,
+                          tenantId: p.tenantId,
+                          warehouseId: p.warehouseId,
+                          weightLbs: p.weightLbs,
+                          fallback: suggestPutawayLocation(p.itemStyle, p.warehouseId),
+                        }),
                       })),
                   )
                   .map((p) => (
@@ -709,11 +808,26 @@ const reportData = visiblePallets.map((p) => ({
       <ScanConfirmDialog
         pallet={scanTarget}
         onClose={() => setScanTarget(null)}
-        onConfirmed={(palletId, location) => {
-          setConfirmed((c) => ({ ...c, [palletId]: location }));
-          toast.success("Putaway posted", {
-            description: `${palletId} → ${location} · status → putaway`,
-          });
+        onConfirmed={async (palletId, location) => {
+          try {
+            // Persist the putaway to Firestore; the live subscription then
+            // refreshes both the Pallet screen and the Inbound screen.
+            await updatePallet(palletId, {
+              status: "putaway",
+              location,
+              putawayAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+            setConfirmed((c) => ({ ...c, [palletId]: location }));
+            toast.success("Putaway posted", {
+              description: `${palletId} → ${location} · status → putaway`,
+            });
+          } catch (e) {
+            toast.error("Could not post putaway", {
+              description: e instanceof Error ? e.message : String(e),
+            });
+            return;
+          }
           setScanTarget(null);
         }}
       />
@@ -854,7 +968,7 @@ function PickRoutePanel({
   /** Structural subset so both live (PickWave) and seed waves are accepted. */
   waves?: Array<{ id: string; orderId: string; releasedAt: string }>;
 }) {
-  const wave = (waves ?? pickWaves).find((w) => w.id === waveId);
+  const wave = (waves ?? []).find((w) => w.id === waveId);
   const order = wave ? orders.find((o) => o.id === wave.orderId) : undefined;
 
   const route = useMemo(() => {
