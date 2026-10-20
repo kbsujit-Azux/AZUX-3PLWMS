@@ -749,7 +749,17 @@ const reportData = visiblePallets.map((p) => ({
                           size="sm"
                           variant="outline"
                           className="h-7 text-[10px] gap-1"
-                          onClick={() => setScanTarget(p)}
+                          onClick={() => {
+                            // A pallet that is already in the inventory must
+                            // be released first — it is already stored.
+                            if (p.location) {
+                              toast.error("Already in the inventory", {
+                                description: `${p.id} is stored at ${p.location}. Release it from the Inventory screen before putting it away again.`,
+                              });
+                              return;
+                            }
+                            setScanTarget(p);
+                          }}
                         >
                           <ScanLine className="h-3 w-3" /> Scan to confirm
                         </Button>

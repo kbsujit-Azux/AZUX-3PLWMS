@@ -926,6 +926,44 @@ export async function updatePallet(palletId: string, updates: Partial<Pallet>) {
  * Both the Pallet screen and the RF gun call this, so a putaway always
  * shows up in the inventory.
  */
+/**
+ * Validate a putaway before any write happens.
+ *
+ * Kept as a pure function so the rules can be unit tested:
+ *  • a pallet that is already in the inventory cannot be put away again
+ *    (it must be released from the inventory first)
+ *  • a location that has no free pallet positions cannot accept a pallet
+ */
+export function validatePutaway(args: {
+  palletId: string;
+  /** The pallet's current location (null when it is not stored) */
+  palletLocation: string | null;
+  /** Whether an inventory batch already exists for this pallet */
+  hasInventoryBatch: boolean;
+  /** The destination location */
+  location: string;
+  /** Destination location occupancy */
+  occupiedPallets?: number;
+  /** Destination location capacity (0/undefined = unlimited) */
+  capacityPallets?: number;
+}): { ok: boolean; error?: string } {
+  if (args.hasInventoryBatch && args.palletLocation) {
+    return {
+      ok: false,
+      error: `Pallet ${args.palletId} is already in the inventory at ${args.palletLocation}. Release it from the inventory before putting it away again.`,
+    };
+  }
+  const capacity = Number(args.capacityPallets ?? 0);
+  const occupied = Number(args.occupiedPallets ?? 0);
+  if (capacity > 0 && occupied >= capacity && args.palletLocation !== args.location) {
+    return {
+      ok: false,
+      error: `Location ${args.location} is full (${occupied}/${capacity} pallet positions).`,
+    };
+  }
+  return { ok: true };
+}
+
 export async function putAwayPallet(
   palletId: string,
   location: string,
@@ -938,12 +976,78 @@ export async function putAwayPallet(
   let inventorySku = "";
 
   await runTransaction(db, async (transaction) => {
+    /* ── READS (Firestore requires every read before any write) ── */
+
     const snap = await transaction.get(palletRef);
     if (!snap.exists()) {
       throw new Error(`Pallet ${palletId} not found`);
     }
     const pallet = snap.data() as any;
-    const previousLocation = pallet.location as string | null;
+    const previousLocation = (pallet.location as string | null) ?? null;
+
+    inventorySku = pallet.sku;
+    const invRef = doc(db, "inventoryItems", pallet.sku);
+    const invSnap = await transaction.get(invRef);
+
+    // The item master is only needed when the inventory record is missing.
+    let master: any = {};
+    if (!invSnap.exists()) {
+      const masterSnap = await transaction.get(doc(db, "itemMaster", pallet.sku));
+      master = masterSnap.exists() ? masterSnap.data() : {};
+    }
+
+    // The destination location.
+    const locRef = doc(db, "locationMaster", location);
+    const locSnap = await transaction.get(locRef);
+
+    // The location the pallet is leaving (when moving).
+    let prevRef: any = null;
+    let prevSnap: any = null;
+    if (previousLocation && previousLocation !== location) {
+      prevRef = doc(db, "locationMaster", previousLocation);
+      prevSnap = await transaction.get(prevRef);
+    }
+
+    /* ── VALIDATION ── */
+
+    const item: any = invSnap.exists()
+      ? invSnap.data()
+      : {
+          sku: pallet.sku,
+          upc: master.upc ?? "",
+          itemStyle: pallet.itemStyle ?? master.itemStyle ?? "",
+          description: pallet.description ?? master.description ?? "",
+          category: master.category ?? "General",
+          uom: master.uom ?? "EA",
+          unitCost: master.unitCost ?? 0,
+          unitPrice: master.unitPrice ?? 0,
+          caseQty: master.caseQty ?? 1,
+          weightLbs: master.weightLbs ?? 0,
+          tenantId: pallet.tenantId,
+          warehouseId: pallet.warehouseId,
+          batches: [],
+          status: "active",
+        };
+
+    const batches: any[] = Array.isArray(item.batches) ? [...item.batches] : [];
+    const batchIdx = batches.findIndex((b) => b.palletId === palletId);
+
+    // A pallet that is already in the inventory cannot be put away again.
+    // It must be released from the inventory first.
+    const locData = locSnap.exists() ? (locSnap.data() as any) : null;
+    const validation = validatePutaway({
+      palletId,
+      palletLocation: previousLocation,
+      hasInventoryBatch: batchIdx >= 0,
+      location,
+      occupiedPallets: Number(locData?.occupiedPallets ?? 0),
+      capacityPallets: Number(locData?.capacityPallets ?? 0),
+    });
+    if (!validation.ok) {
+      throw new Error(validation.error);
+    }
+
+    /* ── WRITES ── */
 
     // 1. The pallet
     const nextPallet = {
@@ -957,38 +1061,6 @@ export async function putAwayPallet(
     updatedPallet = nextPallet;
 
     // 2. The inventory record + batch for this pallet
-    inventorySku = pallet.sku;
-    const invRef = doc(db, "inventoryItems", pallet.sku);
-    const invSnap = await transaction.get(invRef);
-
-    let item: any;
-    if (invSnap.exists()) {
-      item = invSnap.data() as any;
-    } else {
-      // No inventory record for this SKU yet — create a minimal one from the
-      // Item Master so the batch is not silently dropped.
-      const masterSnap = await transaction.get(doc(db, "itemMaster", pallet.sku));
-      const master: any = masterSnap.exists() ? masterSnap.data() : {};
-      item = {
-        sku: pallet.sku,
-        upc: master.upc ?? "",
-        itemStyle: pallet.itemStyle ?? master.itemStyle ?? "",
-        description: pallet.description ?? master.description ?? "",
-        category: master.category ?? "General",
-        uom: master.uom ?? "EA",
-        unitCost: master.unitCost ?? 0,
-        unitPrice: master.unitPrice ?? 0,
-        caseQty: master.caseQty ?? 1,
-        weightLbs: master.weightLbs ?? 0,
-        tenantId: pallet.tenantId,
-        warehouseId: pallet.warehouseId,
-        batches: [],
-        status: "active",
-      };
-    }
-
-    const batches: any[] = Array.isArray(item.batches) ? [...item.batches] : [];
-    const batchIdx = batches.findIndex((b) => b.palletId === palletId);
     const batch = {
       batchId:
         batchIdx >= 0 ? batches[batchIdx].batchId : `${pallet.sku}-${palletId}`,
@@ -1025,26 +1097,20 @@ export async function putAwayPallet(
     }
 
     // 3. The destination location gains the pallet
-    const locRef = doc(db, "locationMaster", location);
-    const locSnap = await transaction.get(locRef);
     if (locSnap.exists()) {
-      const current = Number(locSnap.data()?.occupiedPallets ?? 0);
+      const current = Number(locData?.occupiedPallets ?? 0);
       // Moving within the same location must not double count.
       const next = previousLocation === location ? current : current + 1;
       transaction.update(locRef, { occupiedPallets: next, updatedAt: now });
     }
 
     // 4. The previous location releases it
-    if (previousLocation && previousLocation !== location) {
-      const prevRef = doc(db, "locationMaster", previousLocation);
-      const prevSnap = await transaction.get(prevRef);
-      if (prevSnap.exists()) {
-        const current = Number(prevSnap.data()?.occupiedPallets ?? 0);
-        transaction.update(prevRef, {
-          occupiedPallets: Math.max(0, current - 1),
-          updatedAt: now,
-        });
-      }
+    if (prevRef && prevSnap?.exists()) {
+      const current = Number(prevSnap.data()?.occupiedPallets ?? 0);
+      transaction.update(prevRef, {
+        occupiedPallets: Math.max(0, current - 1),
+        updatedAt: now,
+      });
     }
   });
 

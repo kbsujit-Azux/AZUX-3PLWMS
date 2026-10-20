@@ -72,7 +72,7 @@ function PutawayInner() {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [arMode, setArMode] = useState(false);
   const [locations, setLocations] = useState<
-    Record<string, { type: string; occupiedPallets?: number }>
+    Record<string, { type: string; occupiedPallets?: number; capacityPallets?: number }>
   >({});
   const palletInputRef = useRef<HTMLInputElement>(null);
 
@@ -142,8 +142,13 @@ function PutawayInner() {
   useEffect(() => {
     if (!verified) return;
     const unsub = subscribeLocations((locs: LocationRecord[]) => {
-      const map: Record<string, { type: string; occupiedPallets?: number }> = {};
-      for (const l of locs) map[l.id] = { type: l.type, occupiedPallets: l.occupiedPallets };
+      const map: Record<string, { type: string; occupiedPallets?: number; capacityPallets?: number }> = {};
+      for (const l of locs)
+        map[l.id] = {
+          type: l.type,
+          occupiedPallets: l.occupiedPallets,
+          capacityPallets: l.capacityPallets,
+        };
       setLocations(map);
     });
     return unsub;
@@ -210,8 +215,24 @@ function PutawayInner() {
         playChime("err");
         return;
       }
-      if (loc.occupiedPallets && loc.occupiedPallets > 0 && loc.type === "RACK") {
-        setError(`${locId} appears occupied`);
+      // A pallet that is already in the inventory must be released before it
+      // can be put away again.
+      if (pallet?.location) {
+        setError(
+          `${pallet.id} is already put away at ${pallet.location}. Release it from the inventory first.`,
+        );
+        playChime("err");
+        return;
+      }
+      // Only block when the location is genuinely full.
+      if (
+        loc.capacityPallets &&
+        loc.occupiedPallets !== undefined &&
+        loc.occupiedPallets >= loc.capacityPallets
+      ) {
+        setError(
+          `${locId} is full (${loc.occupiedPallets}/${loc.capacityPallets} positions)`,
+        );
         playChime("err");
         return;
       }
