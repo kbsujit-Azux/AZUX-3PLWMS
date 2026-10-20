@@ -17,6 +17,7 @@ import {
   FileText,
   Download,
   Users,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,7 +98,9 @@ import {
   addLocationToMaster,
   deleteLocationFromMaster,
   updateLocationInMaster,
+  repairIntegrityIssue,
 } from "@/lib/firestore-data";
+import { checkDataIntegrity } from "@/lib/data-integrity";
 
 export const Route = createFileRoute("/masters")({
   head: () => ({
@@ -166,6 +169,12 @@ function MastersPage() {
     itemMaster: liveItemMaster,
     locationMaster: liveLocationMaster,
     refreshData,
+    pallets: livePallets,
+    inboundShipments: liveInboundShipments,
+    workOrders: liveWorkOrders,
+    inventoryItems: liveInventoryItems,
+    tenants: liveTenants,
+    warehouses: liveWarehouses,
   } = useWmsData();
   const [itemQuery, setItemQuery] = useState("");
   const [locQuery, setLocQuery] = useState("");
@@ -192,12 +201,70 @@ function MastersPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [rebuildResult, setRebuildResult] = useState<string | null>(null);
+  const [repairingIssue, setRepairingIssue] = useState<string | null>(null);
+
+  /**
+   * Data integrity / correlation issues across master + transactional data.
+   * Everything is derived from the live Firestore subscription — there is no
+   * in-memory fallback, so a clean database really means a clean screen.
+   */
+  const integrityIssues = useMemo(
+    () =>
+      checkDataIntegrity({
+        pallets: livePallets ?? [],
+        inboundShipments: liveInboundShipments ?? [],
+        workOrders: liveWorkOrders ?? [],
+        inventoryItems: liveInventoryItems ?? [],
+        itemMaster: liveItemMaster ?? [],
+        locationMaster: liveLocationMaster ?? [],
+        tenants: liveTenants ?? [],
+        warehouses: liveWarehouses ?? [],
+      }),
+    [
+      livePallets,
+      liveInboundShipments,
+      liveWorkOrders,
+      liveInventoryItems,
+      liveItemMaster,
+      liveLocationMaster,
+      liveTenants,
+      liveWarehouses,
+    ],
+  );
+
+  const integrityErrors = integrityIssues.filter((i) => i.severity === "error");
+  const integrityWarnings = integrityIssues.filter((i) => i.severity === "warning");
+
+  /** Apply a repair and refresh the live data. */
+  const handleRepair = async (issue: (typeof integrityIssues)[number]) => {
+    setRepairingIssue(issue.id);
+    try {
+      const result = await repairIntegrityIssue({
+        type: issue.type,
+        entity: issue.entity,
+        recordId: issue.recordId,
+        relatedId: issue.relatedId,
+      });
+      if (result.ok) {
+        toast.success("Repaired", { description: result.message });
+        await refreshData();
+      } else {
+        toast.error("Repair failed", { description: result.message });
+      }
+    } catch (e) {
+      toast.error("Repair failed", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setRepairingIssue(null);
+    }
+  };
 
   // Deep-link: /masters?tab=items&addSku=...&tenantId=...&upc=...&desc=...&style=...
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const t = sp.get("tab");
-    if (t === "items" || t === "locations" || t === "exceptions" || t === "admin" || t === "audit")
+    if (t === "items" || t === "locations" || t === "exceptions" || t === "integrity" || t === "admin" || t === "audit")
       setTab(t);
     const addSku = sp.get("addSku");
     if (addSku) {
@@ -319,6 +386,22 @@ function MastersPage() {
           value={exceptions.length.toString()}
           tone={exceptions.length ? "danger" : "default"}
         />
+        <Kpi
+          icon={
+            <ShieldAlert
+              className={`h-3.5 w-3.5 ${
+                integrityErrors.length
+                  ? "text-destructive"
+                  : integrityWarnings.length
+                    ? "text-amber-500"
+                    : "text-emerald-500"
+              }`}
+            />
+          }
+          label="Data integrity"
+          value={integrityIssues.length.toString()}
+          tone={integrityErrors.length ? "danger" : "default"}
+        />
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-3">
@@ -329,14 +412,28 @@ function MastersPage() {
           <TabsTrigger value="locations">
             <MapPin className="h-3.5 w-3.5 mr-1.5" /> Location Master
           </TabsTrigger>
-          <TabsTrigger value="exceptions">
-            <AlertTriangle className="h-3.5 w-3.5 mr-1.5" /> Exceptions
-            {exceptions.length > 0 && (
-              <span className="ml-1.5 rounded-sm bg-destructive/15 text-destructive text-[10px] px-1.5 py-0.5">
-                {exceptions.length}
-              </span>
-            )}
-          </TabsTrigger>
+            <TabsTrigger value="exceptions">
+              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" /> Exceptions
+              {exceptions.length > 0 && (
+                <span className="ml-1.5 rounded-sm bg-destructive/15 text-destructive text-[10px] px-1.5 py-0.5">
+                  {exceptions.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="integrity">
+              <ShieldAlert className="h-3.5 w-3.5 mr-1.5" /> Data Integrity
+              {integrityIssues.length > 0 && (
+                <span
+                  className={`ml-1.5 rounded-sm text-[10px] px-1.5 py-0.5 ${
+                    integrityErrors.length
+                      ? "bg-destructive text-destructive-foreground"
+                      : "bg-amber-500/20 text-amber-600"
+                  }`}
+                >
+                  {integrityIssues.length}
+                </span>
+              )}
+            </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="admin">
               <ShieldCheck className="h-3.5 w-3.5 mr-1.5" /> Admin Tools
@@ -678,7 +775,116 @@ function MastersPage() {
           </div>
         </TabsContent>
 
-        {/* ADMIN TOOLS ------------------------------------------ */}
+        {/* DATA INTEGRITY ---------------------------------------- */}
+        <TabsContent value="integrity" className="space-y-3">
+          <div
+            className={`rounded-md border p-3 ${
+              integrityErrors.length
+                ? "border-destructive/40 bg-destructive/5"
+                : integrityWarnings.length
+                  ? "border-amber-500/40 bg-amber-500/5"
+                  : "border-border bg-card"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <ShieldAlert
+                className={`h-4 w-4 ${
+                  integrityErrors.length
+                    ? "text-destructive"
+                    : integrityWarnings.length
+                      ? "text-amber-500"
+                      : "text-emerald-500"
+                }`}
+              />
+              <h3 className="text-sm font-semibold">Data Integrity &amp; Correlation</h3>
+              <span className="text-xs text-muted-foreground">
+                {integrityErrors.length} error(s) · {integrityWarnings.length} warning(s)
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Every record is checked against the master data it depends on. Broken
+              references are shown in red and can be repaired without touching the
+              database by hand.
+            </p>
+          </div>
+
+          <div className="rounded-md border border-border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Severity</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Problem</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Record</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Details</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider text-right">
+                    Action
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {integrityIssues.map((issue) => (
+                  <TableRow
+                    key={issue.id}
+                    className={`text-xs ${
+                      issue.severity === "error"
+                        ? "bg-destructive/10 hover:bg-destructive/15"
+                        : "bg-amber-500/5 hover:bg-amber-500/10"
+                    }`}
+                  >
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-mono ${
+                          issue.severity === "error"
+                            ? "bg-destructive text-destructive-foreground border-destructive"
+                            : "bg-amber-500/20 text-amber-600 border-amber-500/40"
+                        }`}
+                      >
+                        {issue.severity === "error" ? "ERROR" : "WARN"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium text-destructive">
+                      {issue.title}
+                    </TableCell>
+                    <TableCell className="font-mono text-[11px]">{issue.recordId}</TableCell>
+                    <TableCell className="max-w-md text-muted-foreground">
+                      {issue.detail}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {issue.autoFixable ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 border-destructive/50 text-xs text-destructive hover:bg-destructive/10"
+                          disabled={repairingIssue === issue.id}
+                          onClick={() => handleRepair(issue)}
+                        >
+                          {repairingIssue === issue.id ? "Fixing…" : issue.fixLabel ?? "Fix"}
+                        </Button>
+                      ) : (
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          Manual fix
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {integrityIssues.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center text-xs text-emerald-600 py-8"
+                    >
+                      <CheckCircle2 className="h-4 w-4 inline mr-1.5" />
+                      No correlation issues found. All records are consistent.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
         {isAdmin && (
           <TabsContent value="admin" className="space-y-4">
             <div className="rounded-md border border-border bg-card p-4 space-y-4">

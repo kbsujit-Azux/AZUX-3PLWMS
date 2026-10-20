@@ -3881,3 +3881,170 @@ function genWoId(): string {
   const seq = Math.floor(Math.random() * 1000).toString().padStart(4, "0");
   return `WO-${dateStr}-${seq}`;
 }
+
+// ============================================================
+// Data Integrity Repairs
+// ============================================================
+/**
+ * Apply a repair for a data-integrity issue.
+ *
+ * Each repair is deliberately narrow and idempotent so an operator can fix
+ * a single problem without touching anything else.
+ */
+export async function repairIntegrityIssue(
+  issue: {
+    type: string;
+    entity: string;
+    recordId: string;
+    relatedId?: string;
+  },
+): Promise<{ ok: boolean; message: string }> {
+  switch (issue.type) {
+    /** P1 — detach a pallet from a container that no longer exists */
+    case "pallet-missing-container": {
+      const ref = doc(db, "pallets", issue.recordId);
+      await updateDoc(ref, {
+        shipmentId: null,
+        inboundShipmentId: null,
+        updatedAt: new Date().toISOString(),
+      });
+      return { ok: true, message: `Pallet ${issue.recordId} unlinked from the missing container.` };
+    }
+
+    /** P2 — drop a deleted pallet id from the receipt line */
+    case "line-missing-pallet": {
+      const [shipmentId, lineNoRaw] = issue.recordId.split(":");
+      const lineNo = Number(lineNoRaw) - 1;
+      const ref = doc(db, "inboundShipments", shipmentId);
+      const snap = await getDoc(ref);
+      if (!snap.exists) return { ok: false, message: "Container no longer exists." };
+      const data = snap.data() as any;
+      const lines: any[] = Array.isArray(data.lines) ? [...data.lines] : [];
+      if (!lines[lineNo]) return { ok: false, message: "Line no longer exists." };
+      lines[lineNo] = {
+        ...lines[lineNo],
+        palletIds: (lines[lineNo].palletIds ?? []).filter((pid: string) => pid !== issue.relatedId),
+      };
+      await updateDoc(ref, { lines, updatedAt: new Date().toISOString() });
+      await syncInboundFromPallets(shipmentId);
+      return { ok: true, message: `Removed the missing pallet reference from ${issue.recordId}.` };
+    }
+
+    /** P3 — a pallet in an unknown location goes back to staging */
+    case "pallet-missing-location": {
+      const ref = doc(db, "pallets", issue.recordId);
+      await updateDoc(ref, {
+        location: null,
+        status: "staged",
+        updatedAt: new Date().toISOString(),
+      });
+      return { ok: true, message: `Pallet ${issue.recordId} returned to staging.` };
+    }
+
+    /** P5 — recompute the received quantity from the linked pallets */
+    case "pallet-units-drift": {
+      const [shipmentId] = issue.recordId.split(":");
+      await syncInboundFromPallets(shipmentId);
+      return { ok: true, message: `Received quantity for ${issue.recordId} recalculated from its pallets.` };
+    }
+
+    /** S1 — recreate the missing work order for a container */
+    case "container-missing-workorder": {
+      const ref = doc(db, "inboundShipments", issue.recordId);
+      const snap = await getDoc(ref);
+      if (!snap.exists) return { ok: false, message: "Container no longer exists." };
+      const s = snap.data() as any;
+      const woId = issue.recordId;
+      const totalUnits = (s.lines ?? []).reduce((a: number, l: any) => a + (l.qtyExpected || 0), 0);
+      const totalCartons = (s.lines ?? []).reduce((a: number, l: any) => a + (l.cartonsExpected || 0), 0);
+      await setDoc(doc(db, "workOrders", woId), {
+        id: woId,
+        woNumber: woId,
+        tenantId: s.tenantId,
+        warehouseId: s.warehouseId,
+        clientName: s.tenantId,
+        containerNumber: s.containerNumber ?? "",
+        trailerNumber: s.trailerNumber ?? "",
+        sealNumber: s.sealNumber ?? "",
+        bolNumber: s.bolNumber ?? "",
+        poNumber: s.poNumber ?? "",
+        ediRef: s.ediRef ?? "",
+        carrier: s.carrier ?? "",
+        vessel: s.vessel ?? "",
+        voyageNumber: s.voyageNumber ?? "",
+        port: s.port ?? "",
+        origin: s.origin ?? "",
+        arrivalDate: s.appointmentAt ?? new Date().toISOString(),
+        departureDate: null,
+        yardInDate: null,
+        yardLeaveDate: null,
+        inboundEntryDate: new Date().toISOString(),
+        receivedDate: s.receivedAt ?? null,
+        status: "scheduled",
+        totalUnits,
+        totalCartons,
+        lineCount: (s.lines ?? []).length,
+        lines: (s.lines ?? []).map((l: any, i: number) => ({
+          lineNo: i + 1,
+          sku: l.sku,
+          upc: l.upc ?? "",
+          description: l.description ?? "",
+          lot: l.lot ?? "",
+          qtyExpected: l.qtyExpected ?? 0,
+          qtyReceived: l.receivedQty ?? 0,
+          cartons: l.cartonsExpected ?? 0,
+          status: "pending",
+        })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        notes: "",
+        doorAssigned: s.doorAssigned ?? null,
+        warehouseLocation: s.warehouseLocation ?? null,
+      });
+      return { ok: true, message: `Work order ${woId} recreated for ${issue.recordId}.` };
+    }
+
+    /** S2 — remove an orphaned work order */
+    case "orphan-workorder": {
+      await deleteDoc(doc(db, "workOrders", issue.recordId));
+      return { ok: true, message: `Work order ${issue.recordId} deleted.` };
+    }
+
+    /** I1 — remove an inventory batch that has no pallet */
+    case "inventory-missing-pallet": {
+      const [sku] = issue.recordId.split(":");
+      const ref = doc(db, "inventoryItems", sku);
+      const snap = await getDoc(ref);
+      if (!snap.exists) return { ok: false, message: "Inventory record no longer exists." };
+      const inv = snap.data() as any;
+      await updateDoc(ref, {
+        batches: (inv.batches ?? []).filter((b: any) => b.palletId !== issue.relatedId),
+        updatedAt: new Date().toISOString(),
+      });
+      return { ok: true, message: `Batch on pallet ${issue.relatedId} removed from ${sku}.` };
+    }
+
+    /** L1 — a putaway pallet with no location goes back to staged */
+    case "putaway-without-location": {
+      const ref = doc(db, "pallets", issue.recordId);
+      await updateDoc(ref, { status: "staged", updatedAt: new Date().toISOString() });
+      return { ok: true, message: `Pallet ${issue.recordId} returned to staged.` };
+    }
+
+    /** L2 — recompute the location occupancy from the stored pallets */
+    case "location-occupancy-drift": {
+      const palletSnap = await getDocs(collection(db, "pallets"));
+      const stored = palletSnap.docs.filter(
+        (d) => (d.data() as any).location === issue.recordId,
+      ).length;
+      await updateDoc(doc(db, "locationMaster", issue.recordId), {
+        occupiedPallets: stored,
+        updatedAt: new Date().toISOString(),
+      });
+      return { ok: true, message: `Occupancy for ${issue.recordId} set to ${stored}.` };
+    }
+
+    default:
+      return { ok: false, message: "No automatic repair available for this issue." };
+  }
+}

@@ -12,11 +12,9 @@ import {
   getVelocityColor,
   getPriorityBadge,
 } from "@/lib/slotting-engine";
-import { pallets, type Pallet, appendPallets } from "@/lib/pallet-data";
-import { locationMaster, updateLocationInMaster } from "@/lib/master-data";
-import { fetchMovementHistory, type MovementHistory } from "@/lib/firestore-data";
-import { itemMaster } from "@/lib/master-data";
-import { warehouses } from "@/lib/mock-data";
+import { type Pallet } from "@/lib/pallet-data";
+import { fetchMovementHistory, updatePallet, updateLocationInMaster } from "@/lib/firestore-data";
+import { useWmsData } from "@/components/db-context";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/slotting")({
@@ -38,6 +36,17 @@ function SlottingPage() {
   const [selectedRec, setSelectedRec] = useState<SlottingRecommendation | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  // Live Firestore data — no in-memory seed fallback.
+  const {
+    pallets: livePallets,
+    locationMaster: liveLocationMaster,
+    itemMaster: liveItemMaster,
+    warehouses: liveWarehouses,
+  } = useWmsData();
+  const pallets = livePallets ?? [];
+  const locationMaster = liveLocationMaster ?? [];
+  const itemMaster = liveItemMaster ?? [];
+
   useEffect(() => {
     setLoading(true);
     let cancelled = false;
@@ -54,7 +63,7 @@ function SlottingPage() {
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [warehouseId]);
+  }, [warehouseId, pallets, locationMaster, itemMaster]);
 
   const highPriority = useMemo(() => recommendations.filter((r) => r.priority === "high"), [recommendations]);
   const mediumPriority = useMemo(() => recommendations.filter((r) => r.priority === "medium"), [recommendations]);
@@ -69,15 +78,29 @@ function SlottingPage() {
     setExecuting(true);
     setConfirmOpen(false);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      const pallet = pallets.find((p) => p.sku === selectedRec.sku && p.location === selectedRec.currentLocationId);
+      const pallet = pallets.find(
+        (p) => p.sku === selectedRec.sku && p.location === selectedRec.currentLocationId,
+      );
       if (pallet) {
-        appendPallets([{ ...pallet, location: selectedRec.suggestedLocationId, suggestedLocation: selectedRec.suggestedLocationId }]);
+        // Persist the move to Firestore so the Pallet and Location screens
+        // stay in sync.
+        await updatePallet(pallet.id, {
+          location: selectedRec.suggestedLocationId,
+          suggestedLocation: selectedRec.suggestedLocationId,
+          updatedAt: new Date().toISOString(),
+        });
       }
-      updateLocationInMaster(selectedRec.currentLocationId, { occupiedPallets: Math.max(0, (locationMaster.find((l) => l.id === selectedRec.currentLocationId)?.occupiedPallets ?? 0) - 1) });
-      const newLoc = locationMaster.find((l) => l.id === selectedRec.suggestedLocationId);
-      if (newLoc) {
-        updateLocationInMaster(selectedRec.suggestedLocationId, { occupiedPallets: (newLoc.occupiedPallets ?? 0) + 1 });
+      const current = locationMaster.find((l) => l.id === selectedRec.currentLocationId);
+      if (current) {
+        await updateLocationInMaster(selectedRec.currentLocationId, {
+          occupiedPallets: Math.max(0, (current.occupiedPallets ?? 0) - 1),
+        });
+      }
+      const target = locationMaster.find((l) => l.id === selectedRec.suggestedLocationId);
+      if (target) {
+        await updateLocationInMaster(selectedRec.suggestedLocationId, {
+          occupiedPallets: (target.occupiedPallets ?? 0) + 1,
+        });
       }
       setRecommendations((prev) => prev.filter((r) => !(r.sku === selectedRec.sku && r.currentLocationId === selectedRec.currentLocationId)));
       toast.success(`Reslotted ${selectedRec.sku} to ${selectedRec.suggestedLocationId}`);
@@ -104,7 +127,7 @@ function SlottingPage() {
           onChange={(e) => setWarehouseId(e.target.value)}
           className="h-8 rounded-md border border-border bg-background px-2 text-xs"
         >
-          {warehouses.filter((w) => w.id !== "all").map((w) => (
+          {liveWarehouses.filter((w) => w.id !== "all").map((w) => (
             <option key={w.id} value={w.id}>{w.code} — {w.city}</option>
           ))}
         </select>

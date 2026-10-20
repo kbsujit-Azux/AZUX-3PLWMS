@@ -17,6 +17,7 @@
     "refresh:item-master": "npx tsx scripts/refresh-item-master.ts",
     "reconcile:inbound": "npx tsx scripts/reconcile-inbound.ts",
     "clear:transactions": "npx tsx scripts/clear-transactions.ts",
+    "purge:transactions": "npx tsx scripts/purge-transactions.ts",
     "migrate:master-enhancements": "npx tsx scripts/migrate-master-enhancements.ts",
     "preview": "vite preview",
     "lint": "eslint .",

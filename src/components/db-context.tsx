@@ -488,6 +488,8 @@ import {
   clientAllocationConfigs as libClientAllocationConfigs,
   pickTickets as libPickTickets,
   inventoryItems as libInventoryItems,
+  tenants as libTenants,
+  warehouses as libWarehouses,
 } from "@/lib/mock-data";
 import { orders as libOrders, ediLogs as libEdiLogs } from "@/lib/edi-data";
 import { inboundShipments as libInboundShipments } from "@/lib/inbound-data";
@@ -578,36 +580,32 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function initializeAndSeed() {
       try {
+        const seedCollection = async (
+          colName: string,
+          items: any[],
+          getId: (item: any) => string,
+        ) => {
+          const batch = writeBatch(db);
+          items.forEach((item) => {
+            const docRef = doc(db, colName, getId(item));
+            batch.set(docRef, item);
+          });
+          await batch.commit();
+        };
+
         const tenantsCol = collection(db, "tenants");
         const tenantsSnap = await getDocs(query(tenantsCol, limit(1)));
         if (tenantsSnap.empty) {
-          console.log("Firestore database is empty. Seeding default WMS datasets...");
+          console.log("Firestore database is empty. Seeding MASTER data only...");
 
-          const seedCollection = async (
-            colName: string,
-            items: any[],
-            getId: (item: any) => string,
-          ) => {
-            const batch = writeBatch(db);
-            items.forEach((item) => {
-              const docRef = doc(db, colName, getId(item));
-              batch.set(docRef, item);
-            });
-            await batch.commit();
-          };
-
+          // ── MASTER DATA ONLY ──────────────────────────────────────
+          // Transactional collections (pallets, inbound shipments, orders,
+          // inventory, …) are deliberately NOT seeded. Seeding them would
+          // resurrect stale demo records the user has already cleaned up.
           await seedCollection("tenants", seedTenants, (item) => item.id);
           await seedCollection("warehouses", seedWarehouses, (item) => item.id);
-          await seedCollection("inventoryItems", seedInventoryItems, (item) => item.sku);
-          await seedCollection("pallets", seedPallets, (item) => item.id);
-          await seedCollection("pickWaves", seedPickWaves, (item) => item.id);
-          await seedCollection("orders", seedOrders, (item) => item.id);
-          await seedCollection("inboundShipments", seedInboundShipments, (item) => item.id);
-          await seedCollection("shipments", seedCarrierDispatches, (item) => item.id);
-          await seedCollection("bols", seedBols, (item) => item.id);
           await seedCollection("itemMaster", seedItemMaster, (item) => item.sku);
           await seedCollection("locationMaster", seedLocationMaster, (item) => item.id);
-          await seedCollection("ediLogs", seedEdiLogs, (item) => item.id);
           await seedCollection(
             "clientAllocationConfigs",
             seedClientAllocationConfigs,
@@ -615,7 +613,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           );
           await seedCollection("employees", seedEmployees, (item) => item.badgeId);
 
-          console.log("Default WMS datasets successfully seeded to Firestore!");
+          console.log("Master data seeded to Firestore (no transactional data).");
         } else {
           const empSnap = await getDocs(collection(db, "employees"));
           if (empSnap.empty) {
@@ -629,25 +627,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // Seed cartonizations if empty
-        const cartonSnap = await getDocs(collection(db, "cartonizations"));
-        if (cartonSnap.empty && seedOrders.length > 0) {
-          console.log("Seeding cartonizations...");
-          const cartonBatch = writeBatch(db);
-          seedOrders.forEach((order) => {
-            const c = pruneUndefined(cartonizeOrder(order, seedItemMaster, cartonSizes));
-            const docRef = doc(db, "cartonizations", c.id);
-            cartonBatch.set(docRef, c);
-          });
-          await cartonBatch.commit();
-          console.log("Cartonizations seeded successfully!");
-        }
-
-        // Seed enterprise collections (always, even if core already seeded)
+        // Seed enterprise MASTER collections (always, even if core already seeded).
+        // NOTE: transactional collections (rmaOrders, rmaLines, cartonizations,
+        // orders, pallets, inbound shipments, …) are intentionally excluded so
+        // stale demo records are never resurrected.
         const enterpriseCollections: Record<string, any[]> = {
           tenantPortalUsers: seedTenantPortalUsers,
-          rmaOrders: seedRmaOrders,
-          rmaLines: seedRmaLines,
           rmaDispositions: seedRmaDispositions,
           returnProcessingFees: seedReturnProcessingFees,
           carrierCredentials: seedCarrierCredentials,
@@ -699,8 +684,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       unsubscribers.push(unsub);
     };
 
-    syncCollection("tenants", setTenants);
-    syncCollection("warehouses", setWarehouses);
+    // Master data: the bundled mock arrays are kept in sync with Firestore
+    // so screens that import them directly never show a stale record.
+    syncCollection("tenants", setTenants, libTenants);
+    syncCollection("warehouses", setWarehouses, libWarehouses);
     syncCollection("inventoryItems", setInventoryItems, libInventoryItems);
     syncCollection("pallets", setPallets, libPallets);
     syncCollection("pickWaves", setPickWaves, libPickWaves as unknown as PickWave[]);
