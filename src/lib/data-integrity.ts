@@ -50,7 +50,8 @@ export type IntegrityIssueType =
   | "inventory-missing-pallet"
   | "putaway-without-location"
   | "location-occupancy-drift"
-  | "cartonization-missing-order";
+  | "cartonization-missing-order"
+  | "pallet-missing-inventory";
 
 export type IntegrityIssue = {
   id: string;
@@ -468,6 +469,40 @@ const checkCartonizationOrder: Check = (ctx) => {
   return out;
 };
 
+/**
+ * P6 — a pallet is stored in a location but has no inventory batch.
+ *
+ * Stock on hand is derived from the pallets, so a stored pallet without a
+ * batch means the inventory under-reports what is physically in the building.
+ */
+const checkPalletInventory: Check = (ctx) => {
+  const batchPalletIds = new Set(
+    (ctx.inventoryItems ?? []).flatMap((i) =>
+      (i.batches ?? []).map((b: any) => b.palletId),
+    ),
+  );
+  const out: IntegrityIssue[] = [];
+  for (const p of ctx.pallets ?? []) {
+    if (!p.location) continue;
+    if (batchPalletIds.has(p.id)) continue;
+    out.push({
+      id: `P6-${p.id}`,
+      type: "pallet-missing-inventory",
+      severity: "error",
+      title: "Stored pallet is not in the inventory",
+      detail: `Pallet ${p.id} is stored at ${p.location} but has no inventory batch, so the on-hand quantity does not include it.`,
+      entity: "pallet",
+      recordId: p.id,
+      relatedId: p.sku,
+      tenantId: p.tenantId,
+      warehouseId: p.warehouseId,
+      autoFixable: true,
+      fixLabel: "Add to inventory",
+    });
+  }
+  return out;
+};
+
 /** Registry of every correlation check */
 export const INTEGRITY_CHECKS: Array<{ id: string; label: string; run: Check }> = [
   { id: "P1", label: "Pallet → container", run: checkPalletContainer },
@@ -475,6 +510,7 @@ export const INTEGRITY_CHECKS: Array<{ id: string; label: string; run: Check }> 
   { id: "P3", label: "Pallet → location", run: checkPalletLocation },
   { id: "P4", label: "Pallet → item", run: checkPalletItem },
   { id: "P5", label: "Receipt units ↔ pallets", run: checkUnitsDrift },
+  { id: "P6", label: "Pallet → inventory", run: checkPalletInventory },
   { id: "S1", label: "Container → work order", run: checkContainerWorkOrder },
   { id: "S2", label: "Work order → container", run: checkOrphanWorkOrder },
   { id: "S3", label: "Receipt line → item", run: checkLineItem },

@@ -69,7 +69,7 @@ import {
   type PalletStatus,
 } from "@/lib/pallet-data";
 import { recommendPutaway } from "@/lib/putaway-engine";
-import { createPallet, deletePallet, updatePallet, syncInboundFromPallets } from "@/lib/firestore-data";
+import { createPallet, deletePallet, updatePallet, syncInboundFromPallets, putAwayPallet, syncInventoryBatchUnits } from "@/lib/firestore-data";
 import { orders } from "@/lib/edi-data";
 import { fmtDateTime, fmtDateYear, fmtTime, downloadExcel } from "@/lib/utils";
 
@@ -823,16 +823,12 @@ const reportData = visiblePallets.map((p) => ({
         onClose={() => setScanTarget(null)}
         onConfirmed={async (palletId, location) => {
           try {
-            // Persist the putaway to Firestore; the live subscription then
-            // refreshes both the Pallet screen and the Inbound screen.
-            await updatePallet(palletId, {
-              status: "putaway",
-              location,
-              putawayAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            });
+            // Single transactional putaway: pallet + inventory batch +
+            // location occupancy. The Inbound screen and the Inventory
+            // screen both refresh from the live subscription afterwards.
+            await putAwayPallet(palletId, location);
             toast.success("Putaway posted", {
-              description: `${palletId} → ${location} · status → putaway`,
+              description: `${palletId} → ${location} · status → putaway · added to inventory`,
             });
           } catch (e) {
             toast.error("Could not post putaway", {
@@ -849,10 +845,26 @@ const reportData = visiblePallets.map((p) => ({
         locations={liveLocationMaster ?? []}
         onClose={() => setEditPallet(null)}
         onSaved={async (palletId, updates) => {
-          await updatePallet(palletId, updates);
+          const before = palletList.find((p) => p.id === palletId);
+          const nextLocation = updates.location ?? null;
+
+          // A location change is a putaway — route it through the shared
+          // transaction so the inventory batch follows the pallet.
+          if (nextLocation && nextLocation !== before?.location) {
+            await putAwayPallet(palletId, nextLocation);
+            await updatePallet(palletId, updates);
+          } else {
+            await updatePallet(palletId, updates);
+          }
+
+          // Keep the inventory batch unit count in step with the pallet.
+          if (updates.units !== undefined && before?.sku) {
+            await syncInventoryBatchUnits(before.sku, palletId, updates.units);
+          }
+
           // Re-derive the receipt on the linked inbound container so the
           // Inbound screen reflects the new unit count immediately.
-          const target = palletList.find((p) => p.id === palletId);
+          const target = before ?? palletList.find((p) => p.id === palletId);
           const shipmentId = target?.shipmentId ?? target?.inboundShipmentId;
           if (shipmentId) {
             await syncInboundFromPallets(shipmentId);

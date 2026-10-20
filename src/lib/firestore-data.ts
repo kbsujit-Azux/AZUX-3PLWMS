@@ -883,6 +883,193 @@ export async function updatePallet(palletId: string, updates: Partial<Pallet>) {
 }
 
 /**
+ * Put a pallet away into a location.
+ *
+ * This is the single source of truth for a putaway. It writes, in one
+ * transaction:
+ *   • the pallet            → status "putaway", location, putawayAt
+ *   • the inventory record → creates the SKU record if it is missing and
+ *                            creates/updates the batch for THIS pallet with
+ *                            the real location and unit count
+ *   • the location         → occupiedPallets incremented
+ *   • the previous location→ occupiedPallets decremented (when moving)
+ *
+ * Both the Pallet screen and the RF gun call this, so a putaway always
+ * shows up in the inventory.
+ */
+export async function putAwayPallet(
+  palletId: string,
+  location: string,
+  opts?: { performedBy?: string; notes?: string },
+): Promise<{ pallet: Pallet; inventorySku: string }> {
+  const palletRef = doc(db, "pallets", palletId);
+  const now = new Date().toISOString();
+
+  let updatedPallet: any = null;
+  let inventorySku = "";
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(palletRef);
+    if (!snap.exists()) {
+      throw new Error(`Pallet ${palletId} not found`);
+    }
+    const pallet = snap.data() as any;
+    const previousLocation = pallet.location as string | null;
+
+    // 1. The pallet
+    const nextPallet = {
+      ...pallet,
+      status: "putaway",
+      location,
+      putawayAt: now,
+      updatedAt: now,
+    };
+    transaction.update(palletRef, nextPallet);
+    updatedPallet = nextPallet;
+
+    // 2. The inventory record + batch for this pallet
+    inventorySku = pallet.sku;
+    const invRef = doc(db, "inventoryItems", pallet.sku);
+    const invSnap = await transaction.get(invRef);
+
+    let item: any;
+    if (invSnap.exists()) {
+      item = invSnap.data() as any;
+    } else {
+      // No inventory record for this SKU yet — create a minimal one from the
+      // Item Master so the batch is not silently dropped.
+      const masterSnap = await transaction.get(doc(db, "itemMaster", pallet.sku));
+      const master: any = masterSnap.exists() ? masterSnap.data() : {};
+      item = {
+        sku: pallet.sku,
+        upc: master.upc ?? "",
+        itemStyle: pallet.itemStyle ?? master.itemStyle ?? "",
+        description: pallet.description ?? master.description ?? "",
+        category: master.category ?? "General",
+        uom: master.uom ?? "EA",
+        unitCost: master.unitCost ?? 0,
+        unitPrice: master.unitPrice ?? 0,
+        caseQty: master.caseQty ?? 1,
+        weightLbs: master.weightLbs ?? 0,
+        tenantId: pallet.tenantId,
+        warehouseId: pallet.warehouseId,
+        batches: [],
+        status: "active",
+      };
+    }
+
+    const batches: any[] = Array.isArray(item.batches) ? [...item.batches] : [];
+    const batchIdx = batches.findIndex((b) => b.palletId === palletId);
+    const batch = {
+      batchId:
+        batchIdx >= 0 ? batches[batchIdx].batchId : `${pallet.sku}-${palletId}`,
+      palletId,
+      receivedAt: now,
+      qty: Number(pallet.units) || 0,
+      location,
+      poNumber: pallet.poNumber ?? "",
+      ediSource: (pallet.ediSource ?? "MANUAL") as
+        | "EDI_943"
+        | "EDI_944"
+        | "CSV"
+        | "MANUAL",
+      qtyAllocated: batchIdx >= 0 ? (batches[batchIdx].qtyAllocated ?? 0) : 0,
+      ...(batchIdx >= 0 && batches[batchIdx].pickTicketNum !== undefined
+        ? { pickTicketNum: batches[batchIdx].pickTicketNum }
+        : {}),
+    };
+    if (batchIdx >= 0) {
+      batches[batchIdx] = batch;
+    } else {
+      batches.push(batch);
+    }
+    transaction.set(invRef, { ...item, batches, updatedAt: now }, { merge: true });
+
+    // 3. The destination location gains the pallet
+    const locRef = doc(db, "locationMaster", location);
+    const locSnap = await transaction.get(locRef);
+    if (locSnap.exists()) {
+      const current = Number(locSnap.data()?.occupiedPallets ?? 0);
+      // Moving within the same location must not double count.
+      const next = previousLocation === location ? current : current + 1;
+      transaction.update(locRef, { occupiedPallets: next, updatedAt: now });
+    }
+
+    // 4. The previous location releases it
+    if (previousLocation && previousLocation !== location) {
+      const prevRef = doc(db, "locationMaster", previousLocation);
+      const prevSnap = await transaction.get(prevRef);
+      if (prevSnap.exists()) {
+        const current = Number(prevSnap.data()?.occupiedPallets ?? 0);
+        transaction.update(prevRef, {
+          occupiedPallets: Math.max(0, current - 1),
+          updatedAt: now,
+        });
+      }
+    }
+  });
+
+  // 5. Audit trail (outside the transaction — it is a separate collection)
+  try {
+    await logMovement({
+      movementType: "PUTAWAY",
+      itemCode: updatedPallet?.sku ?? "",
+      sku: updatedPallet?.sku ?? "",
+      fromLocation: updatedPallet?.suggestedLocation ?? "",
+      toLocation: location,
+      qty: Number(updatedPallet?.units) || 0,
+      performedBy: opts?.performedBy ?? "system",
+      timestamp: now,
+      notes: opts?.notes ?? "",
+      palletId,
+      tenantId: updatedPallet?.tenantId,
+      warehouseId: updatedPallet?.warehouseId,
+    } as any);
+  } catch (e) {
+    console.warn("Could not write movement history:", e);
+  }
+
+  return { pallet: updatedPallet as Pallet, inventorySku };
+}
+
+/**
+ * Remove a pallet's inventory batch (used when the pallet is deleted or its
+ * units are corrected).
+ */
+export async function removeInventoryBatchForPallet(
+  sku: string,
+  palletId: string,
+): Promise<void> {
+  const invRef = doc(db, "inventoryItems", sku);
+  const snap = await getDoc(invRef);
+  if (!snap.exists()) return;
+  const item = snap.data() as any;
+  const batches = (item.batches ?? []).filter((b: any) => b.palletId !== palletId);
+  if (batches.length === (item.batches ?? []).length) return;
+  await updateDoc(invRef, { batches, updatedAt: new Date().toISOString() });
+}
+
+/**
+ * Update the unit count of a pallet's inventory batch so the inventory
+ * always matches the physical pallet.
+ */
+export async function syncInventoryBatchUnits(
+  sku: string,
+  palletId: string,
+  qty: number,
+): Promise<void> {
+  const invRef = doc(db, "inventoryItems", sku);
+  const snap = await getDoc(invRef);
+  if (!snap.exists()) return;
+  const item = snap.data() as any;
+  const batches: any[] = Array.isArray(item.batches) ? [...item.batches] : [];
+  const idx = batches.findIndex((b) => b.palletId === palletId);
+  if (idx < 0) return;
+  batches[idx] = { ...batches[idx], qty };
+  await updateDoc(invRef, { batches, updatedAt: new Date().toISOString() });
+}
+
+/**
  * Delete a pallet and release its location slot.
  *
  * The location occupancy counter is decremented in the same transaction so
@@ -895,6 +1082,7 @@ export async function updatePallet(palletId: string, updates: Partial<Pallet>) {
 export async function deletePallet(palletId: string): Promise<void> {
   const palletRef = doc(db, "pallets", palletId);
   let shipmentId: string | null = null;
+  let palletSku: string | null = null;
 
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(palletRef);
@@ -903,6 +1091,7 @@ export async function deletePallet(palletId: string): Promise<void> {
     const pallet = snap.data() as any;
     transaction.delete(palletRef);
     shipmentId = pallet?.shipmentId ?? pallet?.inboundShipmentId ?? null;
+    palletSku = pallet?.sku ?? null;
 
     const locationId = pallet?.location;
     if (locationId) {
@@ -920,6 +1109,16 @@ export async function deletePallet(palletId: string): Promise<void> {
 
   if (shipmentId) {
     await syncInboundFromPallets(shipmentId);
+  }
+
+  // Remove the pallet's inventory batch so the on-hand quantity matches the
+  // physical stock.
+  if (palletSku) {
+    try {
+      await removeInventoryBatchForPallet(palletSku, palletId);
+    } catch (e) {
+      console.warn("Could not remove inventory batch for pallet:", e);
+    }
   }
 }
 
@@ -4047,6 +4246,23 @@ export async function repairIntegrityIssue(
         updatedAt: new Date().toISOString(),
       });
       return { ok: true, message: `Occupancy for ${issue.recordId} set to ${stored}.` };
+    }
+
+    /** P6 — add a stored pallet to the inventory */
+    case "pallet-missing-inventory": {
+      const palletSnap = await getDoc(doc(db, "pallets", issue.recordId));
+      if (!palletSnap.exists) return { ok: false, message: "Pallet no longer exists." };
+      const pallet = palletSnap.data() as any;
+      if (!pallet.location) {
+        return { ok: false, message: "Pallet is not stored in a location yet." };
+      }
+      await putAwayPallet(issue.recordId, pallet.location, {
+        notes: "Repaired via Data Integrity check P6",
+      });
+      return {
+        ok: true,
+        message: `Pallet ${issue.recordId} added to the inventory at ${pallet.location}.`,
+      };
     }
 
     /** C1 — remove a cartonization whose order no longer exists */

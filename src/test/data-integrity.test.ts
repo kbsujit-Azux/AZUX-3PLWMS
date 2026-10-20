@@ -191,6 +191,22 @@ describe("Data integrity checker", () => {
     }
   });
 
+  it("P6 — flags a stored pallet with no inventory batch", () => {
+    const issues = checkDataIntegrity({
+      ...base,
+      inventoryItems: [],
+    } as any);
+    const issue = issues.find((i) => i.type === "pallet-missing-inventory");
+    expect(issue).toBeDefined();
+    expect(issue!.autoFixable).toBe(true);
+    expect(issue!.detail).toContain("LOC-1");
+  });
+
+  it("P6 — stays silent when the stored pallet has a batch", () => {
+    const issues = checkDataIntegrity(base as any);
+    expect(issues.some((i) => i.type === "pallet-missing-inventory")).toBe(false);
+  });
+
   it("C1 — flags a cartonization whose order is gone", () => {
     const issues = checkDataIntegrity({
       ...base,

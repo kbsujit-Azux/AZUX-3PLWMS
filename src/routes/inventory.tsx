@@ -34,7 +34,7 @@ import {
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { useAuth } from "@/lib/auth";
-import { tenants, warehouses, inventoryItems, type InventoryItem, type InventoryBatch } from "@/lib/mock-data";
+import { tenants, warehouses, type InventoryItem, type InventoryBatch } from "@/lib/mock-data";
 import { inboundShipments } from "@/lib/inbound-data";
 import { fmtDateTime } from "@/lib/utils";
 import {
@@ -730,7 +730,7 @@ onClick={() => {
                      <select
                        value={newItemForm.sku ?? ""}
                        onChange={(e) => {
-                         const selected = inventoryItems.find((i) => i.sku === e.target.value);
+                          const selected = liveInventory.find((i) => i.sku === e.target.value);
                          setNewItemForm({
                            ...newItemForm,
                            sku: e.target.value,
@@ -741,7 +741,7 @@ onClick={() => {
                        className="h-8 text-xs font-mono mt-1 rounded-md border border-input bg-background px-2 w-full"
                      >
                        <option value="">Select SKU...</option>
-                       {inventoryItems.map((i) => (
+                        {liveInventory.map((i) => (
                          <option key={i.sku} value={i.sku}>{i.sku}</option>
                        ))}
                      </select>
@@ -781,7 +781,7 @@ onClick={() => {
                      }
                      placeholder="Item description"
                      className="h-8 text-xs mt-1"
-                     readOnly={!!(newItemForm.sku && inventoryItems.find((i) => i.sku === newItemForm.sku)?.description)}
+                      readOnly={!!(newItemForm.sku && liveInventory.find((i) => i.sku === newItemForm.sku)?.description)}
                    />
                  </div>
 

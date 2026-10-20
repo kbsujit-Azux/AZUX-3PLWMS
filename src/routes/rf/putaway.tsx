@@ -44,17 +44,13 @@ import { Card } from "@/components/ui/card";
 import { useRfSession } from "@/lib/rf-session";
 import {
   fetchPallets,
-  updatePallet,
+  putAwayPallet,
   fetchLocations,
   subscribeLocations,
 } from "@/lib/firestore-data";
-import { runTransaction, doc } from "firebase/firestore";
-import { db } from "@/lib/firestore";
 import {
   DROP001_LOCATION,
   inventoryItems,
-  type InventoryItem,
-  type InventoryBatch,
 } from "@/lib/mock-data";
 import { type Pallet } from "@/lib/pallet-data";
 import { type LocationRecord } from "@/lib/master-data";
@@ -245,47 +241,7 @@ function PutawayInner() {
         setStep("scan-pallet");
         return;
       }
-      await runTransaction(db, async (txn) => {
-        txn.update(doc(db, "pallets", pallet.id), {
-          status: "putaway",
-          location,
-          updatedAt: new Date().toISOString(),
-        });
-
-        const invSnap = await txn.get(doc(db, "inventoryItems", pallet.sku));
-        if (invSnap.exists()) {
-          const item = invSnap.data() as InventoryItem;
-          const batchIndex = item.batches?.findIndex(
-            (b: InventoryBatch) => b.palletId === pallet.id && b.location !== location,
-          );
-          const updatedBatches = item.batches ? [...item.batches] : [];
-          if (batchIndex && batchIndex >= 0 && updatedBatches[batchIndex]) {
-            updatedBatches[batchIndex] = {
-              ...updatedBatches[batchIndex],
-              location,
-              receivedAt: new Date().toISOString(),
-            };
-          } else if (!batchIndex || batchIndex < 0) {
-            updatedBatches.push({
-              batchId: `BATCH-${Date.now()}`,
-              palletId: pallet.id,
-              location,
-              qty: pallet.units,
-              qtyAllocated: 0,
-              receivedAt: new Date().toISOString(),
-              poNumber: pallet.poNumber,
-              ediSource: pallet.ediSource as "EDI_943" | "EDI_944" | "CSV" | "MANUAL",
-            });
-          }
-          txn.update(doc(db, "inventoryItems", pallet.sku), { batches: updatedBatches });
-        }
-
-        const locRef = doc(db, "locationMaster", location);
-        const locSnap = await txn.get(locRef);
-        if (locSnap.exists()) {
-          txn.update(locRef, { occupiedPallets: (locSnap.data()?.occupiedPallets ?? 0) + 1 });
-        }
-      });
+      await putAwayPallet(pallet.id, location, { performedBy: employee.name });
       toast.success(`${pallet.id} → ${location}`);
       playChime("ok");
       setPallet(null);

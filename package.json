@@ -16,6 +16,7 @@
     "repair:inbound-lines": "npx tsx scripts/repair-inbound-lines.ts",
     "refresh:item-master": "npx tsx scripts/refresh-item-master.ts",
     "reconcile:inbound": "npx tsx scripts/reconcile-inbound.ts",
+    "reconcile:inventory": "npx tsx scripts/reconcile-inventory.ts",
     "clear:transactions": "npx tsx scripts/clear-transactions.ts",
     "purge:transactions": "npx tsx scripts/purge-transactions.ts",
     "audit:data": "npx tsx scripts/audit-data.ts",

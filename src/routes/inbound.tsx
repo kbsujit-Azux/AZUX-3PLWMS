@@ -68,7 +68,7 @@ import {
 } from "@/components/ui/select";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
-import { tenants, warehouses, inventoryItems } from "@/lib/mock-data";
+import { tenants, warehouses } from "@/lib/mock-data";
 import {
   inboundProgressPct,
   shipmentProgressPct,
@@ -2711,34 +2711,44 @@ function CloseContainerDialog({
   onClosed: () => void;
 }) {
   const tenant = tenants.find((t) => t.id === shipment.tenantId);
+  // Live data so the inventory batches are built from the real pallets.
+  const { inventoryItems: liveInventory, pallets: livePallets } = useWmsData();
 
   const handleClose = async () => {
     closeInboundShipment(shipment, [], []);
 
-    // Create inventory batches for each received line
+    // Create the inventory batches from the ACTUAL pallets: each pallet
+    // carries its own unit count and its own putaway location. A batch that
+    // was already created by the putaway is updated rather than duplicated.
     for (const line of shipment.lines || []) {
       if (!line.palletIds || line.palletIds.length === 0) continue;
 
-      const skuItem = inventoryItems.find((i) => i.sku === line.sku && i.tenantId === shipment.tenantId);
-      const batches: Array<{
-        batchId: string;
-        palletId: string;
-        receivedAt: string;
-        qty: number;
-        location: string;
-        poNumber: string;
-        ediSource: "EDI_943" | "EDI_944" | "CSV" | "MANUAL";
-        qtyAllocated: number;
-      }> = line.palletIds.map((palletId, idx) => ({
-        batchId: `${line.sku}-${palletId}`,
-        palletId,
-        receivedAt: new Date().toISOString(),
-        qty: Math.ceil(line.receivedQty / line.palletIds.length),
-        location: shipment.doorAssigned || `DOCK-${shipment.trailerNumber}`,
-        poNumber: shipment.poNumber,
-        ediSource: shipment.source,
-        qtyAllocated: 0,
-      }));
+      const skuItem = liveInventory.find(
+        (i) => i.sku === line.sku && i.tenantId === shipment.tenantId,
+      );
+
+      const batches = line.palletIds
+        .map((palletId) => {
+          const pallet = livePallets.find((p) => p.id === palletId);
+          return {
+            batchId: `${line.sku}-${palletId}`,
+            palletId,
+            receivedAt: pallet?.builtAt ?? new Date().toISOString(),
+            qty: pallet?.units ?? 0,
+            // Prefer the pallet's real putaway location; fall back to the
+            // door while the pallet is still staged.
+            location:
+              pallet?.location ??
+              shipment.doorAssigned ??
+              `DOCK-${shipment.trailerNumber}`,
+            poNumber: shipment.poNumber,
+            ediSource: shipment.source,
+            qtyAllocated: 0,
+          };
+        })
+        .filter((b) => b.qty > 0);
+
+      if (batches.length === 0) continue;
 
       if (skuItem) {
         await upsertInventoryItem({
@@ -2747,7 +2757,7 @@ function CloseContainerDialog({
             ...skuItem.batches.filter((b) => !line.palletIds.includes(b.palletId)),
             ...batches,
           ],
-        });
+        } as any);
       } else {
         await upsertInventoryItem({
           sku: line.sku,
@@ -2764,7 +2774,7 @@ function CloseContainerDialog({
           warehouseId: shipment.warehouseId,
           status: "active",
           batches,
-        });
+        } as any);
       }
 
       // Log PUTAWAY transaction per pallet
