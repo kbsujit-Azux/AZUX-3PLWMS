@@ -868,6 +868,35 @@ export async function createPallets(pallets: Pallet[]) {
   await batch.commit();
 }
 
+/**
+ * Collapse duplicate batches for the same pallet.
+ *
+ * Firestore's `set(..., { merge: true })` MERGES arrays element-by-element
+ * instead of replacing them, so a re-written batch can end up duplicated.
+ * Always dedupe by palletId before writing.
+ */
+export function dedupeBatches(batches: any[]): any[] {
+  const byKey = new Map<string, any>();
+  const order: string[] = [];
+  for (const b of batches ?? []) {
+    const key = b?.palletId ?? b?.batchId;
+    if (!key) continue;
+    const existing = byKey.get(key);
+    if (existing) {
+      // Keep the newest record but preserve the allocation state.
+      byKey.set(key, {
+        ...existing,
+        ...b,
+        qtyAllocated: Math.max(existing.qtyAllocated ?? 0, b.qtyAllocated ?? 0),
+      });
+    } else {
+      byKey.set(key, b);
+      order.push(key);
+    }
+  }
+  return order.map((k) => byKey.get(k)!);
+}
+
 export async function updatePallet(palletId: string, updates: Partial<Pallet>) {
   const palletRef = doc(db, "pallets", palletId);
   return await runTransaction(db, async (transaction) => {
@@ -983,7 +1012,17 @@ export async function putAwayPallet(
     } else {
       batches.push(batch);
     }
-    transaction.set(invRef, { ...item, batches, updatedAt: now }, { merge: true });
+    // NOTE: `set(..., { merge: true })` merges arrays element-by-element, which
+    // would duplicate the batch on every putaway. `update()` replaces the
+    // whole array, so the inventory always holds exactly one batch per pallet.
+    if (invSnap.exists()) {
+      transaction.update(invRef, {
+        batches: dedupeBatches(batches),
+        updatedAt: now,
+      });
+    } else {
+      transaction.set(invRef, { ...item, batches: dedupeBatches(batches), updatedAt: now });
+    }
 
     // 3. The destination location gains the pallet
     const locRef = doc(db, "locationMaster", location);
@@ -1046,7 +1085,10 @@ export async function removeInventoryBatchForPallet(
   const item = snap.data() as any;
   const batches = (item.batches ?? []).filter((b: any) => b.palletId !== palletId);
   if (batches.length === (item.batches ?? []).length) return;
-  await updateDoc(invRef, { batches, updatedAt: new Date().toISOString() });
+  await updateDoc(invRef, {
+    batches: dedupeBatches(batches),
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 /**
@@ -1066,7 +1108,10 @@ export async function syncInventoryBatchUnits(
   const idx = batches.findIndex((b) => b.palletId === palletId);
   if (idx < 0) return;
   batches[idx] = { ...batches[idx], qty };
-  await updateDoc(invRef, { batches, updatedAt: new Date().toISOString() });
+  await updateDoc(invRef, {
+    batches: dedupeBatches(batches),
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 /**
@@ -1402,13 +1447,141 @@ export async function deleteOrder(orderId: string): Promise<{ ok: true }> {
   return { ok: true };
 }
 
+/**
+ * Write an inventory record.
+ *
+ * IMPORTANT: `set(ref, data, { merge: true })` MERGES arrays element-by-element
+ * instead of replacing them, so re-saving a record duplicated its batches.
+ * `update()` replaces the whole array, and the batches are deduped by
+ * palletId first, so there is always exactly one batch per pallet.
+ */
 export async function upsertInventoryItem(item: InventoryItem) {
-  await setDoc(doc(db, "inventoryItems", item.sku), item, { merge: true });
+  const ref = doc(db, "inventoryItems", item.sku);
+  const payload = {
+    ...item,
+    batches: dedupeBatches(item.batches ?? []),
+    updatedAt: new Date().toISOString(),
+  };
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    await updateDoc(ref, payload);
+  } else {
+    await setDoc(ref, payload);
+  }
 }
 
+/**
+ * Release a pallet from the inventory.
+ *
+ * Used when a putaway was recorded in error: the inventory batch is removed
+ * and the pallet returns to the "staged" state so it can be put away again
+ * (from the Pallet screen or the RF gun).
+ *
+ * Refuses to release a pallet whose stock is already allocated.
+ */
+export async function releaseInventoryPallet(
+  sku: string,
+  palletId: string,
+  opts?: { performedBy?: string; reason?: string },
+): Promise<{ ok: boolean; message: string }> {
+  const invRef = doc(db, "inventoryItems", sku);
+  const invSnap = await getDoc(invRef);
+  if (!invSnap.exists()) {
+    return { ok: false, message: "Inventory record not found." };
+  }
+  const item = invSnap.data() as any;
+  const batches: any[] = Array.isArray(item.batches) ? [...item.batches] : [];
+  const idx = batches.findIndex((b) => b.palletId === palletId);
+  if (idx < 0) {
+    return { ok: false, message: `No inventory batch for pallet ${palletId}.` };
+  }
+  const batch = batches[idx];
+  if ((batch.qtyAllocated ?? 0) > 0) {
+    return {
+      ok: false,
+      message: `Pallet ${palletId} has ${batch.qtyAllocated} unit(s) allocated. Release the allocation first.`,
+    };
+  }
+
+  const location = batch.location;
+  batches.splice(idx, 1);
+  if (batches.length === 0) {
+    await deleteDoc(invRef);
+  } else {
+    await updateDoc(invRef, {
+      batches: dedupeBatches(batches),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  // Return the pallet to "staged" so it can be put away again.
+  const palletRef = doc(db, "pallets", palletId);
+  const palletSnap = await getDoc(palletRef);
+  if (palletSnap.exists()) {
+    const pallet = palletSnap.data() as any;
+    await updateDoc(palletRef, {
+      status: "staged",
+      location: null,
+      putawayAt: null,
+      updatedAt: new Date().toISOString(),
+    });
+    if (location) {
+      const locRef = doc(db, "locationMaster", location);
+      const locSnap = await getDoc(locRef);
+      if (locSnap.exists()) {
+        const current = Number(locSnap.data()?.occupiedPallets ?? 0);
+        await updateDoc(locRef, {
+          occupiedPallets: Math.max(0, current - 1),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  // Audit trail
+  try {
+    await logInventoryTransaction({
+      sku,
+      palletId,
+      location,
+      type: "ADJUST",
+      qtyChange: -Math.abs(Number(batch.qty) || 0),
+      qtyBefore: Number(batch.qty) || 0,
+      qtyAfter: 0,
+      user: opts?.performedBy ?? "admin",
+      notes: opts?.reason ?? "Released from inventory — pallet returned to staged",
+    });
+  } catch (e) {
+    console.warn("Could not write inventory transaction:", e);
+  }
+
+  return {
+    ok: true,
+    message: `Pallet ${palletId} released — removed from inventory and returned to staged for putaway.`,
+  };
+}
+
+/**
+ * Update a single batch of an inventory record.
+ *
+ * The batches array is read, the batch is merged in memory and the whole
+ * array is written back — a dotted path such as `batches.B-123` would be
+ * treated as a MAP key by Firestore and destroy the array.
+ */
 export async function updateInventoryBatch(sku: string, batchId: string, updates: any) {
-  await updateDoc(doc(db, "inventoryItems", sku), {
-    [`batches.${batchId}`]: updates,
+  const ref = doc(db, "inventoryItems", sku);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const item = snap.data() as any;
+  const batches: any[] = Array.isArray(item.batches) ? [...item.batches] : [];
+  const idx = batches.findIndex(
+    (b) => b.batchId === batchId || b.palletId === batchId,
+  );
+  if (idx < 0) return;
+  batches[idx] = { ...batches[idx], ...updates };
+  await updateDoc(ref, {
+    batches: dedupeBatches(batches),
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -4226,6 +4399,35 @@ export async function repairIntegrityIssue(
         updatedAt: new Date().toISOString(),
       });
       return { ok: true, message: `Batch on pallet ${issue.relatedId} removed from ${sku}.` };
+    }
+
+    /** I2 — collapse duplicate batches for the same pallet */
+    case "inventory-duplicate-batch": {
+      const [sku] = issue.recordId.split(":");
+      const invRef = doc(db, "inventoryItems", sku);
+      const snap = await getDoc(invRef);
+      if (!snap.exists()) return { ok: false, message: "Inventory record not found." };
+      const item = snap.data() as any;
+      const batches: any[] = Array.isArray(item.batches) ? [...item.batches] : [];
+      const seen = new Set<string>();
+      const deduped = batches.filter((b: any) => {
+        const key = b?.palletId ?? b?.batchId;
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const removedCount = batches.length - deduped.length;
+      if (removedCount === 0) {
+        return { ok: true, message: "No duplicates found." };
+      }
+      await updateDoc(invRef, {
+        batches: dedupeBatches(deduped),
+        updatedAt: new Date().toISOString(),
+      });
+      return {
+        ok: true,
+        message: `Removed ${removedCount} duplicate batch(es) from ${sku}.`,
+      };
     }
 
     /** L1 — a putaway pallet with no location goes back to staged */

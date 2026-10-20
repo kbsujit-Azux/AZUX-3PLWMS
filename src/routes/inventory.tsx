@@ -10,6 +10,7 @@ import {
   RefreshCw,
   History,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,16 @@ import { useWmsData } from "@/components/db-context";
 import { useAuth } from "@/lib/auth";
 import { tenants, warehouses, type InventoryItem, type InventoryBatch } from "@/lib/mock-data";
 import { inboundShipments } from "@/lib/inbound-data";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { fmtDateTime } from "@/lib/utils";
 import {
   fetchTransactionHistory,
@@ -43,6 +54,7 @@ import {
   InventoryTransaction,
   upsertInventoryItem,
   logInventoryTransaction,
+  releaseInventoryPallet,
 } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inventory")({
@@ -132,6 +144,8 @@ function InventoryPage() {
   >({});
   const fileRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
+  const [releaseTarget, setReleaseTarget] = useState<Row | null>(null);
+  const [releasing, setReleasing] = useState(false);
 
   const poRefs = useMemo(buildPoRefs, []);
 
@@ -513,6 +527,24 @@ onClick={() => {
                       >
                         <History className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-7 w-7 ${
+                          r.allocatedUnits > 0
+                            ? "text-muted-foreground/40"
+                            : "text-destructive hover:text-destructive"
+                        }`}
+                        disabled={r.allocatedUnits > 0}
+                        onClick={() => setReleaseTarget(r)}
+                        title={
+                          r.allocatedUnits > 0
+                            ? `Cannot release — ${r.allocatedUnits} unit(s) allocated`
+                            : "Release pallet from inventory (returns it to staged for putaway)"
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -521,6 +553,65 @@ onClick={() => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Release pallet from inventory */}
+      <AlertDialog
+        open={!!releaseTarget}
+        onOpenChange={(o) => !o && setReleaseTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Release pallet from inventory</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the inventory batch for{" "}
+              <span className="font-mono">{releaseTarget?.palletId}</span> and returns
+              the pallet to <span className="font-mono">staged</span> so it can be
+              put away again.
+              {releaseTarget?.allocatedUnits ? (
+                <span className="mt-2 block font-medium text-destructive">
+                  {releaseTarget.allocatedUnits} unit(s) are allocated — release the
+                  allocation first.
+                </span>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={releasing}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!releaseTarget) return;
+                setReleasing(true);
+                try {
+                  const result = await releaseInventoryPallet(
+                    releaseTarget.sku,
+                    releaseTarget.palletId,
+                    { performedBy: user?.name || "admin" },
+                  );
+                  if (result.ok) {
+                    toast.success("Pallet released", { description: result.message });
+                    setReleaseTarget(null);
+                    await refreshData();
+                  } else {
+                    toast.error("Could not release pallet", {
+                      description: result.message,
+                    });
+                  }
+                } catch (err) {
+                  toast.error("Could not release pallet", {
+                    description: err instanceof Error ? err.message : String(err),
+                  });
+                } finally {
+                  setReleasing(false);
+                }
+              }}
+            >
+              {releasing ? "Releasing…" : "Release pallet"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Scan dialog */}
       <Dialog open={!!scanItem} onOpenChange={(o) => !o && setScanItem(null)}>

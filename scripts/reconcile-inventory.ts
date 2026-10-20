@@ -122,6 +122,15 @@ async function main() {
           status: "active",
         };
 
+    // Collapse any duplicate batches for the same pallet.
+    const seen = new Set<string>();
+    record.batches = (record.batches ?? []).filter((b: any) => {
+      const key = b.palletId ?? b.batchId;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
     if (current) {
       removed += existing.length - keptExisting.length;
     }
@@ -132,7 +141,16 @@ async function main() {
     );
 
     if (!DRY_RUN) {
-      await invRef.set(record, { merge: true });
+      // `set(..., { merge: true })` merges arrays element-by-element and
+      // would duplicate batches. `update()` replaces the whole array.
+      if (invDoc) {
+        await invRef.update({
+          batches: record.batches,
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await invRef.set(record);
+      }
     }
   }
 

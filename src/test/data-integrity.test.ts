@@ -191,6 +191,32 @@ describe("Data integrity checker", () => {
     }
   });
 
+  it("I2 — flags duplicate inventory batches for the same pallet", () => {
+    const issues = checkDataIntegrity({
+      ...base,
+      inventoryItems: [
+        {
+          sku: "SKU-A",
+          tenantId: "acme",
+          warehouseId: "atl1",
+          batches: [
+            { palletId: "PLT-1", qty: 40 },
+            { palletId: "PLT-1", qty: 40 },
+          ],
+        },
+      ],
+    } as any);
+    const issue = issues.find((i) => i.type === "inventory-duplicate-batch");
+    expect(issue).toBeDefined();
+    expect(issue!.autoFixable).toBe(true);
+    expect(issue!.detail).toContain("2 times");
+  });
+
+  it("I2 — stays silent when each pallet has one batch", () => {
+    const issues = checkDataIntegrity(base as any);
+    expect(issues.some((i) => i.type === "inventory-duplicate-batch")).toBe(false);
+  });
+
   it("P6 — flags a stored pallet with no inventory batch", () => {
     const issues = checkDataIntegrity({
       ...base,

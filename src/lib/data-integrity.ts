@@ -48,6 +48,7 @@ export type IntegrityIssueType =
   | "line-missing-item"
   | "container-missing-party"
   | "inventory-missing-pallet"
+  | "inventory-duplicate-batch"
   | "putaway-without-location"
   | "location-occupancy-drift"
   | "cartonization-missing-order"
@@ -389,6 +390,45 @@ const checkInventoryPallets: Check = (ctx) => {
   return out;
 };
 
+/**
+ * I2 — the same pallet appears more than once in a SKU's batches.
+ *
+ * Firestore's `set(..., { merge: true })` merges arrays element-by-element,
+ * so re-saving an inventory record can duplicate a batch. That inflates the
+ * on-hand quantity and shows the pallet several times in the grid.
+ */
+const checkDuplicateBatches: Check = (ctx) => {
+  const out: IntegrityIssue[] = [];
+  for (const inv of ctx.inventoryItems ?? []) {
+    const batches = Array.isArray(inv.batches) ? inv.batches : [];
+    const seen = new Map<string, number>();
+    for (const b of batches) {
+      const key = b?.palletId ?? b?.batchId;
+      if (!key) continue;
+      seen.set(key, (seen.get(key) ?? 0) + 1);
+    }
+    for (const [palletId, count] of seen) {
+      if (count > 1) {
+        out.push({
+          id: `I2-${inv.sku}-${palletId}`,
+          type: "inventory-duplicate-batch",
+          severity: "error",
+          title: "Duplicate inventory batch",
+          detail: `Pallet ${palletId} appears ${count} times in the inventory for ${inv.sku}. The on-hand quantity is counted ${count} times.`,
+          entity: "inventory",
+          recordId: `${inv.sku}:${palletId}`,
+          relatedId: palletId,
+          tenantId: inv.tenantId,
+          warehouseId: inv.warehouseId,
+          autoFixable: true,
+          fixLabel: "Remove duplicates",
+        });
+      }
+    }
+  }
+  return out;
+};
+
 /** L1 — a pallet is put away but has no location assigned */
 const checkPutawayLocation: Check = (ctx) => {
   const out: IntegrityIssue[] = [];
@@ -516,6 +556,7 @@ export const INTEGRITY_CHECKS: Array<{ id: string; label: string; run: Check }> 
   { id: "S3", label: "Receipt line → item", run: checkLineItem },
   { id: "S4", label: "Container → client / warehouse", run: checkContainerParties },
   { id: "I1", label: "Inventory → pallet", run: checkInventoryPallets },
+  { id: "I2", label: "Inventory duplicate batches", run: checkDuplicateBatches },
   { id: "L1", label: "Pallet putaway → location", run: checkPutawayLocation },
   { id: "L2", label: "Location occupancy", run: checkLocationOccupancy },
   { id: "C1", label: "Cartonization → order", run: checkCartonizationOrder },
