@@ -49,7 +49,8 @@ export type IntegrityIssueType =
   | "container-missing-party"
   | "inventory-missing-pallet"
   | "putaway-without-location"
-  | "location-occupancy-drift";
+  | "location-occupancy-drift"
+  | "cartonization-missing-order";
 
 export type IntegrityIssue = {
   id: string;
@@ -78,6 +79,8 @@ export type IntegrityContext = {
   inboundShipments?: any[];
   workOrders?: any[];
   inventoryItems?: any[];
+  cartonizations?: any[];
+  orders?: any[];
   itemMaster?: ItemMasterRecord[];
   locationMaster?: LocationRecord[];
   tenants?: any[];
@@ -438,6 +441,33 @@ const checkLocationOccupancy: Check = (ctx) => {
   return out;
 };
 
+/** C1 — a cartonization was derived from an order that no longer exists */
+const checkCartonizationOrder: Check = (ctx) => {
+  const orderIds = new Set((ctx.orders ?? []).map((o) => o.id));
+  const out: IntegrityIssue[] = [];
+  for (const c of ctx.cartonizations ?? []) {
+    const orderId = c.orderId;
+    if (!orderId) continue;
+    if (!orderIds.has(orderId)) {
+      out.push({
+        id: `C1-${c.id}`,
+        type: "cartonization-missing-order",
+        severity: "error",
+        title: "Cartonization has no order",
+        detail: `Cartonization ${c.id} was built from order ${orderId}, which no longer exists. It cannot be packed, picked or billed.`,
+        entity: "shipment",
+        recordId: c.id,
+        relatedId: orderId,
+        tenantId: c.tenantId,
+        warehouseId: c.warehouseId,
+        autoFixable: true,
+        fixLabel: "Delete cartonization",
+      });
+    }
+  }
+  return out;
+};
+
 /** Registry of every correlation check */
 export const INTEGRITY_CHECKS: Array<{ id: string; label: string; run: Check }> = [
   { id: "P1", label: "Pallet → container", run: checkPalletContainer },
@@ -452,6 +482,7 @@ export const INTEGRITY_CHECKS: Array<{ id: string; label: string; run: Check }> 
   { id: "I1", label: "Inventory → pallet", run: checkInventoryPallets },
   { id: "L1", label: "Pallet putaway → location", run: checkPutawayLocation },
   { id: "L2", label: "Location occupancy", run: checkLocationOccupancy },
+  { id: "C1", label: "Cartonization → order", run: checkCartonizationOrder },
 ];
 
 /**

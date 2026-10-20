@@ -12,14 +12,17 @@
  *    tenants, warehouses, clients, itemMaster, locationMaster,
  *    employees, users, tenantPortalUsers, carrierCredentials,
  *    carrierServices, billingClients, chargeRules, returnProcessingFees,
- *    rmaDispositions, cartonizations, counters
+ *    rmaDispositions, counters
  *
  *  Transactional data that is DELETED:
  *    inboundShipments, workOrders, pallets, outboundPallets,
  *    inventoryItems, inventoryTransactions, orders, pickTickets,
  *    pickWaves, shipments, bols, invoices, invoicePayments,
  *    billableEvents, ediLogs, csvUploadHistory, rmaOrders, rmaLines,
- *    putawaySuggestions, palletBuildTemplates, slottingRules
+ *    cartonizations, putawaySuggestions, palletBuildTemplates, slottingRules
+ *
+ *  NOTE: `cartonizations` is transactional — each record is derived from a
+ *  specific order, so it becomes an orphan the moment that order is gone.
  *
  *  Usage:
  *    npm run purge:transactions          # delete transactional data
@@ -54,7 +57,6 @@ export const MASTER_COLLECTIONS = [
   "chargeRules",
   "returnProcessingFees",
   "rmaDispositions",
-  "cartonizations",
   "counters",
 ];
 

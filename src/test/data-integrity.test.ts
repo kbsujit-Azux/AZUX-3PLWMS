@@ -191,6 +191,26 @@ describe("Data integrity checker", () => {
     }
   });
 
+  it("C1 — flags a cartonization whose order is gone", () => {
+    const issues = checkDataIntegrity({
+      ...base,
+      orders: [],
+      cartonizations: [{ id: "CZN-1", orderId: "SO-2026-001", tenantId: "acme" }],
+    } as any);
+    const issue = issues.find((i) => i.type === "cartonization-missing-order");
+    expect(issue).toBeDefined();
+    expect(issue!.autoFixable).toBe(true);
+  });
+
+  it("C1 — stays silent when the cartonization order exists", () => {
+    const issues = checkDataIntegrity({
+      ...base,
+      orders: [{ id: "SO-2026-001" }],
+      cartonizations: [{ id: "CZN-1", orderId: "SO-2026-001", tenantId: "acme" }],
+    } as any);
+    expect(issues.some((i) => i.type === "cartonization-missing-order")).toBe(false);
+  });
+
   it("does not throw on empty data", () => {
     expect(() => checkDataIntegrity({})).not.toThrow();
     expect(checkDataIntegrity({})).toEqual([]);

@@ -4044,6 +4044,12 @@ export async function repairIntegrityIssue(
       return { ok: true, message: `Occupancy for ${issue.recordId} set to ${stored}.` };
     }
 
+    /** C1 — remove a cartonization whose order no longer exists */
+    case "cartonization-missing-order": {
+      await deleteDoc(doc(db, "cartonizations", issue.recordId));
+      return { ok: true, message: `Cartonization ${issue.recordId} deleted.` };
+    }
+
     default:
       return { ok: false, message: "No automatic repair available for this issue." };
   }
