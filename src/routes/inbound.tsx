@@ -92,8 +92,8 @@ import {
 } from "@/lib/putaway-engine";
 import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
-import { validateLineAgainstItemMaster, masterReasonLabel, itemMaster } from "@/lib/master-data";
-import { locationMaster } from "@/lib/master-data";
+import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
+import { locationMaster, type ItemMasterRecord } from "@/lib/master-data";
 import { createCsvUploadRecord, createInboundShipmentRecord, createPalletsAndLinkToShipment, deleteInboundShipment, recordInboundPalletBuild, updateInboundShipmentRecord, updateInboundLine, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive, deleteWorkOrder as deleteWorkOrderRecord, updateWorkOrder } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
@@ -161,7 +161,7 @@ function parseFlexibleDate(input: string): Date | null {
 
 function InboundPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { inboundShipments, workOrders, refreshData } = useWmsData();
+  const { inboundShipments, workOrders, refreshData, itemMaster } = useWmsData();
   const [query, setQuery] = useState(() => localStorage.getItem("inbound-query") || "");
   const [csvOpen, setCsvOpen] = useState(false);
   const [, force] = useState(0);
@@ -413,6 +413,7 @@ function InboundPage() {
             key={s.id}
             shipment={s}
             workOrders={workOrders}
+            itemMaster={itemMaster}
             onBuildPallets={(l) => setActiveLine({ s, l })}
             onEditWorkOrder={setEditWorkOrder}
             onDeleteWorkOrder={setDeleteWorkOrder}
@@ -936,6 +937,7 @@ try {
 function ShipmentCard({
   shipment,
   workOrders,
+  itemMaster,
   onBuildPallets,
   onCloseContainer,
   onEdit,
@@ -947,6 +949,8 @@ function ShipmentCard({
 }: {
   shipment: InboundShipment;
   workOrders: WorkOrder[];
+  /** Live Item Master — used for the authoritative pack size. */
+  itemMaster?: ItemMasterRecord[];
   onBuildPallets: (l: InboundLine) => void;
   onCloseContainer?: () => void;
   onEdit?: () => void;
@@ -961,6 +965,38 @@ function ShipmentCard({
   const pct = shipmentProgressPct(shipment);
   const totalUnits = Array.isArray(shipment.lines) ? shipment.lines.reduce((a, l) => a + (l.qtyExpected || 0), 0) : 0;
   const totalCartons = Array.isArray(shipment.lines) ? shipment.lines.reduce((a, l) => a + (l.cartonsExpected || 0), 0) : 0;
+
+  /**
+   * Pack size = units per pack for the SKU.
+   *
+   * The Item Master is authoritative (the pack hierarchy's inner level).
+   * The ASN's own carton count is only a fallback because vendors often
+   * ship in master packs, which makes the ASN ratio differ from the
+   * catalogue pack size.
+   */
+  const packSizeFor = (l: InboundLine): number | undefined => {
+    const master = itemMaster?.find((i) => i.sku === l.sku);
+    if (master) {
+      const inner = master.packHierarchy?.find((h) => h.packLevel === "inner");
+      const size = inner?.qtyPerParent || master.caseQty || master.innerPackQty;
+      if (size) return size;
+    }
+    if (l.cartonsExpected > 0 && l.qtyExpected > 0) {
+      const ratio = l.qtyExpected / l.cartonsExpected;
+      return Number.isInteger(ratio) ? ratio : undefined;
+    }
+    return undefined;
+  };
+
+  /**
+   * True when the ASN carton count disagrees with the catalogue pack size
+   * (vendors often ship in master packs, which makes the two differ).
+   */
+  const cartonMismatch = (l: InboundLine): boolean => {
+    const size = packSizeFor(l);
+    if (!size || l.cartonsExpected <= 0 || l.qtyExpected <= 0) return false;
+    return Math.ceil(l.qtyExpected / size) !== l.cartonsExpected;
+  };
 
   const allLinesHavePallets = Array.isArray(shipment.lines) && shipment.lines.length > 0 && shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
   const canClose = onCloseContainer && allLinesHavePallets;
@@ -1071,6 +1107,9 @@ function ShipmentCard({
               Units exp.
             </TableHead>
             <TableHead className="text-[10px] uppercase tracking-wider text-right">
+              Pack size
+            </TableHead>
+            <TableHead className="text-[10px] uppercase tracking-wider text-right">
               Cartons exp.
             </TableHead>
             <TableHead className="text-[10px] uppercase tracking-wider text-right">
@@ -1113,8 +1152,26 @@ function ShipmentCard({
                 <TableCell className="py-2 text-right tabular-nums font-medium">
                   {l.qtyExpected.toLocaleString()}
                 </TableCell>
-                <TableCell className="py-2 text-right tabular-nums">
+                <TableCell
+                  className="py-2 text-right tabular-nums text-muted-foreground"
+                  title="Units per pack (Item Master)"
+                >
+                  {packSizeFor(l)?.toLocaleString() ?? "—"}
+                </TableCell>
+                <TableCell
+                  className={`py-2 text-right tabular-nums ${
+                    cartonMismatch(l) ? "text-amber-600" : ""
+                  }`}
+                  title={
+                    cartonMismatch(l)
+                      ? `ASN carton count does not match the pack size (${packSizeFor(l)} units/pack → ${Math.ceil(l.qtyExpected / Math.max(1, packSizeFor(l) ?? 1))} packs expected)`
+                      : "Cartons on the ASN"
+                  }
+                >
                   {l.cartonsExpected.toLocaleString()}
+                  {cartonMismatch(l) && (
+                    <AlertTriangle className="h-3 w-3 inline ml-1 align-text-bottom" />
+                  )}
                 </TableCell>
                 <TableCell className="py-2 text-right tabular-nums text-muted-foreground">
                   {l.unitsPerPallet}
@@ -1148,16 +1205,29 @@ function ShipmentCard({
                       {l.status}
                     </span>
                   ) : (
-                    <div className="flex flex-wrap gap-1">
-                      {l.palletIds.map((id) => (
-                        <Link
-                          key={id}
-                          to="/pallets"
-                          className="inline-flex items-center gap-0.5 rounded-sm border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono text-primary hover:bg-primary/20"
-                        >
-                          {id} <ChevronRight className="h-2.5 w-2.5" />
-                        </Link>
-                      ))}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium tabular-nums">
+                          <Boxes className="h-2.5 w-2.5 text-muted-foreground" />
+                          {l.palletIds.length} pallet{l.palletIds.length === 1 ? "" : "s"}
+                        </span>
+                        {l.unitsPerPallet > 0 && (
+                          <span className="text-[10px] text-muted-foreground tabular-nums">
+                            {l.unitsPerPallet} u/pallet
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {l.palletIds.map((id) => (
+                          <Link
+                            key={id}
+                            to="/pallets"
+                            className="inline-flex items-center gap-0.5 rounded-sm border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono text-primary hover:bg-primary/20"
+                          >
+                            {id} <ChevronRight className="h-2.5 w-2.5" />
+                          </Link>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </TableCell>
@@ -2083,7 +2153,7 @@ function AddContainerDialog({
   onAdded: () => void;
 }) {
   const { tenantId, warehouseId } = useWorkspace();
-  const { warehouses: liveWarehouses } = useWmsData();
+  const { warehouses: liveWarehouses, itemMaster: liveItemMaster } = useWmsData();
   const [selectedTenantId, setSelectedTenantId] = useState<string>("");
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>("");
   const [header, setHeader] = useState({
@@ -2105,10 +2175,10 @@ function AddContainerDialog({
   const validSkus = useMemo(() => {
     const tenantToUse =
       selectedTenantId || (tenantId !== "all" ? tenantId : (tenants[0]?.id ?? ""));
-    return itemMaster
+    return liveItemMaster
       .filter((i) => i.tenantId === tenantToUse)
       .map((i) => ({ sku: i.sku, upc: i.upc, itemStyle: i.itemStyle, description: i.description }));
-  }, [selectedTenantId, tenantId]);
+  }, [selectedTenantId, tenantId, liveItemMaster]);
 
   useEffect(() => {
     if (!open) {
