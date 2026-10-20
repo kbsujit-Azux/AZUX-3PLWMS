@@ -144,8 +144,12 @@ export function analyzeSlottingEfficiency(
     forwardOccupancy.set(loc.id, []);
   }
   for (const pallet of activePallets) {
-    if (forwardOccupancy.has(pallet.location!)) {
-      forwardOccupancy.get(pallet.location!)!.push(pallet);
+    // Pallets that are not yet assigned a location must be ignored here —
+    // a null location would otherwise be used as a map key.
+    if (!pallet.location) continue;
+    const bucket = forwardOccupancy.get(pallet.location);
+    if (bucket) {
+      bucket.push(pallet);
     }
   }
 

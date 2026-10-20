@@ -267,7 +267,7 @@ export function useAuth() {
 // ───────────────────────── Sign-In Screen ─────────────────────────
 export function SignInScreen() {
   const { login } = useAuth();
-  const [email, setEmail] = useState(DIRECTORY[0].email);
+  const [email, setEmail] = useState(DIRECTORY[0]?.email ?? "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 

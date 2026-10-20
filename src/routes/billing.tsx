@@ -1327,7 +1327,7 @@ function InvoicesTab({
               <div className="p-4 text-sm text-muted-foreground">No invoices yet.</div>
             )}
             {invoices.map((inv) => {
-              const c = clients.find((b) => b.id === inv.clientId)!;
+              const c = clients.find((b) => b.id === inv.clientId);
               const total = lineTotal(inv);
               return (
                 <button
@@ -1342,7 +1342,7 @@ function InvoicesTab({
                     <span className="text-xs text-muted-foreground">{inv.status}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{c.name}</span>
+                    <span>{c?.name ?? inv.clientId}</span>
                     <span>{fmtUSD(total)}</span>
                   </div>
                 </button>
@@ -1902,11 +1902,11 @@ function TransactionsTab({
           </TableHeader>
           <TableBody>
             {filtered.map((e) => {
-              const c = clients.find((b) => b.id === e.clientId)!;
+              const c = clients.find((b) => b.id === e.clientId);
               return (
                 <TableRow key={e.id}>
                   <TableCell className="text-xs text-muted-foreground">{e.date}</TableCell>
-                  <TableCell>{c.name}</TableCell>
+                  <TableCell>{c?.name ?? e.clientId}</TableCell>
                   <TableCell>
                     <CategoryBadge cat={e.type} />
                   </TableCell>

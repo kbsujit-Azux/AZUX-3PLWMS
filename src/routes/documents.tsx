@@ -569,7 +569,7 @@ function ConsolidateDialog({
                 </div>
                 <div className="divide-y divide-border">
                   {g.orderIds.map((id) => {
-                    const o = orders.find((x) => x.id === id)!;
+                    const o = orders.find((x) => x.id === id);
                     return (
                       <label
                         key={id}
@@ -578,13 +578,15 @@ function ConsolidateDialog({
                         <Checkbox checked={sel.has(id)} onCheckedChange={() => toggle(g.key, id)} />
                         <span className="font-mono font-medium w-24">{id}</span>
                         <span className="font-mono text-[11px] text-muted-foreground w-28">
-                          {o.poNumber}
+                          {o?.poNumber ?? "—"}
                         </span>
                         <span className="flex-1 truncate text-muted-foreground">
-                          {Array.isArray(o.lines) ? o.lines.map((l) => `${l.qtyOrdered}× ${l.sku}`).join(" · ") : ""}
+                          {Array.isArray(o?.lines)
+                            ? o.lines.map((l) => `${l.qtyOrdered}× ${l.sku}`).join(" · ")
+                            : ""}
                         </span>
                         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                          {o.status}
+                          {o?.status ?? "unknown"}
                         </span>
                       </label>
                     );

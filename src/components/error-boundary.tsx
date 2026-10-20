@@ -6,6 +6,8 @@ interface Props {
   children: ReactNode;
   fallback?: ReactNode;
   onError?: (error: Error, info: ErrorInfo) => void;
+  /** "dark" for the RF gun (always-dark shell), "light" for the web console. */
+  tone?: "dark" | "light";
 }
 
 interface State {
@@ -30,6 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReset = () => {
+    this.state = { hasError: false, error: null, errorInfo: null };
     this.setState({ hasError: false, error: null, errorInfo: null });
   };
 
@@ -39,18 +42,30 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
+      const dark = (this.props.tone ?? "dark") === "dark";
+
       return (
-        <div className="flex h-full flex-col items-center justify-center gap-4 bg-slate-950 p-6 text-center">
-          <AlertTriangle className="h-12 w-12 text-red-400" />
-          <h2 className="text-lg font-semibold text-white">Something went wrong</h2>
-          <p className="max-w-md text-xs text-slate-400">
+        <div
+          className={`flex h-full min-h-[40vh] flex-col items-center justify-center gap-4 p-6 text-center ${
+            dark ? "bg-slate-950" : "bg-background"
+          }`}
+        >
+          <AlertTriangle className={`h-12 w-12 ${dark ? "text-red-400" : "text-destructive"}`} />
+          <h2 className={`text-lg font-semibold ${dark ? "text-white" : "text-foreground"}`}>
+            Something went wrong
+          </h2>
+          <p className={`max-w-md text-xs ${dark ? "text-slate-400" : "text-muted-foreground"}`}>
             {this.state.error?.message || "An unexpected error occurred"}
           </p>
           <Button
             variant="outline"
             size="sm"
             onClick={this.handleReset}
-            className="gap-2 border-slate-700 text-slate-300 hover:text-white"
+            className={`gap-2 ${
+              dark
+                ? "border-slate-700 text-slate-300 hover:text-white"
+                : "text-foreground hover:bg-muted"
+            }`}
           >
             <RefreshCcw className="h-4 w-4" /> Try Again
           </Button>

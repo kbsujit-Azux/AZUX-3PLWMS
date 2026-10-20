@@ -91,16 +91,18 @@ const statusStyles: Record<PalletStatus, string> = {
 
 function PalletsPage() {
   const { tenantId, warehouseId, strategy } = useWorkspace();
-  const { refreshData } = useWmsData();
+  const { refreshData, pickWaves: livePickWaves } = useWmsData();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"build" | "putaway" | "pick">("build");
   const [labelPallet, setLabelPallet] = useState<Pallet | null>(null);
-  const [selectedWave, setSelectedWave] = useState<string>(pickWaves[0].id);
+  // Prefer live Firestore pick waves; fall back to the bundled seed list.
+  const waveList = livePickWaves?.length ? livePickWaves : pickWaves;
+  const [selectedWave, setSelectedWave] = useState<string>(waveList[0]?.id ?? "");
   const [scanTarget, setScanTarget] = useState<Pallet | null>(null);
   const [newPalletOpen, setNewPalletOpen] = useState(false);
   const [newPalletData, setNewPalletData] = useState<NewPalletForm>({
-    tenantId: tenantId === "all" ? warehouses[0].id : tenantId,
-    warehouseId: warehouseId === "all" ? warehouses[0].id : warehouseId,
+    tenantId: tenantId === "all" ? (warehouses[0]?.id ?? "") : tenantId,
+    warehouseId: warehouseId === "all" ? (warehouses[0]?.id ?? "") : warehouseId,
     sku: "",
     description: "",
     itemStyle: "",
@@ -115,6 +117,17 @@ function PalletsPage() {
   /** Pallet IDs deleted in this session (non-putaway only). */
   const [deleted, setDeleted] = useState<Set<string>>(new Set());
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Keep the selected wave valid once live waves arrive (or change).
+  useEffect(() => {
+    if (waveList.length === 0) {
+      setSelectedWave("");
+      return;
+    }
+    if (!waveList.some((w) => w.id === selectedWave)) {
+      setSelectedWave(waveList[0].id);
+    }
+  }, [waveList, selectedWave]);
 
   /** PO# → { container, trailer } lookup sourced from inbound ASNs. */
   const poRefs = useMemo(() => {
@@ -286,9 +299,9 @@ function PalletsPage() {
             size="sm"
             className="h-8 text-xs gap-1.5"
 onClick={() => {
-               setNewPalletData({
-                 tenantId: tenantId === "all" ? warehouses[0].id : tenantId,
-                 warehouseId: warehouseId === "all" ? warehouses[0].id : warehouseId,
+                setNewPalletData({
+                  tenantId: tenantId === "all" ? (warehouses[0]?.id ?? "") : tenantId,
+                  warehouseId: warehouseId === "all" ? (warehouses[0]?.id ?? "") : warehouseId,
                  sku: "",
                  description: "",
                  itemStyle: "",
@@ -644,7 +657,12 @@ const reportData = visiblePallets.map((p) => ({
               Open pick waves
             </div>
             <div className="divide-y divide-border">
-              {pickWaves.map((w) => {
+              {waveList.length === 0 && (
+                <div className="px-3 py-4 text-[11px] text-muted-foreground text-center">
+                  No open pick waves.
+                </div>
+              )}
+              {waveList.map((w) => {
                 const order = orders.find((o) => o.id === w.orderId);
                 const tenant = tenants.find((t) => t.id === w.tenantId);
                 const wh = warehouses.find((wh) => wh.id === w.warehouseId);
@@ -683,7 +701,7 @@ const reportData = visiblePallets.map((p) => ({
 
           {/* Pick route */}
           <div className="col-span-8 rounded-md border border-border bg-card overflow-hidden">
-            <PickRoutePanel waveId={selectedWave} strategy={strategy} />
+            <PickRoutePanel waveId={selectedWave} strategy={strategy} waves={waveList} />
           </div>
         </TabsContent>
       </Tabs>
@@ -826,9 +844,18 @@ function Toolbar({
   );
 }
 
-function PickRoutePanel({ waveId, strategy }: { waveId: string; strategy: "LIFO" | "FIFO" }) {
-  const wave = pickWaves.find((w) => w.id === waveId)!;
-  const order = orders.find((o) => o.id === wave.orderId);
+function PickRoutePanel({
+  waveId,
+  strategy,
+  waves,
+}: {
+  waveId: string;
+  strategy: "LIFO" | "FIFO";
+  /** Structural subset so both live (PickWave) and seed waves are accepted. */
+  waves?: Array<{ id: string; orderId: string; releasedAt: string }>;
+}) {
+  const wave = (waves ?? pickWaves).find((w) => w.id === waveId);
+  const order = wave ? orders.find((o) => o.id === wave.orderId) : undefined;
 
   const route = useMemo(() => {
     if (!order) return [];
@@ -838,6 +865,14 @@ function PickRoutePanel({ waveId, strategy }: { waveId: string; strategy: "LIFO"
         )
       : [];
   }, [order, strategy]);
+
+  if (!wave) {
+    return (
+      <div className="flex h-full min-h-[12rem] items-center justify-center px-4 text-center text-[11px] text-muted-foreground">
+        Select a pick wave to view its directed route.
+      </div>
+    );
+  }
 
   return (
     <div>

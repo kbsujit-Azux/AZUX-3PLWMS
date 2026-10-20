@@ -2086,7 +2086,8 @@ function AddContainerDialog({
     port: "",
   });
   const validSkus = useMemo(() => {
-    const tenantToUse = selectedTenantId || (tenantId !== "all" ? tenantId : tenants[0].id);
+    const tenantToUse =
+      selectedTenantId || (tenantId !== "all" ? tenantId : (tenants[0]?.id ?? ""));
     return itemMaster
       .filter((i) => i.tenantId === tenantToUse)
       .map((i) => ({ sku: i.sku, upc: i.upc, itemStyle: i.itemStyle, description: i.description }));
@@ -2094,7 +2095,7 @@ function AddContainerDialog({
 
   useEffect(() => {
     if (!open) {
-      setSelectedTenantId(tenantId !== "all" ? tenantId : tenants[0].id);
+      setSelectedTenantId(tenantId !== "all" ? tenantId : (tenants[0]?.id ?? ""));
       setSelectedWarehouseId(warehouseId !== "all" ? warehouseId : warehouses[0]?.id || "atl1");
     }
   }, [open]);
@@ -2233,7 +2234,8 @@ function AddContainerDialog({
 
     try {
       const shipmentId = await createInboundShipmentRecord({
-        tenantId: selectedTenantId || (tenantId !== "all" ? tenantId : tenants[0].id),
+        tenantId:
+          selectedTenantId || (tenantId !== "all" ? tenantId : (tenants[0]?.id ?? "")),
         warehouseId: wsToSelect,
         ediRef: header.ediRef,
         poNumber: header.poNumber,
