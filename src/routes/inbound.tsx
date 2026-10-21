@@ -1895,7 +1895,11 @@ function BuildPalletsDialog({
       ediSource: ship.source === "EDI_943" || ship.source === "EDI_944" ? ship.source : "MANUAL",
       palletCount,
       unitsPerPallet,
-      weightLbsPerUnit: line.weightLbsPerUnit,
+      // The Item Master is authoritative for the case pack and the unit
+      // weight — the ASN line values can be stale or missing.
+      casePack: masterItem?.caseQty ?? line.unitsPerPallet ?? 1,
+      weightLbsPerUnit:
+        masterItem?.weightLbs ?? line.weightLbsPerUnit ?? 0,
       builtBy: "Live receiver",
       prefix: `PLT-${warehouseCode(ship.warehouseId)}`,
       locationSuggestions: putawaySuggestions.map((c) => c.locationId),

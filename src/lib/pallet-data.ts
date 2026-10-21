@@ -81,6 +81,37 @@ export function computePalletCubeCuFt(pallet: Pallet): number {
 }
 
 /**
+ * A pallet's weight.
+ *
+ * The stored value is authoritative, but a pallet built before the Item
+ * Master carried a unit weight may have 0. In that case the weight is
+ * derived from the live Item Master (units x unit weight) so the screen
+ * never shows a meaningless "0 lb".
+ */
+export function palletWeightLbs(
+  pallet: { sku: string; units: number; weightLbs?: number },
+  itemMaster?: { sku: string; weightLbs?: number }[],
+): number {
+  if (pallet.weightLbs && pallet.weightLbs > 0) return pallet.weightLbs;
+  const item = itemMaster?.find((i) => i.sku === pallet.sku);
+  if (!item) return pallet.weightLbs ?? 0;
+  return +(pallet.units * (item.weightLbs || 0)).toFixed(1);
+}
+
+/**
+ * The case pack of a pallet — units per carton.
+ * Falls back to the Item Master when the stored value is missing.
+ */
+export function palletCasePack(
+  pallet: { sku: string; casePack?: number },
+  itemMaster?: { sku: string; caseQty?: number }[],
+): number {
+  if (pallet.casePack && pallet.casePack > 1) return pallet.casePack;
+  const item = itemMaster?.find((i) => i.sku === pallet.sku);
+  return item?.caseQty || pallet.casePack || 1;
+}
+
+/**
  * A pallet is locked once it has left the staging area: it is stored in a
  * location, on a pick, or already shipped.
  *

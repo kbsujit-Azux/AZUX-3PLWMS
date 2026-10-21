@@ -18,6 +18,7 @@
     "refresh:location-master": "npx tsx scripts/refresh-location-master.ts",
     "reconcile:inbound": "npx tsx scripts/reconcile-inbound.ts",
     "reconcile:inventory": "npx tsx scripts/reconcile-inventory.ts",
+    "reconcile:pallets": "npx tsx scripts/reconcile-pallets.ts",
     "clear:transactions": "npx tsx scripts/clear-transactions.ts",
     "purge:transactions": "npx tsx scripts/purge-transactions.ts",
     "audit:data": "npx tsx scripts/audit-data.ts",

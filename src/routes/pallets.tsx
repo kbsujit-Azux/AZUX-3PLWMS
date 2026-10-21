@@ -67,6 +67,8 @@ import {
   deriveZoneFromLocation,
   isPalletLocked as isPalletLockedFn,
   isAwaitingPutaway,
+  palletWeightLbs,
+  palletCasePack,
   type Pallet,
   type PalletStatus,
 } from "@/lib/pallet-data";
@@ -96,6 +98,10 @@ const statusStyles: Record<PalletStatus, string> = {
   shipped: "bg-muted text-muted-foreground border-border",
 };
 
+/**
+ * A pallet's weight, derived from the live Item Master when the stored
+ * value is missing.
+ */
 function PalletsPage() {
   const { tenantId, warehouseId, strategy } = useWorkspace();
   // Live Firestore data — the Pallet screen is bound to the same records the
@@ -176,9 +182,24 @@ function PalletsPage() {
   );
 
   /**
-   * Directed putaway suggestion backed by the live Location Master and
-   * Item Master (velocity, storage class, slotting rules, travel distance).
+   * A pallet's weight, derived from the live Item Master when the stored
+   * value is missing.
    */
+  const weightFor = useCallback(
+    (p: { sku: string; units: number; weightLbs?: number }): number =>
+      palletWeightLbs(p, liveItemMaster),
+    [liveItemMaster],
+  );
+
+  /**
+   * The case pack of a pallet — units per carton.
+   */
+  const casePackFor = useCallback(
+    (p: { sku: string; casePack?: number }): number =>
+      palletCasePack(p, liveItemMaster),
+    [liveItemMaster],
+  );
+
   const suggestLocationFor = useCallback(
     (args: {
       sku: string;
@@ -623,8 +644,9 @@ const reportData = visiblePallets.map((p) => ({
                           <span className="text-muted-foreground">{`${p.units === 1 ? "unit" : "units"}`}</span>
                         </div>
                         <div className="text-[10px] text-muted-foreground tabular-nums">
-                          {Math.ceil(p.units / Math.max(1, p.casePack)).toLocaleString()} cases @{" "}
-                          {p.casePack}/case
+                          {Math.ceil(p.units / Math.max(1, casePackFor(p))).toLocaleString()}{" "}
+                          case{Math.ceil(p.units / Math.max(1, casePackFor(p))) === 1 ? "" : "s"} @{" "}
+                          {casePackFor(p)}/case
                         </div>
                       </TableCell>
                       <TableCell className="py-2">
@@ -639,7 +661,7 @@ const reportData = visiblePallets.map((p) => ({
                         </div>
                       </TableCell>
                       <TableCell className="py-2 text-right tabular-nums">
-                        {p.weightLbs.toLocaleString()} lb
+                        {weightFor(p).toLocaleString()} lb
                       </TableCell>
                       <TableCell className="py-2 text-[11px] text-muted-foreground tabular-nums">
                         {fmtDateTime(p.builtAt)}
@@ -757,7 +779,7 @@ const reportData = visiblePallets.map((p) => ({
                       <TableCell className="py-2 font-mono text-[11px]">{p.itemStyle}</TableCell>
                       <TableCell className="py-2 text-right tabular-nums">{p.units}</TableCell>
                       <TableCell className="py-2 text-right tabular-nums text-muted-foreground">
-                        {p.weightLbs.toLocaleString()} lb
+                        {weightFor(p).toLocaleString()} lb
                       </TableCell>
                       <TableCell className="py-2 text-[11px] text-muted-foreground">
                         {p.status === "building" ? "On dock" : "Staging"}
@@ -859,6 +881,7 @@ const reportData = visiblePallets.map((p) => ({
 
       <ScanConfirmDialog
         pallet={scanTarget}
+        weightLbs={scanTarget ? weightFor(scanTarget) : 0}
         onClose={() => setScanTarget(null)}
         onConfirmed={async (palletId, location) => {
           try {
@@ -1397,10 +1420,13 @@ type ScanField = "pallet" | "location";
 
 function ScanConfirmDialog({
   pallet,
+  weightLbs,
   onClose,
   onConfirmed,
 }: {
   pallet: Pallet | null;
+  /** The pallet's weight, resolved against the live Item Master. */
+  weightLbs?: number;
   onClose: () => void;
   onConfirmed: (palletId: string, location: string) => void;
 }) {
@@ -1476,7 +1502,8 @@ function ScanConfirmDialog({
             </div>
             <div className="mt-0.5 font-mono">{pallet.id}</div>
             <div className="mt-1 text-[10px] text-muted-foreground">
-              {pallet.itemStyle} · {pallet.units} units · {pallet.weightLbs.toLocaleString()} lb
+              {pallet.itemStyle} · {pallet.units} units ·{" "}
+              {(weightLbs ?? pallet.weightLbs ?? 0).toLocaleString()} lb
             </div>
           </div>
           <div>
