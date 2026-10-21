@@ -15,6 +15,7 @@
     "seed:pallets": "npx tsx scripts/seed-pallets.ts",
     "repair:inbound-lines": "npx tsx scripts/repair-inbound-lines.ts",
     "refresh:item-master": "npx tsx scripts/refresh-item-master.ts",
+    "refresh:location-master": "npx tsx scripts/refresh-location-master.ts",
     "reconcile:inbound": "npx tsx scripts/reconcile-inbound.ts",
     "reconcile:inventory": "npx tsx scripts/reconcile-inventory.ts",
     "clear:transactions": "npx tsx scripts/clear-transactions.ts",

@@ -188,6 +188,7 @@ function MastersPage() {
   }, []);
   const [itemQuery, setItemQuery] = useState("");
   const [locQuery, setLocQuery] = useState("");
+  const [locWarehouseFilter, setLocWarehouseFilter] = useState("all");
   const [csv832Open, setCsv832Open] = useState(false);
   const [csvLocOpen, setCsvLocOpen] = useState(false);
   const [tab, setTab] = useState<string>("items");
@@ -323,16 +324,27 @@ function MastersPage() {
   }, [itemMaster, itemQuery, tenantId]);
 
   const locs = useMemo(() => {
+    const byWarehouse =
+      locWarehouseFilter === "all"
+        ? locationMaster
+        : locationMaster.filter((l) => l.warehouseId === locWarehouseFilter);
     const q = locQuery.toLowerCase();
-    if (!q) return locationMaster;
-    return locationMaster.filter(
+    if (!q) return byWarehouse;
+    return byWarehouse.filter(
       (l) =>
         l.id.toLowerCase().includes(q) ||
         l.zone.toLowerCase().includes(q) ||
         l.type.toLowerCase().includes(q) ||
+        (l.warehouseId?.toLowerCase().includes(q) ?? false) ||
+        ((liveWarehouses.find((w) => w.id === l.warehouseId)?.code ?? "")
+          .toLowerCase()
+          .includes(q) ||
+          (liveWarehouses.find((w) => w.id === l.warehouseId)?.city ?? "")
+            .toLowerCase()
+            .includes(q)) ||
         (l.tenantId?.toLowerCase().includes(q) ?? false),
     );
-  }, [locationMaster, locQuery, warehouseId, tenantId]);
+  }, [locationMaster, locQuery, locWarehouseFilter, warehouseId, tenantId, liveWarehouses]);
 
   const exceptions = useMemo(() => {
     return collectMasterExceptions().filter((e) => {
@@ -540,7 +552,7 @@ function MastersPage() {
                     <TableCell className="font-mono">{i.itemStyle}</TableCell>
                     <TableCell className="max-w-[280px] truncate">{i.description}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {tenants.find((t) => t.id === i.tenantId)?.code ?? i.tenantId}
+                      {liveTenants.find((t) => t.id === i.tenantId)?.code ?? i.tenantId}
                     </TableCell>
                     <TableCell className="text-right font-mono">{i.caseQty}</TableCell>
                     <TableCell className="text-right font-mono text-[11px]">
@@ -629,10 +641,22 @@ function MastersPage() {
               <Input
                 value={locQuery}
                 onChange={(e) => setLocQuery(e.target.value)}
-                placeholder="Search location ID, zone…"
+                placeholder="Search location ID, warehouse, zone…"
                 className="pl-8 h-8 text-xs"
               />
             </div>
+            <select
+              value={locWarehouseFilter}
+              onChange={(e) => setLocWarehouseFilter(e.target.value)}
+              className="h-8 text-xs rounded-md border border-input bg-background px-2"
+            >
+              <option value="all">All warehouses</option>
+              {liveWarehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.code} — {w.city}
+                </option>
+              ))}
+            </select>
             <div className="ml-auto flex items-center gap-2">
               <Button
                 size="sm"
@@ -657,6 +681,7 @@ function MastersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-[10px] uppercase tracking-wider">Location</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">Warehouse</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Type</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Zone</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Occupancy</TableHead>
@@ -672,6 +697,21 @@ function MastersPage() {
                 {locs.map((l) => (
                   <TableRow key={l.id} className="text-xs">
                     <TableCell className="font-mono">{l.id}</TableCell>
+                    <TableCell>
+                      {(() => {
+                        const wh = liveWarehouses.find((w) => w.id === l.warehouseId);
+                        return wh ? (
+                          <div>
+                            <div className="font-mono font-medium">{wh.code}</div>
+                            <div className="text-[10px] text-muted-foreground">{wh.city}</div>
+                          </div>
+                        ) : (
+                          <span className="font-mono text-muted-foreground">
+                            {l.warehouseId ?? "—"}
+                          </span>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
@@ -696,7 +736,7 @@ function MastersPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {l.tenantId
-                        ? (tenants.find((t) => t.id === l.tenantId)?.code ?? l.tenantId)
+                        ? (liveTenants.find((t) => t.id === l.tenantId)?.code ?? l.tenantId)
                         : "All"}
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate text-muted-foreground">
@@ -729,7 +769,7 @@ function MastersPage() {
                 {locs.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center text-xs text-muted-foreground py-8"
                     >
                       No locations match the current filter.
@@ -771,7 +811,7 @@ function MastersPage() {
                       {(e as any).warehouseId || "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {tenants.find((t) => t.id === e.tenantId)?.code}
+                      {liveTenants.find((t) => t.id === e.tenantId)?.code}
                     </TableCell>
                   </TableRow>
                 ))}
