@@ -52,7 +52,9 @@ export type IntegrityIssueType =
   | "putaway-without-location"
   | "location-occupancy-drift"
   | "cartonization-missing-order"
-  | "pallet-missing-inventory";
+  | "pallet-missing-inventory"
+  | "inventory-missing-sku"
+  | "inventory-missing-audit";
 
 export type IntegrityIssue = {
   id: string;
@@ -83,6 +85,8 @@ export type IntegrityContext = {
   inventoryItems?: any[];
   cartonizations?: any[];
   orders?: any[];
+  /** The audit trail (inventoryTransactions) */
+  transactions?: any[];
   itemMaster?: ItemMasterRecord[];
   locationMaster?: LocationRecord[];
   tenants?: any[];
@@ -543,6 +547,70 @@ const checkPalletInventory: Check = (ctx) => {
   return out;
 };
 
+/**
+ * A1 — an inventory record is missing its descriptive fields.
+ *
+ * A record without a SKU cannot be traced back to the item master, and a
+ * batch without a description cannot be identified on the floor.
+ */
+const checkInventoryFields: Check = (ctx) => {
+  const out: IntegrityIssue[] = [];
+  for (const inv of ctx.inventoryItems ?? []) {
+    const missing: string[] = [];
+    if (!inv.sku) missing.push("sku");
+    if (!inv.description) missing.push("description");
+    if (!inv.itemStyle) missing.push("itemStyle");
+    if (!inv.caseQty) missing.push("caseQty");
+    if (missing.length === 0) continue;
+    out.push({
+      id: `A1-${inv.sku || "unknown"}`,
+      type: "inventory-missing-sku",
+      severity: "warning",
+      title: "Inventory record is incomplete",
+      detail: `Inventory record ${inv.sku || "(no SKU)"} is missing: ${missing.join(", ")}. It cannot be matched to the Item Master.`,
+      entity: "inventory",
+      recordId: inv.sku || "unknown",
+      tenantId: inv.tenantId,
+      warehouseId: inv.warehouseId,
+      autoFixable: true,
+      fixLabel: "Rebuild from Item Master",
+    });
+  }
+  return out;
+};
+
+/**
+ * A2 — a stored pallet has no audit trail.
+ *
+ * Every physical movement must be recorded. A stored pallet without any
+ * transaction cannot be explained in an audit.
+ */
+const checkAuditTrail: Check = (ctx) => {
+  const audited = new Set(
+    (ctx.transactions ?? []).map((t: any) => t.palletId).filter(Boolean),
+  );
+  const out: IntegrityIssue[] = [];
+  for (const p of ctx.pallets ?? []) {
+    if (!p.location) continue;
+    if (audited.has(p.id)) continue;
+    out.push({
+      id: `A2-${p.id}`,
+      type: "inventory-missing-audit",
+      severity: "warning",
+      title: "Stored pallet has no audit trail",
+      detail: `Pallet ${p.id} is stored at ${p.location} but has no transaction recorded. The movement cannot be explained to an auditor.`,
+      entity: "pallet",
+      recordId: p.id,
+      relatedId: p.sku,
+      tenantId: p.tenantId,
+      warehouseId: p.warehouseId,
+      autoFixable: true,
+      fixLabel: "Record putaway",
+    });
+  }
+  return out;
+};
+
 /** Registry of every correlation check */
 export const INTEGRITY_CHECKS: Array<{ id: string; label: string; run: Check }> = [
   { id: "P1", label: "Pallet → container", run: checkPalletContainer },
@@ -560,6 +628,8 @@ export const INTEGRITY_CHECKS: Array<{ id: string; label: string; run: Check }> 
   { id: "L1", label: "Pallet putaway → location", run: checkPutawayLocation },
   { id: "L2", label: "Location occupancy", run: checkLocationOccupancy },
   { id: "C1", label: "Cartonization → order", run: checkCartonizationOrder },
+  { id: "A1", label: "Inventory descriptive fields", run: checkInventoryFields },
+  { id: "A2", label: "Pallet audit trail", run: checkAuditTrail },
 ];
 
 /**

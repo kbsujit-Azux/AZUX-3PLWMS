@@ -100,27 +100,25 @@ async function main() {
       (b) => palletById.has(b.palletId) && isStored(palletById.get(b.palletId)),
     );
 
-    const record = current
-      ? {
-          ...current,
-          batches: [...keptExisting, ...batches],
-        }
-      : {
-          sku,
-          upc: master?.upc ?? "",
-          itemStyle: master?.itemStyle ?? "",
-          description: master?.description ?? "",
-          category: master?.category ?? "General",
-          uom: master?.uom ?? "EA",
-          unitCost: master?.unitCost ?? 0,
-          unitPrice: master?.unitPrice ?? 0,
-          caseQty: master?.caseQty ?? 1,
-          weightLbs: master?.weightLbs ?? 0,
-          tenantId: skuPallets[0]?.tenantId,
-          warehouseId: skuPallets[0]?.warehouseId,
-          batches,
-          status: "active",
-        };
+    const record = {
+      ...(current ?? {}),
+      // Descriptive fields always come from the Item Master so a record can
+      // never end up without its SKU, UPC, description or case pack.
+      sku,
+      upc: master?.upc ?? current?.upc ?? "",
+      itemStyle: master?.itemStyle ?? current?.itemStyle ?? "",
+      description: master?.description ?? current?.description ?? "",
+      category: master?.category ?? current?.category ?? "General",
+      uom: master?.uom ?? current?.uom ?? "EA",
+      unitCost: master?.unitCost ?? current?.unitCost ?? 0,
+      unitPrice: master?.unitPrice ?? current?.unitPrice ?? 0,
+      caseQty: master?.caseQty ?? current?.caseQty ?? 1,
+      weightLbs: master?.weightLbs ?? current?.weightLbs ?? 0,
+      tenantId: skuPallets[0]?.tenantId ?? current?.tenantId,
+      warehouseId: skuPallets[0]?.warehouseId ?? current?.warehouseId,
+      status: current?.status ?? "active",
+      batches: [...keptExisting, ...batches],
+    };
 
     // Collapse any duplicate batches for the same pallet.
     const seen = new Set<string>();
@@ -142,9 +140,12 @@ async function main() {
 
     if (!DRY_RUN) {
       // `set(..., { merge: true })` merges arrays element-by-element and
-      // would duplicate batches. `update()` replaces the whole array.
+      // would duplicate batches. `update()` replaces the whole array — and
+      // also restores the descriptive fields (sku, upc, description, …) that
+      // may have been lost by an earlier partial write.
       if (invDoc) {
         await invRef.update({
+          ...record,
           batches: record.batches,
           updatedAt: new Date().toISOString(),
         });

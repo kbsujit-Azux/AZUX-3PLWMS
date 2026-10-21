@@ -99,6 +99,7 @@ import {
   deleteLocationFromMaster,
   updateLocationInMaster,
   repairIntegrityIssue,
+  subscribeTransactionHistory,
 } from "@/lib/firestore-data";
 import { checkDataIntegrity } from "@/lib/data-integrity";
 
@@ -178,6 +179,13 @@ function MastersPage() {
     tenants: liveTenants,
     warehouses: liveWarehouses,
   } = useWmsData();
+
+  /** The audit trail, used by the correlation checks */
+  const [liveTransactions, setLiveTransactions] = useState<any[]>([]);
+  useEffect(() => {
+    const unsub = subscribeTransactionHistory((txns) => setLiveTransactions(txns));
+    return unsub;
+  }, []);
   const [itemQuery, setItemQuery] = useState("");
   const [locQuery, setLocQuery] = useState("");
   const [csv832Open, setCsv832Open] = useState(false);
@@ -216,10 +224,11 @@ function MastersPage() {
         pallets: livePallets ?? [],
         inboundShipments: liveInboundShipments ?? [],
         workOrders: liveWorkOrders ?? [],
-        inventoryItems: liveInventoryItems ?? [],
-        cartonizations: liveCartonizations ?? [],
-        orders: liveOrders ?? [],
-        itemMaster: liveItemMaster ?? [],
+    inventoryItems: liveInventoryItems ?? [],
+    cartonizations: liveCartonizations ?? [],
+    orders: liveOrders ?? [],
+    transactions: liveTransactions ?? [],
+    itemMaster: liveItemMaster ?? [],
         locationMaster: liveLocationMaster ?? [],
         tenants: liveTenants ?? [],
         warehouses: liveWarehouses ?? [],

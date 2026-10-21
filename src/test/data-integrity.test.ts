@@ -40,8 +40,23 @@ const base = {
   ],
   workOrders: [{ id: "INB-1", tenantId: "acme", warehouseId: "atl1" }],
   inventoryItems: [
-    { sku: "SKU-A", tenantId: "acme", warehouseId: "atl1", batches: [{ palletId: "PLT-1", qty: 40 }] },
+    {
+      sku: "SKU-A",
+      upc: "081234500001",
+      itemStyle: "STYLE-A",
+      description: "Item A",
+      category: "General",
+      uom: "EA",
+      unitCost: 1,
+      unitPrice: 2,
+      caseQty: 1,
+      weightLbs: 1,
+      tenantId: "acme",
+      warehouseId: "atl1",
+      batches: [{ palletId: "PLT-1", qty: 40 }],
+    },
   ],
+  transactions: [{ palletId: "PLT-1", type: "PUTAWAY", user: "j.patel" }],
   itemMaster: [{ sku: "SKU-A", itemStyle: "STYLE-A", description: "A", category: "C", uom: "EA", tenantId: "acme", caseQty: 1, unitCost: 0, unitPrice: 0, weightLbs: 1, lengthIn: 1, widthIn: 1, heightIn: 1, caseWeightLbs: 1, cbmPerCase: 1, nmfc: "x", freightClass: "100", packHierarchy: [], basePackLevel: "each", palletBuild: { maxPalletHeightIn: 60, maxPalletWeightLbs: 2500, stackability: "full", palletPattern: "interlock", allowMixedSku: false, palletType: "standard_48x40" }, active: true, source: "CSV", effectiveAt: "2026-01-01T00:00:00Z" }] as any,
   locationMaster: [
     { id: "LOC-1", warehouseId: "atl1", type: "RACK", zone: "Reserve", capacityPallets: 4, occupiedPallets: 1, pickable: true, allowedItemStyles: null, slottingRules: { allowedStorageClasses: ["reserve"], putawayPriority: 50, replenPriority: 50, allowedPalletTypes: ["standard_48x40"] }, status: "active" },
@@ -231,6 +246,39 @@ describe("Data integrity checker", () => {
   it("P6 — stays silent when the stored pallet has a batch", () => {
     const issues = checkDataIntegrity(base as any);
     expect(issues.some((i) => i.type === "pallet-missing-inventory")).toBe(false);
+  });
+
+  it("A1 — flags an inventory record with no descriptive fields", () => {
+    const issues = checkDataIntegrity({
+      ...base,
+      inventoryItems: [{ sku: "", tenantId: "acme", batches: [] }],
+    } as any);
+    const issue = issues.find((i) => i.type === "inventory-missing-sku");
+    expect(issue).toBeDefined();
+    expect(issue!.autoFixable).toBe(true);
+  });
+
+  it("A1 — stays silent for a complete inventory record", () => {
+    const issues = checkDataIntegrity(base as any);
+    expect(issues.some((i) => i.type === "inventory-missing-sku")).toBe(false);
+  });
+
+  it("A2 — flags a stored pallet with no audit trail", () => {
+    const issues = checkDataIntegrity({
+      ...base,
+      transactions: [],
+    } as any);
+    const issue = issues.find((i) => i.type === "inventory-missing-audit");
+    expect(issue).toBeDefined();
+    expect(issue!.autoFixable).toBe(true);
+  });
+
+  it("A2 — stays silent when the pallet has a transaction", () => {
+    const issues = checkDataIntegrity({
+      ...base,
+      transactions: [{ palletId: "PLT-1", type: "PUTAWAY", user: "j.patel" }],
+    } as any);
+    expect(issues.some((i) => i.type === "inventory-missing-audit")).toBe(false);
   });
 
   it("C1 — flags a cartonization whose order is gone", () => {

@@ -67,6 +67,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useWorkspace } from "@/components/workspace-context";
+import { useAuth } from "@/lib/auth";
 import { useWmsData } from "@/components/db-context";
 import { tenants, warehouses } from "@/lib/mock-data";
 import {
@@ -2713,6 +2714,7 @@ function CloseContainerDialog({
   const tenant = tenants.find((t) => t.id === shipment.tenantId);
   // Live data so the inventory batches are built from the real pallets.
   const { inventoryItems: liveInventory, pallets: livePallets } = useWmsData();
+  const { user } = useAuth();
 
   const handleClose = async () => {
     closeInboundShipment(shipment, [], []);
@@ -2777,19 +2779,20 @@ function CloseContainerDialog({
         } as any);
       }
 
-      // Log PUTAWAY transaction per pallet
+      // Log the RECEIVE transaction per pallet (received into staging). The
+      // later PUTAWAY into a storage location is logged by putAwayPallet().
       for (const b of batches) {
         await logInventoryTransaction({
           sku: line.sku,
           palletId: b.palletId,
           location: b.location,
-          type: "PUTAWAY",
+          type: "RECEIVE",
           qtyChange: b.qty,
           qtyBefore: 0,
           qtyAfter: b.qty,
           cartons: Math.ceil(b.qty / (line.cartonsExpected || 1)),
-          user: "wms-user",
-          notes: `Putaway from container ${shipment.id}`,
+          user: user?.name || "wms-user",
+          notes: `Received from container ${shipment.id} (${shipment.ediRef ?? shipment.id})`,
         });
 
         // Autobilling: putaway charge per pallet

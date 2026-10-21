@@ -989,12 +989,10 @@ export async function putAwayPallet(
     const invRef = doc(db, "inventoryItems", pallet.sku);
     const invSnap = await transaction.get(invRef);
 
-    // The item master is only needed when the inventory record is missing.
-    let master: any = {};
-    if (!invSnap.exists()) {
-      const masterSnap = await transaction.get(doc(db, "itemMaster", pallet.sku));
-      master = masterSnap.exists() ? masterSnap.data() : {};
-    }
+    // The item master is read so a record that is missing its descriptive
+    // fields (sku, upc, description, case pack) can be repaired.
+    const masterSnap = await transaction.get(doc(db, "itemMaster", pallet.sku));
+    const master: any = masterSnap.exists() ? masterSnap.data() : {};
 
     // The destination location.
     const locRef = doc(db, "locationMaster", location);
@@ -1011,7 +1009,18 @@ export async function putAwayPallet(
     /* ── VALIDATION ── */
 
     const item: any = invSnap.exists()
-      ? invSnap.data()
+      ? {
+          // Keep the descriptive fields but make sure none of them are missing
+          // (an earlier partial write can leave a record without its SKU).
+          ...invSnap.data(),
+          sku: pallet.sku,
+          upc: invSnap.data()?.upc || master.upc || "",
+          itemStyle: invSnap.data()?.itemStyle || pallet.itemStyle || master.itemStyle || "",
+          description:
+            invSnap.data()?.description || pallet.description || master.description || "",
+          caseQty: invSnap.data()?.caseQty || master.caseQty || 1,
+          uom: invSnap.data()?.uom || master.uom || "EA",
+        }
       : {
           sku: pallet.sku,
           upc: master.upc ?? "",
@@ -1114,21 +1123,37 @@ export async function putAwayPallet(
     }
   });
 
-  // 5. Audit trail (outside the transaction — it is a separate collection)
+  // 5. Audit trail — the inventory transaction log is the authoritative
+  //    audit trail (the Inventory screen reads it back).
+  try {
+    await logInventoryTransaction({
+      sku: updatedPallet?.sku ?? "",
+      palletId,
+      location,
+      type: "PUTAWAY",
+      qtyChange: 0,
+      qtyBefore: 0,
+      qtyAfter: Number(updatedPallet?.units) || 0,
+      user: opts?.performedBy ?? "system",
+      notes: opts?.notes ?? `Put away into ${location}`,
+    });
+  } catch (e) {
+    console.warn("Could not write putaway transaction:", e);
+  }
+
+  // 6. Movement history (separate append-only physical movement log)
   try {
     await logMovement({
-      movementType: "PUTAWAY",
+      badgeId: opts?.performedBy ?? "system",
+      tenantId: updatedPallet?.tenantId ?? "",
+      type: "PUTAWAY",
+      referenceId: palletId,
       itemCode: updatedPallet?.sku ?? "",
-      sku: updatedPallet?.sku ?? "",
-      fromLocation: updatedPallet?.suggestedLocation ?? "",
-      toLocation: location,
-      qty: Number(updatedPallet?.units) || 0,
-      performedBy: opts?.performedBy ?? "system",
-      timestamp: now,
-      notes: opts?.notes ?? "",
-      palletId,
-      tenantId: updatedPallet?.tenantId,
-      warehouseId: updatedPallet?.warehouseId,
+      fromLocationId: updatedPallet?.suggestedLocation ?? "",
+      toLocationId: location,
+      originalQty: Number(updatedPallet?.units) || 0,
+      movedQty: Number(updatedPallet?.units) || 0,
+      uom: "UNITS",
     } as any);
   } catch (e) {
     console.warn("Could not write movement history:", e);
@@ -1610,7 +1635,7 @@ export async function releaseInventoryPallet(
       sku,
       palletId,
       location,
-      type: "ADJUST",
+      type: "DELETE",
       qtyChange: -Math.abs(Number(batch.qty) || 0),
       qtyBefore: Number(batch.qty) || 0,
       qtyAfter: 0,
@@ -4530,6 +4555,51 @@ export async function repairIntegrityIssue(
       return {
         ok: true,
         message: `Pallet ${issue.recordId} added to the inventory at ${pallet.location}.`,
+      };
+    }
+
+    /** A1 — rebuild the inventory record's descriptive fields from the Item Master */
+    case "inventory-missing-sku": {
+      const sku = issue.recordId;
+      const invRef = doc(db, "inventoryItems", sku);
+      const snap = await getDoc(invRef);
+      if (!snap.exists()) return { ok: false, message: "Inventory record not found." };
+      const item = snap.data() as any;
+      const masterSnap = await getDoc(doc(db, "itemMaster", sku));
+      if (!masterSnap.exists()) {
+        return { ok: false, message: `No Item Master record for ${sku}.` };
+      }
+      const master = masterSnap.data() as any;
+      await updateDoc(invRef, {
+        sku,
+        upc: item.upc || master.upc || "",
+        itemStyle: item.itemStyle || master.itemStyle || "",
+        description: item.description || master.description || "",
+        category: item.category || master.category || "General",
+        uom: item.uom || master.uom || "EA",
+        unitCost: item.unitCost ?? master.unitCost ?? 0,
+        unitPrice: item.unitPrice ?? master.unitPrice ?? 0,
+        caseQty: item.caseQty || master.caseQty || 1,
+        weightLbs: item.weightLbs ?? master.weightLbs ?? 0,
+        updatedAt: new Date().toISOString(),
+      });
+      return { ok: true, message: `Inventory record ${sku} rebuilt from the Item Master.` };
+    }
+
+    /** A2 — record the missing putaway in the audit trail */
+    case "inventory-missing-audit": {
+      const palletSnap = await getDoc(doc(db, "pallets", issue.recordId));
+      if (!palletSnap.exists()) return { ok: false, message: "Pallet no longer exists." };
+      const pallet = palletSnap.data() as any;
+      if (!pallet.location) {
+        return { ok: false, message: "Pallet is not stored in a location." };
+      }
+      await putAwayPallet(issue.recordId, pallet.location, {
+        notes: "Audit trail repaired — putaway recorded",
+      });
+      return {
+        ok: true,
+        message: `Putaway recorded for ${issue.recordId} at ${pallet.location}.`,
       };
     }
 

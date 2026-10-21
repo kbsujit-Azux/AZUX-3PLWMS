@@ -48,7 +48,7 @@ async function main() {
   console.log("-".repeat(38));
   console.log("TOTAL".padEnd(28) + total);
 
-  const [pallets, inboundShipments, workOrders, inventoryItems, cartonizations, orders, itemMaster, locationMaster, tenants, warehouses] =
+  const [pallets, inboundShipments, workOrders, inventoryItems, cartonizations, orders, itemMaster, locationMaster, tenants, warehouses, transactions] =
     await Promise.all([
       get("pallets"),
       get("inboundShipments"),
@@ -60,6 +60,7 @@ async function main() {
       get("locationMaster"),
       get("tenants"),
       get("warehouses"),
+      get("inventoryTransactions"),
     ]);
 
   const issues = checkDataIntegrity({
@@ -69,6 +70,7 @@ async function main() {
     inventoryItems,
     cartonizations,
     orders,
+    transactions,
     itemMaster: itemMaster as any,
     locationMaster: locationMaster as any,
     tenants,

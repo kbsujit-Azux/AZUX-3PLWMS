@@ -72,9 +72,9 @@ export const Route = createFileRoute("/inventory")({
 });
 
 /** Build PO → { container, trailer } map from inbound ASNs. */
-function buildPoRefs() {
+function buildPoRefs(shipments: { poNumber: string; containerNumber: string; trailerNumber: string }[]) {
   const m = new Map<string, { container: string; trailer: string }>();
-  for (const s of inboundShipments) {
+  for (const s of shipments) {
     m.set(s.poNumber, {
       container: s.containerNumber && s.containerNumber !== "—" ? s.containerNumber : "",
       trailer: s.trailerNumber && s.trailerNumber !== "—" ? s.trailerNumber : "",
@@ -83,18 +83,28 @@ function buildPoRefs() {
   return m;
 }
 
-/** Deterministic mock user-id stamp per batch (audit trail). */
-const USERS = ["u.harper", "j.patel", "m.alvarez", "s.becker", "r.oconnell", "t.brooks"];
-function userFor(seed: string) {
-  const h = seed.split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
-  return USERS[h % USERS.length];
+/** Normalise a transaction timestamp (Firestore may store a Timestamp). */
+function txnTime(t: { timestamp?: any }): number {
+  const ts = t?.timestamp;
+  if (!ts) return 0;
+  if (typeof ts === "string") return Date.parse(ts) || 0;
+  if (typeof ts.toDate === "function") return ts.toDate().getTime();
+  if (typeof ts.seconds === "number") return ts.seconds * 1000;
+  return 0;
 }
-function lastEditFor(receivedAt: string, seed: string) {
-  const h = seed.split("").reduce((a, c) => (a * 13 + c.charCodeAt(0)) >>> 0, 11);
-  // Edited 1h – 72h after receipt, deterministic.
-  const delta = ((h % 71) + 1) * 3600 * 1000;
-  return new Date(new Date(receivedAt).getTime() + delta).toISOString();
-}
+
+/** Human label for an audit transaction type. */
+const TXN_LABELS: Record<string, string> = {
+  RECEIVE: "Received",
+  PUTAWAY: "Put away",
+  ALLOCATE: "Allocated",
+  REALLOCATE: "Re-allocated",
+  PICK: "Picked",
+  SHIP: "Shipped",
+  ADJUST: "Correction",
+  MOVE: "Moved",
+  DELETE: "Released",
+};
 
 type Row = {
   sku: string;
@@ -115,6 +125,10 @@ type Row = {
   putawayAt: string;
   lastEditAt: string;
   userId: string;
+  /** Human label of the last audit event for this pallet */
+  lastAction: string;
+  /** How many audit events exist for this pallet */
+  auditCount: number;
   status: InventoryItem["status"];
   pickTicketNum?: number;
 };
@@ -126,7 +140,8 @@ function csvEscape(v: string | number) {
 
 function InventoryPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { refreshData, inventoryItems: liveInventory } = useWmsData();
+  const { refreshData, inventoryItems: liveInventory, inboundShipments: liveInbound } =
+    useWmsData();
   const [query, setQuery] = useState("");
   const [scanItem, setScanItem] = useState<InventoryItem | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
@@ -146,8 +161,55 @@ function InventoryPage() {
   const { user } = useAuth();
   const [releaseTarget, setReleaseTarget] = useState<Row | null>(null);
   const [releasing, setReleasing] = useState(false);
+  const [releaseReason, setReleaseReason] = useState("");
+  const [releaseReasonError, setReleaseReasonError] = useState(false);
 
-  const poRefs = useMemo(buildPoRefs, []);
+  // PO → container/trailer, from the LIVE inbound ASNs (not the seed list)
+  const poRefs = useMemo(() => buildPoRefs(liveInbound ?? []), [liveInbound]);
+
+  /**
+   * The REAL audit trail.
+   *
+   * Every physical movement of stock writes a transaction (receive, putaway,
+   * allocation, pick, adjustment, release). These are the only trustworthy
+   * source for "who changed what, when and why" — a fabricated column would
+   * be worthless in an audit.
+   */
+  const [auditTxns, setAuditTxns] = useState<InventoryTransaction[]>([]);
+  useEffect(() => {
+    const unsub = subscribeTransactionHistory((txns) => setAuditTxns(txns));
+    return unsub;
+  }, []);
+
+  /** palletId → the most recent transaction for that pallet */
+  const lastTxnByPallet = useMemo(() => {
+    const m = new Map<string, InventoryTransaction>();
+    for (const t of auditTxns) {
+      if (!t.palletId) continue;
+      const prev = m.get(t.palletId);
+      if (!prev) {
+        m.set(t.palletId, t);
+        continue;
+      }
+      if (txnTime(t) >= txnTime(prev)) m.set(t.palletId, t);
+    }
+    return m;
+  }, [auditTxns]);
+
+  /** palletId → every transaction, newest first */
+  const txnsByPallet = useMemo(() => {
+    const m = new Map<string, InventoryTransaction[]>();
+    for (const t of auditTxns) {
+      if (!t.palletId) continue;
+      const list = m.get(t.palletId) ?? [];
+      list.push(t);
+      m.set(t.palletId, list);
+    }
+    for (const list of m.values()) {
+      list.sort((a, b) => txnTime(b) - txnTime(a));
+    }
+    return m;
+  }, [auditTxns]);
 
   const rows: Row[] = useMemo(() => {
     const out: Row[] = [];
@@ -156,6 +218,10 @@ function InventoryPage() {
         const ref = poRefs.get(b.poNumber) ?? { container: "", trailer: "" };
         const casePack = item.caseQty || 1;
         const isDropLocation = b.location === "DROP001";
+        // The audit trail comes from the real transaction log. When there is
+        // no transaction yet (e.g. a legacy record) the putaway timestamp
+        // and an explicit "—" are shown rather than a fabricated user.
+        const lastTxn = lastTxnByPallet.get(b.palletId);
         out.push({
           sku: item.sku,
           description: item.description,
@@ -173,15 +239,17 @@ function InventoryPage() {
           casePack,
           cartons: Math.ceil(b.qty / casePack),
           putawayAt: b.receivedAt,
-          lastEditAt: lastEditFor(b.receivedAt, b.batchId),
-          userId: userFor(b.batchId),
+          lastEditAt: lastTxn ? new Date(txnTime(lastTxn)).toISOString() : "",
+          userId: lastTxn?.user ?? "",
+          lastAction: lastTxn ? (TXN_LABELS[lastTxn.type] ?? lastTxn.type) : "",
+          auditCount: (txnsByPallet.get(b.palletId) ?? []).length,
           status: item.status,
           pickTicketNum: b.pickTicketNum,
         });
       }
     }
     return out.sort((a, b) => +new Date(b.putawayAt) - +new Date(a.putawayAt));
-  }, [poRefs, liveInventory]);
+  }, [poRefs, liveInventory, lastTxnByPallet, txnsByPallet]);
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
@@ -299,10 +367,15 @@ function InventoryPage() {
     setHistoryLocation(location);
     setHistoryOpen(true);
     try {
-      let txns = await fetchTransactionHistory(sku, palletId, location);
-      if (txns.length === 0 && location === "DROP001") {
-        txns = await fetchTransactionHistory(sku);
+      // Use the live trail for this pallet — filtering by location would
+      // hide events that happened somewhere else (a move, a release).
+      const live = txnsByPallet.get(palletId) ?? [];
+      if (live.length > 0) {
+        setTransactions(live);
+        return;
       }
+      let txns = await fetchTransactionHistory(sku, palletId);
+      if (txns.length === 0) txns = await fetchTransactionHistory(sku);
       setTransactions(txns);
     } catch (e: any) {
       toast.error(`Failed to load history: ${e.message}`);
@@ -417,8 +490,10 @@ onClick={() => {
                 Case Pack
               </TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Putaway</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider">Last Edit</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider">User ID</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider">
+                Last audit event
+              </TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider">User</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider w-20" />
             </TableRow>
           </TableHeader>
@@ -486,9 +561,17 @@ onClick={() => {
                     {fmtDateTime(r.putawayAt)}
                   </TableCell>
                   <TableCell className="py-2 text-[11px] tabular-nums text-muted-foreground">
-                    {fmtDateTime(r.lastEditAt)}
+                    {r.lastEditAt ? fmtDateTime(r.lastEditAt) : "—"}
                   </TableCell>
-                  <TableCell className="py-2 font-mono text-[11px]">{r.userId}</TableCell>
+                  <TableCell className="py-2 font-mono text-[11px]">
+                    {r.userId || "—"}
+                    {r.lastAction && (
+                      <div className="text-[10px] text-muted-foreground font-sans">
+                        {r.lastAction}
+                        {r.auditCount > 1 ? ` · ${r.auditCount} events` : ""}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="py-2 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button
@@ -536,7 +619,11 @@ onClick={() => {
                             : "text-destructive hover:text-destructive"
                         }`}
                         disabled={r.allocatedUnits > 0}
-                        onClick={() => setReleaseTarget(r)}
+                        onClick={() => {
+                          setReleaseReason("");
+                          setReleaseReasonError(false);
+                          setReleaseTarget(r);
+                        }}
                         title={
                           r.allocatedUnits > 0
                             ? `Cannot release — ${r.allocatedUnits} unit(s) allocated`
@@ -574,6 +661,25 @@ onClick={() => {
                 </span>
               ) : null}
             </AlertDialogDescription>
+            <div className="space-y-1 py-2">
+              <label className="text-[10px] uppercase tracking-wider text-destructive">
+                Reason for release *
+              </label>
+              <Input
+                value={releaseReason}
+                onChange={(e) => {
+                  setReleaseReason(e.target.value);
+                  if (e.target.value.trim().length >= 5) setReleaseReasonError(false);
+                }}
+                placeholder="e.g. putaway recorded against the wrong location"
+                className={`h-8 text-xs ${releaseReasonError ? "border-destructive" : ""}`}
+              />
+              {releaseReasonError && (
+                <p className="text-[10px] text-destructive">
+                  A reason is required — it is written to the audit trail.
+                </p>
+              )}
+            </div>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -582,12 +688,19 @@ onClick={() => {
               onClick={async (e) => {
                 e.preventDefault();
                 if (!releaseTarget) return;
+                if (releaseReason.trim().length < 5) {
+                  setReleaseReasonError(true);
+                  return;
+                }
                 setReleasing(true);
                 try {
                   const result = await releaseInventoryPallet(
                     releaseTarget.sku,
                     releaseTarget.palletId,
-                    { performedBy: user?.name || "admin" },
+                    {
+                      performedBy: user?.name || "admin",
+                      reason: releaseReason.trim(),
+                    },
                   );
                   if (result.ok) {
                     toast.success("Pallet released", { description: result.message });
@@ -715,26 +828,40 @@ onClick={() => {
             {transactions.map((t) => (
               <div
                 key={t.id}
-                className="flex items-center justify-between text-xs border-b border-border pb-2"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs border-b border-border pb-2"
               >
-                <span className="text-muted-foreground">{fmtDateTime(t.timestamp)}</span>
-                <span className="font-mono">{t.type}</span>
-                <span className="text-right">
+                <span className="text-muted-foreground tabular-nums w-40 shrink-0">
+                  {txnTime(t) ? fmtDateTime(new Date(txnTime(t)).toISOString()) : "—"}
+                </span>
+                <span
+                  className={`font-mono font-medium w-24 shrink-0 ${
+                    t.type === "ADJUST" || t.type === "DELETE"
+                      ? "text-destructive"
+                      : t.type === "PUTAWAY"
+                        ? "text-chart-3"
+                        : ""
+                  }`}
+                >
+                  {TXN_LABELS[t.type] ?? t.type}
+                </span>
+                <span className="text-right tabular-nums w-24 shrink-0">
                   {t.qtyChange > 0 ? "+" : ""}
                   {t.qtyChange} units
                 </span>
-                <span className="text-right text-[10px]">
+                <span className="text-right text-[10px] tabular-nums w-20 shrink-0 text-muted-foreground">
                   {t.qtyBefore} → {t.qtyAfter}
                 </span>
-                <span className="text-[10px] text-muted-foreground">{t.user}</span>
+                <span className="text-[10px] text-muted-foreground w-32 shrink-0 truncate">
+                  {t.user}
+                </span>
                 {t.orderId && (
-                  <span className="text-[10px] font-mono ml-2">Order: {t.orderId}</span>
+                  <span className="text-[10px] font-mono">Order: {t.orderId}</span>
                 )}
                 {t.pickTicketNum && (
-                  <span className="text-[10px] font-mono ml-2">PT: {t.pickTicketNum}</span>
+                  <span className="text-[10px] font-mono">PT: {t.pickTicketNum}</span>
                 )}
                 {t.notes && (
-                  <span className="text-[10px] text-muted-foreground ml-2 truncate max-w-48">
+                  <span className="text-[10px] text-muted-foreground ml-1 truncate max-w-72">
                     {t.notes}
                   </span>
                 )}
@@ -767,30 +894,40 @@ onClick={() => {
                   const qtyBefore = editBatch.qty;
                   const qtyAfter = updates.qty ?? qtyBefore;
                   const qtyChange = qtyAfter - qtyBefore;
+                  const locationChanged = (updates.location ?? editBatch.location) !== editBatch.location;
+                  const reason = (updates as any).reason?.trim() ?? "";
+                  const { reason: _r, ...batchUpdates } = updates as any;
 
                   await upsertInventoryItem({
                     ...editItem,
                     batches: editItem.batches.map((b) =>
-                      b.batchId === editBatch.batchId ? { ...b, ...updates } : b,
+                      b.batchId === editBatch.batchId ? { ...b, ...batchUpdates } : b,
                     ),
                   });
 
-                  if (qtyChange !== 0) {
+                  // Every correction is written to the audit trail with the
+                  // operator and the reason.
+                  if (qtyChange !== 0 || locationChanged) {
                     await logInventoryTransaction({
                       sku: editItem.sku,
                       palletId: editBatch.palletId,
                       location: updates.location ?? editBatch.location,
-                      type: "ADJUST",
+                      type: qtyChange !== 0 ? "ADJUST" : "MOVE",
                       qtyChange: qtyChange,
                       qtyBefore: qtyBefore,
                       qtyAfter: qtyAfter,
                       user: user?.name || "admin",
-                      notes: `Manual adjustment via Edit Batch`,
+                      notes: reason
+                        ? `${qtyChange !== 0 ? "Quantity correction" : "Location correction"} — ${reason}`
+                        : "Manual correction via Edit Batch",
                     });
                   }
 
-                  toast.success("Batch updated");
+                  toast.success("Batch updated", {
+                    description: reason ? `Correction recorded: ${reason}` : undefined,
+                  });
                   setEditItem(null);
+                  await refreshData();
                 } catch (e: any) {
                   toast.error(`Update failed: ${e.message}`);
                 }
@@ -1176,7 +1313,9 @@ function EditBatchForm({
 }: {
   item: InventoryItem;
   batch: InventoryItem["batches"][0];
-  onSave: (updates: Partial<InventoryItem["batches"][0]>) => Promise<void>;
+  onSave: (
+    updates: Partial<InventoryItem["batches"][0]> & { reason?: string },
+  ) => Promise<void>;
   onCancel: () => void;
 }) {
   const [formData, setFormData] = useState({
@@ -1185,6 +1324,24 @@ function EditBatchForm({
     location: batch.location,
     poNumber: batch.poNumber,
   });
+  /**
+   * A correction to the on-hand quantity must always carry a reason — it is
+   * written to the audit trail and is what an external auditor reads.
+   */
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState(false);
+
+  const qtyChanged = formData.qty !== batch.qty;
+  const locationChanged = formData.location !== batch.location;
+  const needsReason = qtyChanged || locationChanged;
+
+  const submit = () => {
+    if (needsReason && reason.trim().length < 5) {
+      setReasonError(true);
+      return;
+    }
+    onSave({ ...formData, reason: reason.trim() });
+  };
 
   return (
     <div className="space-y-4">
@@ -1234,11 +1391,33 @@ function EditBatchForm({
           />
         </div>
       </div>
+      {needsReason && (
+        <div className="space-y-1">
+          <label className="text-[10px] uppercase tracking-wider text-destructive">
+            Correction reason *
+          </label>
+          <Input
+            value={reason}
+            onChange={(e) => {
+              setReason(e.target.value);
+              if (e.target.value.trim().length >= 5) setReasonError(false);
+            }}
+            placeholder="e.g. 2 cases damaged in transit — short-shipped by vendor"
+            className={`h-8 text-xs ${reasonError ? "border-destructive" : ""}`}
+          />
+          {reasonError && (
+            <p className="text-[10px] text-destructive">
+              A reason is required for every quantity or location correction. It is
+              written to the audit trail.
+            </p>
+          )}
+        </div>
+      )}
       <DialogFooter>
         <Button variant="outline" size="sm" onClick={onCancel}>
           Cancel
         </Button>
-        <Button size="sm" onClick={() => onSave(formData)}>
+        <Button size="sm" onClick={submit}>
           Save
         </Button>
       </DialogFooter>
