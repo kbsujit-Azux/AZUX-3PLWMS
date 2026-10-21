@@ -295,6 +295,16 @@ export const defaultRules: ChargeRule[] = [
     enabled: true,
   },
   {
+    id: "r6b",
+    clientId: "northstar",
+    tenantId: "northstar",
+    category: "Inbound",
+    description: "Inbound handling per pallet",
+    unit: "pallet",
+    rate: 8.25,
+    enabled: true,
+  },
+  {
     id: "r7",
     clientId: "northstar",
     tenantId: "northstar",

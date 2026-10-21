@@ -86,6 +86,7 @@ import {
   closeInboundShipment,
 } from "@/lib/inbound-data";
 import { createPalletsFromInbound } from "@/lib/pallet-data";
+import { autoBillContainer, resolveBillingClientId } from "@/lib/auto-billing";
 import {
   recommendPalletBuild,
   recommendPalletPlan,
@@ -2761,7 +2762,11 @@ function CloseContainerDialog({
 }) {
   const tenant = tenants.find((t) => t.id === shipment.tenantId);
   // Live data so the inventory batches are built from the real pallets.
-  const { inventoryItems: liveInventory, pallets: livePallets } = useWmsData();
+  const {
+    inventoryItems: liveInventory,
+    pallets: livePallets,
+    itemMaster: liveItemMaster,
+  } = useWmsData();
   const { user } = useAuth();
 
   const handleClose = async () => {
@@ -2915,7 +2920,60 @@ function CloseContainerDialog({
       receivedAt: new Date().toISOString(),
     });
 
-    toast.success(`Container ${shipment.trailerNumber || shipment.containerNumber} closed`);
+    // ── Automated billing ────────────────────────────────────────
+    // Closing a container bills the client for the receiving work using
+    // the client's configured Inbound charge rules. The bill is created as
+    // a draft invoice and the events are marked as billed, so re-closing
+    // the container can never double bill.
+    let billNote = "";
+    try {
+      const clientId = await resolveBillingClientId(shipment.tenantId);
+      const totalUnits = (shipment.lines ?? []).reduce(
+        (a, l) => a + (l.receivedQty || 0),
+        0,
+      );
+      const totalCartons = (shipment.lines ?? []).reduce((a, l) => {
+        const casePack = liveItemMaster?.find((i) => i.sku === l.sku)?.caseQty || 1;
+        return a + Math.ceil((l.receivedQty || 0) / casePack);
+      }, 0);
+      const totalPallets = (shipment.lines ?? []).reduce(
+        (a, l) => a + (l.palletIds?.length ?? 0),
+        0,
+      );
+      const totalCuFt = (shipment.lines ?? []).reduce((a, l) => {
+        const master = liveItemMaster?.find((i) => i.sku === l.sku);
+        const casePack = master?.caseQty || 1;
+        return a + (master?.cbmPerCase ?? 0) * ((l.receivedQty || 0) / casePack) * 35.3147;
+      }, 0);
+
+      const bill = await autoBillContainer({
+        clientId,
+        tenantId: shipment.tenantId,
+        warehouseId: shipment.warehouseId,
+        shipmentId: shipment.id,
+        poNumber: shipment.poNumber,
+        containerNumber: shipment.containerNumber,
+        trailerNumber: shipment.trailerNumber,
+        units: totalUnits,
+        cartons: totalCartons,
+        pallets: totalPallets,
+        cuFt: +totalCuFt.toFixed(2),
+        closedAt: new Date().toISOString(),
+      });
+
+      if (bill.invoiceId) {
+        billNote = ` · Invoice ${bill.invoiceNumber} ($${bill.subtotal.toFixed(2)})`;
+      } else if (bill.skipped) {
+        billNote = ` · Not billed: ${bill.skipped}`;
+      }
+    } catch (e) {
+      console.error("Auto-billing failed:", e);
+      billNote = " · Auto-billing failed (container closed)";
+    }
+
+    toast.success(
+      `Container ${shipment.trailerNumber || shipment.containerNumber} closed${billNote}`,
+    );
     onOpenChange(false);
     onClosed();
   };
