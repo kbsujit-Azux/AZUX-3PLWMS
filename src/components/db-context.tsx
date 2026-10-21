@@ -506,6 +506,7 @@ type DatabaseContextType = {
   pickWaves: PickWave[];
   orders: Order[];
   inboundShipments: InboundShipment[];
+  inboundReceipts: any[];
   workOrders: any[];
   carrierDispatches: CarrierDispatch[];
   bols: Bol[];
@@ -543,6 +544,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [pickWaves, setPickWaves] = useState<PickWave[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [inboundShipments, setInboundShipments] = useState<InboundShipment[]>([]);
+  const [inboundReceipts, setInboundReceipts] = useState<any[]>([]);
   const [workOrders, setWorkOrders] = useState<any[]>([]);
   const [carrierDispatches, setCarrierDispatches] = useState<CarrierDispatch[]>([]);
   const [bols, setBols] = useState<Bol[]>([]);
@@ -693,6 +695,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     syncCollection("pickWaves", setPickWaves, libPickWaves as unknown as PickWave[]);
     syncCollection("orders", setOrders, libOrders);
     syncCollection("inboundShipments", setInboundShipments, libInboundShipments);
+    syncCollection("inboundReceipts", setInboundReceipts);
     syncCollection("workOrders", setWorkOrders);
     syncCollection("shipments", setCarrierDispatches, libCarrierDispatches);
     syncCollection("bols", setBols, libBols);
@@ -740,6 +743,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         pickWaves,
         orders,
         inboundShipments,
+        inboundReceipts,
         workOrders,
         carrierDispatches,
         bols,

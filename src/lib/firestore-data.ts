@@ -626,8 +626,50 @@ export async function recordInboundPalletBuild(
   });
 }
 
-export async function updateInboundShipmentStatus(
-  shipmentId: string,
+/**
+ * Persist a closed-container receipt.
+ *
+ * The receipt is the client-facing document (the "Inbound Receipt" print).
+ * It has to survive a refresh, so it is written to Firestore and synced
+ * back into the app.
+ */
+export async function saveInboundReceipt(receipt: {
+  id: string;
+  receiptRef: string;
+  inboundShipmentId: string;
+  tenantId: string;
+  warehouseId: string;
+  carrier: string;
+  trailerNumber: string;
+  containerNumber: string;
+  sealNumber: string;
+  bolNumber: string;
+  poNumber: string;
+  appointmentAt: string;
+  closedAt: string;
+  source: string;
+  lines: any[];
+}): Promise<void> {
+  await setDoc(doc(db, "inboundReceipts", receipt.id), {
+    ...receipt,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function fetchInboundReceipts(): Promise<any[]> {
+  const snap = await getDocs(collection(db, "inboundReceipts"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }));
+}
+
+export function subscribeInboundReceipts(
+  callback: (receipts: any[]) => void,
+): Unsubscribe {
+  return onSnapshot(collection(db, "inboundReceipts"), (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })));
+  });
+}
+
+export async function updateInboundShipmentStatus(  shipmentId: string,
   status: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception",
   receivedAt?: string,
 ) {

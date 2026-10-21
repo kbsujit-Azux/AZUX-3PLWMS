@@ -21,6 +21,8 @@ import {
   RefreshCw,
   FileText,
   Download,
+  Mail,
+  Printer,
   X,
   Check,
   Edit,
@@ -28,6 +30,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AzuxLogo } from "@/components/azux-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -97,7 +100,7 @@ import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
 import { locationMaster, type ItemMasterRecord } from "@/lib/master-data";
-import { createCsvUploadRecord, createInboundShipmentRecord, createPalletsAndLinkToShipment, deleteInboundShipment, recordInboundPalletBuild, updateInboundShipmentRecord, updateInboundLine, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive, deleteWorkOrder as deleteWorkOrderRecord, updateWorkOrder } from "@/lib/firestore-data";
+import { createCsvUploadRecord, createInboundShipmentRecord, createPalletsAndLinkToShipment, deleteInboundShipment, recordInboundPalletBuild, updateInboundShipmentRecord, updateInboundLine, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive, deleteWorkOrder as deleteWorkOrderRecord, updateWorkOrder, saveInboundReceipt } from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
   head: () => ({
@@ -435,11 +438,7 @@ function InboundPage() {
                 ? () => setDeleteContainer(s)
                 : undefined
             }
-            onPrintReceipt={
-              inboundReceipts.find((r) => r.inboundShipmentId === s.id)
-                ? () => setPrintReceipt(s.id)
-                : undefined
-            }
+            onPrintReceipt={() => setPrintReceipt(s.id)}
             onStatusTransition={handleInboundStatusTransition}
           />
         ))}
@@ -1025,7 +1024,8 @@ function ShipmentCard({
 
   const allLinesHavePallets = Array.isArray(shipment.lines) && shipment.lines.length > 0 && shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
   const canClose = onCloseContainer && allLinesHavePallets;
-  const hasReceipt = !!onPrintReceipt;
+  // The receipt can be produced at any point in the container's life.
+  const canPrintReceipt = !!onPrintReceipt;
   const linkedWO = shipment.workOrderId ? workOrders.find((w) => w.id === shipment.workOrderId) : null;
 
   return (
@@ -1108,7 +1108,7 @@ function ShipmentCard({
         </div>
       </div>
 
-      {hasReceipt && (
+      {canPrintReceipt && (
         <div className="px-4 py-2 border-b border-border bg-muted/10 flex justify-end">
           <Button
             size="sm"
@@ -1316,7 +1316,7 @@ function ShipmentCard({
         </TableBody>
       </Table>
 
-      {!hasReceipt && canClose && (
+      {canClose && (
         <div className="px-4 py-3 border-t border-border bg-muted/20 flex justify-end gap-2">
           <Button
             size="sm"
@@ -1376,7 +1376,7 @@ function ShipmentCard({
           </Button>
         </div>
       )}
-      {(shipment.status === "scheduled" || shipment.status === "arrived") && !hasReceipt && onEdit && (
+      {(shipment.status === "scheduled" || shipment.status === "arrived") && onEdit && (
         <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end gap-2">
           <Button
             size="sm"
@@ -1388,7 +1388,7 @@ function ShipmentCard({
           </Button>
         </div>
       )}
-      {shipment.status === "scheduled" && !hasReceipt && onDelete && (
+      {shipment.status === "scheduled" && onDelete && (
         <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end gap-2">
           <Button
             size="sm"
@@ -2767,6 +2767,50 @@ function CloseContainerDialog({
   const handleClose = async () => {
     closeInboundShipment(shipment, [], []);
 
+    // Persist the client-facing receipt so it survives a refresh and can be
+    // printed or emailed at any later point.
+    try {
+      const closedAt = new Date().toISOString();
+      await saveInboundReceipt({
+        id: shipment.id,
+        receiptRef: `RCPT-${shipment.id}`,
+        inboundShipmentId: shipment.id,
+        tenantId: shipment.tenantId,
+        warehouseId: shipment.warehouseId,
+        carrier: shipment.carrier,
+        trailerNumber: shipment.trailerNumber,
+        containerNumber: shipment.containerNumber,
+        sealNumber: shipment.sealNumber,
+        bolNumber: shipment.bolNumber,
+        poNumber: shipment.poNumber,
+        appointmentAt: shipment.appointmentAt,
+        closedAt,
+        source: shipment.source,
+        lines: (shipment.lines ?? []).map((l: any) => {
+          const pallet = livePallets.find((p) => p.id === l.palletIds?.[0]);
+          return {
+            lineNo: l.lineNo,
+            sku: l.sku,
+            upc: l.upc,
+            description: l.description,
+            lot: l.lot,
+            expirationDate: l.expirationDate,
+            qtyExpected: l.qtyExpected,
+            qtyReceived: l.receivedQty,
+            cartonsExpected: l.cartonsExpected,
+            cartonsReceived: 0,
+            palletCount: l.palletIds?.length ?? 0,
+            putawayDate: pallet?.putawayAt ?? null,
+            putawayBy: pallet?.builtBy ?? null,
+            osdQty: 0,
+            osdReason: "",
+          };
+        }),
+      });
+    } catch (e) {
+      console.error("Could not persist the receipt:", e);
+    }
+
     // Create the inventory batches from the ACTUAL pallets: each pallet
     // carries its own unit count and its own putaway location. A batch that
     // was already created by the putaway is updated rather than duplicated.
@@ -2922,44 +2966,349 @@ function ReceiptPreviewDialog({
   onOpenChange: (open: boolean) => void;
   shipmentId: string;
 }) {
-  const shipment = inboundShipments.find((s) => s.id === shipmentId);
-  const receipt = inboundReceipts.find((r) => r.inboundShipmentId === shipmentId);
+  const { itemMaster: liveItemMaster, inboundShipments: liveInbound, inboundReceipts: liveReceipts } =
+    useWmsData();
+  const shipment = (liveInbound ?? inboundShipments).find((s) => s.id === shipmentId);
+  const receipt = (liveReceipts ?? []).find(
+    (r: any) => r.inboundShipmentId === shipmentId,
+  );
 
-  if (!receipt) return null;
+  if (!shipment) return null;
 
-  const tenant = tenants.find((t) => t.id === receipt.tenantId);
-  const wh = warehouses.find((w) => w.id === receipt.warehouseId);
+  const tenant = tenants.find((t) => t.id === shipment.tenantId);
+  const wh = warehouses.find((w) => w.id === shipment.warehouseId);
 
-  const downloadReceipt = () => {
-    const content = [
-      `INBOUND RECEIPT - ${receipt.receiptRef}`,
-      `Generated: ${fmtDateTime(receipt.closedAt)}`,
+  const totalExpected = (shipment.lines ?? []).reduce((a, l) => a + (l.qtyExpected || 0), 0);
+  const totalReceived = (shipment.lines ?? []).reduce((a, l) => a + (l.receivedQty || 0), 0);
+  const totalPallets = (shipment.lines ?? []).reduce((a, l) => a + (l.palletIds?.length ?? 0), 0);
+  const variance = totalReceived - totalExpected;
+
+  // Timeline
+  const scheduledAt = shipment.appointmentAt;
+  const arrivalAt = shipment.receivedAt ?? receipt?.closedAt ?? null;
+  const unloadingAt =
+    receipt?.lines
+      ?.map((l: any) => l.putawayDate)
+      .filter(Boolean)
+      .sort()[0] ??
+    arrivalAt ??
+    null;
+
+  const receiptRef =
+    receipt?.receiptRef ?? `RCPT-${shipment.id.replace(/[^A-Za-z0-9]/g, "")}`;
+
+  /** Detail rows, enriched with the catalogue description / UPC / case pack. */
+  const rows = (shipment.lines ?? []).map((l) => {
+    const master = liveItemMaster?.find((i) => i.sku === l.sku);
+    const inner = master?.packHierarchy?.find((h) => h.packLevel === "inner");
+    const casePack = inner?.qtyPerParent || master?.caseQty || 0;
+    return {
+      lineNo: l.lineNo,
+      sku: l.sku,
+      description: l.description || master?.description || "",
+      upc: l.upc || master?.upc || "",
+      lot: l.lot || "",
+      expirationDate: l.expirationDate || "",
+      casePack,
+      expected: l.qtyExpected || 0,
+      received: l.receivedQty || 0,
+      pallets: l.palletIds?.length ?? 0,
+      variance: (l.receivedQty || 0) - (l.qtyExpected || 0),
+    };
+  });
+
+  /** The printable document — shared by the print and email actions. */
+  const buildDocumentHtml = (): string => {
+    const headerCells = [
+      ["Inbound Workorder #", shipment.id],
+      ["Work Order #", shipment.workOrderId ?? "—"],
+      ["Client", tenant ? `${tenant.code} · ${tenant.name}` : "—"],
+      ["Warehouse", wh ? `${wh.code} · ${wh.city}` : "—"],
+      ["Carrier", shipment.carrier || "—"],
+      ["Vessel", shipment.vessel || "—"],
+      ["Voyage", shipment.voyageNumber || "—"],
+      ["PO Number", shipment.poNumber || "—"],
+      ["Container / Trailer", `${shipment.containerNumber || "—"} / ${shipment.trailerNumber || "—"}`],
+      ["Seal / BOL", `${shipment.sealNumber || "—"} / ${shipment.bolNumber || "—"}`],
+      ["Scheduled Date", scheduledAt ? fmtDateTime(scheduledAt) : "—"],
+      ["Arrival Date", arrivalAt ? fmtDateTime(arrivalAt) : "—"],
+      ["Unloading Date", unloadingAt ? fmtDateTime(unloadingAt) : "—"],
+    ];
+
+    const bodyRows = rows
+      .map(
+        (r) => `<tr>
+          <td class="mono">${r.sku}</td>
+          <td>${r.description || "—"}</td>
+          <td class="mono">${r.upc || "—"}</td>
+          <td class="num">${r.casePack || "—"}</td>
+          <td class="num">${r.expected.toLocaleString()}</td>
+          <td class="num">${r.received.toLocaleString()}</td>
+          <td class="num">${r.pallets.toLocaleString()}</td>
+          <td class="num ${r.variance < 0 ? "neg" : r.variance > 0 ? "pos" : ""}">${
+            r.variance === 0 ? "—" : (r.variance > 0 ? "+" : "") + r.variance.toLocaleString()
+          }</td>
+        </tr>`,
+      )
+      .join("");
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Inbound Receipt ${receiptRef}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color:#0f172a; margin:0; padding:24px; background:#fff; }
+  .doc { max-width: 980px; margin: 0 auto; }
+  .top { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; border-bottom:3px solid #0f172a; padding-bottom:14px; }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .brand .mark { width:44px; height:44px; }
+  .brand-name { font-size:20px; font-weight:800; letter-spacing:-0.02em; line-height:1.1; }
+  .brand-sub { font-size:9px; letter-spacing:0.18em; text-transform:uppercase; color:#64748b; }
+  .title { text-align:right; }
+  .title h1 { margin:0; font-size:22px; letter-spacing:0.06em; text-transform:uppercase; }
+  .title .ref { font-family:ui-monospace,Menlo,monospace; font-size:12px; color:#475569; margin-top:3px; }
+  .title .generated { font-size:10px; color:#64748b; margin-top:3px; }
+  .grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px 20px; padding:16px 0; border-bottom:1px solid #cbd5e1; }
+  .cell .k { font-size:8.5px; letter-spacing:0.14em; text-transform:uppercase; color:#64748b; }
+  .cell .v { font-size:12.5px; font-weight:600; margin-top:1px; }
+  .totals { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; padding:14px 0; border-bottom:1px solid #cbd5e1; }
+  .total { border:1px solid #cbd5e1; border-radius:6px; padding:10px 12px; }
+  .total .k { font-size:8.5px; letter-spacing:0.14em; text-transform:uppercase; color:#64748b; }
+  .total .v { font-size:19px; font-weight:700; margin-top:2px; }
+  .total .v.neg { color:#b91c1c; }
+  .total .v.pos { color:#b45309; }
+  h2 { font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:#334155; margin:16px 0 6px; }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  th { text-align:left; font-size:8.5px; letter-spacing:0.12em; text-transform:uppercase; color:#64748b; font-weight:600; padding:7px 8px; border-bottom:1.5px solid #0f172a; }
+  td { padding:7px 8px; border-bottom:1px solid #e2e8f0; vertical-align:top; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .mono { font-family:ui-monospace,Menlo,monospace; }
+  .neg { color:#b91c1c; font-weight:600; }
+  .pos { color:#b45309; font-weight:600; }
+  tfoot td { font-weight:700; border-top:1.5px solid #0f172a; border-bottom:none; background:#f8fafc; }
+  .sign { display:grid; grid-template-columns:1fr 1fr; gap:32px; margin-top:34px; }
+  .sign .line { border-top:1px solid #0f172a; padding-top:6px; font-size:9px; letter-spacing:0.12em; text-transform:uppercase; color:#64748b; }
+  .foot { margin-top:26px; border-top:1px solid #cbd5e1; padding-top:10px; font-size:9.5px; color:#64748b; display:flex; justify-content:space-between; }
+  @media print { body { padding:0; } .noprint { display:none !important; } }
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 48 48"><rect width="48" height="48" rx="10" fill="#0f172a"/><path d="M10 21 L24 12 L38 21" fill="none" stroke="#38bdf8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 23v11M19 23v11M24 23v11M29 23v11M35 23v11" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><path d="M10 37h28" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <div>
+        <div class="brand-name">AZUX 3PL</div>
+        <div class="brand-sub">WMS Systems</div>
+      </div>
+    </div>
+    <div class="title">
+      <h1>Inbound Receipt</h1>
+      <div class="ref">${receiptRef}</div>
+      <div class="generated">Generated ${fmtDateTime(new Date().toISOString())}</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    ${headerCells
+      .map(
+        ([k, v]) =>
+          `<div class="cell"><div class="k">${k}</div><div class="v">${
+            v || "—"
+          }</div></div>`,
+      )
+      .join("")}
+  </div>
+
+  <div class="totals">
+    <div class="total"><div class="k">Total Expected Units</div><div class="v">${totalExpected.toLocaleString()}</div></div>
+    <div class="total"><div class="k">Total Received Units</div><div class="v ${
+      variance < 0 ? "neg" : variance > 0 ? "pos" : ""
+    }">${totalReceived.toLocaleString()}</div></div>
+    <div class="total"><div class="k">Variance</div><div class="v ${
+      variance < 0 ? "neg" : variance > 0 ? "pos" : ""
+    }">${variance > 0 ? "+" : ""}${variance.toLocaleString()}</div></div>
+    <div class="total"><div class="k">Pallets Built</div><div class="v">${totalPallets.toLocaleString()}</div></div>
+  </div>
+
+  <h2>Received Items</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>Description</th>
+        <th>UPC</th>
+        <th class="num">Case Pack</th>
+        <th class="num">Expected Units</th>
+        <th class="num">Received Units</th>
+        <th class="num">Pallets</th>
+        <th class="num">Variance</th>
+      </tr>
+    </thead>
+    <tbody>${bodyRows}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4">TOTAL</td>
+        <td class="num">${totalExpected.toLocaleString()}</td>
+        <td class="num">${totalReceived.toLocaleString()}</td>
+        <td class="num">${totalPallets.toLocaleString()}</td>
+        <td class="num">${variance > 0 ? "+" : ""}${variance.toLocaleString()}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="sign">
+    <div class="line">Received by (warehouse)</div>
+    <div class="line">Acknowledged by (client)</div>
+  </div>
+
+  <div class="foot">
+    <span>AZUX 3PL Holdings, LLC · 1200 Logistics Way, Dallas, TX 75201</span>
+    <span>Generated by AZUX 3PL WMS Systems</span>
+  </div>
+</div>
+</body>
+</html>`;
+  };
+
+  /** Open the document in a new window and hand it to the browser's print dialog. */
+  const printReceipt = () => {
+    const html = buildDocumentHtml();
+    const win = window.open("", "_blank", "width=1024,height=768");
+    if (!win) {
+      toast.error("Could not open the print window", {
+        description: "Allow pop-ups for this site to print the receipt.",
+      });
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    // Give the browser a moment to lay the document out before printing.
+    setTimeout(() => {
+      win.print();
+    }, 300);
+  };
+
+  /** Email the receipt — opens the client's mail client with the summary. */
+  const emailReceipt = () => {
+    const subject = `Inbound Receipt ${receiptRef} — ${shipment.id} (${tenant?.name ?? ""})`;
+    const body = [
+      `Dear ${tenant?.name ?? "Customer"},`,
       "",
-      `Container: ${receipt.trailerNumber || receipt.containerNumber || "—"}`,
-      `PO: ${receipt.poNumber}`,
-      `Client: ${tenant?.code} - ${tenant?.name}`,
-      `Warehouse: ${wh?.code} - ${wh?.city}`,
-      `Carrier: ${receipt.carrier}`,
-      `Seal/BOL: ${receipt.sealNumber} / ${receipt.bolNumber}`,
+      `Please find our inbound receipt for container ${shipment.id}.`,
       "",
-      "SKU SUMMARY:",
-      ...(Array.isArray(receipt.lines)
-        ? receipt.lines.map(
-            (l) =>
-              `  ${l.sku} | Exp: ${l.qtyExpected} | Rec: ${l.qtyReceived} | Pallets: ${l.palletCount} | Putaway: ${l.putawayDate ? fmtDateYear(l.putawayDate) : "—"} | OSD: ${l.osdQty || 0}`,
-          )
-        : []),
+      `Inbound Workorder #: ${shipment.id}`,
+      `Work Order #: ${shipment.workOrderId ?? "—"}`,
+      `PO Number: ${shipment.poNumber || "—"}`,
+      `Carrier: ${shipment.carrier || "—"}`,
+      `Vessel / Voyage: ${shipment.vessel || "—"} / ${shipment.voyageNumber || "—"}`,
+      `Scheduled Date: ${scheduledAt ? fmtDateTime(scheduledAt) : "—"}`,
+      `Arrival Date: ${arrivalAt ? fmtDateTime(arrivalAt) : "—"}`,
+      `Unloading Date: ${unloadingAt ? fmtDateTime(unloadingAt) : "—"}`,
       "",
-      `Total Units Received: ${Array.isArray(receipt.lines) ? receipt.lines.reduce((a, l) => a + l.qtyReceived, 0) : 0}`,
-      `Total Pallets: ${Array.isArray(receipt.lines) ? receipt.lines.reduce((a, l) => a + l.palletCount, 0) : 0}`,
-      `Total OSD Qty: ${Array.isArray(receipt.lines) ? receipt.lines.reduce((a, l) => a + l.osdQty, 0) : 0}`,
+      `Total Expected Units: ${totalExpected.toLocaleString()}`,
+      `Total Received Units: ${totalReceived.toLocaleString()}`,
+      `Variance: ${variance > 0 ? "+" : ""}${variance.toLocaleString()}`,
+      `Pallets Built: ${totalPallets.toLocaleString()}`,
+      "",
+      "Received items:",
+      ...rows.map(
+        (r) =>
+          `  ${r.sku} — ${r.description || "—"} | expected ${r.expected} | received ${r.received}${
+            r.variance !== 0 ? ` | variance ${r.variance > 0 ? "+" : ""}${r.variance}` : ""
+          }`,
+      ),
+      "",
+      `Receipt ${receiptRef}`,
+      "Thank you,",
+      "AZUX 3PL WMS Systems",
     ].join("\n");
 
-    const blob = new Blob([content], { type: "text/plain" });
+    const mailto = `mailto:?subject=${encodeURIComponent(
+      subject,
+    )}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+  };
+
+  /** Download the receipt details as a CSV. */
+  const downloadReceipt = () => {
+    const header = [
+      "Inbound Workorder #",
+      "Work Order #",
+      "Client",
+      "Warehouse",
+      "Carrier",
+      "Vessel",
+      "Voyage",
+      "PO Number",
+      "Container",
+      "Trailer",
+      "Seal",
+      "BOL",
+      "Scheduled Date",
+      "Arrival Date",
+      "Unloading Date",
+      "Total Expected Units",
+      "Total Received Units",
+      "Variance",
+      "Pallets Built",
+      "",
+      "SKU",
+      "Description",
+      "UPC",
+      "Case Pack",
+      "Expected Units",
+      "Received Units",
+      "Pallets",
+      "Variance",
+    ];
+    const detail = rows.map((r) => [
+      r.sku,
+      r.description,
+      r.upc,
+      r.casePack,
+      r.expected,
+      r.received,
+      r.pallets,
+      r.variance,
+    ]);
+    const csv = [
+      header,
+      [
+        shipment.id,
+        shipment.workOrderId ?? "",
+        tenant?.code ?? "",
+        wh?.code ?? "",
+        shipment.carrier ?? "",
+        shipment.vessel ?? "",
+        shipment.voyageNumber ?? "",
+        shipment.poNumber ?? "",
+        shipment.containerNumber ?? "",
+        shipment.trailerNumber ?? "",
+        shipment.sealNumber ?? "",
+        shipment.bolNumber ?? "",
+        scheduledAt ? fmtDateTime(scheduledAt) : "",
+        arrivalAt ? fmtDateTime(arrivalAt) : "",
+        unloadingAt ? fmtDateTime(unloadingAt) : "",
+        totalExpected,
+        totalReceived,
+        variance,
+        totalPallets,
+        "",
+        ...detail,
+      ],
+    ]
+      .map((row) => row.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `receipt-${receipt.receiptRef}.txt`;
+    a.download = `inbound-receipt-${shipment.id}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Receipt downloaded");
@@ -2967,61 +3316,204 @@ function ReceiptPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle className="text-base">Inbound Receipt - {receipt.receiptRef}</DialogTitle>
+          <DialogTitle className="text-base">Inbound Receipt</DialogTitle>
           <DialogDescription className="text-xs">
-            Container receipt for EDI 944 transmission
+            {receiptRef} · Container {shipment.containerNumber || shipment.trailerNumber || "—"}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] grid grid-cols-2 gap-y-1">
-            <KV label="Receipt" value={receipt.receiptRef} />
-            <KV label="Date" value={fmtDateTime(receipt.closedAt)} />
-            <KV
-              label="Container"
-              value={
-                receipt.trailerNumber !== "—" ? receipt.trailerNumber : receipt.containerNumber
-              }
-            />
-            <KV label="PO" value={receipt.poNumber} />
-            <KV label="Client" value={tenant?.code ?? ""} />
-            <KV label="Warehouse" value={wh?.code ?? ""} />
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          {/* ── Branded header ── */}
+          <div className="flex items-start justify-between gap-6 border-b-2 border-foreground/80 pb-3">
+            <div className="flex items-center gap-2.5">
+              <AzuxLogo className="h-11 w-11" />
+              <div className="leading-tight">
+                <div className="text-lg font-bold tracking-tight">AZUX 3PL</div>
+                <div className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                  WMS Systems
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold uppercase tracking-wider">Inbound Receipt</div>
+              <div className="font-mono text-xs text-muted-foreground">{receiptRef}</div>
+              <div className="text-[10px] text-muted-foreground">
+                Generated {fmtDateTime(new Date().toISOString())}
+              </div>
+            </div>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30">
-                <TableHead className="text-[10px]">SKU</TableHead>
-                <TableHead className="text-[10px]">LOT</TableHead>
-                <TableHead className="text-[10px] text-right">Expected</TableHead>
-                <TableHead className="text-[10px] text-right">Received</TableHead>
-                <TableHead className="text-[10px] text-right">Pallets</TableHead>
-                <TableHead className="text-[10px]">Putaway Date</TableHead>
-                <TableHead className="text-[10px] text-right">OSD Qty</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.isArray(receipt.lines) && receipt.lines.map((l) => (
-                <TableRow key={l.lineNo}>
-                  <TableCell className="py-2 font-mono text-xs">{l.sku}</TableCell>
-                  <TableCell className="py-2 text-xs">{l.lot}</TableCell>
-                  <TableCell className="py-2 text-right text-xs">
-                    {l.qtyExpected.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="py-2 text-right text-xs">
-                    {l.qtyReceived.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="py-2 text-right text-xs">{l.palletCount}</TableCell>
-                  <TableCell className="py-2 text-xs">
-                    {l.putawayDate ? fmtDateYear(l.putawayDate) : "—"}
-                  </TableCell>
-                  <TableCell className="py-2 text-right text-xs">{l.osdQty || 0}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {/* ── Header details ── */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-5 gap-y-2 border-b border-border pb-4">
+            <KV label="Inbound Workorder #" value={shipment.id} />
+            <KV label="Work Order #" value={shipment.workOrderId ?? "—"} />
+            <KV
+              label="Client"
+              value={tenant ? `${tenant.code} · ${tenant.name}` : "—"}
+            />
+            <KV label="Warehouse" value={wh ? `${wh.code} · ${wh.city}` : "—"} />
+            <KV label="Carrier" value={shipment.carrier || "—"} />
+            <KV label="Vessel" value={shipment.vessel || "—"} />
+            <KV label="Voyage" value={shipment.voyageNumber || "—"} />
+            <KV label="PO Number" value={shipment.poNumber || "—"} />
+            <KV
+              label="Container / Trailer"
+              value={`${shipment.containerNumber || "—"} / ${shipment.trailerNumber || "—"}`}
+            />
+            <KV
+              label="Seal / BOL"
+              value={`${shipment.sealNumber || "—"} / ${shipment.bolNumber || "—"}`}
+            />
+            <KV
+              label="Scheduled Date"
+              value={scheduledAt ? fmtDateTime(scheduledAt) : "—"}
+            />
+            <KV
+              label="Arrival Date"
+              value={arrivalAt ? fmtDateTime(arrivalAt) : "—"}
+            />
+            <KV
+              label="Unloading Date"
+              value={unloadingAt ? fmtDateTime(unloadingAt) : "—"}
+            />
+          </div>
+
+          {/* ── Totals ── */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 border-b border-border pb-4">
+            {[
+              {
+                k: "Total Expected Units",
+                v: totalExpected.toLocaleString(),
+                tone: "",
+              },
+              {
+                k: "Total Received Units",
+                v: totalReceived.toLocaleString(),
+                tone: variance < 0 ? "text-destructive" : variance > 0 ? "text-amber-600" : "",
+              },
+              {
+                k: "Variance",
+                v: `${variance > 0 ? "+" : ""}${variance.toLocaleString()}`,
+                tone: variance < 0 ? "text-destructive" : variance > 0 ? "text-amber-600" : "",
+              },
+              {
+                k: "Pallets Built",
+                v: totalPallets.toLocaleString(),
+                tone: "",
+              },
+            ].map((t) => (
+              <div key={t.k} className="rounded-md border border-border px-3 py-2">
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                  {t.k}
+                </div>
+                <div className={`text-lg font-bold tabular-nums ${t.tone}`}>{t.v}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Detail ── */}
+          <div>
+            <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
+              Received Items
+            </h3>
+            <div className="rounded-md border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30">
+                    <TableHead className="text-[10px]">SKU</TableHead>
+                    <TableHead className="text-[10px]">Description</TableHead>
+                    <TableHead className="text-[10px]">UPC</TableHead>
+                    <TableHead className="text-[10px] text-right">Case Pack</TableHead>
+                    <TableHead className="text-[10px] text-right">Expected Units</TableHead>
+                    <TableHead className="text-[10px] text-right">Received Units</TableHead>
+                    <TableHead className="text-[10px] text-right">Pallets</TableHead>
+                    <TableHead className="text-[10px] text-right">Variance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r) => (
+                    <TableRow key={r.lineNo}>
+                      <TableCell className="py-2 font-mono text-xs">{r.sku}</TableCell>
+                      <TableCell className="py-2 text-xs">{r.description || "—"}</TableCell>
+                      <TableCell className="py-2 font-mono text-[11px]">
+                        {r.upc || "—"}
+                      </TableCell>
+                      <TableCell className="py-2 text-right text-xs tabular-nums">
+                        {r.casePack || "—"}
+                      </TableCell>
+                      <TableCell className="py-2 text-right text-xs tabular-nums">
+                        {r.expected.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="py-2 text-right text-xs tabular-nums">
+                        {r.received.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="py-2 text-right text-xs tabular-nums">
+                        {r.pallets.toLocaleString()}
+                      </TableCell>
+                      <TableCell
+                        className={`py-2 text-right text-xs tabular-nums ${
+                          r.variance < 0
+                            ? "text-destructive"
+                            : r.variance > 0
+                              ? "text-amber-600"
+                              : ""
+                        }`}
+                      >
+                        {r.variance === 0
+                          ? "—"
+                          : `${r.variance > 0 ? "+" : ""}${r.variance.toLocaleString()}`}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <tfoot>
+                  <tr className="border-t-2 border-foreground/80 bg-muted/30">
+                    <td colSpan={4} className="py-2 px-2 text-xs font-bold">
+                      TOTAL
+                    </td>
+                    <td className="py-2 px-2 text-right text-xs font-bold tabular-nums">
+                      {totalExpected.toLocaleString()}
+                    </td>
+                    <td className="py-2 px-2 text-right text-xs font-bold tabular-nums">
+                      {totalReceived.toLocaleString()}
+                    </td>
+                    <td className="py-2 px-2 text-right text-xs font-bold tabular-nums">
+                      {totalPallets.toLocaleString()}
+                    </td>
+                    <td
+                      className={`py-2 px-2 text-right text-xs font-bold tabular-nums ${
+                        variance < 0
+                          ? "text-destructive"
+                          : variance > 0
+                            ? "text-amber-600"
+                            : ""
+                      }`}
+                    >
+                      {variance > 0 ? "+" : ""}
+                      {variance.toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </Table>
+            </div>
+          </div>
+
+          {/* ── Signatures ── */}
+          <div className="grid grid-cols-2 gap-8 pt-6">
+            <div className="border-t border-foreground/70 pt-1.5 text-[9px] uppercase tracking-widest text-muted-foreground">
+              Received by (warehouse)
+            </div>
+            <div className="border-t border-foreground/70 pt-1.5 text-[9px] uppercase tracking-widest text-muted-foreground">
+              Acknowledged by (client)
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-border pt-2 text-[10px] text-muted-foreground">
+            <span>AZUX 3PL Holdings, LLC · 1200 Logistics Way, Dallas, TX 75201</span>
+            <span>Generated by AZUX 3PL WMS Systems</span>
+          </div>
         </div>
 
         <DialogFooter>
@@ -3033,8 +3525,24 @@ function ReceiptPreviewDialog({
           >
             Close
           </Button>
-          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={downloadReceipt}>
-            <Download className="h-3.5 w-3.5" /> Download Receipt
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={downloadReceipt}
+          >
+            <Download className="h-3.5 w-3.5" /> Download CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={emailReceipt}
+          >
+            <Mail className="h-3.5 w-3.5" /> Email
+          </Button>
+          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={printReceipt}>
+            <Printer className="h-3.5 w-3.5" /> Print Receipt
           </Button>
         </DialogFooter>
       </DialogContent>
