@@ -4280,6 +4280,7 @@ export async function updateWorkOrder(id: string, updates: any): Promise<void> {
       // Sync other fields that map between WorkOrder and InboundShipment
       const inboundUpdates: Record<string, unknown> = {};
       const fieldMap: Record<string, string> = {
+        warehouseId: "warehouseId",
         carrier: "carrier",
         containerNumber: "containerNumber",
         trailerNumber: "trailerNumber",

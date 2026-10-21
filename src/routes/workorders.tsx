@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Search, Container, Truck, Ship, Hash, Calendar, Check, Edit, X, AlertTriangle, ChevronRight, RefreshCw, MapPin, DoorOpen } from "lucide-react";
+import { Search, Container, Truck, Ship, Hash, Calendar, Check, Edit, X, AlertTriangle, ChevronRight, RefreshCw, MapPin, DoorOpen, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,18 +69,31 @@ function WorkOrdersPage() {
   const [workOrderToEdit, setWorkOrderToEdit] = useState<WorkOrder | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<WorkOrder>>({});
 
-  const { workOrders, inboundShipments, locationMaster } = useWmsData();
+  const { workOrders, inboundShipments, locationMaster, warehouses } = useWmsData();
 
   /**
-   * The locations a work order can be assigned to — the live Location
-   * Master, narrowed to the work order's own warehouse.
+   * The physical warehouses (EWR, ORD, ATL, LAX …) the container is booked
+   * into. This is the site, not a rack slot.
+   */
+  const warehouseOptions = useMemo(() => {
+    const all = (warehouses ?? []) as any[];
+    return all.map((w) => ({
+      id: w.id as string,
+      code: (w.code ?? w.id) as string,
+      city: (w.city ?? "") as string,
+    }));
+  }, [warehouses]);
+
+  /**
+   * The storage slots a work order can be assigned to — the live Location
+   * Master, narrowed to the SELECTED warehouse.
    *
    * Staging/drop locations come first because a container that has not been
    * put away yet belongs in staging, not in a storage slot.
    */
   const warehouseLocationOptions = useMemo(() => {
     const all = (locationMaster ?? []) as any[];
-    const wh = workOrderToEdit?.warehouseId;
+    const wh = editFormData.warehouseId || workOrderToEdit?.warehouseId;
     const forWarehouse = wh ? all.filter((l) => l.warehouseId === wh) : all;
     const list = forWarehouse.length ? forWarehouse : all;
     const typeOrder: Record<string, number> = { DROP: 0, RACK: 1, FLR: 2 };
@@ -96,7 +109,7 @@ function WorkOrdersPage() {
         zone: (l.zone ?? "") as string,
         warehouseId: l.warehouseId as string | undefined,
       }));
-  }, [locationMaster, workOrderToEdit?.warehouseId]);
+  }, [locationMaster, editFormData.warehouseId, workOrderToEdit?.warehouseId]);
 
   const filtered = useMemo(() => {
     if (!workOrders) return [];
@@ -222,6 +235,7 @@ function WorkOrdersPage() {
       voyageNumber: wo.voyageNumber,
       yardInDate: wo.yardInDate ?? "",
       departureDate: wo.departureDate ?? "",
+      warehouseId: wo.warehouseId,
       warehouseLocation: wo.warehouseLocation ?? "",
       doorAssigned: wo.doorAssigned ?? "",
     });
@@ -336,8 +350,13 @@ function WorkOrdersPage() {
                     <KeyVal icon={Calendar} label="Arrival" value={w.arrivalDate ? new Date(w.arrivalDate).toLocaleDateString() : "—"} />
                     <KeyVal label="PO" value={w.poNumber} />
                     <KeyVal
+                      icon={Warehouse}
+                      label="Warehouse"
+                      value={w.warehouseId ? (warehouses.find((x) => x.id === w.warehouseId)?.code ?? w.warehouseId) : "—"}
+                    />
+                    <KeyVal
                       icon={MapPin}
-                      label="WH Location"
+                      label="Storage Slot"
                       value={w.warehouseLocation || "Unassigned"}
                     />
                     <KeyVal
@@ -445,6 +464,7 @@ function WorkOrdersPage() {
           editFormData={editFormData}
           setEditFormData={setEditFormData}
           onEdited={handleEdit}
+          warehouseOptions={warehouseOptions}
           locationOptions={warehouseLocationOptions}
         />
       )}
@@ -481,6 +501,7 @@ function EditWorkOrderDialog({
   editFormData,
   setEditFormData,
   onEdited,
+  warehouseOptions,
   locationOptions,
 }: {
   open: boolean;
@@ -489,7 +510,9 @@ function EditWorkOrderDialog({
   editFormData: Partial<WorkOrder>;
   setEditFormData: (data: Partial<WorkOrder>) => void;
   onEdited: () => void;
-  /** Live Location Master records the warehouse location can be set to. */
+  /** The physical warehouses the container can be booked into. */
+  warehouseOptions?: { id: string; code: string; city: string }[];
+  /** Live Location Master records the storage slot can be set to. */
   locationOptions?: { id: string; zone: string; warehouseId?: string }[];
 }) {
   if (!workOrder) return null;
@@ -600,19 +623,42 @@ function EditWorkOrderDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px]">Warehouse Location</Label>
+                <Label className="text-[10px]">Warehouse</Label>
+                <select
+                  value={editFormData.warehouseId || ""}
+                  onChange={(e) => {
+                    const nextWarehouse = e.target.value;
+                    setEditFormData({
+                      ...editFormData,
+                      warehouseId: nextWarehouse,
+                      // The slot belongs to the old warehouse — clear it.
+                      warehouseLocation: "",
+                    });
+                  }}
+                  className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
+                >
+                  <option value="">Select warehouse…</option>
+                  {warehouseOptions?.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.code} — {w.city}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Storage Slot</Label>
                 <select
                   value={editFormData.warehouseLocation || ""}
                   onChange={(e) =>
                     setEditFormData({ ...editFormData, warehouseLocation: e.target.value })
                   }
                   className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
+                  disabled={!editFormData.warehouseId}
                 >
                   <option value="">Unassigned</option>
                   {locationOptions?.map((l) => (
                     <option key={l.id} value={l.id}>
                       {l.id} — {l.zone}
-                      {l.warehouseId ? ` (${l.warehouseId})` : ""}
                     </option>
                   ))}
                 </select>

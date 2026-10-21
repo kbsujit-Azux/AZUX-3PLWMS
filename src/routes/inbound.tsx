@@ -888,7 +888,7 @@ try {
           { key: "client", label: "Client / Tenant", required: true },
           { key: "warehouse", label: "Warehouse", required: true },
           { key: "location", label: "Location / Rack" },
-          { key: "warehouse_location", label: "Warehouse Location" },
+          { key: "warehouse_location", label: "Storage Slot" },
           { key: "door", label: "Door / Dock" },
           { key: "asn_ref", label: "ASN / Reference", required: true },
           { key: "po_number", label: "PO number", required: true },
@@ -912,7 +912,7 @@ try {
           "Client",
           "Warehouse",
           "Location",
-          "Warehouse Location",
+          "Storage Slot",
           "Door",
           "ASN",
           "PO",
@@ -1084,7 +1084,7 @@ function ShipmentCard({
               value={`${shipment.sealNumber} · ${shipment.bolNumber}`}
             />
             <KV icon={DoorOpen} label="Door" value={shipment.doorAssigned ?? "Unassigned"} />
-            <KV icon={Warehouse} label="WH Location" value={shipment.warehouseLocation ?? "Unassigned"} />
+            <KV icon={Warehouse} label="Storage Slot" value={shipment.warehouseLocation ?? "Unassigned"} />
             <KV
               icon={CalendarClock}
               label="Appointment"
@@ -1625,12 +1625,12 @@ const ts = (d: string) => {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px]">Warehouse Location</Label>
+              <Label className="text-[10px]">Storage Slot</Label>
               <Input
                 value={header.warehouseLocation}
                 onChange={(e) => setHeader({ ...header, warehouseLocation: e.target.value })}
-                className="h-8 text-xs"
-                placeholder="e.g., DOCK-D07, A12-03-B"
+                className="h-8 text-xs font-mono"
+                placeholder="e.g. D04-01-A"
               />
             </div>
             <div className="space-y-1">
@@ -2550,15 +2550,15 @@ function AddContainerDialog({
                   className="h-8 text-xs"
                 />
               </div>
-              <div className="space-y-1">
-                <Label className="text-[10px]">Warehouse Location</Label>
-                <Input
-                  value={header.warehouseLocation}
-                  onChange={(e) => setHeader({ ...header, warehouseLocation: e.target.value })}
-                  className="h-8 text-xs"
-                  placeholder="e.g., DOCK-D07, A12-03-B"
-                />
-              </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Storage Slot</Label>
+              <Input
+                value={header.warehouseLocation}
+                onChange={(e) => setHeader({ ...header, warehouseLocation: e.target.value })}
+                className="h-8 text-xs font-mono"
+                placeholder="e.g. D04-01-A"
+              />
+            </div>
               <div className="space-y-1">
                 <Label className="text-[10px]">Appointment Date</Label>
                 <Input
@@ -3178,6 +3178,8 @@ function EditWorkOrderInboundDialog({
 }) {
   if (!workOrder) return null;
 
+  const { warehouses: liveWarehouses, locationMaster: liveLocationMaster } = useWmsData();
+
   const [formData, setFormData] = useState({
     clientName: workOrder.clientName || "",
     containerNumber: workOrder.containerNumber || "",
@@ -3198,6 +3200,7 @@ function EditWorkOrderInboundDialog({
     inboundEntryDate: workOrder.inboundEntryDate || "",
     receivedDate: workOrder.receivedDate || "",
     status: workOrder.status || "scheduled",
+    warehouseId: workOrder.warehouseId || "",
     doorAssigned: workOrder.doorAssigned || "",
     warehouseLocation: workOrder.warehouseLocation || "",
     notes: workOrder.notes || "",
@@ -3391,12 +3394,47 @@ function EditWorkOrderInboundDialog({
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px]">Warehouse Location</Label>
-              <Input
+              <Label className="text-[10px]">Warehouse</Label>
+              <select
+                value={formData.warehouseId}
+                onChange={(e) => {
+                  const nextWarehouse = e.target.value;
+                  setFormData({
+                    ...formData,
+                    warehouseId: nextWarehouse,
+                    // The slot belongs to the previous warehouse — clear it.
+                    warehouseLocation: "",
+                  });
+                }}
+                className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
+              >
+                <option value="">Select warehouse…</option>
+                {(liveWarehouses ?? []).map((w: any) => (
+                  <option key={w.id} value={w.id}>
+                    {w.code} — {w.city}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Storage Slot</Label>
+              <select
                 value={formData.warehouseLocation}
-                onChange={(e) => setFormData({ ...formData, warehouseLocation: e.target.value })}
-                className="h-8 text-xs"
-              />
+                onChange={(e) =>
+                  setFormData({ ...formData, warehouseLocation: e.target.value })
+                }
+                className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
+                disabled={!formData.warehouseId}
+              >
+                <option value="">Unassigned</option>
+                {(liveLocationMaster ?? [])
+                  .filter((l: any) => l.warehouseId === formData.warehouseId)
+                  .map((l: any) => (
+                    <option key={l.id} value={l.id}>
+                      {l.id} — {l.zone}
+                    </option>
+                  ))}
+              </select>
             </div>
           </div>
           <div className="space-y-1">
