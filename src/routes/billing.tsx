@@ -787,6 +787,8 @@ function RuleDialog({
   const [peakStartMonth, setPeakStartMonth] = useState<number>(10);
   const [peakEndMonth, setPeakEndMonth] = useState<number>(12);
   const [accessorialType, setAccessorialType] = useState<AccessorialType | "">("");
+  // Whether this rule participates in the automatic container-close billing.
+  const [autoCapture, setAutoCapture] = useState(true);
 
   const availableLocations = useMemo(() => {
     if (!warehouseId) return locationMaster;
@@ -795,35 +797,45 @@ function RuleDialog({
 
   const save = async () => {
     try {
-      if (!description || !rate) {
-        toast.error("Description and rate are required");
+      if (!description.trim()) {
+        toast.error("A description is required");
         return;
       }
-      console.log("[Billing] RuleDialog.save calling onSave");
-      await onSave({
+      if (!rate && rate !== 0) {
+        toast.error("A rate is required");
+        return;
+      }
+      // Build the rule with only the fields that apply. Firestore rejects
+      // `undefined`, so optional fields are simply left out.
+      const rule: ChargeRule = {
         id: `r${Date.now()}`,
         clientId,
         tenantId,
-        warehouseId: warehouseId && warehouseId !== "all" ? warehouseId : undefined,
-        locationId: locationId && locationId !== "all" ? locationId : undefined,
         category,
-        description,
+        description: description.trim(),
         unit,
         rate,
-        ratePerCuFt: unit === "cubicFeet" ? ratePerCuFt : undefined,
-        frequency: category === "Storage" ? frequency : undefined,
-        customCycleDays:
-          category === "Storage" && frequency === "custom" ? customCycleDays : undefined,
-        trigger: category === "Custom" ? trigger || undefined : undefined,
-        priceTiers: priceTiers.length > 0 ? priceTiers : undefined,
-        minMonthlyCharge: minMonthlyCharge > 0 ? minMonthlyCharge : undefined,
-        peakSurchargePct: peakSurchargePct > 0 ? peakSurchargePct : undefined,
-        peakStartMonth: peakSurchargePct > 0 ? peakStartMonth : undefined,
-        peakEndMonth: peakSurchargePct > 0 ? peakEndMonth : undefined,
-        accessorialType: accessorialType || undefined,
         enabled: true,
-      });
-      console.log("[Billing] RuleDialog.save completed");
+        autoCapture,
+      };
+      if (warehouseId && warehouseId !== "all") rule.warehouseId = warehouseId;
+      if (locationId && locationId !== "all") rule.locationId = locationId;
+      if (unit === "cubicFeet" && ratePerCuFt) rule.ratePerCuFt = ratePerCuFt;
+      if (category === "Storage") {
+        rule.frequency = frequency;
+        if (frequency === "custom") rule.customCycleDays = customCycleDays;
+      }
+      if (category === "Custom" && trigger.trim()) rule.trigger = trigger.trim();
+      if (priceTiers.length > 0) rule.priceTiers = priceTiers;
+      if (minMonthlyCharge > 0) rule.minMonthlyCharge = minMonthlyCharge;
+      if (peakSurchargePct > 0) {
+        rule.peakSurchargePct = peakSurchargePct;
+        rule.peakStartMonth = peakStartMonth;
+        rule.peakEndMonth = peakEndMonth;
+      }
+      if (accessorialType) rule.accessorialType = accessorialType;
+
+      await onSave(rule);
     } catch (e: any) {
       console.error("[Billing] RuleDialog.save error:", e);
       toast.error("Failed to save rule: " + (e?.message ?? "unknown error"));
@@ -930,6 +942,21 @@ function RuleDialog({
             </Select>
           </Field>
         </div>
+        <label className="flex items-start gap-2 rounded-md border border-border bg-muted/20 px-3 py-2 text-xs cursor-pointer">
+          <input
+            type="checkbox"
+            checked={autoCapture}
+            onChange={(e) => setAutoCapture(e.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5 accent-primary"
+          />
+          <span>
+            <span className="font-medium">Bill automatically on container close</span>
+            <span className="block text-[11px] text-muted-foreground">
+              Include this rate when a container is closed and a draft invoice is
+              generated. Turn it off to create a rate that is only applied manually.
+            </span>
+          </span>
+        </label>
         {unit === "cubicFeet" && (
           <Field label="Rate per cu ft / month (USD)">
             <Input

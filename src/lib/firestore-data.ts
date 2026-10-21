@@ -2822,12 +2822,36 @@ export function subscribeChargeRules(callback: (rules: ChargeRule[]) => void): U
   });
 }
 
-export async function createChargeRule(rule: ChargeRule) {
-  await setDoc(doc(db, "chargeRules", rule.id), rule);
+/**
+ * Firestore rejects `undefined` anywhere in a document, and the charge
+ * rule form leaves optional fields (warehouse, location, accessorial type,
+ * tier pricing…) empty. Strip them before writing so a partially filled
+ * rate can always be saved.
+ */
+export function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => stripUndefinedDeep(v)).filter((v) => v !== undefined) as T;
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const cleaned = stripUndefinedDeep(v);
+      if (cleaned !== undefined) out[k] = cleaned;
+    }
+    return out as T;
+  }
+  return value;
 }
 
-export async function updateChargeRule(ruleId: string, updates: Partial<ChargeRule>) {
-  await updateDoc(doc(db, "chargeRules", ruleId), updates);
+export async function createChargeRule(rule: ChargeRule) {
+  await setDoc(doc(db, "chargeRules", rule.id), stripUndefinedDeep(rule));
+}
+
+export async function updateChargeRule(
+  ruleId: string,
+  updates: Partial<ChargeRule>,
+) {
+  await updateDoc(doc(db, "chargeRules", ruleId), stripUndefinedDeep(updates));
 }
 
 export async function deleteChargeRule(ruleId: string) {
