@@ -573,6 +573,7 @@ export async function recordInboundPalletBuild(
   receivedDelta: number,
   palletIds: string[],
   lineStatus: "expected" | "partial" | "received",
+  unitsPerPallet?: number,
 ): Promise<{ shipmentStatus: "on_dock" | "received" }> {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
 
@@ -607,6 +608,7 @@ export async function recordInboundPalletBuild(
       receivedQty: nextReceived,
       status: nextLineStatus,
       palletIds: mergedPalletIds,
+      ...(unitsPerPallet && unitsPerPallet > 0 ? { unitsPerPallet } : {}),
     };
 
     const allReceived = lines.every(

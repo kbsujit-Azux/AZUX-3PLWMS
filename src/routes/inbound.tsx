@@ -85,6 +85,8 @@ import {
 import { createPalletsFromInbound } from "@/lib/pallet-data";
 import {
   recommendPalletBuild,
+  recommendPalletPlan,
+  packSizeOf,
   type PalletBuildRecommendation,
 } from "@/lib/pallet-build-engine";
 import {
@@ -999,6 +1001,28 @@ function ShipmentCard({
     return Math.ceil(l.qtyExpected / size) !== l.cartonsExpected;
   };
 
+  /**
+   * How many pallets should be built for a line, and how many units fit on
+   * one pallet.
+   *
+   * 1. OPTIMAL — the Pallet Build Engine works out how many cases fit on a
+   *    layer (case dimensions vs. the pallet footprint), how many layers
+   *    fit within the height/weight limits, and therefore how many pallets
+   *    the receipt actually needs.
+   * 2. FALLBACK — when the engine cannot produce a valid plan (no Item
+   *    Master record, or the constraints cannot be met) the safe minimum is
+   *    one pack/carton per pallet, so the pallet count is never larger than
+   *    the number of cartons.
+   *
+   * Never fall back to "one pallet per unit" — that is what produced
+   * "Build 144 pallets" for a 144 unit receipt.
+   */
+  const palletPlanFor = (l: InboundLine) => {
+    const remaining = Math.max(0, l.qtyExpected - l.receivedQty);
+    const master = itemMaster?.find((i) => i.sku === l.sku);
+    return recommendPalletPlan(master, remaining, packSizeFor(l));
+  };
+
   const allLinesHavePallets = Array.isArray(shipment.lines) && shipment.lines.length > 0 && shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
   const canClose = onCloseContainer && allLinesHavePallets;
   const hasReceipt = !!onPrintReceipt;
@@ -1130,10 +1154,8 @@ function ShipmentCard({
             // expected units — an over-receipt must be visible, not capped away.
             const variance = (l.receivedQty || 0) - (l.qtyExpected || 0);
             const remaining = Math.max(0, l.qtyExpected - l.receivedQty);
-            const palletsRemaining = Math.max(
-              0,
-              Math.ceil(remaining / Math.max(1, l.unitsPerPallet)),
-            );
+            const plan = palletPlanFor(l);
+            const palletsRemaining = remaining > 0 ? plan.palletCount : 0;
             return (
               <TableRow key={l.lineNo} className="text-xs hover:bg-muted/30">
                 <TableCell className="py-2 font-mono text-[11px] text-muted-foreground">
@@ -1174,8 +1196,11 @@ function ShipmentCard({
                     <AlertTriangle className="h-3 w-3 inline ml-1 align-text-bottom" />
                   )}
                 </TableCell>
-                <TableCell className="py-2 text-right tabular-nums text-muted-foreground">
-                  {l.unitsPerPallet}
+                <TableCell
+                  className="py-2 text-right tabular-nums text-muted-foreground"
+                  title={plan.note}
+                >
+                  {plan.unitsPerPallet}
                 </TableCell>
                 <TableCell className="py-2 w-40">
                   <div className="flex items-center gap-2">
@@ -1212,9 +1237,9 @@ function ShipmentCard({
                           <Boxes className="h-2.5 w-2.5 text-muted-foreground" />
                           {l.palletIds.length} pallet{l.palletIds.length === 1 ? "" : "s"}
                         </span>
-                        {l.unitsPerPallet > 0 && (
+                        {plan.unitsPerPallet > 0 && (
                           <span className="text-[10px] text-muted-foreground tabular-nums">
-                            {l.unitsPerPallet} u/pallet
+                            {plan.unitsPerPallet} u/pallet
                           </span>
                         )}
                       </div>
@@ -1260,20 +1285,28 @@ function ShipmentCard({
                       );
                     }
                     return (
-                      <Button
-                        size="sm"
-                        variant={l.status === "received" ? "outline" : "default"}
-                        className="h-7 text-[11px] gap-1.5"
-                        disabled={l.status === "received" || shipment.status === "scheduled"}
-                        onClick={() => onBuildPallets(l)}
-                      >
-                        <ScanLine className="h-3 w-3" />
-                        {l.status === "received"
-                          ? "Complete"
-                          : shipment.status === "scheduled"
-                            ? "Awaiting arrival"
-                            : `Build ${palletsRemaining} pallet${palletsRemaining === 1 ? "" : "s"}`}
-                      </Button>
+                      <div className="flex flex-col items-end gap-1">
+                        <Button
+                          size="sm"
+                          variant={l.status === "received" ? "outline" : "default"}
+                          className="h-7 text-[11px] gap-1.5"
+                          disabled={l.status === "received" || shipment.status === "scheduled"}
+                          title={plan.note}
+                          onClick={() => onBuildPallets(l)}
+                        >
+                          <ScanLine className="h-3 w-3" />
+                          {l.status === "received"
+                            ? "Complete"
+                            : shipment.status === "scheduled"
+                              ? "Awaiting arrival"
+                              : `Build ${palletsRemaining} pallet${palletsRemaining === 1 ? "" : "s"}`}
+                        </Button>
+                        {plan.basis === "pack" && palletsRemaining > 0 && (
+                          <span className="text-[9px] text-muted-foreground">
+                            {plan.unitsPerPallet} units/pallet
+                          </span>
+                        )}
+                      </div>
                     );
                   })()}
                 </TableCell>
@@ -1804,23 +1837,33 @@ function BuildPalletsDialog({
     livePallets,
   ]);
 
-  // Auto-recommend when the dialog opens for a new line
+  // Auto-recommend when the dialog opens for a new line and APPLY it, so the
+  // operator starts from the optimal pallet count rather than a guess.
+  // (A single effect — a second one would overwrite the recommendation with
+  // the naive "remaining / unitsPerPallet" values.)
   useEffect(() => {
     setAppliedRec(false);
     setRecommendation(null);
     if (masterItem && remaining > 0) {
       const rec = recommendPalletBuild({ item: masterItem, quantity: remaining });
       setRecommendation(rec);
+      if (rec.valid) {
+        setPalletCount(rec.palletCount);
+        setUnitsPerPallet(rec.unitsPerPallet);
+        setAppliedRec(true);
+      } else {
+        // No optimal plan fits the limits — fall back to one pack per pallet
+        // so the pallet count is never larger than the number of cartons.
+        const packSize = packSizeOf(masterItem);
+        setPalletCount(Math.max(1, Math.ceil(remaining / packSize)));
+        setUnitsPerPallet(packSize);
+      }
+    } else {
+      setPalletCount(defaultPallets);
+      setUnitsPerPallet(defaultUpp);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context?.l.lineNo, context?.s.id, masterItem?.sku]);
-
-  // Sync defaults when context changes
-  useEffect(() => {
-    setPalletCount(defaultPallets);
-    setUnitsPerPallet(defaultUpp);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context?.l.lineNo, context?.s.id]);
 
   if (!line || !ship) return null;
 
@@ -1884,6 +1927,7 @@ function BuildPalletsDialog({
         willReceive,
         created.map((p) => p.id),
         line.status,
+        unitsPerPallet,
       );
       ship.status = shipmentStatus;
       if (shipmentStatus === "received") {

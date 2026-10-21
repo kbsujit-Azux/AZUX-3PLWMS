@@ -431,6 +431,72 @@ export function recommendPalletBuild(
   };
 }
 
+/**
+ * The pallet plan for a receipt line.
+ *
+ * `basis`:
+ *   • "optimal" — the engine produced a valid plan from the case
+ *     dimensions and the warehouse limits.
+ *   • "pack"    — no valid optimal plan (no Item Master record, or the
+ *     constraints cannot be met). The safe floor is ONE PACK/CARTON PER
+ *     PALLET, so the pallet count is never larger than the number of
+ *     cartons. This is the floor the business asked for: 144 units at a
+ *     pack size of 24 is 6 cartons, so at most 6 pallets — never 144.
+ */
+export type PalletPlan = {
+  palletCount: number;
+  unitsPerPallet: number;
+  basis: "optimal" | "pack";
+  note: string;
+  recommendation?: PalletBuildRecommendation;
+};
+
+/** The catalogue pack size (units per case/pack) for an item. */
+export function packSizeOf(item: ItemMasterRecord): number {
+  const inner = item.packHierarchy?.find((h) => h.packLevel === "inner");
+  return inner?.qtyPerParent || item.caseQty || item.innerPackQty || 1;
+}
+
+/**
+ * Build the pallet plan for a quantity of an item.
+ *
+ * @param item        the Item Master record (may be undefined)
+ * @param quantity    units still to be palletized
+ * @param fallbackPackSize  the pack size to use when there is no Item Master
+ */
+export function recommendPalletPlan(
+  item: ItemMasterRecord | undefined,
+  quantity: number,
+  fallbackPackSize?: number,
+): PalletPlan {
+  const remaining = Math.max(0, quantity);
+  const packSize = item ? packSizeOf(item) : (fallbackPackSize || 1);
+
+  if (item && remaining > 0) {
+    const rec = recommendPalletBuild({ item, quantity: remaining });
+    if (rec.valid) {
+      return {
+        palletCount: Math.max(1, rec.palletCount),
+        unitsPerPallet: rec.unitsPerPallet,
+        basis: "optimal",
+        note: `${rec.casesPerLayer} cases/layer × ${rec.layersPerPallet} layers · ${rec.pattern} · ${rec.stackedHeightIn}" high · ${rec.weightPerPalletLbs} lb`,
+        recommendation: rec,
+      };
+    }
+  }
+
+  // Safe floor: one pack per pallet.
+  const perPallet = packSize > 0 ? packSize : 1;
+  return {
+    palletCount: Math.max(1, Math.ceil(remaining / perPallet)),
+    unitsPerPallet: perPallet,
+    basis: "pack",
+    note: item
+      ? "No optimal plan fits the warehouse limits — one pack per pallet"
+      : "No Item Master record — one pack per pallet",
+  };
+}
+
 /* ============================================================
  *  GTIN Pack Conversion
  * ============================================================ */

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   recommendPalletBuild,
+  recommendPalletPlan,
+  packSizeOf,
   convertPackQuantity,
   casesPerLayer,
   resolveFootprint,
@@ -252,6 +254,51 @@ describe("Pallet Build Engine", () => {
       "interlock",
       "pinwheel",
     ]);
+  });
+});
+
+/* ───── Pallet Plan (the "how many pallets do I build" answer) ──────── */
+
+describe("Pallet plan", () => {
+  it("reads the pack size from the pack hierarchy", () => {
+    expect(packSizeOf(makeItem())).toBe(24);
+  });
+
+  it("never recommends more pallets than cartons", () => {
+    // 144 units at a pack size of 24 is 6 cartons.
+    const plan = recommendPalletPlan(makeItem(), 144, 24);
+    expect(plan.palletCount).toBeLessThanOrEqual(6);
+    expect(plan.palletCount).toBeGreaterThan(0);
+  });
+
+  it("uses the optimal plan when the engine can build one", () => {
+    const plan = recommendPalletPlan(makeItem(), 144, 24);
+    expect(plan.basis).toBe("optimal");
+    expect(plan.palletCount).toBe(1);
+    expect(plan.unitsPerPallet).toBeGreaterThan(24);
+    expect(plan.recommendation).toBeDefined();
+  });
+
+  it("falls back to one pack per pallet without an Item Master record", () => {
+    const plan = recommendPalletPlan(undefined, 144, 24);
+    expect(plan.basis).toBe("pack");
+    expect(plan.palletCount).toBe(6);
+    expect(plan.unitsPerPallet).toBe(24);
+  });
+
+  it("falls back to one pack per pallet when no plan fits the limits", () => {
+    const impossible = makeItem({
+      palletBuild: { ...defaultPalletBuild, maxPalletHeightIn: 1 },
+    });
+    const plan = recommendPalletPlan(impossible, 144, 24);
+    expect(plan.basis).toBe("pack");
+    expect(plan.palletCount).toBe(6);
+  });
+
+  it("handles a zero quantity without dividing by zero", () => {
+    const plan = recommendPalletPlan(makeItem(), 0, 24);
+    expect(Number.isFinite(plan.palletCount)).toBe(true);
+    expect(plan.palletCount).toBeGreaterThanOrEqual(0);
   });
 });
 
