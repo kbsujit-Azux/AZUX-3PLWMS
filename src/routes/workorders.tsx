@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Search, Container, Truck, Ship, Hash, Calendar, Check, Edit, X, AlertTriangle, ChevronRight, RefreshCw } from "lucide-react";
+import { Search, Container, Truck, Ship, Hash, Calendar, Check, Edit, X, AlertTriangle, ChevronRight, RefreshCw, MapPin, DoorOpen } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +69,34 @@ function WorkOrdersPage() {
   const [workOrderToEdit, setWorkOrderToEdit] = useState<WorkOrder | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<WorkOrder>>({});
 
-  const { workOrders, inboundShipments } = useWmsData();
+  const { workOrders, inboundShipments, locationMaster } = useWmsData();
+
+  /**
+   * The locations a work order can be assigned to — the live Location
+   * Master, narrowed to the work order's own warehouse.
+   *
+   * Staging/drop locations come first because a container that has not been
+   * put away yet belongs in staging, not in a storage slot.
+   */
+  const warehouseLocationOptions = useMemo(() => {
+    const all = (locationMaster ?? []) as any[];
+    const wh = workOrderToEdit?.warehouseId;
+    const forWarehouse = wh ? all.filter((l) => l.warehouseId === wh) : all;
+    const list = forWarehouse.length ? forWarehouse : all;
+    const typeOrder: Record<string, number> = { DROP: 0, RACK: 1, FLR: 2 };
+    return [...list]
+      .sort(
+        (a, b) =>
+          (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9) ||
+          a.zone.localeCompare(b.zone) ||
+          a.id.localeCompare(b.id),
+      )
+      .map((l) => ({
+        id: l.id as string,
+        zone: (l.zone ?? "") as string,
+        warehouseId: l.warehouseId as string | undefined,
+      }));
+  }, [locationMaster, workOrderToEdit?.warehouseId]);
 
   const filtered = useMemo(() => {
     if (!workOrders) return [];
@@ -189,15 +216,31 @@ function WorkOrdersPage() {
       trailerNumber: wo.trailerNumber,
       carrier: wo.carrier,
       poNumber: wo.poNumber,
+      sealNumber: wo.sealNumber,
+      bolNumber: wo.bolNumber,
+      vessel: wo.vessel,
+      voyageNumber: wo.voyageNumber,
+      yardInDate: wo.yardInDate ?? "",
+      departureDate: wo.departureDate ?? "",
+      warehouseLocation: wo.warehouseLocation ?? "",
+      doorAssigned: wo.doorAssigned ?? "",
     });
   };
 
   const handleEdit = async () => {
     if (!workOrderToEdit) return;
     try {
-      const cleanUpdates = Object.fromEntries(
-        Object.entries(editFormData).filter(([_, v]) => v !== undefined && v !== "")
-      );
+      // Empty strings are dropped, EXCEPT the warehouse location and door —
+      // clearing those is a legitimate action.
+      const cleanUpdates: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(editFormData)) {
+        if (v === undefined) continue;
+        if (v === "") {
+          if (k === "warehouseLocation" || k === "doorAssigned") cleanUpdates[k] = null;
+          continue;
+        }
+        cleanUpdates[k] = v;
+      }
       if (Object.keys(cleanUpdates).length === 0) {
         toast.warning("No changes to save");
         return;
@@ -292,6 +335,16 @@ function WorkOrdersPage() {
                     <KeyVal icon={Hash} label="Voyage" value={w.voyageNumber} />
                     <KeyVal icon={Calendar} label="Arrival" value={w.arrivalDate ? new Date(w.arrivalDate).toLocaleDateString() : "—"} />
                     <KeyVal label="PO" value={w.poNumber} />
+                    <KeyVal
+                      icon={MapPin}
+                      label="WH Location"
+                      value={w.warehouseLocation || "Unassigned"}
+                    />
+                    <KeyVal
+                      icon={DoorOpen}
+                      label="Door"
+                      value={w.doorAssigned || "Unassigned"}
+                    />
                   </div>
                 </div>
                 <div className="w-48 shrink-0 flex flex-col gap-2">
@@ -392,6 +445,7 @@ function WorkOrdersPage() {
           editFormData={editFormData}
           setEditFormData={setEditFormData}
           onEdited={handleEdit}
+          locationOptions={warehouseLocationOptions}
         />
       )}
     </div>
@@ -427,6 +481,7 @@ function EditWorkOrderDialog({
   editFormData,
   setEditFormData,
   onEdited,
+  locationOptions,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -434,6 +489,8 @@ function EditWorkOrderDialog({
   editFormData: Partial<WorkOrder>;
   setEditFormData: (data: Partial<WorkOrder>) => void;
   onEdited: () => void;
+  /** Live Location Master records the warehouse location can be set to. */
+  locationOptions?: { id: string; zone: string; warehouseId?: string }[];
 }) {
   if (!workOrder) return null;
 
@@ -540,6 +597,32 @@ function EditWorkOrderDialog({
                   value={editFormData.departureDate || ""}
                   onChange={(e) => setEditFormData({ ...editFormData, departureDate: e.target.value })}
                   className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Warehouse Location</Label>
+                <select
+                  value={editFormData.warehouseLocation || ""}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, warehouseLocation: e.target.value })
+                  }
+                  className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
+                >
+                  <option value="">Unassigned</option>
+                  {locationOptions?.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.id} — {l.zone}
+                      {l.warehouseId ? ` (${l.warehouseId})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Door Assigned</Label>
+                <Input
+                  value={editFormData.doorAssigned || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, doorAssigned: e.target.value })}
+                  className="h-8 text-xs font-mono"
                 />
               </div>
             </div>
