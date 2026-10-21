@@ -80,6 +80,40 @@ export function computePalletCubeCuFt(pallet: Pallet): number {
   return +(item.cbmPerCase * cases * 35.3147).toFixed(2);
 }
 
+/**
+ * A pallet is locked once it has left the staging area: it is stored in a
+ * location, on a pick, or already shipped.
+ *
+ * Locked pallets cannot be edited or deleted from the Pallet screen — they
+ * must be released from the Inventory screen first, which returns them to
+ * "staged" with no location.
+ */
+export function isPalletLocked(pallet: {
+  location?: string | null;
+  status?: string;
+}): boolean {
+  return (
+    !!pallet.location ||
+    pallet.status === "putaway" ||
+    pallet.status === "picking" ||
+    pallet.status === "shipped"
+  );
+}
+
+/**
+ * A pallet is waiting to be put away when it is not stored anywhere yet.
+ */
+export function isAwaitingPutaway(pallet: {
+  location?: string | null;
+  status?: string;
+}): boolean {
+  return (
+    !pallet.location &&
+    pallet.status !== "shipped" &&
+    pallet.status !== "picking"
+  );
+}
+
 /** Directed putaway: pick the best slot for an inbound pallet */
 export function suggestPutawayLocation(itemStyle: string, warehouseId: string): string {
   // In production this consults the warehouse slotting map (velocity, weight,

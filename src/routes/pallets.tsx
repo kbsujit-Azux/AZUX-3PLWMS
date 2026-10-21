@@ -65,6 +65,8 @@ import {
   buildPickWave,
   suggestPutawayLocation,
   deriveZoneFromLocation,
+  isPalletLocked as isPalletLockedFn,
+  isAwaitingPutaway,
   type Pallet,
   type PalletStatus,
 } from "@/lib/pallet-data";
@@ -235,13 +237,51 @@ function PalletsPage() {
     [tenantId, warehouseId, query, poRefs, palletList],
   );
 
+  /**
+   * Pallets that are waiting to be put away.
+   *
+   * A pallet that is already stored (it has a location and is in the
+   * inventory) must NOT appear here — it has already been put away. It
+   * reappears automatically once it is released from the Inventory screen,
+   * which returns it to "staged" with no location.
+   */
+  const awaitingPutaway = useMemo(
+    () =>
+      visiblePallets
+        .filter((p) => isAwaitingPutaway(p))
+        .map((p) => ({
+          ...p,
+          suggestedLocation:
+            p.suggestedLocation ||
+            suggestLocationFor({
+              sku: p.sku,
+              itemStyle: p.itemStyle,
+              tenantId: p.tenantId,
+              warehouseId: p.warehouseId,
+              weightLbs: p.weightLbs,
+              fallback: suggestPutawayLocation(p.itemStyle, p.warehouseId),
+            }),
+        })),
+    [visiblePallets, suggestLocationFor],
+  );
+
+  /**
+   * A pallet is locked once it has left the staging area: it is stored in a
+   * location, on a pick or already shipped. Locked pallets cannot be edited
+   * or deleted from the Pallet screen — they must be released from the
+   * Inventory screen first.
+   */
+  const isPalletLocked = (p: Pallet): boolean => isPalletLockedFn(p);
+
   const handleDeleteConfirm = async () => {
     if (!deleteConfirmId) return;
     const p = palletList.find((p) => p.id === deleteConfirmId);
     if (!p) return;
-    if (p.status === "putaway" || p.status === "picking" || p.status === "shipped") {
+    if (isPalletLocked(p)) {
       toast.error("Cannot delete", {
-        description: `Pallet ${p.id} is ${p.status}. Only building/staged pallets can be removed.`,
+        description: `Pallet ${p.id} is ${
+          p.location ? `stored at ${p.location}` : p.status
+        }. Release it from the Inventory screen first.`,
       });
       setDeleteConfirmId(null);
       return;
@@ -264,9 +304,11 @@ function PalletsPage() {
   };
 
   const handleDeleteRequest = (p: Pallet) => {
-    if (p.status === "putaway" || p.status === "picking" || p.status === "shipped") {
+    if (isPalletLocked(p)) {
       toast.error("Cannot delete", {
-        description: `Pallet ${p.id} is ${p.status}. Only building/staged pallets can be removed.`,
+        description: `Pallet ${p.id} is ${
+          p.location ? `stored at ${p.location}` : p.status
+        }. Release it from the Inventory screen first.`,
       });
       return;
     }
@@ -278,11 +320,12 @@ function PalletsPage() {
     for (const p of visiblePallets) {
       t.units += p.units;
       if (p.status === "building") t.building++;
-      else if (p.status === "staged") t.awaitingPutaway++;
       if (p.status !== "shipped") t.active++;
     }
+    // "Awaiting putaway" = pallets that are not stored yet.
+    t.awaitingPutaway = awaitingPutaway.length;
     return t;
-  }, [visiblePallets]);
+  }, [visiblePallets, awaitingPutaway]);
 
   const handleCreatePallet = async () => {
     if (
@@ -622,9 +665,20 @@ const reportData = visiblePallets.map((p) => ({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7"
-                            title="Edit pallet"
+                            className={`h-7 w-7 ${
+                              isPalletLocked(p)
+                                ? "text-muted-foreground/40"
+                                : "hover:text-foreground"
+                            }`}
+                            disabled={isPalletLocked(p)}
                             onClick={() => setEditPallet(p)}
+                            title={
+                              isPalletLocked(p)
+                                ? `Cannot edit — pallet is ${
+                                    p.location ? `stored at ${p.location}` : p.status
+                                  }. Release it from the Inventory screen first.`
+                                : "Edit pallet"
+                            }
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -633,17 +687,13 @@ const reportData = visiblePallets.map((p) => ({
                             size="icon"
                             className="h-7 w-7 text-destructive hover:text-destructive disabled:opacity-30"
                             title={
-                              p.status === "putaway" ||
-                              p.status === "picking" ||
-                              p.status === "shipped"
-                                ? `Cannot delete — pallet is ${p.status}`
+                              isPalletLocked(p)
+                                ? `Cannot delete — pallet is ${
+                                    p.location ? `stored at ${p.location}` : p.status
+                                  }. Release it from the Inventory screen first.`
                                 : "Delete pallet"
                             }
-                            disabled={
-                              p.status === "putaway" ||
-                              p.status === "picking" ||
-                              p.status === "shipped"
-                            }
+                            disabled={isPalletLocked(p)}
                             onClick={() => handleDeleteRequest(p)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -701,28 +751,7 @@ const reportData = visiblePallets.map((p) => ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visiblePallets
-                  .filter((p) => p.status === "building" || p.status === "staged" || !p.location)
-                  .concat(
-                    // also surface a couple "freshly built" ones with re-suggested slots
-                    visiblePallets
-                      .filter((p) => p.status === "putaway")
-                      .slice(0, 3)
-                      .map((p) => ({
-                        ...p,
-                        status: "staged" as PalletStatus,
-                        location: null,
-                        suggestedLocation: suggestLocationFor({
-                          sku: p.sku,
-                          itemStyle: p.itemStyle,
-                          tenantId: p.tenantId,
-                          warehouseId: p.warehouseId,
-                          weightLbs: p.weightLbs,
-                          fallback: suggestPutawayLocation(p.itemStyle, p.warehouseId),
-                        }),
-                      })),
-                  )
-                  .map((p) => (
+                {awaitingPutaway.map((p) => (
                     <TableRow key={`pa-${p.id}`} className="text-xs hover:bg-muted/30">
                       <TableCell className="py-2 font-mono font-medium">{p.id}</TableCell>
                       <TableCell className="py-2 font-mono text-[11px]">{p.itemStyle}</TableCell>
@@ -856,6 +885,12 @@ const reportData = visiblePallets.map((p) => ({
         onClose={() => setEditPallet(null)}
         onSaved={async (palletId, updates) => {
           const before = palletList.find((p) => p.id === palletId);
+          if (before && isPalletLocked(before) && updates.location === undefined) {
+            toast.error("Pallet is locked", {
+              description: `Pallet ${palletId} is stored at ${before.location}. Release it from the Inventory screen first.`,
+            });
+            return;
+          }
           const nextLocation = updates.location ?? null;
 
           // A location change is a putaway — route it through the shared
