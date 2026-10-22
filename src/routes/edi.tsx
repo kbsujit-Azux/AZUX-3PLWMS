@@ -33,7 +33,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useWorkspace } from "@/components/workspace-context";
-import { ediLogs, EDI_TXNS, type EdiLog, type EdiStatus, type EdiTxnType } from "@/lib/edi-data";
+import { EDI_TXNS, type EdiLog, type EdiStatus, type EdiTxnType } from "@/lib/edi-data";
+import { useWmsData } from "@/components/db-context";
 import { tenants, warehouses } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/edi")({
@@ -73,9 +74,10 @@ const statusStyles: Record<EdiStatus, { label: string; cls: string; Icon: typeof
   },
 };
 
-const ALL: "ALL" = "ALL";
+const ALL = "ALL" as const;
 
 function EdiPage() {
+  const { ediLogs, refreshData } = useWmsData();
   const { tenantId, warehouseId } = useWorkspace();
   const [query, setQuery] = useState("");
   const [txnFilter, setTxnFilter] = useState<EdiTxnType | typeof ALL>(ALL);
@@ -83,19 +85,21 @@ function EdiPage() {
   const [detail, setDetail] = useState<EdiLog | null>(null);
 
   const filtered = useMemo(() => {
-    return ediLogs.filter((l) => {
-      if (tenantId !== "all" && l.tenantId !== tenantId) return false;
-      if (warehouseId !== "all" && l.warehouseId !== warehouseId) return false;
-      if (txnFilter !== ALL && l.txn !== txnFilter) return false;
-      if (statusFilter !== ALL && l.status !== statusFilter) return false;
-      if (query) {
-        const q = query.toLowerCase();
-        const blob =
-          `${l.id} ${l.partner} ${l.documentRef} ${l.isaControl} ${l.message}`.toLowerCase();
-        if (!blob.includes(q)) return false;
-      }
-      return true;
-    });
+    return ediLogs
+      .filter((l) => {
+        if (tenantId !== "all" && l.tenantId !== tenantId) return false;
+        if (warehouseId !== "all" && l.warehouseId !== warehouseId) return false;
+        if (txnFilter !== ALL && l.txn !== txnFilter) return false;
+        if (statusFilter !== ALL && l.status !== statusFilter) return false;
+        if (query) {
+          const q = query.toLowerCase();
+          const blob =
+            `${l.id} ${l.partner} ${l.documentRef} ${l.isaControl} ${l.message}`.toLowerCase();
+          if (!blob.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
   }, [tenantId, warehouseId, txnFilter, statusFilter, query]);
 
   const counts = useMemo(() => {
@@ -131,9 +135,9 @@ function EdiPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-            <RefreshCw className="h-3.5 w-3.5" /> Sync VAN
-          </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
+              <RefreshCw className="h-3.5 w-3.5" /> Sync VAN
+            </Button>
           <Button size="sm" className="h-8 text-xs gap-1.5">
             <PlugZap className="h-3.5 w-3.5" /> New connection
           </Button>
