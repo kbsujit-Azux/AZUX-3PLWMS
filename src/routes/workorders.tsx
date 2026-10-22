@@ -510,11 +510,11 @@ function WorkOrdersPage() {
                         Close
                       </Button>
                     )}
-                    <Button
+                    {w.status !== "closed" && (<>                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="default"
                       className="h-7 text-[10px] gap-1"
-                      onClick={async () => {
+                      onClick={async () => { if (!window.confirm("Proceed?")) return;
                         const inbound = inboundShipments?.find((s: any) => s.workOrderId === w.id);
                         const existing = await findAutoInvoiceForContainer(inbound?.id ?? w.id);
                         if (existing) {
@@ -543,9 +543,9 @@ function WorkOrdersPage() {
                     </Button>
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="default"
                       className="h-7 text-[10px] gap-1"
-                      onClick={async () => {
+                      onClick={async () => { if (!window.confirm("Proceed?")) return;
                         const inbound = inboundShipments?.find((s: any) => s.workOrderId === w.id);
                         await addDoc(collection(db, "ediLogs"), {
                           id: `EDI-944-${Date.now()}`,
@@ -568,7 +568,7 @@ function WorkOrdersPage() {
                       }}
                     >
                       944
-                    </Button>
+                    </Button> </>)}
                   </div>
                 </div>
               </div>
