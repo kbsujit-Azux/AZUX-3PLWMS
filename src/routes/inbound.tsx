@@ -4037,40 +4037,44 @@ function EditWorkOrderInboundDialog({
   workOrder: WorkOrder | null;
   onEdited: (updates: Partial<WorkOrder>) => void;
 }) {
-  if (!workOrder) return null;
-
+  // Every hook must run on every render, so they all sit ABOVE the
+  // `if (!workOrder) return null` guard below. Otherwise React throws
+  // "Rendered more hooks than during the previous render" (#310) when the
+  // dialog is opened.
   const { warehouses: liveWarehouses, locationMaster: liveLocationMaster } = useWmsData();
 
   const [formData, setFormData] = useState({
-    clientName: workOrder.clientName || "",
-    containerNumber: workOrder.containerNumber || "",
-    trailerNumber: workOrder.trailerNumber || "",
-    sealNumber: workOrder.sealNumber || "",
-    bolNumber: workOrder.bolNumber || "",
-    carrier: workOrder.carrier || "",
-    poNumber: workOrder.poNumber || "",
-    ediRef: workOrder.ediRef || "",
-    vessel: workOrder.vessel || "",
-    voyageNumber: workOrder.voyageNumber || "",
-    port: workOrder.port || "",
-    origin: workOrder.origin || "",
-    arrivalDate: workOrder.arrivalDate || "",
-    departureDate: workOrder.departureDate || "",
-    yardInDate: workOrder.yardInDate || "",
-    yardLeaveDate: workOrder.yardLeaveDate || "",
-    inboundEntryDate: workOrder.inboundEntryDate || "",
-    receivedDate: workOrder.receivedDate || "",
-    status: workOrder.status || "scheduled",
-    warehouseId: workOrder.warehouseId || "",
-    doorAssigned: workOrder.doorAssigned || "",
-    warehouseLocation: workOrder.warehouseLocation || "",
-    notes: workOrder.notes || "",
+    clientName: workOrder?.clientName || "",
+    containerNumber: workOrder?.containerNumber || "",
+    trailerNumber: workOrder?.trailerNumber || "",
+    sealNumber: workOrder?.sealNumber || "",
+    bolNumber: workOrder?.bolNumber || "",
+    carrier: workOrder?.carrier || "",
+    poNumber: workOrder?.poNumber || "",
+    ediRef: workOrder?.ediRef || "",
+    vessel: workOrder?.vessel || "",
+    voyageNumber: workOrder?.voyageNumber || "",
+    port: workOrder?.port || "",
+    origin: workOrder?.origin || "",
+    arrivalDate: workOrder?.arrivalDate || "",
+    departureDate: workOrder?.departureDate || "",
+    yardInDate: workOrder?.yardInDate || "",
+    yardLeaveDate: workOrder?.yardLeaveDate || "",
+    inboundEntryDate: workOrder?.inboundEntryDate || "",
+    receivedDate: workOrder?.receivedDate || "",
+    status: workOrder?.status || "scheduled",
+    warehouseId: workOrder?.warehouseId || "",
+    doorAssigned: workOrder?.doorAssigned || "",
+    warehouseLocation: workOrder?.warehouseLocation || "",
+    notes: workOrder?.notes || "",
   });
 
   const handleSubmit = () => {
     onEdited(formData);
     onOpenChange(false);
   };
+
+  if (!workOrder) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

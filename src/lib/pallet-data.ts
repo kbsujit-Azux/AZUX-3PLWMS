@@ -325,11 +325,16 @@ export function createPalletsFromInbound(args: {
   const created: Pallet[] = [];
   const startSeq = Math.floor(Math.random() * 9000) + 1000;
   for (let i = 0; i < args.palletCount; i++) {
-    const suggestionPool = args.locationSuggestions?.filter(Boolean) ?? [];
-    const suggested =
-      suggestionPool.length > 0
+    // The suggestions are authoritative when the caller supplies them. Only
+    // fall back to the deterministic mock when the caller provides NOTHING —
+    // a fabricated location id that does not exist in the Location Master is
+    // worse than no suggestion at all.
+    const suggestionPool = args.locationSuggestions?.filter(Boolean);
+    const suggested = suggestionPool
+      ? suggestionPool.length > 0
         ? suggestionPool[i % suggestionPool.length]
-        : suggestPutawayLocation(args.itemStyle + i, args.warehouseId);
+        : ""
+      : suggestPutawayLocation(args.itemStyle + i, args.warehouseId);
     const id = `${args.prefix}-${(startSeq + i).toString().padStart(5, "0")}`;
     const basePallet = {
       id,

@@ -1455,16 +1455,19 @@ function ScanConfirmDialog({
     setValidation(null);
   }, [pallet?.id]);
 
-  if (!pallet) return null;
-
   /**
    * The location the operator actually scanned. It does NOT have to be the
    * recommendation — any valid location for this client/warehouse is allowed.
    */
   const targetLocation = locationScan.trim();
 
+  // NOTE: every hook must run on every render, so none of them may sit
+  // after the `if (!pallet) return null` guard below — otherwise React throws
+  // "Rendered more hooks than during the previous render" (#310) when the
+  // dialog is opened.
   const validate = useCallback(
     (field: ScanField, raw: string) => {
+      if (!pallet) return false;
       const result = validatePutawayTarget({
         scannedPalletId:
           field === "pallet" ? raw : palletScan.trim() || undefined,
@@ -1495,7 +1498,8 @@ function ScanConfirmDialog({
     [pallet, palletScan, targetLocation, locations],
   );
 
-  const palletOk = palletScan.trim().toUpperCase() === pallet.id.toUpperCase();
+  const palletOk =
+    !!pallet && palletScan.trim().toUpperCase() === pallet.id.toUpperCase();
   const locationOk =
     !!targetLocation &&
     !!validation?.ok &&
@@ -1505,16 +1509,22 @@ function ScanConfirmDialog({
 
   /** The locations this client may put away into at this warehouse. */
   const allowedLocations = useMemo(
-    () => validLocationsFor(locations, pallet.tenantId, pallet.warehouseId),
-    [locations, pallet.tenantId, pallet.warehouseId],
+    () =>
+      pallet
+        ? validLocationsFor(locations, pallet.tenantId, pallet.warehouseId)
+        : [],
+    [locations, pallet?.tenantId, pallet?.warehouseId],
   );
 
   /** The recommendation is only shown when it is actually usable here. */
   const suggestionUsable = useMemo(() => {
+    if (!pallet) return false;
     const s = pallet.suggestedLocation;
     if (!s) return false;
     return allowedLocations.some((l) => l.id.toUpperCase() === s.trim().toUpperCase());
-  }, [allowedLocations, pallet.suggestedLocation]);
+  }, [allowedLocations, pallet?.suggestedLocation]);
+
+  if (!pallet) return null;
 
   const handleSubmit = (field: ScanField, raw: string) => {
     const value = raw.trim();
