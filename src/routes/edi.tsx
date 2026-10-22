@@ -359,7 +359,6 @@ function EdiPage() {
 GS*${detail.txn === "832" ? "SC" : detail.txn === "940" ? "OW" : detail.txn === "943" ? "AR" : detail.txn === "944" ? "RE" : "SW"}*${detail.partner.split("-")[0]}*AZUX3PL*20260519*0614*${detail.gsControl}*X*005010~
 ST*${detail.txn}*0001~
 ${detail.txn === "940" ? `W05*N*${detail.documentRef}~` : ""}${detail.txn === "945" ? `W06*N*${detail.documentRef}~` : ""}${detail.txn === "832" ? `BCT*PA*${detail.documentRef}*${detail.partner.split("-")[0]}~` : ""}${detail.txn === "943" ? `W06*N*${detail.documentRef}~` : ""}${detail.txn === "944" ? `W17*F*20260519*${detail.documentRef}~` : ""}
-… ${detail.segments - 5} more segments …
 SE*${detail.segments}*0001~
 GE*1*${detail.gsControl}~
 IEA*1*${detail.isaControl}~`}
