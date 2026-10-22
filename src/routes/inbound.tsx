@@ -85,7 +85,7 @@ import {
   inboundReceipts,
   closeInboundShipment,
 } from "@/lib/inbound-data";
-import { createPalletsFromInbound } from "@/lib/pallet-data";
+import { createPalletsFromInbound, type Pallet } from "@/lib/pallet-data";
 import { autoBillContainer, resolveBillingClientId } from "@/lib/auto-billing";
 import {
   recommendPalletBuild,
@@ -1223,6 +1223,15 @@ function ShipmentCard({
                       {Math.abs(variance).toLocaleString()}
                     </div>
                   )}
+                  {(l.damagedQty ?? 0) > 0 && (
+                    <div
+                      className="text-[10px] font-medium tabular-nums mt-0.5 text-destructive"
+                      title={l.osdReason || "Damaged units held separately"}
+                    >
+                      {l.damagedQty} damaged
+                      {l.osdReason ? ` — ${l.osdReason}` : ""}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="py-2">
                   {l.palletIds && l.palletIds.length === 0 ? (
@@ -1770,6 +1779,33 @@ function BuildPalletsDialog({
   const [recommendation, setRecommendation] = useState<PalletBuildRecommendation | null>(null);
   const [appliedRec, setAppliedRec] = useState(false);
 
+  /* ── Receiving variance (OSD) ─────────────────────────────────────
+   * What is on the truck does not always match the ASN. The operator
+   * records what was found; the good units are palletised for stock and
+   * the damaged units are built onto a separate pallet that is held. */
+  const [foundQty, setFoundQty] = useState(remaining);
+  const [damagedQty, setDamagedQty] = useState(0);
+  const [osdReason, setOsdReason] = useState("");
+  const [buildDamagePallet, setBuildDamagePallet] = useState(true);
+
+  /** Units that are good for stock. */
+  const goodQty = Math.max(0, foundQty - damagedQty);
+  /** Variance against the expected quantity. */
+  const variance = foundQty - remaining;
+  const osdType: "over" | "short" | "damaged" | "wrong_item" | null =
+    damagedQty > 0
+      ? "damaged"
+      : variance > 0
+        ? "over"
+        : variance < 0
+          ? "short"
+          : null;
+
+  /** The pallet id prefix used for this container. */
+  const palletPrefix = `PLT-${warehouseCode(ship?.warehouseId ?? "")}`;
+  /** The damage / hold pallet id prefix. */
+  const damagePrefix = `${palletPrefix}-DMG`;
+
   // Live Item Master so the recommendation uses real dimensions / constraints
   const { itemMaster: liveItemMaster, locationMaster: liveLocations, pallets: livePallets } =
     useWmsData();
@@ -1845,6 +1881,9 @@ function BuildPalletsDialog({
   useEffect(() => {
     setAppliedRec(false);
     setRecommendation(null);
+    setFoundQty(remaining);
+    setDamagedQty(0);
+    setOsdReason("");
     if (masterItem && remaining > 0) {
       const rec = recommendPalletBuild({ item: masterItem, quantity: remaining });
       setRecommendation(rec);
@@ -1866,13 +1905,45 @@ function BuildPalletsDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context?.l.lineNo, context?.s.id, masterItem?.sku]);
 
+  // When the operator changes the found quantity, re-plan the good units.
+  useEffect(() => {
+    if (!masterItem || goodQty <= 0) return;
+    const rec = recommendPalletBuild({ item: masterItem, quantity: goodQty });
+    setRecommendation(rec);
+    if (rec.valid) {
+      setPalletCount(rec.palletCount);
+      setUnitsPerPallet(rec.unitsPerPallet);
+      setAppliedRec(true);
+    } else {
+      const packSize = packSizeOf(masterItem);
+      setPalletCount(Math.max(1, Math.ceil(goodQty / packSize)));
+      setUnitsPerPallet(packSize);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goodQty, masterItem?.sku]);
+
   if (!line || !ship) return null;
 
-  const willReceive = Math.min(remaining, palletCount * unitsPerPallet);
+  /** Units that will be palletised as good stock. */
+  const willReceive = Math.min(goodQty, palletCount * unitsPerPallet);
 
   const handleBuild = async () => {
     if (palletCount <= 0 || unitsPerPallet <= 0) {
       toast.error("Pallet count and units per pallet must be > 0");
+      return;
+    }
+    if (foundQty < 0) {
+      toast.error("Found quantity cannot be negative");
+      return;
+    }
+    if (damagedQty > foundQty) {
+      toast.error("Damaged quantity cannot exceed the found quantity");
+      return;
+    }
+    if (damagedQty > 0 && !osdReason.trim()) {
+      toast.error("A reason is required when damaged units are recorded", {
+        description: "The reason is written to the receipt and the audit trail.",
+      });
       return;
     }
     const reason = validateLineAgainstItemMaster({
@@ -1886,6 +1957,13 @@ function BuildPalletsDialog({
       });
       return;
     }
+
+    const casePack = masterItem?.caseQty ?? line.unitsPerPallet ?? 1;
+    const weightLbsPerUnit = masterItem?.weightLbs ?? line.weightLbsPerUnit ?? 0;
+    const builtBy = "Live receiver";
+    const prefix = `PLT-${warehouseCode(ship.warehouseId)}`;
+
+    // 1. The good stock.
     const created = createPalletsFromInbound({
       sku: line.sku,
       description: line.description,
@@ -1898,23 +1976,64 @@ function BuildPalletsDialog({
       unitsPerPallet,
       // The Item Master is authoritative for the case pack and the unit
       // weight — the ASN line values can be stale or missing.
-      casePack: masterItem?.caseQty ?? line.unitsPerPallet ?? 1,
-      weightLbsPerUnit:
-        masterItem?.weightLbs ?? line.weightLbsPerUnit ?? 0,
-      builtBy: "Live receiver",
-      prefix: `PLT-${warehouseCode(ship.warehouseId)}`,
+      casePack,
+      weightLbsPerUnit,
+      builtBy,
+      prefix,
       locationSuggestions: putawaySuggestions.map((c) => c.locationId),
     });
 
+    // 2. The damaged units go onto their own pallet so they are held
+    //    separately from sellable stock.
+    let damagePallets: Pallet[] = [];
+    if (damagedQty > 0 && buildDamagePallet) {
+      // Damaged stock belongs in a quarantine / hold location, never in a
+      // sellable slot.
+      const holdLocation = (liveLocations ?? []).find(
+        (l: any) =>
+          l.warehouseId === ship.warehouseId &&
+          (l.zoneType === "staging" || /quarantine|hold|qa/i.test(l.zone ?? "")) &&
+          (l.occupiedPallets ?? 0) < (l.capacityPallets ?? 1),
+      );
+      damagePallets = createPalletsFromInbound({
+        sku: line.sku,
+        description: `${line.description} — DAMAGED / HELD`,
+        itemStyle: line.itemStyle,
+        tenantId: ship.tenantId,
+        warehouseId: ship.warehouseId,
+        poNumber: ship.poNumber,
+        ediSource:
+          ship.source === "EDI_943" || ship.source === "EDI_944"
+            ? ship.source
+            : "MANUAL",
+        palletCount: 1,
+        unitsPerPallet: damagedQty,
+        casePack,
+        weightLbsPerUnit,
+        builtBy,
+        prefix: `${prefix}-DMG`,
+        locationSuggestions: holdLocation ? [holdLocation.id] : [],
+      });
+    }
+
+    const allPallets = [...created, ...damagePallets];
+
     // Mutate the mock line so the UI reflects receipt progress
     line.receivedQty = Math.min(line.qtyExpected, line.receivedQty + willReceive);
-    line.palletIds = [...line.palletIds, ...created.map((p) => p.id)];
+    line.palletIds = [...line.palletIds, ...allPallets.map((p) => p.id)];
     line.status = line.receivedQty >= line.qtyExpected ? "received" : "partial";
+    if (osdType) {
+      line.osdType = osdType;
+      line.osdReason = osdReason.trim();
+      line.foundQty = foundQty;
+      line.damagedQty = damagedQty;
+      if (damagePallets[0]) line.damagePalletId = damagePallets[0].id;
+    }
 
     // Persist the built pallets to Firestore FIRST so the pallet documents
     // exist before the inbound line references them.
     try {
-      await createPalletsAndLinkToShipment(ship.id, created);
+      await createPalletsAndLinkToShipment(ship.id, allPallets);
     } catch (e) {
       console.error("Failed to persist built pallets:", e);
       toast.error("Could not save the built pallets", {
@@ -1930,9 +2049,18 @@ function BuildPalletsDialog({
         ship.id,
         line.lineNo - 1,
         willReceive,
-        created.map((p) => p.id),
+        allPallets.map((p) => p.id),
         line.status,
         unitsPerPallet,
+        osdType
+          ? {
+              foundQty,
+              damagedQty,
+              osdType,
+              osdReason: osdReason.trim(),
+              damagePalletId: damagePallets[0]?.id,
+            }
+          : undefined,
       );
       ship.status = shipmentStatus;
       if (shipmentStatus === "received") {
@@ -1946,9 +2074,12 @@ function BuildPalletsDialog({
     }
 
     toast.success(
-      `Built ${created.length} pallet${created.length === 1 ? "" : "s"} — staged for putaway`,
+      `Built ${allPallets.length} pallet${allPallets.length === 1 ? "" : "s"} — staged for putaway`,
       {
-        description: `${created.map((p) => p.id).join(", ")}`,
+        description:
+          osdType && osdType !== "over"
+            ? `${allPallets.map((p) => p.id).join(", ")} · ${osdType}${osdReason ? `: ${osdReason}` : ""}`
+            : `${allPallets.map((p) => p.id).join(", ")}`,
       },
     );
     onCreated();
@@ -2092,6 +2223,121 @@ function BuildPalletsDialog({
           </div>
         )}
 
+        {/* ── Receiving variance (OSD) ─────────────────────────────── */}
+        <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] uppercase tracking-wider font-semibold">
+              Receiving variance
+            </div>
+            {osdType && (
+              <span
+                className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase ${
+                  osdType === "over"
+                    ? "border-amber-500/50 bg-amber-500/15 text-amber-600"
+                    : osdType === "short"
+                      ? "border-destructive/50 bg-destructive/15 text-destructive"
+                      : "border-destructive/50 bg-destructive/15 text-destructive"
+                }`}
+              >
+                {osdType}
+                {variance !== 0 ? ` ${variance > 0 ? "+" : ""}${variance}` : ""}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1">
+              <Label
+                htmlFor="foundQty"
+                className="text-[10px] uppercase tracking-wider text-muted-foreground"
+              >
+                Found on truck
+              </Label>
+              <Input
+                id="foundQty"
+                type="number"
+                min={0}
+                value={foundQty}
+                onChange={(e) => setFoundQty(Math.max(0, parseInt(e.target.value || "0", 10)))}
+                className="h-8 text-xs"
+              />
+              <div className="text-[9px] text-muted-foreground">
+                expected {remaining}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label
+                htmlFor="goodQty"
+                className="text-[10px] uppercase tracking-wider text-muted-foreground"
+              >
+                Good — to stock
+              </Label>
+              <div className="flex h-8 items-center rounded-md border border-border bg-background px-2 text-xs font-medium tabular-nums">
+                {goodQty.toLocaleString()}
+              </div>
+              <div className="text-[9px] text-muted-foreground">palletised</div>
+            </div>
+            <div className="space-y-1">
+              <Label
+                htmlFor="damagedQty"
+                className="text-[10px] uppercase tracking-wider text-muted-foreground"
+              >
+                Damaged
+              </Label>
+              <Input
+                id="damagedQty"
+                type="number"
+                min={0}
+                max={foundQty}
+                value={damagedQty}
+                onChange={(e) =>
+                  setDamagedQty(
+                    Math.min(foundQty, Math.max(0, parseInt(e.target.value || "0", 10))),
+                  )
+                }
+                className={`h-8 text-xs ${damagedQty > 0 ? "border-destructive text-destructive" : ""}`}
+              />
+              <div className="text-[9px] text-muted-foreground">held separately</div>
+            </div>
+          </div>
+
+          {damagedQty > 0 && (
+            <div className="space-y-1.5">
+              <div className="space-y-1">
+                <Label
+                  htmlFor="osdReason"
+                  className="text-[10px] uppercase tracking-wider text-destructive"
+                >
+                  Damage reason *
+                </Label>
+                <Input
+                  id="osdReason"
+                  value={osdReason}
+                  onChange={(e) => setOsdReason(e.target.value)}
+                  placeholder="e.g. corner crush on 2 cartons — supplier notified"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-[11px]">
+                <input
+                  type="checkbox"
+                  checked={buildDamagePallet}
+                  onChange={(e) => setBuildDamagePallet(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-primary"
+                />
+                Build a separate damage / hold pallet for the {damagedQty} damaged
+                unit(s)
+              </label>
+              {buildDamagePallet && (
+                <div className="text-[10px] text-muted-foreground">
+                  The damaged units get their own pallet ID ({damagePrefix}) and are
+                  never mixed with sellable stock.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-3 mt-1">
           <div className="space-y-1">
             <Label
@@ -2138,6 +2384,12 @@ function BuildPalletsDialog({
           <span className="font-mono font-semibold">
             {willReceive.toLocaleString()} units across {palletCount} pallet
             {palletCount === 1 ? "" : "s"}
+            {damagedQty > 0 && (
+              <span className="text-destructive">
+                {" "}
+                + {damagedQty} damaged held separately
+              </span>
+            )}
           </span>
         </div>
 
@@ -2829,6 +3081,9 @@ function CloseContainerDialog({
       const batches = line.palletIds
         .map((palletId) => {
           const pallet = livePallets.find((p) => p.id === palletId);
+          // Damaged stock is held, not sellable — it never becomes an
+          // inventory batch.
+          if (pallet?.id === line.damagePalletId) return null;
           return {
             batchId: `${line.sku}-${palletId}`,
             palletId,
@@ -2845,7 +3100,7 @@ function CloseContainerDialog({
             qtyAllocated: 0,
           };
         })
-        .filter((b) => b.qty > 0);
+        .filter((b): b is NonNullable<typeof b> => b !== null && b.qty > 0);
 
       if (batches.length === 0) continue;
 
@@ -3039,6 +3294,7 @@ function ReceiptPreviewDialog({
   const totalExpected = (shipment.lines ?? []).reduce((a, l) => a + (l.qtyExpected || 0), 0);
   const totalReceived = (shipment.lines ?? []).reduce((a, l) => a + (l.receivedQty || 0), 0);
   const totalPallets = (shipment.lines ?? []).reduce((a, l) => a + (l.palletIds?.length ?? 0), 0);
+  const totalDamaged = (shipment.lines ?? []).reduce((a, l) => a + (l.damagedQty ?? 0), 0);
   const variance = totalReceived - totalExpected;
 
   // Timeline
@@ -3072,6 +3328,10 @@ function ReceiptPreviewDialog({
       received: l.receivedQty || 0,
       pallets: l.palletIds?.length ?? 0,
       variance: (l.receivedQty || 0) - (l.qtyExpected || 0),
+      found: l.foundQty,
+      damaged: l.damagedQty ?? 0,
+      osdType: l.osdType,
+      osdReason: l.osdReason,
     };
   });
 
@@ -3106,9 +3366,22 @@ function ReceiptPreviewDialog({
           <td class="num ${r.variance < 0 ? "neg" : r.variance > 0 ? "pos" : ""}">${
             r.variance === 0 ? "—" : (r.variance > 0 ? "+" : "") + r.variance.toLocaleString()
           }</td>
+          <td class="num ${r.damaged > 0 ? "neg" : ""}">${
+            r.damaged > 0 ? r.damaged.toLocaleString() : "—"
+          }</td>
         </tr>`,
       )
       .join("");
+
+    const osdNotes = rows
+      .filter((r) => r.damaged > 0 || r.osdReason)
+      .map(
+        (r) =>
+          `${r.sku}: ${r.damaged > 0 ? `${r.damaged} unit(s) damaged` : ""}${
+            r.damaged > 0 && r.osdReason ? " — " : ""
+          }${r.osdReason ?? ""}${r.found !== undefined ? ` (found ${r.found})` : ""}`,
+      )
+      .join("; ");
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -3203,6 +3476,7 @@ function ReceiptPreviewDialog({
         <th class="num">Received Units</th>
         <th class="num">Pallets</th>
         <th class="num">Variance</th>
+        <th class="num">Damaged</th>
       </tr>
     </thead>
     <tbody>${bodyRows}</tbody>
@@ -3213,9 +3487,15 @@ function ReceiptPreviewDialog({
         <td class="num">${totalReceived.toLocaleString()}</td>
         <td class="num">${totalPallets.toLocaleString()}</td>
         <td class="num">${variance > 0 ? "+" : ""}${variance.toLocaleString()}</td>
+        <td class="num">${totalDamaged.toLocaleString()}</td>
       </tr>
     </tfoot>
   </table>
+  ${
+    osdNotes
+      ? `<h2>Receiving Variance</h2><div style="font-size:11px;color:#b91c1c">${osdNotes}</div>`
+      : ""
+  }
 
   <div class="sign">
     <div class="line">Received by (warehouse)</div>
@@ -3488,6 +3768,7 @@ function ReceiptPreviewDialog({
                     <TableHead className="text-[10px] text-right">Received Units</TableHead>
                     <TableHead className="text-[10px] text-right">Pallets</TableHead>
                     <TableHead className="text-[10px] text-right">Variance</TableHead>
+                    <TableHead className="text-[10px] text-right">Damaged</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -3523,6 +3804,13 @@ function ReceiptPreviewDialog({
                           ? "—"
                           : `${r.variance > 0 ? "+" : ""}${r.variance.toLocaleString()}`}
                       </TableCell>
+                      <TableCell
+                        className={`py-2 text-right text-xs tabular-nums ${
+                          r.damaged > 0 ? "text-destructive" : ""
+                        }`}
+                      >
+                        {r.damaged > 0 ? r.damaged.toLocaleString() : "—"}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -3551,6 +3839,13 @@ function ReceiptPreviewDialog({
                     >
                       {variance > 0 ? "+" : ""}
                       {variance.toLocaleString()}
+                    </td>
+                    <td
+                      className={`py-2 px-2 text-right text-xs font-bold tabular-nums ${
+                        totalDamaged > 0 ? "text-destructive" : ""
+                      }`}
+                    >
+                      {totalDamaged > 0 ? totalDamaged.toLocaleString() : "—"}
                     </td>
                   </tr>
                 </tfoot>

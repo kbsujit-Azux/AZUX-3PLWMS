@@ -574,6 +574,13 @@ export async function recordInboundPalletBuild(
   palletIds: string[],
   lineStatus: "expected" | "partial" | "received",
   unitsPerPallet?: number,
+  osd?: {
+    foundQty?: number;
+    damagedQty?: number;
+    osdType?: "over" | "short" | "damaged" | "wrong_item";
+    osdReason?: string;
+    damagePalletId?: string;
+  },
 ): Promise<{ shipmentStatus: "on_dock" | "received" }> {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
 
@@ -609,6 +616,11 @@ export async function recordInboundPalletBuild(
       status: nextLineStatus,
       palletIds: mergedPalletIds,
       ...(unitsPerPallet && unitsPerPallet > 0 ? { unitsPerPallet } : {}),
+      ...(osd?.foundQty !== undefined ? { foundQty: osd.foundQty } : {}),
+      ...(osd?.damagedQty !== undefined ? { damagedQty: osd.damagedQty } : {}),
+      ...(osd?.osdType ? { osdType: osd.osdType } : {}),
+      ...(osd?.osdReason ? { osdReason: osd.osdReason } : {}),
+      ...(osd?.damagePalletId ? { damagePalletId: osd.damagePalletId } : {}),
     };
 
     const allReceived = lines.every(

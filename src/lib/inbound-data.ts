@@ -53,6 +53,19 @@ export type InboundLine = {
   palletIds: string[];
   status: "expected" | "partial" | "received";
   poNumber?: string;
+
+  /* ── Receiving variance (OSD) ──────────────────────────────────────
+   * Recorded when what is on the truck does not match the ASN. */
+  /** Units actually found on the truck (may exceed qtyExpected). */
+  foundQty?: number;
+  /** Of the units found, how many are damaged and cannot go into stock. */
+  damagedQty?: number;
+  /** The variance type against the expected quantity. */
+  osdType?: "over" | "short" | "damaged" | "wrong_item";
+  /** Free-text explanation for the variance. */
+  osdReason?: string;
+  /** The pallet that holds the damaged units (held separately from good stock). */
+  damagePalletId?: string;
 };
 
 export type InboundShipment = {
