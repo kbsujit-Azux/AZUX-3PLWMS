@@ -52,6 +52,7 @@ async function main() {
     doorAssigned: "D-01",
     status: "scheduled",
     source: "EDI_943",
+    workOrderId: id,
     lines: [
       {
         lineNo: 1,
@@ -75,6 +76,38 @@ async function main() {
 
   await setDoc(doc(db, "inboundShipments", id), shipment);
   console.log("Inbound shipment created:", id);
+
+  const workOrderId = id;
+  const workOrder = {
+    id: workOrderId,
+    woNumber: workOrderId,
+    tenantId: "acme",
+    warehouseId: "atl1",
+    clientName: "Sandbox Partner",
+    containerNumber: shipment.containerNumber,
+    trailerNumber: shipment.trailerNumber,
+    sealNumber: shipment.sealNumber,
+    bolNumber: shipment.bolNumber,
+    poNumber: shipment.poNumber,
+    ediRef: shipment.ediRef,
+    carrier: shipment.carrier,
+    vessel: "",
+    voyageNumber: "",
+    port: "",
+    origin: shipment.origin,
+    arrivalDate: now,
+    departureDate: null,
+    yardInDate: null,
+    yardLeaveDate: null,
+    inboundEntryDate: now,
+    receivedDate: null,
+    status: "scheduled",
+    totalUnits: 10,
+    totalCartons: 1,
+    inboundShipmentId: id,
+  };
+  await setDoc(doc(db, "workOrders", workOrderId), workOrder);
+  console.log("Work order created:", workOrderId);
 
   const logId = `EDI-SBX-943-${Date.now()}`;
   await setDoc(doc(db, "ediLogs", logId), {
