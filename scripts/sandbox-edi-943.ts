@@ -63,7 +63,7 @@ async function main() {
         lot: "LOT-SBX",
         expirationDate: now,
         qtyExpected: 10,
-        cartonsExpected: 1,
+        cartonsExpected: 10,
         uom: "EA",
         weightLbsPerUnit: 2.5,
         unitsPerPallet: 10,
@@ -78,6 +78,7 @@ async function main() {
   console.log("Inbound shipment created:", id);
 
   const workOrderId = id;
+  const caseQty = 1; // pack size for SBX item
   const workOrder = {
     id: workOrderId,
     woNumber: workOrderId,
@@ -103,7 +104,23 @@ async function main() {
     receivedDate: null,
     status: "scheduled",
     totalUnits: 10,
-    totalCartons: 1,
+    totalCartons: Math.ceil(10 / caseQty),
+    lineCount: 1,
+    lines: [
+      {
+        lineNo: 1,
+        sku: "SBX-832-001",
+        upc: "012345678905",
+        description: "Sandbox Item A (EDI 832)",
+        lot: "LOT-SBX",
+        qtyExpected: 10,
+        qtyReceived: 0,
+        cartons: Math.ceil(10 / caseQty),
+        status: "pending",
+      },
+    ],
+    createdAt: now,
+    updatedAt: now,
     inboundShipmentId: id,
   };
   await setDoc(doc(db, "workOrders", workOrderId), workOrder);
