@@ -595,6 +595,7 @@ function emptyWarehouse(): Omit<Warehouse, "id"> {
     squareFeet: 0,
     capacityPct: 0,
     manager: "",
+    docks: 0,
     active: true,
   };
 }
@@ -651,6 +652,7 @@ function WarehousesPanel({ items, q, onSearch }: { items: Warehouse[]; q: string
               <TableHead>City</TableHead>
               <TableHead>Address</TableHead>
               <TableHead className="text-right">Sq Ft</TableHead>
+              <TableHead className="text-right">Docks</TableHead>
               <TableHead className="text-right">Capacity</TableHead>
               <TableHead>Manager</TableHead>
               <TableHead className="w-[70px]">Status</TableHead>
@@ -670,19 +672,22 @@ function WarehousesPanel({ items, q, onSearch }: { items: Warehouse[]; q: string
                 <TableCell className="font-mono text-[11px]">{w.code}</TableCell>
                 <TableCell className="font-medium text-sm">{w.name}</TableCell>
                 <TableCell className="text-xs">{w.city}</TableCell>
-                <TableCell className="text-[11px] text-muted-foreground">{w.addressLine}</TableCell>
+                <TableCell className="text-[11px] text-muted-foreground">{w.addressLine ?? "—"}</TableCell>
                 <TableCell className="text-right font-mono text-[11px]">
-                  {w.squareFeet.toLocaleString()}
+                  {w.squareFeet != null ? w.squareFeet.toLocaleString() : "—"}
+                </TableCell>
+                <TableCell className="text-right font-mono text-[11px]">
+                  {w.docks != null ? w.docks : "—"}
                 </TableCell>
                 <TableCell className="text-right font-mono text-[11px]">{w.capacityPct}%</TableCell>
-                <TableCell className="text-xs">{w.manager}</TableCell>
+                <TableCell className="text-xs">{w.manager ?? "—"}</TableCell>
                 <TableCell>
-                  {w.active ? (
-                    <Badge className="text-[10px]">Active</Badge>
-                  ) : (
+                  {w.active === false ? (
                     <Badge variant="secondary" className="text-[10px]">
                       Inactive
                     </Badge>
+                  ) : (
+                    <Badge className="text-[10px]">Active</Badge>
                   )}
                 </TableCell>
                 <TableCell className="text-right">
@@ -726,11 +731,12 @@ function WarehouseDialog({
     code: value.code,
     name: value.name,
     city: value.city,
-    addressLine: value.addressLine,
-    squareFeet: value.squareFeet,
+    addressLine: value.addressLine ?? "",
+    squareFeet: value.squareFeet ?? 0,
     capacityPct: value.capacityPct,
-    manager: value.manager,
-    active: value.active,
+    manager: value.manager ?? "",
+    docks: value.docks ?? 0,
+    active: value.active ?? true,
   });
   const upd = <K extends keyof Omit<Warehouse, "id">>(k: K, v: Omit<Warehouse, "id">[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
@@ -785,6 +791,14 @@ function WarehouseDialog({
               max={100}
               value={draft.capacityPct}
               onChange={(e) => upd("capacityPct", Number(e.target.value))}
+            />
+          </Field>
+          <Field label="Docks">
+            <Input
+              type="number"
+              min={0}
+              value={draft.docks ?? 0}
+              onChange={(e) => upd("docks", Number(e.target.value))}
             />
           </Field>
           <Field label="Active" className="col-span-2">

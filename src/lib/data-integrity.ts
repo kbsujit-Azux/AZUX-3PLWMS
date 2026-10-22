@@ -54,7 +54,8 @@ export type IntegrityIssueType =
   | "cartonization-missing-order"
   | "pallet-missing-inventory"
   | "inventory-missing-sku"
-  | "inventory-missing-audit";
+  | "inventory-missing-audit"
+  | "master-missing-fields";
 
 export type IntegrityIssue = {
   id: string;
@@ -90,6 +91,7 @@ export type IntegrityContext = {
   itemMaster?: ItemMasterRecord[];
   locationMaster?: LocationRecord[];
   tenants?: any[];
+  /** The warehouse master records. */
   warehouses?: any[];
 };
 
@@ -611,6 +613,41 @@ const checkAuditTrail: Check = (ctx) => {
   return out;
 };
 
+/**
+ * M1 — a master record is missing fields the screens rely on.
+ *
+ * A warehouse without a square footage crashed the Settings screen, and a
+ * partially populated master record is a symptom of a write that only
+ * included some of the fields.
+ */
+const checkMasterFields: Check = (ctx) => {
+  const out: IntegrityIssue[] = [];
+  for (const w of ctx.warehouses ?? []) {
+    if (w.id === "all") continue;
+    const missing: string[] = [];
+    if (w.squareFeet === undefined || w.squareFeet === null) missing.push("squareFeet");
+    if (!w.addressLine) missing.push("addressLine");
+    if (!w.manager) missing.push("manager");
+    if (w.active === undefined) missing.push("active");
+    if (missing.length === 0) continue;
+    out.push({
+      id: `M1-wh-${w.id}`,
+      type: "master-missing-fields",
+      severity: "error",
+      title: "Warehouse record is incomplete",
+      detail: `Warehouse ${w.id} (${w.code ?? w.id}) is missing: ${missing.join(", ")}. Screens that render the facility profile can fail on it.`,
+      entity: "location",
+      recordId: w.id,
+      relatedId: w.code ?? w.id,
+      tenantId: undefined,
+      warehouseId: w.id,
+      autoFixable: true,
+      fixLabel: "Complete from catalogue",
+    });
+  }
+  return out;
+};
+
 /** Registry of every correlation check */
 export const INTEGRITY_CHECKS: Array<{ id: string; label: string; run: Check }> = [
   { id: "P1", label: "Pallet → container", run: checkPalletContainer },
@@ -630,6 +667,7 @@ export const INTEGRITY_CHECKS: Array<{ id: string; label: string; run: Check }> 
   { id: "C1", label: "Cartonization → order", run: checkCartonizationOrder },
   { id: "A1", label: "Inventory descriptive fields", run: checkInventoryFields },
   { id: "A2", label: "Pallet audit trail", run: checkAuditTrail },
+  { id: "M1", label: "Warehouse master completeness", run: checkMasterFields },
 ];
 
 /**

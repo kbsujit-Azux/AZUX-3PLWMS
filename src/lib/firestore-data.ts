@@ -113,7 +113,7 @@ import type {
   PickTicket,
 } from "./mock-data";
 import type { BillOfLading } from "./bol-data";
-import { DROP001_LOCATION } from "./mock-data";
+import { DROP001_LOCATION, warehouses as seedWarehouses } from "./mock-data";
 import type { Pallet } from "./pallet-data";
 import type { ItemMasterRecord, LocationRecord, LocationType } from "./master-data";
 import type { InboundShipment, InboundLine, WorkOrderStatus } from "./inbound-data";
@@ -4735,6 +4735,30 @@ export async function repairIntegrityIssue(
       return {
         ok: true,
         message: `Putaway recorded for ${issue.recordId} at ${pallet.location}.`,
+      };
+    }
+
+    /** M1 — complete an incomplete warehouse record from the catalogue */
+    case "master-missing-fields": {
+      const ref = doc(db, "warehouses", issue.recordId);
+      const snap = await getDoc(ref);
+      if (!snap.exists) return { ok: false, message: "Warehouse record not found." };
+      const current = snap.data() as any;
+      const catalogue = seedWarehouses.find((w) => w.id === issue.recordId);
+      if (!catalogue) {
+        return { ok: false, message: "No catalogue entry for this warehouse." };
+      }
+      await updateDoc(ref, {
+        addressLine: current.addressLine || catalogue.addressLine || "",
+        squareFeet: current.squareFeet ?? catalogue.squareFeet ?? 0,
+        manager: current.manager || catalogue.manager || "",
+        docks: current.docks ?? catalogue.docks ?? 0,
+        active: current.active ?? catalogue.active ?? true,
+        updatedAt: new Date().toISOString(),
+      });
+      return {
+        ok: true,
+        message: `Warehouse ${issue.recordId} completed from the catalogue.`,
       };
     }
 

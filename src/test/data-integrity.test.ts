@@ -62,7 +62,17 @@ const base = {
     { id: "LOC-1", warehouseId: "atl1", type: "RACK", zone: "Reserve", capacityPallets: 4, occupiedPallets: 1, pickable: true, allowedItemStyles: null, slottingRules: { allowedStorageClasses: ["reserve"], putawayPriority: 50, replenPriority: 50, allowedPalletTypes: ["standard_48x40"] }, status: "active" },
   ] as any,
   tenants: [{ id: "acme", code: "ACME", name: "Acme" }],
-  warehouses: [{ id: "atl1", code: "ATL1", city: "Atlanta" }],
+  warehouses: [
+    {
+      id: "atl1",
+      code: "ATL1",
+      city: "Atlanta",
+      squareFeet: 420000,
+      addressLine: "1200 Logistics Way",
+      manager: "R. O'Connell",
+      active: true,
+    },
+  ],
 };
 
 describe("Data integrity checker", () => {
@@ -279,6 +289,35 @@ describe("Data integrity checker", () => {
       transactions: [{ palletId: "PLT-1", type: "PUTAWAY", user: "j.patel" }],
     } as any);
     expect(issues.some((i) => i.type === "inventory-missing-audit")).toBe(false);
+  });
+
+  it("M1 — flags a warehouse missing its facility profile", () => {
+    const issues = checkDataIntegrity({
+      ...base,
+      warehouses: [{ id: "atl1", code: "ATL1" }],
+    } as any);
+    const issue = issues.find((i) => i.type === "master-missing-fields");
+    expect(issue).toBeDefined();
+    expect(issue!.severity).toBe("error");
+    expect(issue!.autoFixable).toBe(true);
+    expect(issue!.detail).toContain("squareFeet");
+  });
+
+  it("M1 — stays silent for a complete warehouse record", () => {
+    const issues = checkDataIntegrity({
+      ...base,
+      warehouses: [
+        {
+          id: "atl1",
+          code: "ATL1",
+          squareFeet: 420000,
+          addressLine: "1200 Logistics Way",
+          manager: "R. O'Connell",
+          active: true,
+        },
+      ],
+    } as any);
+    expect(issues.some((i) => i.type === "master-missing-fields")).toBe(false);
   });
 
   it("C1 — flags a cartonization whose order is gone", () => {

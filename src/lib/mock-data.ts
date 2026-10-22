@@ -39,6 +39,16 @@ export type Warehouse = {
   code: string;
   city: string;
   capacityPct: number;
+  /** Street address of the facility. */
+  addressLine?: string;
+  /** Total warehouse square footage — drives the storage/billing footprint. */
+  squareFeet?: number;
+  /** Facility manager. */
+  manager?: string;
+  /** Number of receiving / shipping docks. */
+  docks?: number;
+  /** Whether the warehouse is in service. */
+  active?: boolean;
 };
 
 export const tenants: Tenant[] = [
@@ -50,11 +60,62 @@ export const tenants: Tenant[] = [
 ];
 
 export const warehouses: Warehouse[] = [
-  { id: "all", name: "All Warehouses", code: "ALL", city: "—", capacityPct: 0 },
-  { id: "atl1", name: "ATL-1 Distribution", code: "ATL1", city: "Atlanta, GA", capacityPct: 78 },
-  { id: "ord2", name: "ORD-2 Fulfillment", code: "ORD2", city: "Chicago, IL", capacityPct: 64 },
-  { id: "lax3", name: "LAX-3 Cross-Dock", code: "LAX3", city: "Los Angeles, CA", capacityPct: 91 },
-  { id: "ewr1", name: "EWR-1 Bonded", code: "EWR1", city: "Newark, NJ", capacityPct: 47 },
+  {
+    id: "all",
+    name: "All Warehouses",
+    code: "ALL",
+    city: "—",
+    capacityPct: 0,
+    active: true,
+  },
+  {
+    id: "atl1",
+    name: "ATL-1 Distribution",
+    code: "ATL1",
+    city: "Atlanta, GA",
+    capacityPct: 78,
+    addressLine: "1200 Logistics Way",
+    squareFeet: 420000,
+    manager: "R. O'Connell",
+    docks: 42,
+    active: true,
+  },
+  {
+    id: "ord2",
+    name: "ORD-2 Fulfillment",
+    code: "ORD2",
+    city: "Chicago, IL",
+    capacityPct: 64,
+    addressLine: "8800 Industrial Parkway",
+    squareFeet: 310000,
+    manager: "T. Brooks",
+    docks: 34,
+    active: true,
+  },
+  {
+    id: "lax3",
+    name: "LAX-3 Cross-Dock",
+    code: "LAX3",
+    city: "Los Angeles, CA",
+    capacityPct: 91,
+    addressLine: "2455 Alameda Street",
+    squareFeet: 185000,
+    manager: "S. Becker",
+    docks: 24,
+    active: true,
+  },
+  {
+    id: "ewr1",
+    name: "EWR-1 Bonded",
+    code: "EWR1",
+    city: "Newark, NJ",
+    capacityPct: 47,
+    addressLine: "1400 Port Street",
+    squareFeet: 225000,
+    manager: "M. Alvarez",
+    docks: 28,
+    active: true,
+  },
 ];
 
 /** EDI 832 Item Master batch — one inbound receipt of a SKU */
