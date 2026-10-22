@@ -11,7 +11,7 @@ import { type WorkOrder, type WorkOrderStatus, closeInboundShipment } from "@/li
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 import { useWmsData } from "@/components/db-context";
-import { autoBillContainer, resolveBillingClientId } from "@/lib/auto-billing";
+import { autoBillContainer, resolveBillingClientId, findAutoInvoiceForContainer } from "@/lib/auto-billing";
 import { deleteWorkOrder, updateWorkOrder, updateInboundShipmentRecord, mapWoStatusToInboundStatus } from "@/lib/firestore-data";
 import { ContainerConfirmDialog } from "@/components/container-confirm-dialog";
 import { inventoryItems } from "@/lib/mock-data";
@@ -510,6 +510,37 @@ function WorkOrdersPage() {
                         Close
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-[10px] gap-1"
+                      onClick={async () => {
+                        const inbound = inboundShipments?.find((s: any) => s.workOrderId === w.id);
+                        const existing = await findAutoInvoiceForContainer(inbound?.id ?? w.id);
+                        if (existing) {
+                          toast.error("Invoice already exists for this container");
+                          return;
+                        }
+                        const clientId = await resolveBillingClientId(w.tenantId);
+                        const res = await autoBillContainer({
+                          clientId,
+                          tenantId: w.tenantId,
+                          warehouseId: w.warehouseId,
+                          shipmentId: inbound?.id ?? w.id,
+                          poNumber: inbound?.poNumber ?? w.poNumber,
+                          containerNumber: inbound?.containerNumber ?? w.containerNumber,
+                          trailerNumber: inbound?.trailerNumber ?? w.trailerNumber,
+                          units: (inbound?.lines ?? []).reduce((a: number, l: any) => a + (l.qtyExpected || 0), 0),
+                          cartons: (inbound?.lines ?? []).reduce((a: number, l: any) => a + (l.cartonsExpected || 0), 0),
+                          pallets: 0,
+                          closedAt: new Date().toISOString(),
+                        });
+                        if (res.skipped) toast.error(res.skipped);
+                        else toast.success(`Auto-billed: ${res.lines} lines, $${res.subtotal}`);
+                      }}
+                    >
+                      Bill
+                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"
