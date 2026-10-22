@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { type WorkOrder, type WorkOrderStatus, closeInboundShipment } from "@/lib/inbound-data";
 import { useWmsData } from "@/components/db-context";
 import { useWorkspace } from "@/components/workspace-context";
-import { deleteWorkOrder, updateWorkOrder, updateInboundShipmentRecord } from "@/lib/firestore-data";
+import { deleteWorkOrder, updateWorkOrder, updateInboundShipmentRecord, mapWoStatusToInboundStatus } from "@/lib/firestore-data";
 import { type InboundShipment } from "@/lib/inbound-data";
 import { inventoryItems } from "@/lib/mock-data";
 
@@ -183,11 +183,19 @@ function WorkOrdersPage() {
       const inboundId = getInboundIdForWO(wo.id);
       if (inboundId) {
         const inbound = inboundShipments?.find((s) => s.id === inboundId);
-        if (inbound && newStatus !== inbound.status) {
-          await updateInboundShipmentRecord(inboundId, {
-            ...inbound,
-            status: newStatus as any,
-          });
+        if (inbound) {
+          // The work order and the container use different status
+          // vocabularies, so translate before writing.
+          const inboundStatus = mapWoStatusToInboundStatus(
+            newStatus,
+            inbound.status,
+          );
+          if (inboundStatus !== inbound.status) {
+            await updateInboundShipmentRecord(inboundId, {
+              ...inbound,
+              status: inboundStatus,
+            });
+          }
         }
       }
     } catch (e: unknown) {

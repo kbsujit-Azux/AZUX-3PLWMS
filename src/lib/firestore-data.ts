@@ -116,7 +116,7 @@ import type { BillOfLading } from "./bol-data";
 import { DROP001_LOCATION } from "./mock-data";
 import type { Pallet } from "./pallet-data";
 import type { ItemMasterRecord, LocationRecord, LocationType } from "./master-data";
-import type { InboundShipment, InboundLine } from "./inbound-data";
+import type { InboundShipment, InboundLine, WorkOrderStatus } from "./inbound-data";
 import { tenants as _tenants } from "./mock-data";
 
 function getTenantName(id: string): string {
@@ -759,13 +759,13 @@ export async function updateInboundShipmentRecord(
   const woId = workOrderId || currentShipment.workOrderId || shipmentId; // Use inbound ID as work order ID
   
   const batch = writeBatch(db);
-  batch.update(shipmentRef, {
+  batch.update(shipmentRef, stripUndefinedDeep({
     ...shipmentUpdates,
     ...(status && { status }),
     ...(receivedAt && { receivedAt }),
     ...(workOrderId && { workOrderId }),
     workOrderId: woId, // Ensure workOrderId is set
-  });
+  }));
   
   // Sync to WorkOrder - create if doesn't exist, update if exists
   const woRef = doc(db, "workOrders", woId);
@@ -809,7 +809,22 @@ export async function updateInboundShipmentRecord(
     yardLeaveDate: null,
     inboundEntryDate: new Date().toISOString(),
     receivedDate: receivedAt || null,
-    status: status ? mapInboundStatusToWoStatus(status) : "scheduled",
+    // The container's status drives the work order, but a work order that has
+    // already reached a terminal state must not be downgraded back to
+    // "received" — the container vocabulary cannot express "departed" or
+    // "closed".
+    status: (() => {
+      const existing = woSnap.exists() ? (woSnap.data() as any).status : undefined;
+      if (!status) return existing ?? "scheduled";
+      const mapped = mapInboundStatusToWoStatus(status);
+      if (
+        (existing === "departed" || existing === "closed") &&
+        mapped === "received"
+      ) {
+        return existing;
+      }
+      return mapped;
+    })(),
     totalUnits,
     totalCartons,
     lineCount: updates.lines.length,
@@ -822,20 +837,28 @@ export async function updateInboundShipmentRecord(
   };
   
   if (woSnap.exists()) {
-    batch.update(woRef, {
+    batch.update(woRef, stripUndefinedDeep({
       ...workOrderData,
       createdAt: woSnap.data().createdAt, // Preserve original createdAt
       updatedAt: serverTimestamp(),
-    });
+    }));
   } else {
-    batch.set(woRef, workOrderData);
+    batch.set(woRef, stripUndefinedDeep(workOrderData));
   }
   
   await batch.commit();
 }
 
-function mapInboundStatusToWoStatus(status: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception"): "scheduled" | "at_dock" | "unloading" | "received" | "departed" | "closed" {
-  const map: Record<string, string> = {
+/**
+ * Map an inbound container status to the work order status.
+ *
+ * Every value is covered — an unmapped status would produce `undefined`,
+ * which Firestore rejects on a batch write ("Unsupported field value:
+ * undefined"). Unrecognised input falls back to "scheduled" rather than
+ * writing an invalid document.
+ */
+function mapInboundStatusToWoStatus(status: string): WorkOrderStatus {
+  const map: Record<string, WorkOrderStatus> = {
     scheduled: "scheduled",
     arrived: "at_dock",
     on_dock: "at_dock",
@@ -843,7 +866,33 @@ function mapInboundStatusToWoStatus(status: "scheduled" | "arrived" | "on_dock" 
     received: "received",
     exception: "closed",
   };
-  return map[status] as any;
+  return map[status] ?? "scheduled";
+}
+
+/**
+ * Map a work order status back to the inbound container status.
+ *
+ * The two vocabularies differ, so an explicit map is required. Anything
+ * unknown falls back to the current status rather than writing undefined.
+ */
+export function mapWoStatusToInboundStatus(
+  status: string,
+  fallback: InboundShipment["status"] = "scheduled",
+): InboundShipment["status"] {
+  const map: Record<string, InboundShipment["status"]> = {
+    scheduled: "scheduled",
+    at_dock: "arrived",
+    unloading: "putaway",
+    received: "received",
+    departed: "received",
+    closed: "received",
+    // inbound statuses pass through unchanged
+    arrived: "arrived",
+    on_dock: "on_dock",
+    putaway: "putaway",
+    exception: "exception",
+  };
+  return map[status] ?? fallback;
 }
 
 /**
@@ -4313,10 +4362,10 @@ export async function createWorkOrder(data: any): Promise<string> {
 }
 
 export async function updateWorkOrder(id: string, updates: any): Promise<void> {
-  await updateDoc(doc(db, "workOrders", id), {
+  await updateDoc(doc(db, "workOrders", id), stripUndefinedDeep({
     ...updates,
     updatedAt: serverTimestamp(),
-  });
+  }));
 
   // Sync back to linked InboundShipment for all relevant fields
   try {
@@ -4325,16 +4374,11 @@ export async function updateWorkOrder(id: string, updates: any): Promise<void> {
     if (linked) {
       // Sync status
       if (updates.status) {
-        const woToInbound: Record<string, "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception"> = {
-          scheduled: "scheduled",
-          at_dock: "arrived",
-          unloading: "putaway",
-          received: "received",
-          departed: "received",
-          closed: "received",
-        };
-        const inboundStatus = woToInbound[updates.status as string];
-        if (inboundStatus && linked.status !== inboundStatus) {
+        const inboundStatus = mapWoStatusToInboundStatus(
+          updates.status as string,
+          linked.status,
+        );
+        if (linked.status !== inboundStatus) {
           await updateInboundShipmentRecord(linked.id, {
             ...linked,
             status: inboundStatus,
