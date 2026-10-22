@@ -8,12 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { type WorkOrder, type WorkOrderStatus, closeInboundShipment } from "@/lib/inbound-data";
+import { collection, addDoc } from "firebase/firestore";
+import { db } from "@/lib/firestore";
 import { useWmsData } from "@/components/db-context";
-import { useWorkspace } from "@/components/workspace-context";
+import { autoBillContainer, resolveBillingClientId } from "@/lib/auto-billing";
 import { deleteWorkOrder, updateWorkOrder, updateInboundShipmentRecord, mapWoStatusToInboundStatus } from "@/lib/firestore-data";
 import { ContainerConfirmDialog } from "@/components/container-confirm-dialog";
-import { type InboundShipment } from "@/lib/inbound-data";
 import { inventoryItems } from "@/lib/mock-data";
+import { useWorkspace } from "@/components/workspace-context";
 
 export const Route = createFileRoute("/workorders")({
   head: () => ({
@@ -240,7 +242,40 @@ function WorkOrdersPage() {
           status: "received",
           receivedAt: receipt.closedAt,
         });
-        toast.success(`Container closed - EDI 944 queued for transmission`);
+        // Queue EDI 944
+        const clientId = await resolveBillingClientId(inbound.tenantId);
+        await addDoc(collection(db, "ediLogs"), {
+          id: `EDI-944-${Date.now()}`,
+          txn: "944",
+          direction: "outbound",
+          partner: inbound.partner ?? "SBX-PARTNER",
+          documentRef: inbound.ediRef,
+          tenantId: inbound.tenantId,
+          warehouseId: inbound.warehouseId,
+          isaControl: inbound.isaControl,
+          gsControl: "944",
+          segments: 10,
+          bytes: 300,
+          ackStatus: "AK",
+          status: "processed",
+          message: "EDI 944 generated on container close.",
+          receivedAt: new Date().toISOString(),
+        });
+        // Auto-billing
+        await autoBillContainer({
+          clientId,
+          tenantId: inbound.tenantId,
+          warehouseId: inbound.warehouseId,
+          shipmentId: inbound.id,
+          poNumber: inbound.poNumber,
+          containerNumber: inbound.containerNumber,
+          trailerNumber: inbound.trailerNumber,
+          units: (inbound.lines ?? []).reduce((a: number, l: any) => a + (l.qtyExpected || 0), 0),
+          cartons: (inbound.lines ?? []).reduce((a: number, l: any) => a + (l.cartonsExpected || 0), 0),
+          pallets: 0,
+          closedAt: receipt.closedAt,
+        });
+        toast.success(`Container closed - EDI 944 queued and billed`);
       } else {
         const departedAt = opts.departDate
           ? new Date(`${opts.departDate}T12:00:00`).toISOString()
