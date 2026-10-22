@@ -510,6 +510,34 @@ function WorkOrdersPage() {
                         Close
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-[10px] gap-1"
+                      onClick={async () => {
+                        const inbound = inboundShipments?.find((s: any) => s.workOrderId === w.id);
+                        await addDoc(collection(db, "ediLogs"), {
+                          id: `EDI-944-${Date.now()}`,
+                          txn: "944",
+                          direction: "outbound",
+                          partner: inbound?.partner ?? "SBX-PARTNER",
+                          documentRef: inbound?.ediRef ?? w.woNumber,
+                          tenantId: w.tenantId,
+                          warehouseId: w.warehouseId,
+                          isaControl: inbound?.isaControl ?? "999999998",
+                          gsControl: "944",
+                          segments: 10,
+                          bytes: 300,
+                          ackStatus: "AK",
+                          status: "processed",
+                          message: "Manual EDI 944 triggered from Work Order.",
+                          receivedAt: new Date().toISOString(),
+                        });
+                        toast.success("EDI 944 generated");
+                      }}
+                    >
+                      944
+                    </Button>
                   </div>
                 </div>
               </div>
