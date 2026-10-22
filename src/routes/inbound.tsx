@@ -1553,6 +1553,37 @@ function EditContainerDialog({
     setLines(lines.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
   };
 
+  /**
+   * Changing the SKU brings the catalogue data with it, so the operator
+   * never has to key in the UPC, style, case pack or unit weight.
+   */
+  const handleSkuChange = (idx: number, sku: string) => {
+    const master = catalogSkus.find((s) => s.sku === sku);
+    if (sku && !master) {
+      toast.error(`${sku} is not in the Item Master for this client`, {
+        description:
+          "Add the SKU to Master Data → Item Master before adding it to a container.",
+      });
+      return;
+    }
+    setLines(
+      lines.map((l, i) =>
+        i === idx
+          ? {
+              ...l,
+              sku: master?.sku ?? "",
+              upc: master?.upc ?? "",
+              itemStyle: master?.itemStyle ?? "",
+              description: master?.description ?? "",
+              uom: master?.uom ?? "EA",
+              unitsPerPallet: master?.caseQty ?? l.unitsPerPallet,
+              weightLbsPerUnit: master?.weightLbs ?? l.weightLbsPerUnit,
+            }
+          : l,
+      ),
+    );
+  };
+
   const handleSave = async () => {
     try {
       // Every SKU on the container must exist in the client's Item Master,
@@ -1740,51 +1771,103 @@ function EditContainerDialog({
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
             Line Items ({lines.length})
           </h3>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {lines.map((l, idx) => (
-              <div key={idx} className="grid grid-cols-6 gap-2 p-2 border border-border rounded-md bg-background">
-                <Input
-                  placeholder="SKU"
-                  value={l.sku}
-                  onChange={(e) => handleUpdateLine(idx, "sku", e.target.value)}
-                  className="h-7 text-xs col-span-1"
-                />
-                <Input
-                  placeholder="Lot"
-                  value={l.lot}
-                  onChange={(e) => handleUpdateLine(idx, "lot", e.target.value)}
-                  className="h-7 text-xs col-span-1"
-                />
-                <Input
-                  type="number"
-                  placeholder="Qty"
-                  value={l.qtyExpected}
-                  onChange={(e) => handleUpdateLine(idx, "qtyExpected", parseInt(e.target.value || "0", 10))}
-                  className="h-7 text-xs col-span-1"
-                />
-                <Input
-                  type="number"
-                  placeholder="Cartons"
-                  value={l.cartonsExpected}
-                  onChange={(e) => handleUpdateLine(idx, "cartonsExpected", parseInt(e.target.value || "0", 10))}
-                  className="h-7 text-xs col-span-1"
-                />
-                <Input
-                  placeholder="PO #"
-                  value={l.poNumber || ""}
-                  onChange={(e) => handleUpdateLine(idx, "poNumber", e.target.value)}
-                  className="h-7 text-xs col-span-1"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  onClick={() => handleDeleteLine(idx)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {/* Column headings */}
+            <div className="grid grid-cols-7 gap-2 px-2">
+              <div className="col-span-2 text-[9px] uppercase tracking-wider text-muted-foreground">
+                SKU / Item
               </div>
-            ))}
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">Lot</div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground text-right">
+                Units exp.
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground text-right">
+                Cartons exp.
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">PO #</div>
+              <div />
+            </div>
+            {lines.map((l, idx) => {
+              const lineMaster = catalogSkus.find((s) => s.sku === l.sku);
+              return (
+                <div
+                  key={idx}
+                  className="grid grid-cols-7 gap-2 p-2 border border-border rounded-md bg-background"
+                >
+                  {/* SKU — expanded so the operator can see what they picked */}
+                  <div className="col-span-2 space-y-1">
+                    <select
+                      value={l.sku}
+                      onChange={(e) => handleSkuChange(idx, e.target.value)}
+                      className="h-7 w-full rounded-md border border-input bg-background px-2 text-xs font-mono"
+                    >
+                      <option value="">Select SKU…</option>
+                      {catalogSkus.map((s) => (
+                        <option key={s.sku} value={s.sku}>
+                          {s.sku} — {s.description}
+                        </option>
+                      ))}
+                      {l.sku && !lineMaster && (
+                        <option value={l.sku}>{l.sku} (not in Item Master)</option>
+                      )}
+                    </select>
+                    {l.sku && (
+                      <div className="text-[9px] leading-tight text-muted-foreground">
+                        <div className="truncate font-medium text-foreground/80">
+                          {lineMaster?.description ?? l.description ?? "—"}
+                        </div>
+                        <div className="truncate">
+                          {lineMaster ? (
+                            <>
+                              UPC {lineMaster.upc}
+                              {lineMaster.itemStyle ? ` · ${lineMaster.itemStyle}` : ""}
+                              {lineMaster.caseQty ? ` · ${lineMaster.caseQty}/case` : ""}
+                            </>
+                          ) : (
+                            "Not in the Item Master for this client"
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <Input
+                    placeholder="Lot"
+                    value={l.lot}
+                    onChange={(e) => handleUpdateLine(idx, "lot", e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Qty"
+                    value={l.qtyExpected}
+                    onChange={(e) => handleUpdateLine(idx, "qtyExpected", parseInt(e.target.value || "0", 10))}
+                    className="h-7 text-xs text-right"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Cartons"
+                    value={l.cartonsExpected}
+                    onChange={(e) => handleUpdateLine(idx, "cartonsExpected", parseInt(e.target.value || "0", 10))}
+                    className="h-7 text-xs text-right"
+                  />
+                  <Input
+                    placeholder="PO #"
+                    value={l.poNumber || ""}
+                    onChange={(e) => handleUpdateLine(idx, "poNumber", e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    onClick={() => handleDeleteLine(idx)}
+                    title="Remove this line"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              );
+            })}
             {lines.length === 0 && (
               <div className="text-center py-4 text-muted-foreground text-xs">
                 No line items. Container requires at least one line item to ship.
