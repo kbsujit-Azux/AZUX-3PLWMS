@@ -510,7 +510,7 @@ function WorkOrdersPage() {
                         Close
                       </Button>
                     )}
-                    {w.status !== "closed" && (<>                     <Button
+                    {w.status === "closed" && (<>                     <Button
                       size="sm"
                       variant="default"
                       className="h-7 text-[10px] gap-1"
