@@ -272,7 +272,7 @@ function WorkOrdersPage() {
           trailerNumber: inbound.trailerNumber,
           units: (inbound.lines ?? []).reduce((a: number, l: any) => a + (l.qtyExpected || 0), 0),
           cartons: (inbound.lines ?? []).reduce((a: number, l: any) => a + (l.cartonsExpected || 0), 0),
-          pallets: 0,
+          pallets: (inbound?.lines ?? []).reduce((a: number, l: any) => a + (l.palletIds?.length || 0), 0),
           closedAt: receipt.closedAt,
         });
         toast.success(`Container closed - EDI 944 queued and billed`);
@@ -532,7 +532,7 @@ function WorkOrdersPage() {
                           trailerNumber: inbound?.trailerNumber ?? w.trailerNumber,
                           units: (inbound?.lines ?? []).reduce((a: number, l: any) => a + (l.qtyExpected || 0), 0),
                           cartons: (inbound?.lines ?? []).reduce((a: number, l: any) => a + (l.cartonsExpected || 0), 0),
-                          pallets: 0,
+                          pallets: (inbound?.lines ?? []).reduce((a: number, l: any) => a + (l.palletIds?.length || 0), 0),
                           closedAt: new Date().toISOString(),
                         });
                         if (res.skipped) toast.error(res.skipped);
