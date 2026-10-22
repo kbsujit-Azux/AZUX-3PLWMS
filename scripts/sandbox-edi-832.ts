@@ -29,19 +29,77 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
 async function main() {
-  const { setDoc, doc, collection, serverTimestamp } = await import("firebase/firestore");
+  const { setDoc, doc, deleteDoc } = await import("firebase/firestore");
 
   const tenantId = "acme";
   const warehouseId = "atl1";
   const now = new Date().toISOString();
 
   const sampleItems = [
-    { sku: "SBX-832-001", description: "Sandbox Item A (EDI 832)", upc: "012345678905", weightLbs: 2.5, lengthIn: 10, widthIn: 6, heightIn: 4, tenantId, warehouseId, source: "EDI832", updatedAt: now },
-    { sku: "SBX-832-002", description: "Sandbox Item B (EDI 832)", upc: "098765432109", weightLbs: 5.0, lengthIn: 12, widthIn: 8, heightIn: 6, tenantId, warehouseId, source: "EDI832", updatedAt: now },
+    {
+      sku: "SBX-832-001",
+      upc: "012345678905",
+      itemStyle: "SBX-STYLE-A",
+      description: "Sandbox Item A (EDI 832)",
+      category: "Accessories",
+      uom: "EA",
+      tenantId,
+      packHierarchy: [],
+      basePackLevel: "each" as any,
+      caseQty: 1,
+      caseWeightLbs: 2.5,
+      cbmPerCase: 0.001,
+      lengthIn: 10,
+      widthIn: 6,
+      heightIn: 4,
+      weightLbs: 2.5,
+      palletBuild: { ti: 10, hi: 5, maxWeightLbs: 1000 } as any,
+      unitCost: 12.5,
+      unitPrice: 24.99,
+      nmfc: "116030",
+      freightClass: "85" as any,
+      lotControl: false,
+      expiryControl: false,
+      serialControl: false,
+      hazmat: false,
+      active: true,
+      source: "EDI_832" as any,
+      effectiveAt: now,
+    },
+    {
+      sku: "SBX-832-002",
+      upc: "098765432109",
+      itemStyle: "SBX-STYLE-B",
+      description: "Sandbox Item B (EDI 832)",
+      category: "Accessories",
+      uom: "EA",
+      tenantId,
+      packHierarchy: [],
+      basePackLevel: "each" as any,
+      caseQty: 1,
+      caseWeightLbs: 5.0,
+      cbmPerCase: 0.002,
+      lengthIn: 12,
+      widthIn: 8,
+      heightIn: 6,
+      weightLbs: 5.0,
+      palletBuild: { ti: 8, hi: 4, maxWeightLbs: 1000 } as any,
+      unitCost: 25.0,
+      unitPrice: 49.99,
+      nmfc: "116030",
+      freightClass: "85" as any,
+      lotControl: false,
+      expiryControl: false,
+      serialControl: false,
+      hazmat: false,
+      active: true,
+      source: "EDI_832" as any,
+      effectiveAt: now,
+    },
   ];
 
   for (const item of sampleItems) {
-    await setDoc(doc(db, "itemMaster", item.sku), item, { merge: true });
+    await setDoc(doc(db, "itemMaster", item.sku), item);
     console.log("Upserted itemMaster:", item.sku);
   }
 
