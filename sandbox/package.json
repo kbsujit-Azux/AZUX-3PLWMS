@@ -1,0 +1,20 @@
+{
+  "name": "azux-edi-sandbox",
+  "version": "1.0.0",
+  "description": "Local EDI sandbox for AZUX 3PL WMS integration testing",
+  "type": "module",
+  "main": "edi-sandbox.ts",
+  "scripts": {
+    "start": "tsx edi-sandbox.ts",
+    "test:single": "tsx edi-sandbox.ts --file",
+    "test:all": "tsx edi-sandbox.ts --batch"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "@types/node": "^22.0.0"
+  }
+}
