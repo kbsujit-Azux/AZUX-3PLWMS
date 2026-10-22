@@ -84,6 +84,7 @@ import {
   inboundShipments,
   inboundReceipts,
   closeInboundShipment,
+  projectInboundLine,
 } from "@/lib/inbound-data";
 import { createPalletsFromInbound, type Pallet } from "@/lib/pallet-data";
 import { autoBillContainer, resolveBillingClientId } from "@/lib/auto-billing";
@@ -430,9 +431,17 @@ function InboundPage() {
                 : undefined
             }
             onEdit={
-              ["scheduled", "arrived"].includes(s.status)
-                ? () => setEditContainer(s)
-                : undefined
+              // The container stays editable until the WORK ORDER is closed.
+              // The container itself may already be "received" — the operator
+              // can still add a SKU found on the truck or correct the header.
+              (() => {
+                const linked = s.workOrderId
+                  ? workOrders.find((w) => w.id === s.workOrderId)
+                  : null;
+                const closed =
+                  linked?.status === "closed" || linked?.status === "departed";
+                return closed ? undefined : () => setEditContainer(s);
+              })()
             }
             onDelete={
               s.status === "scheduled"
@@ -1028,6 +1037,15 @@ function ShipmentCard({
   // The receipt can be produced at any point in the container's life.
   const canPrintReceipt = !!onPrintReceipt;
   const linkedWO = shipment.workOrderId ? workOrders.find((w) => w.id === shipment.workOrderId) : null;
+  /**
+   * The container stays editable until the WORK ORDER is closed (it has
+   * departed or been closed). The container itself may already be
+   * "received" — the operator can still add a SKU found on the truck or
+   * correct the header while the work order is open.
+   */
+  const woClosed =
+    linkedWO?.status === "closed" || linkedWO?.status === "departed";
+  const canEditContainer = !!onEdit && !woClosed;
 
   return (
     <div className="rounded-md border border-border bg-card overflow-hidden">
@@ -1109,16 +1127,33 @@ function ShipmentCard({
         </div>
       </div>
 
-      {canPrintReceipt && (
-        <div className="px-4 py-2 border-b border-border bg-muted/10 flex justify-end">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs gap-1.5"
-            onClick={onPrintReceipt}
-          >
-            <FileText className="h-3 w-3" /> Print Receipt
-          </Button>
+      {(canPrintReceipt || canEditContainer) && (
+        <div className="px-4 py-2 border-b border-border bg-muted/10 flex justify-end gap-2">
+          {canEditContainer && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5"
+              onClick={onEdit}
+              title={
+                woClosed
+                  ? "The work order is closed — the container can no longer be edited"
+                  : "Edit the container header or add a SKU found on the truck"
+              }
+            >
+              <Edit className="h-3 w-3" /> Edit Container
+            </Button>
+          )}
+          {canPrintReceipt && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5"
+              onClick={onPrintReceipt}
+            >
+              <FileText className="h-3 w-3" /> Print Receipt
+            </Button>
+          )}
         </div>
       )}
 
@@ -1464,26 +1499,49 @@ function EditContainerDialog({
   );
   const [notes, setNotes] = useState("");
 
+  // The Item Master catalogue for this client — the source for adding a SKU
+  // that was found on the truck but was not on the ASN.
+  const { itemMaster: liveItemMaster } = useWmsData();
+  const catalogSkus = useMemo(
+    () =>
+      (liveItemMaster ?? []).filter(
+        (i) => i.tenantId === shipment.tenantId && i.active !== false,
+      ),
+    [liveItemMaster, shipment.tenantId],
+  );
+
   const handleDeleteLine = (idx: number) => {
     setLines(lines.filter((_, i) => i !== idx));
   };
 
-  const handleAddLine = () => {
+  const handleAddLine = (sku?: string) => {
+    // A SKU picked from the Item Master brings its own pack data with it.
+    const master = sku
+      ? catalogSkus.find((s) => s.sku === sku)
+      : undefined;
+    if (sku && !master) {
+      toast.error(`${sku} is not in the Item Master for this client`, {
+        description:
+          "Add the SKU to Master Data → Item Master before adding it to a container.",
+      });
+      return;
+    }
+    const packSize = master?.caseQty ?? 1;
     setLines([
       ...lines,
       {
         lineNo: lines.length + 1,
-        sku: "",
-        upc: "",
-        itemStyle: "",
-        description: "",
+        sku: master?.sku ?? "",
+        upc: master?.upc ?? "",
+        itemStyle: master?.itemStyle ?? "",
+        description: master?.description ?? "",
         lot: "",
         expirationDate: "2030-12-31",
         qtyExpected: 0,
         cartonsExpected: 0,
-        uom: "EA",
-        unitsPerPallet: 0,
-        weightLbsPerUnit: 0,
+        uom: master?.uom ?? "EA",
+        unitsPerPallet: packSize,
+        weightLbsPerUnit: master?.weightLbs ?? 0,
         receivedQty: 0,
         palletIds: [],
         status: "expected",
@@ -1497,7 +1555,24 @@ function EditContainerDialog({
 
   const handleSave = async () => {
     try {
-const ts = (d: string) => {
+      // Every SKU on the container must exist in the client's Item Master,
+      // otherwise it cannot be palletized, billed or reported.
+      for (const l of lines) {
+        if (!l.sku) continue;
+        const reason = validateLineAgainstItemMaster({
+          sku: l.sku,
+          upc: l.upc,
+          tenantId: shipment.tenantId,
+        });
+        if (reason) {
+          toast.error(`Blocked by Item Master (832) check — ${l.sku}`, {
+            description: `${masterReasonLabel(reason)}. Resolve in Master Data → Item Master, or remove the line.`,
+          });
+          return;
+        }
+      }
+
+      const ts = (d: string) => {
       const parsed = parseFlexibleDate(d);
       return parsed ? parsed.toISOString() : new Date().toISOString();
     };
@@ -1528,23 +1603,7 @@ const ts = (d: string) => {
       await updateInboundShipmentRecord(shipment.id, {
         ...fullHeader,
         workOrderId: woId,
-        lines: lines.map((l, idx) => ({
-          lineNo: idx + 1,
-          sku: l.sku || "",
-          upc: l.upc || "",
-          itemStyle: l.itemStyle || "",
-          description: l.description || "",
-          lot: l.lot || "",
-      expirationDate: l.expirationDate || "2099-12-31",
-          qtyExpected: l.qtyExpected || 0,
-          cartonsExpected: l.cartonsExpected || 0,
-          unitsPerPallet: l.unitsPerPallet || 0,
-          weightLbsPerUnit: l.weightLbsPerUnit || 0,
-          poNumber: l.poNumber || "",
-          receivedQty: l.receivedQty || 0,
-          palletIds: l.palletIds || [],
-          status: l.status || "expected",
-        })),
+        lines: lines.map((l, idx) => projectInboundLine(l, idx)),
       });
 
       toast.success("Container updated successfully");
@@ -1731,9 +1790,35 @@ const ts = (d: string) => {
                 No line items. Container requires at least one line item to ship.
               </div>
             )}
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={handleAddLine}>
-              <Plus className="h-3 w-3" /> Add Line
-            </Button>
+            {/* Add a SKU found on the truck that was not on the ASN. */}
+            <div className="flex items-center gap-2">
+              <select
+                value=""
+                onChange={(e) => handleAddLine(e.target.value)}
+                className="h-7 flex-1 rounded-md border border-input bg-background px-2 text-xs"
+              >
+                <option value="">+ Add a SKU found on the truck…</option>
+                {catalogSkus.map((s) => (
+                  <option key={s.sku} value={s.sku}>
+                    {s.sku} — {s.description}
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => handleAddLine("")}
+              >
+                <Plus className="h-3 w-3" /> Blank Line
+              </Button>
+            </div>
+            {catalogSkus.length === 0 && (
+              <div className="text-[10px] text-amber-600">
+                No Item Master records for this client — add the SKU to the Item
+                Master first, or use a blank line.
+              </div>
+            )}
           </div>
 
           <Textarea

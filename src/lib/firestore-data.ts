@@ -117,6 +117,7 @@ import { DROP001_LOCATION } from "./mock-data";
 import type { Pallet } from "./pallet-data";
 import type { ItemMasterRecord, LocationRecord, LocationType } from "./master-data";
 import type { InboundShipment, InboundLine, WorkOrderStatus } from "./inbound-data";
+import { projectWorkOrderLines } from "./inbound-data";
 import { tenants as _tenants } from "./mock-data";
 
 function getTenantName(id: string): string {
@@ -747,6 +748,17 @@ export async function updateInboundShipmentRecord(
       unitsPerPallet: number;
       weightLbsPerUnit: number;
       poNumber?: string;
+      uom?: string;
+      /** Units already received on this line. */
+      receivedQty?: number;
+      palletIds?: string[];
+      status?: "expected" | "partial" | "received";
+      /** Receiving variance (OSD). */
+      foundQty?: number;
+      damagedQty?: number;
+      osdType?: "over" | "short" | "damaged" | "wrong_item";
+      osdReason?: string;
+      damagePalletId?: string;
     }>;
     status?: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception";
     receivedAt?: string | null;
@@ -786,17 +798,15 @@ export async function updateInboundShipmentRecord(
   const totalUnits = Array.isArray(updates.lines) ? updates.lines.reduce((sum, l) => sum + l.qtyExpected, 0) : 0;
   const totalCartons = Array.isArray(updates.lines) ? updates.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0) : 0;
   
-  const workOrderLines = Array.isArray(updates.lines) ? updates.lines.map((l, idx) => ({
-    lineNo: idx + 1,
-    sku: l.sku,
-    upc: l.upc || "",
-    description: l.description || "",
-    lot: l.lot || "",
-    qtyExpected: l.qtyExpected,
-    qtyReceived: 0,
-    cartons: l.cartonsExpected || 0,
-    status: "pending" as const,
-  })) : [];
+  // The work order lines are rebuilt from the container lines, but the
+  // RECEIPT state of an existing line must be preserved — otherwise editing a
+  // container that has already been received would reset its quantities.
+  const existingWoLines: any[] = woSnap.exists()
+    ? ((woSnap.data() as any).lines ?? [])
+    : [];
+  const workOrderLines = Array.isArray(updates.lines)
+    ? projectWorkOrderLines(updates.lines as any, existingWoLines)
+    : [];
   
   const workOrderData = {
     id: woId,

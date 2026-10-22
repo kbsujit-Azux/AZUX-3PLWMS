@@ -333,6 +333,81 @@ export function warehouseCode(warehouseId: string): string {
   return warehouses.find((w) => w.id === warehouseId)?.code ?? "WH";
 }
 
+/**
+ * Project an inbound line for persistence.
+ *
+ * The receiving variance (OSD) fields must survive an edit of the container —
+ * otherwise saving the header would silently wipe the damage record.
+ */
+export function projectInboundLine(line: InboundLine, index: number): InboundLine {
+  return {
+    lineNo: index + 1,
+    sku: line.sku || "",
+    upc: line.upc || "",
+    itemStyle: line.itemStyle || "",
+    description: line.description || "",
+    lot: line.lot || "",
+    expirationDate: line.expirationDate || "2099-12-31",
+    qtyExpected: line.qtyExpected || 0,
+    cartonsExpected: line.cartonsExpected || 0,
+    uom: line.uom || "EA",
+    unitsPerPallet: line.unitsPerPallet || 0,
+    weightLbsPerUnit: line.weightLbsPerUnit || 0,
+    poNumber: line.poNumber || "",
+    receivedQty: line.receivedQty || 0,
+    palletIds: line.palletIds || [],
+    status: line.status || "expected",
+    ...(line.foundQty !== undefined ? { foundQty: line.foundQty } : {}),
+    ...(line.damagedQty !== undefined ? { damagedQty: line.damagedQty } : {}),
+    ...(line.osdType ? { osdType: line.osdType } : {}),
+    ...(line.osdReason ? { osdReason: line.osdReason } : {}),
+    ...(line.damagePalletId ? { damagePalletId: line.damagePalletId } : {}),
+  };
+}
+
+/**
+ * Build the work order lines from the container lines.
+ *
+ * The RECEIPT state of an existing work order line is preserved — editing a
+ * container that has already been received must not reset its quantities.
+ */
+export function projectWorkOrderLines(
+  containerLines: InboundLine[],
+  existingWorkOrderLines: any[] = [],
+): Array<{
+  lineNo: number;
+  sku: string;
+  upc: string;
+  description: string;
+  lot: string;
+  qtyExpected: number;
+  qtyReceived: number;
+  cartons: number;
+  status: string;
+}> {
+  return containerLines.map((l, idx) => {
+    const prior = existingWorkOrderLines.find(
+      (wl: any) => wl.sku === l.sku || wl.lineNo === idx + 1,
+    );
+    return {
+      lineNo: idx + 1,
+      sku: l.sku,
+      upc: l.upc || "",
+      description: l.description || "",
+      lot: l.lot || "",
+      qtyExpected: l.qtyExpected,
+      // A container line that shows no receipt must not wipe a receipt the
+      // work order already recorded.
+      qtyReceived: l.receivedQty || prior?.qtyReceived || 0,
+      cartons: l.cartonsExpected || 0,
+      status:
+        l.status === "received" || l.status === "partial"
+          ? l.status
+          : (prior?.status ?? "pending"),
+    };
+  });
+}
+
 export function inboundProgressPct(line: InboundLine): number {
   if (line.qtyExpected === 0) return 0;
   return Math.min(100, Math.round((line.receivedQty / line.qtyExpected) * 100));
