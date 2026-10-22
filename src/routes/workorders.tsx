@@ -11,6 +11,7 @@ import { type WorkOrder, type WorkOrderStatus, closeInboundShipment } from "@/li
 import { useWmsData } from "@/components/db-context";
 import { useWorkspace } from "@/components/workspace-context";
 import { deleteWorkOrder, updateWorkOrder, updateInboundShipmentRecord, mapWoStatusToInboundStatus } from "@/lib/firestore-data";
+import { ContainerConfirmDialog } from "@/components/container-confirm-dialog";
 import { type InboundShipment } from "@/lib/inbound-data";
 import { inventoryItems } from "@/lib/mock-data";
 
@@ -69,7 +70,7 @@ function WorkOrdersPage() {
   const [workOrderToEdit, setWorkOrderToEdit] = useState<WorkOrder | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<WorkOrder>>({});
 
-  const { workOrders, inboundShipments, locationMaster, warehouses } = useWmsData();
+  const { workOrders, inboundShipments, locationMaster, warehouses, pallets } = useWmsData();
 
   /**
    * The physical warehouses (EWR, ORD, ATL, LAX …) the container is booked
@@ -203,29 +204,67 @@ function WorkOrdersPage() {
     }
   };
 
-  const handleCloseContainer = async (wo: WorkOrder) => {
+  /** The container awaiting a close / depart confirmation. */
+  const [confirmTarget, setConfirmTarget] = useState<{
+    workOrder: WorkOrder;
+    inbound: any;
+    mode: "close" | "depart";
+  } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+
+  /** Open the confirmation for a close or a depart. */
+  const openConfirm = (wo: WorkOrder, mode: "close" | "depart") => {
     const inboundId = getInboundIdForWO(wo.id);
-    if (!inboundId) {
+    const inbound = inboundShipments?.find((s) => s.id === inboundId);
+    if (!inbound) {
       toast.error("No linked inbound shipment found");
       return;
     }
-    const inbound = inboundShipments?.find((s) => s.id === inboundId);
-    if (!inbound) {
-      toast.error("Linked inbound shipment not found");
-      return;
-    }
+    setConfirmTarget({ workOrder: wo, inbound, mode });
+  };
 
+  /** Perform the action the operator confirmed. */
+  const runConfirmed = async (opts: {
+    departDate?: string;
+    acknowledged: boolean;
+  }) => {
+    if (!confirmTarget) return;
+    const { workOrder, inbound, mode } = confirmTarget;
+    setConfirmBusy(true);
     try {
-      const receipt = closeInboundShipment(inbound, [], []);
-      await updateWorkOrder(wo.id, { status: "closed" });
-      await updateInboundShipmentRecord(inboundId, {
-        ...inbound,
-        status: "received",
-        receivedAt: receipt.closedAt,
-      });
-      toast.success(`Container closed - EDI 944 queued for transmission`);
+      if (mode === "close") {
+        const receipt = closeInboundShipment(inbound, [], []);
+        await updateWorkOrder(workOrder.id, { status: "closed" });
+        await updateInboundShipmentRecord(inbound.id, {
+          ...inbound,
+          status: "received",
+          receivedAt: receipt.closedAt,
+        });
+        toast.success(`Container closed - EDI 944 queued for transmission`);
+      } else {
+        const departedAt = opts.departDate
+          ? new Date(`${opts.departDate}T12:00:00`).toISOString()
+          : new Date().toISOString();
+        await updateWorkOrder(workOrder.id, {
+          status: "departed",
+          departureDate: departedAt,
+        });
+        await updateInboundShipmentRecord(inbound.id, {
+          ...inbound,
+          status: "received",
+          receivedAt: inbound.receivedAt ?? departedAt,
+        });
+        toast.success(`Container marked departed on ${opts.departDate}`);
+      }
+      setConfirmTarget(null);
     } catch (e: unknown) {
-      toast.error(`Failed to close: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(
+        `Failed to ${mode === "close" ? "close" : "mark departed"}: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    } finally {
+      setConfirmBusy(false);
     }
   };
 
@@ -411,7 +450,15 @@ function WorkOrdersPage() {
                         size="sm"
                         variant="secondary"
                         className="h-7 text-[10px] gap-1"
-                        onClick={() => handleStatusTransition(w, statusTransitions[w.status as WorkOrderStatus]!)}
+                        onClick={() => {
+                          const next = statusTransitions[w.status as WorkOrderStatus]!;
+                          // Departing is an irreversible event — confirm first.
+                          if (next === "departed") {
+                            openConfirm(w, "depart");
+                            return;
+                          }
+                          handleStatusTransition(w, next);
+                        }}
                       >
                         <ChevronRight className="h-3 w-3" />
                         {w.status === "at_dock" ? "Mark Arrived" : w.status === "unloading" ? "Start Unload" : w.status === "received" ? "Mark Departed" : "Close"}
@@ -422,7 +469,7 @@ function WorkOrdersPage() {
                         size="sm"
                         variant="outline"
                         className="h-7 text-[10px] gap-1"
-                        onClick={() => handleCloseContainer(w)}
+                        onClick={() => openConfirm(w, "close")}
                       >
                         <Check className="h-3 w-3" />
                         Close
@@ -435,6 +482,20 @@ function WorkOrdersPage() {
           );
         })}
       </div>
+
+      {/* Close / depart confirmation */}
+      {confirmTarget && (
+        <ContainerConfirmDialog
+          open={!!confirmTarget}
+          onOpenChange={(o) => !o && setConfirmTarget(null)}
+          mode={confirmTarget.mode}
+          workOrder={confirmTarget.workOrder}
+          inbound={confirmTarget.inbound}
+          pallets={pallets ?? []}
+          busy={confirmBusy}
+          onConfirm={runConfirmed}
+        />
+      )}
 
       {workOrderToDelete && (
         <AlertDialog open={!!workOrderToDelete} onOpenChange={(o) => !o && setWorkOrderToDelete(null)}>
