@@ -8,6 +8,7 @@ import {
   Plus,
   Printer,
   Pencil,
+  AlertTriangle,
   ScanLine,
   ArrowRight,
   CheckCircle2,
@@ -73,6 +74,11 @@ import {
   type PalletStatus,
 } from "@/lib/pallet-data";
 import { recommendPutaway } from "@/lib/putaway-engine";
+import {
+  validatePutawayTarget,
+  validLocationsFor,
+  type PutawayValidation,
+} from "@/lib/putaway-validation";
 import { createPallet, deletePallet, updatePallet, syncInboundFromPallets, putAwayPallet, syncInventoryBatchUnits } from "@/lib/firestore-data";
 import { orders } from "@/lib/edi-data";
 import { fmtDateTime, fmtDateYear, fmtTime, downloadExcel } from "@/lib/utils";
@@ -882,6 +888,7 @@ const reportData = visiblePallets.map((p) => ({
       <ScanConfirmDialog
         pallet={scanTarget}
         weightLbs={scanTarget ? weightFor(scanTarget) : 0}
+        locations={liveLocationMaster ?? []}
         onClose={() => setScanTarget(null)}
         onConfirmed={async (palletId, location) => {
           try {
@@ -1421,12 +1428,15 @@ type ScanField = "pallet" | "location";
 function ScanConfirmDialog({
   pallet,
   weightLbs,
+  locations,
   onClose,
   onConfirmed,
 }: {
   pallet: Pallet | null;
   /** The pallet's weight, resolved against the live Item Master. */
   weightLbs?: number;
+  /** The live Location Master — used to validate the scanned location. */
+  locations: any[];
   onClose: () => void;
   onConfirmed: (palletId: string, location: string) => void;
 }) {
@@ -1434,6 +1444,7 @@ function ScanConfirmDialog({
   const [locationScan, setLocationScan] = useState("");
   const [active, setActive] = useState<ScanField>("pallet");
   const [shake, setShake] = useState<ScanField | null>(null);
+  const [validation, setValidation] = useState<PutawayValidation | null>(null);
 
   // Reset state whenever a new pallet is targeted
   useEffect(() => {
@@ -1441,35 +1452,75 @@ function ScanConfirmDialog({
     setLocationScan("");
     setActive("pallet");
     setShake(null);
+    setValidation(null);
   }, [pallet?.id]);
 
   if (!pallet) return null;
 
-  const palletOk = palletScan.trim().toUpperCase() === pallet.id.toUpperCase();
-  const locationOk = locationScan.trim().toUpperCase() === pallet.suggestedLocation.toUpperCase();
-  const palletEntered = palletScan.length > 0;
-  const locationEntered = locationScan.length > 0;
+  /**
+   * The location the operator actually scanned. It does NOT have to be the
+   * recommendation — any valid location for this client/warehouse is allowed.
+   */
+  const targetLocation = locationScan.trim();
 
-  const validate = (field: ScanField, value: string) => {
-    const expected = field === "pallet" ? pallet.id : pallet.suggestedLocation;
-    if (value.trim().toUpperCase() !== expected.toUpperCase()) {
+  const validate = useCallback(
+    (field: ScanField, raw: string) => {
+      const result = validatePutawayTarget({
+        scannedPalletId:
+          field === "pallet" ? raw : palletScan.trim() || undefined,
+        expectedPalletId: pallet.id,
+        scannedLocation: field === "location" ? raw : targetLocation,
+        locations,
+        tenantId: pallet.tenantId,
+        warehouseId: pallet.warehouseId,
+        suggestedLocation: pallet.suggestedLocation,
+      });
+      setValidation(result);
+
+      if (result.ok) {
+        if (field === "pallet") setActive("location");
+        return true;
+      }
+
       setShake(field);
       setTimeout(() => setShake(null), 350);
-      toast.error(`${field === "pallet" ? "Pallet" : "Location"} mismatch`, {
-        description: `Scanned does not match expected ${expected}`,
-      });
+      toast.error(
+        field === "pallet" ? "Pallet mismatch" : "Location not valid",
+        { description: result.errors[0] },
+      );
       if (field === "pallet") setPalletScan("");
       else setLocationScan("");
       return false;
-    }
-    return true;
-  };
+    },
+    [pallet, palletScan, targetLocation, locations],
+  );
+
+  const palletOk = palletScan.trim().toUpperCase() === pallet.id.toUpperCase();
+  const locationOk =
+    !!targetLocation &&
+    !!validation?.ok &&
+    validation.errors.length === 0;
+  const palletEntered = palletScan.length > 0;
+  const locationEntered = locationScan.length > 0;
+
+  /** The locations this client may put away into at this warehouse. */
+  const allowedLocations = useMemo(
+    () => validLocationsFor(locations, pallet.tenantId, pallet.warehouseId),
+    [locations, pallet.tenantId, pallet.warehouseId],
+  );
+
+  /** The recommendation is only shown when it is actually usable here. */
+  const suggestionUsable = useMemo(() => {
+    const s = pallet.suggestedLocation;
+    if (!s) return false;
+    return allowedLocations.some((l) => l.id.toUpperCase() === s.trim().toUpperCase());
+  }, [allowedLocations, pallet.suggestedLocation]);
 
   const handleSubmit = (field: ScanField, raw: string) => {
     const value = raw.trim();
     if (!value) return;
     if (field === "pallet") {
-      if (validate("pallet", value)) setActive("location");
+      validate("pallet", value);
     } else {
       if (validate("location", value)) {
         if (!palletOk) {
@@ -1477,7 +1528,7 @@ function ScanConfirmDialog({
           setActive("pallet");
           return;
         }
-        onConfirmed(pallet.id, pallet.suggestedLocation);
+        onConfirmed(pallet.id, targetLocation);
       }
     }
   };
@@ -1508,16 +1559,62 @@ function ScanConfirmDialog({
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Suggested location
+              {suggestionUsable ? "Suggested location" : "Directed putaway"}
             </div>
-            <div className="mt-0.5 font-mono inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 text-primary px-1.5 py-0.5">
-              <MapPin className="h-3 w-3" />
-              {pallet.suggestedLocation}
-            </div>
-            <div className="mt-1 text-[10px] text-muted-foreground">
-              zone {pallet.zone} · velocity-slotted
-            </div>
+            {suggestionUsable ? (
+              <>
+                <div className="mt-0.5 font-mono inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 text-primary px-1.5 py-0.5">
+                  <MapPin className="h-3 w-3" />
+                  {pallet.suggestedLocation}
+                </div>
+                <div className="mt-1 text-[10px] text-muted-foreground">
+                  zone {pallet.zone} · velocity-slotted
+                </div>
+              </>
+            ) : (
+              <div className="mt-0.5 flex items-start gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-1 text-[10px] text-amber-700">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                <span>
+                  No recommendation — the Location Master has no valid slot set up
+                  for this client at this warehouse. Scan any valid location.
+                </span>
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* The valid locations for this client / warehouse */}
+        <div className="rounded-md border border-border bg-muted/10 p-2">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+            Valid locations for {pallet.tenantId} · {pallet.warehouseId}
+          </div>
+          {allowedLocations.length === 0 ? (
+            <div className="text-[11px] text-destructive">
+              No locations are set up in the Location Master for this client and
+              warehouse. Ask an administrator to add them before putting away.
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1">
+              {allowedLocations.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => {
+                    setLocationScan(l.id);
+                    validate("location", l.id);
+                  }}
+                  className={`rounded-sm border px-1.5 py-0.5 font-mono text-[10px] ${
+                    targetLocation.toUpperCase() === l.id.toUpperCase()
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                  title={`${l.zone} · ${l.occupiedPallets ?? 0}/${l.capacityPallets} used`}
+                >
+                  {l.id}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Step 1 — pallet scan */}
@@ -1538,13 +1635,27 @@ function ScanConfirmDialog({
           label="2 · Scan bin barcode"
           autoFocus={active === "location"}
           value={locationScan}
-          placeholder={`e.g. ${pallet.suggestedLocation}`}
+          placeholder="e.g. A12-03-B"
           state={!palletOk ? "disabled" : !locationEntered ? "idle" : locationOk ? "ok" : "error"}
           locked={!palletOk}
           shake={shake === "location"}
           onChange={setLocationScan}
           onSubmit={(v) => handleSubmit("location", v)}
         />
+
+        {/* Validation feedback */}
+        {validation && validation.warnings.length > 0 && (
+          <div className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-700">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span>{validation.warnings[0]}</span>
+          </div>
+        )}
+        {validation && validation.errors.length > 0 && (
+          <div className="flex items-start gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-[11px] text-destructive">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span>{validation.errors[0]}</span>
+          </div>
+        )}
 
         <div className="flex items-center justify-between rounded-md border border-dashed border-border bg-card px-3 py-2 text-[11px]">
           <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -1569,7 +1680,7 @@ function ScanConfirmDialog({
           <Button
             size="sm"
             disabled={!palletOk || !locationOk}
-            onClick={() => onConfirmed(pallet.id, pallet.suggestedLocation)}
+            onClick={() => onConfirmed(pallet.id, targetLocation)}
           >
             <CheckCircle2 className="h-3.5 w-3.5" /> Post putaway
           </Button>

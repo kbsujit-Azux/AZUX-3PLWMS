@@ -13,6 +13,7 @@
     "seed:employees": "npx tsx scripts/seed-employees.ts",
     "seed:new-features": "npx tsx scripts/seed-new-features.ts",
     "seed:pallets": "npx tsx scripts/seed-pallets.ts",
+    "seed:acme-locations": "npx tsx scripts/seed-acme-locations.ts",
     "repair:inbound-lines": "npx tsx scripts/repair-inbound-lines.ts",
     "refresh:item-master": "npx tsx scripts/refresh-item-master.ts",
     "refresh:location-master": "npx tsx scripts/refresh-location-master.ts",

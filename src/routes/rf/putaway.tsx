@@ -48,6 +48,7 @@ import {
   fetchLocations,
   subscribeLocations,
 } from "@/lib/firestore-data";
+import { locationAvailableToClient } from "@/lib/putaway-engine";
 import {
   DROP001_LOCATION,
   inventoryItems,
@@ -72,7 +73,15 @@ function PutawayInner() {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [arMode, setArMode] = useState(false);
   const [locations, setLocations] = useState<
-    Record<string, { type: string; occupiedPallets?: number; capacityPallets?: number }>
+    Record<
+      string,
+      {
+        type: string;
+        occupiedPallets?: number;
+        capacityPallets?: number;
+        tenantId?: string | null;
+      }
+    >
   >({});
   const palletInputRef = useRef<HTMLInputElement>(null);
 
@@ -142,12 +151,21 @@ function PutawayInner() {
   useEffect(() => {
     if (!verified) return;
     const unsub = subscribeLocations((locs: LocationRecord[]) => {
-      const map: Record<string, { type: string; occupiedPallets?: number; capacityPallets?: number }> = {};
+      const map: Record<
+        string,
+        {
+          type: string;
+          occupiedPallets?: number;
+          capacityPallets?: number;
+          tenantId?: string | null;
+        }
+      > = {};
       for (const l of locs)
         map[l.id] = {
           type: l.type,
           occupiedPallets: l.occupiedPallets,
           capacityPallets: l.capacityPallets,
+          tenantId: l.tenantId,
         };
       setLocations(map);
     });
@@ -212,6 +230,14 @@ function PutawayInner() {
       }
       if (loc.type === "DROP") {
         setError(`${locId} is a DROP — use Move or Pick`);
+        playChime("err");
+        return;
+      }
+      // The location must belong to this client / physical warehouse.
+      if (!locationAvailableToClient(loc, employee.assignedClientId)) {
+        setError(
+          `${locId} is assigned to another client and cannot be used for this receipt`,
+        );
         playChime("err");
         return;
       }

@@ -37,7 +37,14 @@ import type {
 export type PutawayAlgorithm = "best_fit" | "nearest_empty" | "zone_cluster";
 
 export type PutawayConstraintViolation = {
-  type: "weight" | "dimension" | "hazmat" | "temperature" | "capacity" | "status";
+  type:
+    | "weight"
+    | "dimension"
+    | "hazmat"
+    | "temperature"
+    | "capacity"
+    | "status"
+    | "client";
   detail: string;
 };
 
@@ -69,6 +76,7 @@ export type PutawayCandidate = {
 export type PutawayInput = {
   sku: string;
   itemStyle?: string;
+  /** The owning client — a location assigned to another client is excluded. */
   tenantId?: string;
   warehouseId: string;
   /** Pallet physical characteristics */
@@ -127,6 +135,21 @@ export function storageClassFor(item?: ItemMasterRecord): string {
   return abc === "A" ? "forward" : abc === "C" ? "bulk" : "reserve";
 }
 
+/**
+ * A location is usable by a client when it is SHARED (no tenant assigned)
+ * or assigned to that client. A location owned by another client is never
+ * a valid putaway target.
+ */
+export function locationAvailableToClient(
+  location: { tenantId?: string | null },
+  tenantId?: string,
+): boolean {
+  // No client context — treat every location as available.
+  if (!tenantId) return true;
+  if (!location.tenantId) return true;
+  return location.tenantId === tenantId;
+}
+
 /** Ideal zone for a storage class */
 export function idealZoneFor(storageClass: string): string {
   switch (storageClass) {
@@ -153,6 +176,14 @@ export function checkConstraints(
   item?: ItemMasterRecord,
 ): PutawayConstraintViolation[] {
   const violations: PutawayConstraintViolation[] = [];
+
+  // A location assigned to another client is never a valid target.
+  if (!locationAvailableToClient(location, input.tenantId)) {
+    violations.push({
+      type: "client",
+      detail: `Location is assigned to another client`,
+    });
+  }
 
   if (location.status !== "active") {
     violations.push({
@@ -381,7 +412,10 @@ export function recommendPutaway(
   } = args;
 
   const warehouseLocations = locations.filter(
-    (l) => l.warehouseId === input.warehouseId,
+    (l) =>
+      l.warehouseId === input.warehouseId &&
+      // Never recommend a location that belongs to another client.
+      locationAvailableToClient(l, input.tenantId),
   );
 
   const scored = warehouseLocations.map((l) =>
