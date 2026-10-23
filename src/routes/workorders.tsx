@@ -512,10 +512,29 @@ function WorkOrdersPage() {
                     )}
                     <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={() => {
                       const related = (pallets ?? []).filter((p: any) => p.poNumber === w.poNumber);
-                      const ids = related.map((p: any) => p.id);
+                      if (related.length === 0) { toast.error("No pallets found for this work order"); return; }
                       const win = window.open("", "_blank");
                       if (!win) return;
-                      win.document.write(`<html><body>${ids.map((id: string) => `<div style="border:1px solid #000;padding:8px;margin:4px;font-family:monospace;">${id}</div>`).join("")}</body></html>`);
+                      const labels = related.map((p: any) => {
+                        const bars = Array.from({ length: 64 }).map((_, i) => `<span style="display:inline-block;background:#000;width:${((i * 31 + p.id.charCodeAt(i % p.id.length)) % 3) + 1}px;height:100%;"></span>`).join("");
+                        return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
+                          <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;">
+                            <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">AZUX 3PL WMS Systems</span>
+                            <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">PALLET LP</span>
+                          </div>
+                          <div style="margin-top:8px;font-size:18px;font-weight:bold;letter-spacing:0.1em;">${p.id}</div>
+                          <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:11px;">
+                            <span style="color:#666;">STYLE</span><span style="text-align:right;">${p.itemStyle}</span>
+                            <span style="color:#666;">SKU</span><span style="text-align:right;">${p.sku}</span>
+                            <span style="color:#666;">QTY</span><span style="text-align:right;">${p.units}</span>
+                            <span style="color:#666;">PO</span><span style="text-align:right;">${p.poNumber}</span>
+                            <span style="color:#666;">SLOT</span><span style="text-align:right;">${p.suggestedLocation ?? p.location ?? "—"}</span>
+                          </div>
+                          <div style="margin-top:8px;display:flex;align-items:flex-end;gap:1px;overflow:hidden;height:40px;background:#111;padding:4px;">${bars}</div>
+                          <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${p.id}</div>
+                        </div>`;
+                      }).join("");
+                      win.document.write(`<html><head><style>@media print { body { margin: 0; } }</style></head><body>${labels}</body></html>`);
                       win.document.close();
                       win.print();
                     }}>
