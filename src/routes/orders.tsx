@@ -438,7 +438,7 @@ function OrdersPage() {
                     <span className="font-mono text-[10px] text-muted-foreground mr-1">
                       {tenant?.code}
                     </span>
-                    {tenant?.name.split(" ")[0]}
+                    {tenant?.name?.split(" ")[0]}
                   </TableCell>
                   <TableCell className="py-2 font-mono text-[11px]">{wh?.code}</TableCell>
                   <TableCell className="py-2">{o.shipToName}</TableCell>

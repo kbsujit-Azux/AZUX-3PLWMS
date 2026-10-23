@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   Search,
@@ -65,11 +65,11 @@ import { useEffect } from "react";
 export const Route = createFileRoute("/shipments")({
   head: () => ({
     meta: [
-      { title: "Shipments — AZUX 3PL WMS Systems" },
+      { title: "Shipments â€” AZUX 3PL WMS Systems" },
       {
         name: "description",
         content:
-          "Outbound shipments — dock door scheduling, driver check-in, 945 tender, POD capture. Each shipment ties to a systemic VICS BOL.",
+          "Outbound shipments â€” dock door scheduling, driver check-in, 945 tender, POD capture. Each shipment ties to a systemic VICS BOL.",
       },
     ],
   }),
@@ -284,18 +284,18 @@ function ShipmentsPage() {
           cod: 0,
           declaredValue: tenderShipment.declaredValue,
           shipper: {
-            name: `AZUX 3PL · ${warehouses.find((w) => w.id === tenderShipment.warehouseId)?.code ?? "WH"}`,
-            address1: "—",
-            city: "—",
-            state: "—",
-            zip: "—",
+            name: `AZUX 3PL Â· ${warehouses.find((w) => w.id === tenderShipment.warehouseId)?.code ?? "WH"}`,
+            address1: "â€”",
+            city: "â€”",
+            state: "â€”",
+            zip: "â€”",
           },
           consignee: {
             name: tenderShipment.shipTo,
-            address1: "—",
-            city: "—",
-            state: "—",
-            zip: "—",
+            address1: "â€”",
+            city: "â€”",
+            state: "â€”",
+            zip: "â€”",
           },
           specialInstructions: tenderAuth || "Standard tender",
           pickupDate: new Date().toISOString(),
@@ -380,7 +380,7 @@ function ShipmentsPage() {
       emit945ForBol(bol);
 
       toast.success(`${tenderShipment.id} tendered`, {
-        description: `BOL ${bol.bolNumber} · PRO ${bol.proNumber} · 945 transmitted`,
+        description: `BOL ${bol.bolNumber} Â· PRO ${bol.proNumber} Â· 945 transmitted`,
       });
 
       setTenderOpen(false);
@@ -427,7 +427,7 @@ function ShipmentsPage() {
     }
 
     setTick((t) => t + 1);
-    toast.success(`${id} — ${label}`);
+    toast.success(`${id} â€” ${label}`);
   };
 
   return (
@@ -436,7 +436,7 @@ function ShipmentsPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Shipments</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Dock-door scheduling · driver check-in · EDI 945 tender · POD capture · every shipment
+            Dock-door scheduling Â· driver check-in Â· EDI 945 tender Â· POD capture Â· every shipment
             ties to a systemic VICS BOL
           </p>
         </div>
@@ -557,7 +557,7 @@ function ShipmentsPage() {
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search shipment, BOL, PRO, trailer, driver, ship-to…"
+                placeholder="Search shipment, BOL, PRO, trailer, driver, ship-toâ€¦"
                 className="h-8 pl-8 text-xs"
               />
             </div>
@@ -573,11 +573,11 @@ function ShipmentsPage() {
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="text-[10px] uppercase tracking-wider">Shipment</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">BOL · PRO</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">BOL Â· PRO</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Client</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">WH · Door</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">WH Â· Door</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">
-                    Carrier · Mode
+                    Carrier Â· Mode
                   </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Ship-to</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Appt</TableHead>
@@ -623,14 +623,14 @@ function ShipmentsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="py-2 font-mono text-[11px]">
-                        <div>{s.bolId || "—"}</div>
+                        <div>{s.bolId || "â€”"}</div>
                         <div className="text-[10px] text-muted-foreground">{s.proNumber}</div>
                       </TableCell>
                       <TableCell className="py-2">
                         <span className="font-mono text-[10px] text-muted-foreground mr-1">
                           {tenant?.code}
                         </span>
-                        {tenant?.name.split(" ")[0]}
+                        {tenant?.name?.split(" ")[0]}
                       </TableCell>
                       <TableCell className="py-2 font-mono text-[11px]">
                         <div>{wh?.code}</div>
@@ -686,7 +686,7 @@ function ShipmentsPage() {
                               className="h-7 text-[11px] gap-1.5"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                doTransition(s.id, "loading", "driver checked in — loading");
+                                doTransition(s.id, "loading", "driver checked in â€” loading");
                               }}
                             >
                               <PlayCircle className="h-3 w-3" /> Check-in
@@ -756,8 +756,8 @@ function ShipmentsPage() {
                   </span>
                 </DialogTitle>
                 <DialogDescription className="text-xs">
-                  Tied to BOL <span className="font-mono">{openShipment.bolId || "Pending"}</span> ·
-                  PRO <span className="font-mono">{openShipment.proNumber}</span> ·{" "}
+                  Tied to BOL <span className="font-mono">{openShipment.bolId || "Pending"}</span> Â·
+                  PRO <span className="font-mono">{openShipment.proNumber}</span> Â·{" "}
                   {openShipment.carrier} ({openShipment.scac})
                 </DialogDescription>
               </DialogHeader>
@@ -768,28 +768,28 @@ function ShipmentsPage() {
                 <OpsCell label="Appointment" value={fmtDateTime(openShipment.appointmentAt)} />
                 <OpsCell label="Trailer" value={openShipment.trailerNumber} mono />
                 <OpsCell label="Seal" value={openShipment.sealNumber} mono />
-                <OpsCell label="Driver" value={openShipment.driverName ?? "—"} />
-                <OpsCell label="Driver phone" value={openShipment.driverPhone ?? "—"} mono />
+                <OpsCell label="Driver" value={openShipment.driverName ?? "â€”"} />
+                <OpsCell label="Driver phone" value={openShipment.driverPhone ?? "â€”"} mono />
                 <OpsCell
                   label="Check-in"
-                  value={openShipment.checkInAt ? fmtDateTime(openShipment.checkInAt) : "—"}
+                  value={openShipment.checkInAt ? fmtDateTime(openShipment.checkInAt) : "â€”"}
                 />
                 <OpsCell
                   label="Departed"
-                  value={openShipment.departedAt ? fmtDateTime(openShipment.departedAt) : "—"}
+                  value={openShipment.departedAt ? fmtDateTime(openShipment.departedAt) : "â€”"}
                 />
                 <OpsCell
                   label="Delivered"
-                  value={openShipment.deliveredAt ? fmtDateTime(openShipment.deliveredAt) : "—"}
+                  value={openShipment.deliveredAt ? fmtDateTime(openShipment.deliveredAt) : "â€”"}
                 />
-                <OpsCell label="POD signed by" value={openShipment.podSignedBy ?? "—"} />
+                <OpsCell label="POD signed by" value={openShipment.podSignedBy ?? "â€”"} />
                 <OpsCell
                   label="Pallets / Cartons"
-                  value={`${openShipment.pallets} PLT · ${openShipment.cartons} CTN`}
+                  value={`${openShipment.pallets} PLT Â· ${openShipment.cartons} CTN`}
                 />
                 <OpsCell
-                  label="Weight · Value"
-                  value={`${openShipment.weightLbs.toLocaleString()} lb · $${openShipment.declaredValue.toLocaleString()}`}
+                  label="Weight Â· Value"
+                  value={`${openShipment.weightLbs.toLocaleString()} lb Â· $${openShipment.declaredValue.toLocaleString()}`}
                 />
               </div>
 
@@ -818,7 +818,7 @@ function ShipmentsPage() {
                     label="Driver check-in"
                     disabled={openShipment.status !== "loading"}
                     onClick={() =>
-                      doTransition(openShipment.id, "loading", "driver checked in — loading")
+                      doTransition(openShipment.id, "loading", "driver checked in â€” loading")
                     }
                   />
                   <LifecycleBtn
@@ -932,7 +932,7 @@ function ShipmentsPage() {
                   <textarea
                     value={tenderAuth}
                     onChange={(e) => setTenderAuth(e.target.value)}
-                    placeholder="BOL authorization, special instructions, reference numbers…"
+                    placeholder="BOL authorization, special instructions, reference numbersâ€¦"
                     className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   />
                 </div>
@@ -1026,7 +1026,7 @@ function ShipmentsPage() {
                 });
                 setPodOpen(false);
                 setTick((t) => t + 1);
-                toast.success(`POD captured · ${openShipment.id}`, {
+                toast.success(`POD captured Â· ${openShipment.id}`, {
                   description: `Signed by ${podSigner.trim()}`,
                 });
               }}

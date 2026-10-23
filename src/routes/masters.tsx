@@ -1385,7 +1385,7 @@ function AddItemDialog({
       sku: form.sku,
       upc: form.upc ?? "",
       gtin: form.gtin ?? "",
-      itemStyle: form.itemStyle ?? form.sku.split("-")[1] ?? form.sku,
+      itemStyle: form.itemStyle ?? form?.sku?.split("-")[1] ?? form.sku,
       description: form.description,
       category: form.category ?? "Accessories",
       uom: form.uom ?? "EA",

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   FileText,
@@ -54,11 +54,11 @@ import { useEffect } from "react";
 export const Route = createFileRoute("/documents")({
   head: () => ({
     meta: [
-      { title: "Documents · BOL — AZUX 3PL WMS Systems" },
+      { title: "Documents Â· BOL â€” AZUX 3PL WMS Systems" },
       {
         name: "description",
         content:
-          "VICS Bill of Lading engine — generate single and master BOLs consolidated by destination & carrier.",
+          "VICS Bill of Lading engine â€” generate single and master BOLs consolidated by destination & carrier.",
       },
     ],
   }),
@@ -157,7 +157,7 @@ function DocumentsPage() {
     setConsolidateOpen(false);
     setPreviewing(mbol);
     toast.success(`Master BOL ${mbol.bolNumber} created`, {
-      description: `${orderIds.length} orders consolidated → ${mbol.consignee.city}, ${mbol.consignee.state}`,
+      description: `${orderIds.length} orders consolidated â†’ ${mbol.consignee.city}, ${mbol.consignee.state}`,
     });
   };
 
@@ -178,11 +178,11 @@ function DocumentsPage() {
     );
     const fired = emitted as ReturnType<typeof emit945ForBol> | null;
     if (next === "in-transit" && fired) {
-      toast.success(`EDI 945 transmitted · ${fired.id}`, {
-        description: `${fired.partner} · ISA ${fired.isaControl} · ack ${fired.ackStatus}`,
+      toast.success(`EDI 945 transmitted Â· ${fired.id}`, {
+        description: `${fired.partner} Â· ISA ${fired.isaControl} Â· ack ${fired.ackStatus}`,
       });
     } else {
-      toast.success(`BOL status → ${next}`);
+      toast.success(`BOL status â†’ ${next}`);
     }
   };
 
@@ -190,9 +190,9 @@ function DocumentsPage() {
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Documents · Bill of Lading</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Documents Â· Bill of Lading</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            VICS BOL v3.1 engine — generate single & master BOLs consolidating multiple orders by
+            VICS BOL v3.1 engine â€” generate single & master BOLs consolidating multiple orders by
             destination
           </p>
         </div>
@@ -242,7 +242,7 @@ function DocumentsPage() {
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search BOL #, PRO, consignee, order…"
+                placeholder="Search BOL #, PRO, consignee, orderâ€¦"
                 className="h-8 pl-8 text-xs"
               />
             </div>
@@ -304,7 +304,7 @@ function DocumentsPage() {
                           <Truck className="h-3 w-3 text-muted-foreground" />
                           {b.carrier}
                           <span className="text-[10px] text-muted-foreground font-mono">
-                            · {b.scac}
+                            Â· {b.scac}
                           </span>
                         </div>
                       </TableCell>
@@ -331,7 +331,7 @@ function DocumentsPage() {
                           )}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
-                          {tenant?.code} · {wh?.code}
+                          {tenant?.code} Â· {wh?.code}
                         </div>
                       </TableCell>
                       <TableCell className="py-2 text-right tabular-nums">
@@ -422,14 +422,14 @@ function DocumentsPage() {
                           <span className="font-mono text-muted-foreground mr-1">
                             {tenant?.code}
                           </span>
-                          {tenant?.name.split(" ")[0]}
-                          <span className="text-muted-foreground"> · {wh?.code}</span>
+                          {tenant?.name?.split(" ")[0]}
+                          <span className="text-muted-foreground"> Â· {wh?.code}</span>
                         </TableCell>
                         <TableCell className="py-2">{o.shipToName}</TableCell>
                         <TableCell className="py-2">
                           {o.carrier}{" "}
                           <span className="text-[10px] text-muted-foreground">
-                            · {o.serviceLevel}
+                            Â· {o.serviceLevel}
                           </span>
                         </TableCell>
                         <TableCell className="py-2 text-right tabular-nums">
@@ -542,9 +542,9 @@ function ConsolidateDialog({
                 <div className="flex items-center justify-between bg-muted/30 px-3 py-2 border-b border-border">
                   <div className="text-xs">
                     <span className="font-semibold">{g.shipToName}</span>
-                    <span className="text-muted-foreground"> · {g.carrier}</span>
+                    <span className="text-muted-foreground"> Â· {g.carrier}</span>
                     <span className="text-[10px] text-muted-foreground font-mono ml-2">
-                      {g.orderIds.length} orders · {g.totalUnits.toLocaleString()} units ·{" "}
+                      {g.orderIds.length} orders Â· {g.totalUnits.toLocaleString()} units Â·{" "}
                       {g.totalWeightLbs.toLocaleString()} lb
                     </span>
                   </div>
@@ -578,11 +578,11 @@ function ConsolidateDialog({
                         <Checkbox checked={sel.has(id)} onCheckedChange={() => toggle(g.key, id)} />
                         <span className="font-mono font-medium w-24">{id}</span>
                         <span className="font-mono text-[11px] text-muted-foreground w-28">
-                          {o?.poNumber ?? "—"}
+                          {o?.poNumber ?? "â€”"}
                         </span>
                         <span className="flex-1 truncate text-muted-foreground">
                           {Array.isArray(o?.lines)
-                            ? o.lines.map((l) => `${l.qtyOrdered}× ${l.sku}`).join(" · ")
+                            ? o.lines.map((l) => `${l.qtyOrdered}Ã— ${l.sku}`).join(" Â· ")
                             : ""}
                         </span>
                         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -627,10 +627,10 @@ function BolPreviewDialog({
       <DialogContent className="max-w-5xl p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-4 py-2.5 border-b border-border">
           <DialogTitle className="text-sm font-semibold">
-            {bol.type === "master" ? "Master BOL" : "Bill of Lading"} · {bol.bolNumber}
+            {bol.type === "master" ? "Master BOL" : "Bill of Lading"} Â· {bol.bolNumber}
           </DialogTitle>
           <DialogDescription className="text-[11px]">
-            VICS v3.1 · PRO {bol.proNumber} · {bol.carrier} {bol.scac}
+            VICS v3.1 Â· PRO {bol.proNumber} Â· {bol.carrier} {bol.scac}
           </DialogDescription>
         </DialogHeader>
         <div className="px-4 py-2 border-b border-border">

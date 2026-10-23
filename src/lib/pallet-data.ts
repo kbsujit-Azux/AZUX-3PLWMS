@@ -149,7 +149,7 @@ export function isAwaitingPutaway(pallet: {
 export function suggestPutawayLocation(itemStyle: string, warehouseId: string): string {
   // In production this consults the warehouse slotting map (velocity, weight,
   // zone affinity, cube). Deterministic mock based on style + warehouse.
-  const styleHash = itemStyle.split("").reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const styleHash = (itemStyle ?? "").split("").reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
   const zones = ["A", "B", "C", "D", "E", "F", "G"];
   const zone = zones[styleHash % zones.length];
   const aisle = ((styleHash >> 3) % 18) + 1;
@@ -275,7 +275,7 @@ function seedPallet(args: {
     status: args.status,
     location: args.status === "building" || args.status === "staged" ? null : suggested,
     suggestedLocation: suggested,
-    zone: (suggested.split("·")[1]?.[0] ?? "A") as Pallet["zone"],
+    zone: ((suggested ?? "").split("·")[1]?.[0] ?? "A") as Pallet["zone"],
     receivedAt: ts(args.builtAt),
   };
   return {
@@ -437,8 +437,8 @@ export function buildPickWave(
 
   // Re-sequence by aisle traversal (the location's aisle number)
   route.sort((a, b) => {
-    const aAisle = parseInt(a.location.split("·")[1]?.slice(1, 3) ?? "0", 10);
-    const bAisle = parseInt(b.location.split("·")[1]?.slice(1, 3) ?? "0", 10);
+    const aAisle = parseInt((a?.location ?? "").split("·")[1]?.slice(1, 3) ?? "0", 10);
+    const bAisle = parseInt((b?.location ?? "").split("·")[1]?.slice(1, 3) ?? "0", 10);
     return aAisle - bAisle;
   });
   return route.map((r, i) => ({ ...r, seq: i + 1 }));

@@ -123,13 +123,6 @@ function PalletsPage() {
     warehouses: liveWarehouses,
   } = useWmsData();
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"build" | "putaway" | "pick">("build");
   const [labelPallet, setLabelPallet] = useState<Pallet | null>(null);
@@ -167,6 +160,9 @@ function PalletsPage() {
       setSelectedWave(waveList[0].id);
     }
   }, [waveList, selectedWave]);
+
+  // Show loading spinner while Firestore data is initializing
+  const isLoading = loading;
 
   /** PO# → { container, trailer } lookup sourced from inbound ASNs. */
   const poRefs = useMemo(() => {
@@ -441,16 +437,21 @@ function PalletsPage() {
   };
 
   return (
-    <div className="px-6 py-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Palletization</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Build pallets by item style · directed putaway & picking · {strategy} routing active
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    isLoading ? (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
+      </div>
+    ) : (
+      <div className="px-6 py-6 space-y-4">
+        {/* Header */}
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Palletization</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Build pallets by item style · directed putaway & picking · {strategy} routing active
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </Button>
@@ -1056,7 +1057,7 @@ const reportData = visiblePallets.map((p) => ({
         isCreating={isCreating}
       />
     </div>
-  );
+  ));
 }
 
 function Toolbar({
