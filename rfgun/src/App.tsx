@@ -1118,7 +1118,6 @@ export default function App() {
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 p-4">
         <form onSubmit={(e: FormEvent) => { e.preventDefault(); const badgeInput = document.getElementById("rf-badge") as HTMLInputElement; const pwInput = document.getElementById("rf-password") as HTMLInputElement; if (badgeInput && pwInput) setBadgeId(badgeInput.value.trim(), pwInput.value.trim()); }} className="w-full max-w-sm space-y-6">
           <div className="text-center space-y-3">
-            <img src="/logo-placeholder.svg" alt="AZUX 3PL" className="h-14 mx-auto" />
             <h1 className="text-xl font-semibold text-white tracking-tight">RF Terminal</h1>
             <p className="text-xs text-slate-400">Enter your Badge ID and PIN to continue</p>
           </div>
@@ -1149,7 +1148,6 @@ export default function App() {
   return (
     <div className="mx-auto max-w-md md:max-w-2xl h-screen bg-slate-950 text-white flex flex-col">
       <header className="flex items-center gap-2 border-b border-slate-800 bg-slate-900 px-3 py-2 shrink-0">
-        <img src="/logo-placeholder.svg" alt="AZUX" className="h-8 w-auto" />
         <div className="flex-1 min-w-0">
           <div className="text-xs font-medium truncate">{employee.name}</div>
           <div className="text-[10px] text-slate-400 font-mono truncate">{employee.assignedWarehouseId} · {employee.badgeId}</div>
