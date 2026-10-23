@@ -113,6 +113,7 @@ function PalletsPage() {
   // Live Firestore data — the Pallet screen is bound to the same records the
   // Inbound screen writes, so a build in one is instantly visible in the other.
   const {
+    loading,
     refreshData,
     pallets: livePallets,
     pickWaves: livePickWaves,
@@ -121,6 +122,14 @@ function PalletsPage() {
     itemMaster: liveItemMaster,
     warehouses: liveWarehouses,
   } = useWmsData();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"build" | "putaway" | "pick">("build");
   const [labelPallet, setLabelPallet] = useState<Pallet | null>(null);

@@ -56,16 +56,16 @@ interface ChartTooltipProps {
 }
 
 function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
-  if (!active || !payload?.length) return null;
+  if (!active || !Array.isArray(payload) || !payload.length) return null;
   return (
     <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 shadow-md">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label ?? ""}</div>
       <div className="mt-1 space-y-0.5">
-        {payload.map((p) => (
-          <div key={p.dataKey} className="flex items-center gap-2 text-[11px] font-mono">
-            <span className="h-2 w-2 rounded-sm" style={{ background: p.color }} />
-            <span className="text-muted-foreground">{p.name}</span>
-            <span className="ml-auto tabular-nums">{p.value}</span>
+        {payload.map((p, idx) => (
+          <div key={p?.dataKey ?? idx} className="flex items-center gap-2 text-[11px] font-mono">
+            <span className="h-2 w-2 rounded-sm" style={{ background: p?.color ?? "currentColor" }} />
+            <span className="text-muted-foreground">{p?.name ?? p?.dataKey ?? "Value"}</span>
+            <span className="ml-auto tabular-nums">{p?.value ?? ""}</span>
           </div>
         ))}
       </div>
@@ -110,89 +110,103 @@ function Dashboard() {
   const isAllWh = warehouseId === "all";
 
   const filteredTenants = useMemo(
-    () => (isAll ? tenants : tenants.filter((t) => t.id === tenantId)),
+    () => {
+      const safeTenants = Array.isArray(tenants) ? tenants : [];
+      return isAll ? safeTenants : safeTenants.filter((t) => t?.id === tenantId);
+    },
     [tenants, tenantId, isAll],
   );
   const filteredWarehouses = useMemo(
-    () =>
-      isAllWh
-        ? warehouses.filter((w) => w.id !== "all")
-        : warehouses.filter((w) => w.id === warehouseId),
+    () => {
+      const safeWarehouses = Array.isArray(warehouses) ? warehouses : [];
+      return isAllWh
+        ? safeWarehouses.filter((w) => w?.id !== "all")
+        : safeWarehouses.filter((w) => w?.id === warehouseId);
+    },
     [warehouses, warehouseId, isAllWh],
   );
   const filteredInventory = useMemo(
-    () =>
-      isAll
-        ? inventoryItems
-        : inventoryItems.filter((item) => {
-            const tenantMatch = item.tenantId === tenantId;
-            const whMatch = isAllWh || item.warehouseId === warehouseId;
+    () => {
+      const safeInventory = Array.isArray(inventoryItems) ? inventoryItems : [];
+      return isAll
+        ? safeInventory
+        : safeInventory.filter((item) => {
+            const tenantMatch = item?.tenantId === tenantId;
+            const whMatch = isAllWh || item?.warehouseId === warehouseId;
             return tenantMatch && whMatch;
-          }),
+          });
+    },
     [inventoryItems, tenantId, warehouseId, isAll, isAllWh],
   );
   const filteredInbound = useMemo(
-    () =>
-      isAll
-        ? inboundShipments
-        : inboundShipments.filter((s) => {
-            const tenantMatch = s.tenantId === tenantId;
-            const whMatch = isAllWh || s.warehouseId === warehouseId;
+    () => {
+      const safeInbound = Array.isArray(inboundShipments) ? inboundShipments : [];
+      return isAll
+        ? safeInbound
+        : safeInbound.filter((s) => {
+            const tenantMatch = s?.tenantId === tenantId;
+            const whMatch = isAllWh || s?.warehouseId === warehouseId;
             return tenantMatch && whMatch;
-          }),
+          });
+    },
     [inboundShipments, tenantId, warehouseId, isAll, isAllWh],
   );
   const filteredOrders = useMemo(
-    () =>
-      isAll
-        ? orders
-        : orders.filter((o) => {
-            const tenantMatch = o.tenantId === tenantId;
-            const whMatch = isAllWh || o.warehouseId === warehouseId;
+    () => {
+      const safeOrders = Array.isArray(orders) ? orders : [];
+      return isAll
+        ? safeOrders
+        : safeOrders.filter((o) => {
+            const tenantMatch = o?.tenantId === tenantId;
+            const whMatch = isAllWh || o?.warehouseId === warehouseId;
             return tenantMatch && whMatch;
-          }),
+          });
+    },
     [orders, tenantId, warehouseId, isAll, isAllWh],
   );
   const filteredPicks = useMemo(
-    () =>
-      isAll
-        ? pickTickets
-        : pickTickets.filter((p) => {
-            const tenantMatch = p.tenantId === tenantId;
-            const whMatch = isAllWh || p.warehouseId === warehouseId;
+    () => {
+      const safePicks = Array.isArray(pickTickets) ? pickTickets : [];
+      return isAll
+        ? safePicks
+        : safePicks.filter((p) => {
+            const tenantMatch = p?.orderId?.includes(tenantId) ?? false;
+            const whMatch = isAllWh || (p?.fromLocation?.includes(warehouseId) ?? false);
             return tenantMatch && whMatch;
-          }),
+          });
+    },
     [pickTickets, tenantId, warehouseId, isAll, isAllWh],
   );
   const filteredDispatches = useMemo(
-    () =>
-      isAll
-        ? carrierDispatches
-        : carrierDispatches.filter((d) => {
-            const tenantMatch = d.tenantId === tenantId;
-            const whMatch = isAllWh || d.warehouseId === warehouseId;
+    () => {
+      const safeDispatches = Array.isArray(carrierDispatches) ? carrierDispatches : [];
+      return isAll
+        ? safeDispatches
+        : safeDispatches.filter((d) => {
+            const tenantMatch = d?.tenantId === tenantId;
+            const whMatch = isAllWh || d?.warehouseId === warehouseId;
             return tenantMatch && whMatch;
-          }),
+          });
+    },
     [carrierDispatches, tenantId, warehouseId, isAll, isAllWh],
   );
 
   const activeInbound = useMemo(
-    () => filteredInbound.filter((s) => s.status !== "received" && s.status !== "closed").length,
+    () => filteredInbound.filter((s) => s?.status !== "received").length,
     [filteredInbound],
   );
   const activeOutbound = useMemo(
     () =>
-      filteredOrders.filter((o) => ["new", "allocated", "picked", "packed"].includes(o.status))
-        .length,
+      filteredOrders.filter((o) => ["new", "allocated", "picked", "packed"].includes(o?.status ?? "")).length,
     [filteredOrders],
   );
   const totalSkus = useMemo(
-    () => new Set(filteredInventory.map((i) => i.sku)).size,
+    () => new Set(filteredInventory.map((i) => i?.sku).filter(Boolean)).size,
     [filteredInventory],
   );
   const avgUtilization = useMemo(() => {
     if (filteredWarehouses.length === 0) return 0;
-    const sum = filteredWarehouses.reduce((acc, w) => acc + (w.capacityPct || 0), 0);
+    const sum = filteredWarehouses.reduce((acc, w) => acc + (w?.capacityPct ?? 0), 0);
     return Math.round(sum / filteredWarehouses.length);
   }, [filteredWarehouses]);
 
@@ -247,6 +261,8 @@ function Dashboard() {
 
   const volumeSeries = useMemo(() => {
     const days: { day: string; inbound: number; outbound: number }[] = [];
+    const safeInbound = Array.isArray(filteredInbound) ? filteredInbound : [];
+    const safeOrders = Array.isArray(filteredOrders) ? filteredOrders : [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
@@ -254,13 +270,15 @@ function Dashboard() {
       const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
       const dayEnd = new Date(dayStart.getTime() + 86400000);
 
-      const inboundCount = filteredInbound.filter((s) => {
-        const created = new Date(s.createdAt || s.effectiveAt || 0);
+      const inboundCount = safeInbound.filter((s) => {
+        const createdAt = s?.appointmentAt ?? s?.expectedAt ?? s?.receivedAt ?? 0;
+        const created = new Date(createdAt);
         return created >= dayStart && created < dayEnd;
       }).length;
 
-      const outboundCount = filteredOrders.filter((o) => {
-        const created = new Date(o.createdAt || 0);
+      const outboundCount = safeOrders.filter((o) => {
+        const createdAt = o?.receivedAt ?? o?.entryDate ?? 0;
+        const created = new Date(createdAt);
         return created >= dayStart && created < dayEnd;
       }).length;
 
@@ -270,13 +288,14 @@ function Dashboard() {
   }, [filteredInbound, filteredOrders, now]);
 
   const carrierSeries = useMemo(() => {
+    const safeDispatches = Array.isArray(filteredDispatches) ? filteredDispatches : [];
     const byCarrier = new Map<string, { onTime: number[]; exceptions: number[] }>();
-    for (const d of filteredDispatches) {
-      const c = d.carrierName || d.carrier || "Unknown";
+    for (const d of safeDispatches) {
+      const c = d?.carrier ?? "Unknown";
       if (!byCarrier.has(c)) byCarrier.set(c, { onTime: [], exceptions: [] });
       const entry = byCarrier.get(c)!;
-      if (d.status === "delivered" || d.status === "in_transit") entry.onTime.push(1);
-      if (d.status === "exception" || d.status === "cancelled") entry.exceptions.push(1);
+      if (d?.status === "delivered" || d?.status === "in-transit") entry.onTime.push(1);
+      if (d?.status === "exception") entry.exceptions.push(1);
     }
     const result: { carrier: string; onTime: number; exceptions: number }[] = [];
     byCarrier.forEach((v, k) => {
@@ -289,10 +308,11 @@ function Dashboard() {
   }, [filteredDispatches]);
 
   const capacityBars = useMemo(() => {
-    return filteredWarehouses.map((w) => {
-      const pct = w.capacityPct ?? 0;
+    const safeWarehouses = Array.isArray(filteredWarehouses) ? filteredWarehouses : [];
+    return safeWarehouses.map((w) => {
+      const pct = w?.capacityPct ?? 0;
       const tone = pct >= 90 ? "bg-destructive" : pct >= 75 ? "bg-chart-4" : "bg-primary";
-      return { id: w.id, code: w.code, city: w.city, pct, tone };
+      return { id: w?.id ?? "", code: w?.code ?? "", city: w?.city ?? "", pct, tone };
     });
   }, [filteredWarehouses]);
 
@@ -304,7 +324,12 @@ function Dashboard() {
       message: string;
       ref: string;
     }[] = [];
-    const whCodes = new Set(filteredWarehouses.map((w) => w.code));
+    const safeWarehouses = Array.isArray(filteredWarehouses) ? filteredWarehouses : [];
+    const safeInbound = Array.isArray(filteredInbound) ? filteredInbound : [];
+    const safeOrders = Array.isArray(filteredOrders) ? filteredOrders : [];
+    const safeDispatches = Array.isArray(filteredDispatches) ? filteredDispatches : [];
+    const safeEdiLogs = Array.isArray(ediLogs) ? ediLogs : [];
+    const whCodes = new Set(safeWarehouses.map((w) => w?.code).filter(Boolean));
     const nowMs = Date.now();
 
     const addLog = (log: (typeof logs)[0]) => {
@@ -313,52 +338,52 @@ function Dashboard() {
       logs.push(log);
     };
 
-    const activeInboundList = filteredInbound.filter(
-      (s) => s.status !== "received" && s.status !== "closed",
+    const activeInboundList = safeInbound.filter(
+      (s) => s?.status !== "received",
     );
     if (activeInboundList.length > 0) {
       const s = activeInboundList[0];
       addLog({
         ts: new Date(nowMs - 300000).toLocaleTimeString("en-US", { hour12: false }),
         level: "info",
-        warehouse: s.warehouseId || warehouseId,
-        message: `Inbound ASN ${s.asnNumber || s.id} received: ${s.lines?.length || 0} lines`,
-        ref: s.id,
+        warehouse: s?.warehouseId || warehouseId,
+        message: `Inbound ASN ${s?.ediRef || s?.id} received: ${s?.lines?.length || 0} lines`,
+        ref: s?.id ?? "",
       });
     }
 
-    const recentOrders = filteredOrders
-      .filter((o) => ["picked", "packed", "shipped"].includes(o.status))
+    const recentOrders = safeOrders
+      .filter((o) => ["picked", "packed", "shipped"].includes(o?.status ?? ""))
       .slice(0, 2);
     for (const o of recentOrders) {
       addLog({
         ts: new Date(nowMs - 600000).toLocaleTimeString("en-US", { hour12: false }),
         level: "ok",
-        warehouse: o.warehouseId || warehouseId,
-        message: `Wave ${o.waveNumber || "N/A"} ${o.status} (${o.lines?.length || 0} lines)`,
-        ref: o.id,
+        warehouse: o?.warehouseId || warehouseId,
+        message: `Order ${o?.id ?? "N/A"} ${o?.status} (${o?.lines?.length || 0} lines)`,
+        ref: o?.id ?? "",
       });
     }
 
-    const exceptions = filteredDispatches.filter((d) => d.status === "exception");
+    const exceptions = safeDispatches.filter((d) => d?.status === "exception");
     for (const d of exceptions.slice(0, 2)) {
       addLog({
         ts: new Date(nowMs - 900000).toLocaleTimeString("en-US", { hour12: false }),
         level: "error",
-        warehouse: d.warehouseId || warehouseId,
-        message: `Carrier pickup missed window — ${d.carrierName || d.carrier || "Unknown"}`,
-        ref: d.id,
+        warehouse: d?.warehouseId || warehouseId,
+        message: `Carrier pickup missed window — ${d?.carrier ?? "Unknown"}`,
+        ref: d?.id ?? "",
       });
     }
 
-    const ediWarnings = ediLogs.filter((l) => l.status === "warning" || l.status === "rejected");
+    const ediWarnings = safeEdiLogs.filter((l) => l?.status === "warning" || l?.status === "rejected");
     for (const l of ediWarnings.slice(0, 2)) {
       addLog({
         ts: new Date(nowMs - 1200000).toLocaleTimeString("en-US", { hour12: false }),
         level: "warn",
-        warehouse: l.warehouseId || warehouseId,
-        message: `EDI ${l.txnType} ${l.status}: ${l.direction}`,
-        ref: l.id,
+        warehouse: l?.warehouseId || warehouseId,
+        message: `EDI ${l?.txn} ${l?.status}: ${l?.direction}`,
+        ref: l?.id ?? "",
       });
     }
 

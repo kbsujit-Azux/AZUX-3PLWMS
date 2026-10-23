@@ -91,6 +91,7 @@ export function AppSidebar() {
   const { can } = useAuth();
 
   const isActive = (url: string) => {
+    if (!pathname) return false;
     if (url === "/") return pathname === "/";
     if (pathname === url) return true;
     if (!pathname.startsWith(url + "/")) return false;
