@@ -523,6 +523,7 @@ function WorkOrdersPage() {
                             <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">PALLET LP</span>
                           </div>
                           <div style="margin-top:8px;font-size:18px;font-weight:bold;letter-spacing:0.1em;">${p.id}</div>
+                          <div class="barcode" style="margin-top:4px;text-align:center;">${p.id}</div>
                           <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:11px;">
                             <span style="color:#666;">STYLE</span><span style="text-align:right;">${p.itemStyle}</span>
                             <span style="color:#666;">SKU</span><span style="text-align:right;">${p.sku}</span>
@@ -534,9 +535,9 @@ function WorkOrdersPage() {
                           <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${p.id}</div>
                         </div>`;
                       }).join("");
-                      win.document.write(`<html><head><style>@media print { body { margin: 0; } }</style></head><body>${labels}</body></html>`);
+                      win.document.write(`<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; font-size: 48px; line-height: 1; }</style></head><body>${labels}</body></html>`);
                       win.document.close();
-                      win.print();
+                      setTimeout(() => win.print(), 500);
                     }}>
                       Print Pallets
                     </Button>
