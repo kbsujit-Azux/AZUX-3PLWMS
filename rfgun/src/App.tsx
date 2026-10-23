@@ -96,11 +96,11 @@ function useRfSession() {
 
 // ─── Data helpers ───────────────────────────────────────────────────────────
 async function fetchPallets(tenantId: string, warehouseId: string): Promise<Pallet[]> {
-  const snap = await getDocs(query(collection(db, "pallets"), where("clientId", "==", tenantId), where("warehouseId", "==", warehouseId)));
+  const snap = await getDocs(query(collection(db, "pallets"), where("tenantId", "==", tenantId), where("warehouseId", "==", warehouseId)));
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Pallet, "id">) } as Pallet));
 }
 async function fetchLocations(tenantId: string, warehouseId: string): Promise<LocationRecord[]> {
-  const snap = await getDocs(query(collection(db, "locationMaster"), where("clientId", "==", tenantId), where("warehouseId", "==", warehouseId)));
+  const snap = await getDocs(query(collection(db, "locationMaster"), where("tenantId", "==", tenantId), where("warehouseId", "==", warehouseId)));
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LocationRecord, "id">) } as LocationRecord));
 }
 async function fetchPickTickets(tenantId: string, warehouseId: string): Promise<PickTicket[]> {
@@ -108,7 +108,7 @@ async function fetchPickTickets(tenantId: string, warehouseId: string): Promise<
   return snap.docs.map((d) => ({ number: d.id, ...(d.data() as Omit<PickTicket, "number">) } as PickTicket));
 }
 async function fetchInboundShipments(tenantId: string, warehouseId: string) {
-  const snap = await getDocs(query(collection(db, "inboundShipments"), where("clientId", "==", tenantId), where("warehouseId", "==", warehouseId)));
+  const snap = await getDocs(query(collection(db, "inboundShipments"), where("tenantId", "==", tenantId), where("warehouseId", "==", warehouseId)));
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
 }
 async function fetchMovementHistory(tenantId: string, itemCode: string, limitCount = 25): Promise<MovementHistory[]> {
@@ -865,12 +865,12 @@ function InquiryScreen({ employee }: { employee: Employee }) {
         setResult("Pallet Detail");
         setDetail([`SKU: ${d.sku}`, `Units: ${d.units}`, `Status: ${d.status}`, `Location: ${d.location ?? "—"}`, `PO: ${d.poNumber ?? "—"}`]);
       } else if (mode === "location") {
-        const snap = await getDocs(query(collection(db, "pallets"), where("location", "==", id), where("clientId", "==", employee.assignedClientId)));
+        const snap = await getDocs(query(collection(db, "pallets"), where("location", "==", id), where("tenantId", "==", employee.assignedClientId)));
         const items = snap.docs.map((d) => { const data = d.data() as Record<string, unknown>; return `${d.id}: ${data.sku} (${data.units} units)`; });
         setResult(`Location: ${id} (${items.length} pallets)`);
         setDetail(items.length ? items : ["No pallets at this location"]);
       } else {
-        const snap = await getDocs(query(collection(db, "inventoryItems"), where("sku", "==", id), where("clientId", "==", employee.assignedClientId)));
+        const snap = await getDocs(query(collection(db, "inventoryItems"), where("sku", "==", id), where("tenantId", "==", employee.assignedClientId)));
         const items = snap.docs.map((d) => { const data = d.data() as Record<string, unknown>; const batches = (data.batches as any[]) || []; const total = batches.reduce((s, b) => s + (b.qty || 0), 0); return `${d.id}: ${total} units across ${batches.length} batches`; });
         setResult(`SKU: ${id} (${items.length} items)`);
         setDetail(items.length ? items : ["No inventory for this SKU"]);
