@@ -1,35 +1,10 @@
-/**
- * ============================================================
- *  MODULE INDEX — Shared UI Utilities
- * ============================================================
- *
- *  Purpose: Shared utility functions used across the WMS UI.
- *           Tailwind class merging, SSR-safe date/time formatting,
- *           and CSV/Excel export helpers.
- *
- *  Exports:
- *    • cn()                   — clsx + tailwind-merge (preferred class join)
- *    • fmtDateTime()          — "May 12, 14:20" (SSR-safe UTC)
- *    • fmtDate()              — "May 12" (SSR-safe UTC)
- *    • fmtDateYear()          — "May 12, 2026" (SSR-safe UTC)
- *    • fmtTime()              — "14:20" (SSR-safe UTC)
- *    • downloadExcel()        — CSV download with column selection
- *
- *  Extension points:
- *    - Add number/currency formatting
- *    - Add unit conversion helpers (LBS ↔ KG, IN ↔ CM)
- *    - Add barcode/SSCC validation utilities
- * ============================================================
- */
-
-import { clsx, type ClassValue } from "clsx";
+﻿import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** SSR-safe formatters (UTC, en-US) — prevent hydration mismatches. */
 const dtf = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "2-digit",
@@ -56,60 +31,53 @@ const tf = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-const toDate = (v: string | { toDate?: () => Date; seconds?: number; nanoseconds?: number }) => {
+const toDate = (v: any) => {
+  if (!v) return new Date(NaN);
   if (typeof v === "string") return new Date(v);
-  if (typeof v.toDate === "function") return v.toDate();
+  if (typeof v?.toDate === "function") return v.toDate();
   if (typeof v.seconds === "number") return new Date(v.seconds * 1000 + (v.nanoseconds || 0) / 1e6);
   return new Date(v as string);
 };
 
-export const fmtDateTime = (iso: string | { toDate?: () => Date; seconds?: number }) => {
+export const fmtDateTime = (iso: any) => {
   const d = toDate(iso);
   if (isNaN(d.getTime())) return "—";
   return dtf.format(d);
 };
-export const fmtDate = (iso: string | { toDate?: () => Date; seconds?: number }) => {
+export const fmtDate = (iso: any) => {
   const d = toDate(iso);
   if (isNaN(d.getTime())) return "—";
   return df.format(d);
 };
-export const fmtDateYear = (iso: string | { toDate?: () => Date; seconds?: number }) => {
+export const fmtDateYear = (iso: any) => {
   const d = toDate(iso);
   if (isNaN(d.getTime())) return "—";
   return dfYear.format(d);
 };
-export const fmtTime = (iso: string | { toDate?: () => Date; seconds?: number }) => {
+export const fmtTime = (iso: any) => {
   const d = toDate(iso);
   if (isNaN(d.getTime())) return "—";
   return tf.format(d);
 };
 
-export function downloadExcel<T>(
-  filename: string,
-  data: T[],
-  columns: { header: string; key: keyof T }[],
-) {
-  const csvRows = [
-    columns.map((c) => `"${c.header}"`).join(","),
-    ...data.map((row) =>
-      columns
-        .map((c) => {
-          const val = row[c.key];
-          if (val == null) return "";
-          const str = String(val);
-          return str.includes(",") || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
-        })
-        .join(","),
-    ),
-  ];
-  const csvContent = csvRows.join("\n");
-  const blob = new Blob([csvContent], { type: "application/vnd.ms-excel;charset=utf-8;" });
+export function downloadExcel(filename: string, data: any[], columns: { header: string; key: string }[]) {
+  const csv = [
+    columns.map(c => c.header).join(","),
+    ...data.map(row => columns.map(c => {
+      const val = row[c.key];
+      if (val === null || val === undefined) return "";
+      const str = String(val);
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    }).join(","))
+  ].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", filename);
-  link.style.visibility = "hidden";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
