@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Search, Container, Truck, Ship, Hash, Calendar, Check, Edit, X, AlertTriangle, ChevronRight, RefreshCw, MapPin, DoorOpen, Warehouse } from "lucide-react";
 import { toast } from "sonner";
@@ -20,7 +20,7 @@ import { useWorkspace } from "@/components/workspace-context";
 export const Route = createFileRoute("/workorders")({
   head: () => ({
     meta: [
-      { title: "Work Orders — AZUX 3PL WMS Systems" },
+      { title: "Work Orders â€” AZUX 3PL WMS Systems" },
       {
         name: "description",
         content: "Container management dashboard - track work orders from arrival to departure.",
@@ -75,7 +75,7 @@ function WorkOrdersPage() {
   const { workOrders, inboundShipments, locationMaster, warehouses, pallets } = useWmsData();
 
   /**
-   * The physical warehouses (EWR, ORD, ATL, LAX …) the container is booked
+   * The physical warehouses (EWR, ORD, ATL, LAX â€¦) the container is booked
    * into. This is the site, not a rack slot.
    */
   const warehouseOptions = useMemo(() => {
@@ -88,7 +88,7 @@ function WorkOrdersPage() {
   }, [warehouses]);
 
   /**
-   * The storage slots a work order can be assigned to — the live Location
+   * The storage slots a work order can be assigned to â€” the live Location
    * Master, narrowed to the SELECTED warehouse.
    *
    * Staging/drop locations come first because a container that has not been
@@ -326,7 +326,7 @@ function WorkOrdersPage() {
   const handleEdit = async () => {
     if (!workOrderToEdit) return;
     try {
-      // Empty strings are dropped, EXCEPT the warehouse location and door —
+      // Empty strings are dropped, EXCEPT the warehouse location and door â€”
       // clearing those is a legitimate action.
       const cleanUpdates: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(editFormData)) {
@@ -365,7 +365,7 @@ function WorkOrdersPage() {
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Work Orders · Container Management</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Work Orders Â· Container Management</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Track containers from inbound entry through departure
           </p>
@@ -429,12 +429,12 @@ function WorkOrdersPage() {
                     <KeyVal icon={Ship} label="Carrier" value={w.carrier} />
                     <KeyVal icon={Ship} label="Vessel" value={w.vessel} />
                     <KeyVal icon={Hash} label="Voyage" value={w.voyageNumber} />
-                    <KeyVal icon={Calendar} label="Arrival" value={w.arrivalDate ? new Date(w.arrivalDate).toLocaleDateString() : "—"} />
+                    <KeyVal icon={Calendar} label="Arrival" value={w.arrivalDate ? new Date(w.arrivalDate).toLocaleDateString() : "â€”"} />
                     <KeyVal label="PO" value={w.poNumber} />
                     <KeyVal
                       icon={Warehouse}
                       label="Warehouse"
-                      value={w.warehouseId ? (warehouses.find((x) => x.id === w.warehouseId)?.code ?? w.warehouseId) : "—"}
+                      value={w.warehouseId ? (warehouses.find((x) => x.id === w.warehouseId)?.code ?? w.warehouseId) : "â€”"}
                     />
                     <KeyVal
                       icon={MapPin}
@@ -487,7 +487,7 @@ function WorkOrdersPage() {
                         className="h-7 text-[10px] gap-1"
                         onClick={() => {
                           const next = statusTransitions[w.status as WorkOrderStatus]!;
-                          // Departing is an irreversible event — confirm first.
+                          // Departing is an irreversible event â€” confirm first.
                           if (next === "departed") {
                             openConfirm(w, "depart");
                             return;
@@ -805,16 +805,16 @@ function EditWorkOrderDialog({
                     setEditFormData({
                       ...editFormData,
                       warehouseId: nextWarehouse,
-                      // The slot belongs to the old warehouse — clear it.
+                      // The slot belongs to the old warehouse â€” clear it.
                       warehouseLocation: "",
                     });
                   }}
                   className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
                 >
-                  <option value="">Select warehouse…</option>
+                  <option value="">Select warehouseâ€¦</option>
                   {warehouseOptions?.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {w.code} — {w.city}
+                      {w.code} â€” {w.city}
                     </option>
                   ))}
                 </select>
@@ -832,7 +832,7 @@ function EditWorkOrderDialog({
                   <option value="">Unassigned</option>
                   {locationOptions?.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.id} — {l.zone}
+                      {l.id} â€” {l.zone}
                     </option>
                   ))}
                 </select>
