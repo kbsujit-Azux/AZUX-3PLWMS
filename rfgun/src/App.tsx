@@ -572,7 +572,8 @@ function MoveScreen({ employee }: { employee: Employee }) {
     if (busy) return; setBusy(true); setError("");
     try {
       const list = await fetchPallets(employee.assignedClientId, employee.assignedWarehouseId);
-      const found = list.find((p) => (p.location ?? "").toLowerCase() === locId.toLowerCase() && p.status !== "shipped");
+      const loc = (p.location ?? p.locationId ?? p.warehouseLocation ?? "").toLowerCase();
+const found = list.find((p) => loc === locId.toLowerCase() && p.status !== "shipped");
       if (!found) { setError(`No active pallet at ${locId}`); playChime("err"); setBusy(false); return; }
       setPallet(found); setOrigin(locId); setStep("scan-dest"); playChime("ok");
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Lookup failed"); playChime("err"); }
