@@ -510,6 +510,17 @@ function WorkOrdersPage() {
                         Close
                       </Button>
                     )}
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={() => {
+                      const related = (pallets ?? []).filter((p: any) => p.poNumber === w.poNumber);
+                      const ids = related.map((p: any) => p.id);
+                      const win = window.open("", "_blank");
+                      if (!win) return;
+                      win.document.write(`<html><body>${ids.map((id: string) => `<div style="border:1px solid #000;padding:8px;margin:4px;font-family:monospace;">${id}</div>`).join("")}</body></html>`);
+                      win.document.close();
+                      win.print();
+                    }}>
+                      Print Pallets
+                    </Button>
                     {w.status === "closed" && (<>                     <Button
                       size="sm"
                       variant="default"
