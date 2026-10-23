@@ -802,7 +802,7 @@ function ReceivingScreen({ employee }: { employee: Employee }) {
         const sku = line.sku || line.itemCode;
         const qty = received[sku] || 0;
         if (qty <= 0) continue;
-        await addDoc(collection(db, "pallets"), { sku, units: qty, status: "NEW", clientId: employee.assignedClientId, warehouseId: employee.assignedWarehouseId, poNumber: shipment.poNumber, ediSource: shipment.ediSource, createdAt: now, updatedAt: now });
+        await addDoc(collection(db, "pallets"), { sku, units: qty, status: "NEW", clientId: employee.assignedClientId, warehouseId: employee.assignedWarehouseId, poNumber: shipment.poNumber, ediSource: shipment.ediSource ?? "MANUAL", createdAt: now, updatedAt: now });
         await logMovement({ type: "DOCK_RECEIVING", itemCode: sku, toLocationId: "RECEIVING", movedQty: qty, uom: "EA", referenceId: shipment.id, badgeId: employee.badgeId, tenantId: employee.assignedClientId });
         await recordLaborEvent({
           badgeId: employee.badgeId,
