@@ -118,7 +118,7 @@ export function nextOrderId(): string {
 export const Route = createFileRoute("/orders")({
   head: () => ({
     meta: [
-      { title: "Orders â€” AZUX 3PL WMS Systems" },
+      { title: "Orders — AZUX 3PL WMS Systems" },
       {
         name: "description",
         content: "Outbound order pool driven by EDI 940 with CSV fallback ingestion.",
@@ -618,7 +618,7 @@ function OrdersPage() {
                     id: nextOrderId(),
                     poNumber: po,
                     customerOrderNumber: row["customerOrderNumber"] || "",
-                    ediRef: "â€”",
+                    ediRef: "—",
                     tenantId: row["tenantId"] || tenantId || "acme",
                     warehouseId: row["warehouseId"] || warehouseId || "atl1",
                     shipToCode: row["shipToCode"] || "",
@@ -819,7 +819,7 @@ function NewOrderDialog({
     id: "",
     poNumber: "",
     customerOrderNumber: "",
-    ediRef: "â€”",
+    ediRef: "—",
     tenantId: defaultTenantId === "all" ? "acme" : defaultTenantId,
     warehouseId: defaultWarehouseId === "all" ? "atl1" : defaultWarehouseId,
     shipToCode: "",
@@ -989,7 +989,7 @@ function NewOrderDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-6xl">
           <DialogHeader>
-            <DialogTitle className="font-mono">New Order â€” Manual Entry</DialogTitle>
+            <DialogTitle className="font-mono">New Order — Manual Entry</DialogTitle>
             <DialogDescription className="text-xs">
               Create an order manually. ID auto-generated on save.
             </DialogDescription>
@@ -1073,7 +1073,7 @@ function NewOrderDialog({
                             .filter((t) => t.id !== "all")
                             .map((t) => (
                               <SelectItem key={t.id} value={t.id} className="text-xs">
-                                {t.code} â€” {t.name}
+                                {t.code} — {t.name}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -1095,7 +1095,7 @@ function NewOrderDialog({
                             .filter((w) => w.id !== "all")
                             .map((w) => (
                               <SelectItem key={w.id} value={w.id} className="text-xs">
-                                {w.code} â€” {w.city}
+                                {w.code} — {w.city}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -1441,7 +1441,7 @@ function NewOrderDialog({
                                 <SelectContent>
                                   {filteredItemMaster.map((it) => (
                                     <SelectItem key={it.sku} value={it.sku} className="text-xs">
-                                      {it.sku} â€” {it.description}
+                                      {it.sku} — {it.description}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -1756,7 +1756,7 @@ function OrderDetailDialog({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
               <div>
                 <span className="text-muted-foreground">Customer Order #:</span>{" "}
-                <span className="font-mono ml-1">{order.customerOrderNumber || "â€”"}</span>
+                <span className="font-mono ml-1">{order.customerOrderNumber || "—"}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">Source:</span>{" "}
@@ -1814,7 +1814,7 @@ function OrderDetailDialog({
               </div>
               <div>
                 <span className="text-muted-foreground">Address 2:</span>{" "}
-                <span className="ml-1">{order.shipToAddress2 || "â€”"}</span>
+                <span className="ml-1">{order.shipToAddress2 || "—"}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">City:</span>{" "}
@@ -1838,31 +1838,31 @@ function OrderDetailDialog({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                   <div>
                     <span className="text-muted-foreground">Code:</span>{" "}
-                    <span className="font-mono ml-1">{order.billToCode || "â€”"}</span>
+                    <span className="font-mono ml-1">{order.billToCode || "—"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Name:</span>{" "}
-                    <span className="ml-1">{order.billToName || "â€”"}</span>
+                    <span className="ml-1">{order.billToName || "—"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Address 1:</span>{" "}
-                    <span className="ml-1">{order.billToAddress1 || "â€”"}</span>
+                    <span className="ml-1">{order.billToAddress1 || "—"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Address 2:</span>{" "}
-                    <span className="ml-1">{order.billToAddress2 || "â€”"}</span>
+                    <span className="ml-1">{order.billToAddress2 || "—"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">City:</span>{" "}
-                    <span className="ml-1">{order.billToCity || "â€”"}</span>
+                    <span className="ml-1">{order.billToCity || "—"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">State:</span>{" "}
-                    <span className="font-mono ml-1">{order.billToState || "â€”"}</span>
+                    <span className="font-mono ml-1">{order.billToState || "—"}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Zip:</span>{" "}
-                    <span className="font-mono ml-1">{order.billToZip || "â€”"}</span>
+                    <span className="font-mono ml-1">{order.billToZip || "—"}</span>
                   </div>
                 </div>
               </>
@@ -1959,7 +1959,7 @@ function OrderDetailDialog({
                             <SelectContent>
                               {filteredItemMaster.map((it) => (
                                 <SelectItem key={it.sku} value={it.sku} className="text-xs">
-                                  {it.sku} â€” {it.description}
+                                  {it.sku} — {it.description}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1967,7 +1967,7 @@ function OrderDetailDialog({
                         ) : (
                           <div className="flex items-center gap-1.5">
                             <span>
-                              {l.sku || <span className="text-muted-foreground">â€”</span>}
+                              {l.sku || <span className="text-muted-foreground">—</span>}
                             </span>
                             {excReason && (
                               <a
@@ -1994,7 +1994,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs"
                           />
                         ) : (
-                          l.description || <span className="text-muted-foreground">â€”</span>
+                          l.description || <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 font-mono text-[10px]">
@@ -2005,7 +2005,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs font-mono"
                           />
                         ) : (
-                          l.upc || <span className="text-muted-foreground">â€”</span>
+                          l.upc || <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 text-[10px]">
@@ -2016,7 +2016,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs"
                           />
                         ) : (
-                          l.style || <span className="text-muted-foreground">â€”</span>
+                          l.style || <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 text-[10px]">
@@ -2027,7 +2027,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs"
                           />
                         ) : (
-                          l.color || <span className="text-muted-foreground">â€”</span>
+                          l.color || <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 text-[10px]">
@@ -2038,7 +2038,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs"
                           />
                         ) : (
-                          l.size || <span className="text-muted-foreground">â€”</span>
+                          l.size || <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 text-[10px]">
@@ -2049,7 +2049,7 @@ function OrderDetailDialog({
                             className="h-7 text-xs"
                           />
                         ) : (
-                          l.dim || <span className="text-muted-foreground">â€”</span>
+                          l.dim || <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 text-right tabular-nums">

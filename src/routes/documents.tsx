@@ -54,11 +54,11 @@ import { useEffect } from "react";
 export const Route = createFileRoute("/documents")({
   head: () => ({
     meta: [
-      { title: "Documents Â· BOL â€” AZUX 3PL WMS Systems" },
+      { title: "Documents Â· BOL — AZUX 3PL WMS Systems" },
       {
         name: "description",
         content:
-          "VICS Bill of Lading engine â€” generate single and master BOLs consolidated by destination & carrier.",
+          "VICS Bill of Lading engine — generate single and master BOLs consolidated by destination & carrier.",
       },
     ],
   }),
@@ -192,7 +192,7 @@ function DocumentsPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Documents Â· Bill of Lading</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            VICS BOL v3.1 engine â€” generate single & master BOLs consolidating multiple orders by
+            VICS BOL v3.1 engine — generate single & master BOLs consolidating multiple orders by
             destination
           </p>
         </div>
@@ -578,7 +578,7 @@ function ConsolidateDialog({
                         <Checkbox checked={sel.has(id)} onCheckedChange={() => toggle(g.key, id)} />
                         <span className="font-mono font-medium w-24">{id}</span>
                         <span className="font-mono text-[11px] text-muted-foreground w-28">
-                          {o?.poNumber ?? "â€”"}
+                          {o?.poNumber ?? "—"}
                         </span>
                         <span className="flex-1 truncate text-muted-foreground">
                           {Array.isArray(o?.lines)

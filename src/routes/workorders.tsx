@@ -20,7 +20,7 @@ import { useWorkspace } from "@/components/workspace-context";
 export const Route = createFileRoute("/workorders")({
   head: () => ({
     meta: [
-      { title: "Work Orders â€” AZUX 3PL WMS Systems" },
+      { title: "Work Orders — AZUX 3PL WMS Systems" },
       {
         name: "description",
         content: "Container management dashboard - track work orders from arrival to departure.",
@@ -88,7 +88,7 @@ function WorkOrdersPage() {
   }, [warehouses]);
 
   /**
-   * The storage slots a work order can be assigned to â€” the live Location
+   * The storage slots a work order can be assigned to — the live Location
    * Master, narrowed to the SELECTED warehouse.
    *
    * Staging/drop locations come first because a container that has not been
@@ -326,7 +326,7 @@ function WorkOrdersPage() {
   const handleEdit = async () => {
     if (!workOrderToEdit) return;
     try {
-      // Empty strings are dropped, EXCEPT the warehouse location and door â€”
+      // Empty strings are dropped, EXCEPT the warehouse location and door —
       // clearing those is a legitimate action.
       const cleanUpdates: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(editFormData)) {
@@ -429,12 +429,12 @@ function WorkOrdersPage() {
                     <KeyVal icon={Ship} label="Carrier" value={w.carrier} />
                     <KeyVal icon={Ship} label="Vessel" value={w.vessel} />
                     <KeyVal icon={Hash} label="Voyage" value={w.voyageNumber} />
-                    <KeyVal icon={Calendar} label="Arrival" value={w.arrivalDate ? new Date(w.arrivalDate).toLocaleDateString() : "â€”"} />
+                    <KeyVal icon={Calendar} label="Arrival" value={w.arrivalDate ? new Date(w.arrivalDate).toLocaleDateString() : "—"} />
                     <KeyVal label="PO" value={w.poNumber} />
                     <KeyVal
                       icon={Warehouse}
                       label="Warehouse"
-                      value={w.warehouseId ? (warehouses.find((x) => x.id === w.warehouseId)?.code ?? w.warehouseId) : "â€”"}
+                      value={w.warehouseId ? (warehouses.find((x) => x.id === w.warehouseId)?.code ?? w.warehouseId) : "—"}
                     />
                     <KeyVal
                       icon={MapPin}
@@ -487,7 +487,7 @@ function WorkOrdersPage() {
                         className="h-7 text-[10px] gap-1"
                         onClick={() => {
                           const next = statusTransitions[w.status as WorkOrderStatus]!;
-                          // Departing is an irreversible event â€” confirm first.
+                          // Departing is an irreversible event — confirm first.
                           if (next === "departed") {
                             openConfirm(w, "depart");
                             return;
@@ -825,7 +825,7 @@ function EditWorkOrderDialog({
                     setEditFormData({
                       ...editFormData,
                       warehouseId: nextWarehouse,
-                      // The slot belongs to the old warehouse â€” clear it.
+                      // The slot belongs to the old warehouse — clear it.
                       warehouseLocation: "",
                     });
                   }}
@@ -834,7 +834,7 @@ function EditWorkOrderDialog({
                   <option value="">Select warehouseâ€¦</option>
                   {warehouseOptions?.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {w.code} â€” {w.city}
+                      {w.code} — {w.city}
                     </option>
                   ))}
                 </select>
@@ -852,7 +852,7 @@ function EditWorkOrderDialog({
                   <option value="">Unassigned</option>
                   {locationOptions?.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.id} â€” {l.zone}
+                      {l.id} — {l.zone}
                     </option>
                   ))}
                 </select>

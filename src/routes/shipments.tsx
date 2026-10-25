@@ -65,11 +65,11 @@ import { useEffect } from "react";
 export const Route = createFileRoute("/shipments")({
   head: () => ({
     meta: [
-      { title: "Shipments â€” AZUX 3PL WMS Systems" },
+      { title: "Shipments — AZUX 3PL WMS Systems" },
       {
         name: "description",
         content:
-          "Outbound shipments â€” dock door scheduling, driver check-in, 945 tender, POD capture. Each shipment ties to a systemic VICS BOL.",
+          "Outbound shipments — dock door scheduling, driver check-in, 945 tender, POD capture. Each shipment ties to a systemic VICS BOL.",
       },
     ],
   }),
@@ -285,17 +285,17 @@ function ShipmentsPage() {
           declaredValue: tenderShipment.declaredValue,
           shipper: {
             name: `AZUX 3PL Â· ${warehouses.find((w) => w.id === tenderShipment.warehouseId)?.code ?? "WH"}`,
-            address1: "â€”",
-            city: "â€”",
-            state: "â€”",
-            zip: "â€”",
+            address1: "—",
+            city: "—",
+            state: "—",
+            zip: "—",
           },
           consignee: {
             name: tenderShipment.shipTo,
-            address1: "â€”",
-            city: "â€”",
-            state: "â€”",
-            zip: "â€”",
+            address1: "—",
+            city: "—",
+            state: "—",
+            zip: "—",
           },
           specialInstructions: tenderAuth || "Standard tender",
           pickupDate: new Date().toISOString(),
@@ -427,7 +427,7 @@ function ShipmentsPage() {
     }
 
     setTick((t) => t + 1);
-    toast.success(`${id} â€” ${label}`);
+    toast.success(`${id} — ${label}`);
   };
 
   return (
@@ -623,7 +623,7 @@ function ShipmentsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="py-2 font-mono text-[11px]">
-                        <div>{s.bolId || "â€”"}</div>
+                        <div>{s.bolId || "—"}</div>
                         <div className="text-[10px] text-muted-foreground">{s.proNumber}</div>
                       </TableCell>
                       <TableCell className="py-2">
@@ -686,7 +686,7 @@ function ShipmentsPage() {
                               className="h-7 text-[11px] gap-1.5"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                doTransition(s.id, "loading", "driver checked in â€” loading");
+                                doTransition(s.id, "loading", "driver checked in — loading");
                               }}
                             >
                               <PlayCircle className="h-3 w-3" /> Check-in
@@ -768,21 +768,21 @@ function ShipmentsPage() {
                 <OpsCell label="Appointment" value={fmtDateTime(openShipment.appointmentAt)} />
                 <OpsCell label="Trailer" value={openShipment.trailerNumber} mono />
                 <OpsCell label="Seal" value={openShipment.sealNumber} mono />
-                <OpsCell label="Driver" value={openShipment.driverName ?? "â€”"} />
-                <OpsCell label="Driver phone" value={openShipment.driverPhone ?? "â€”"} mono />
+                <OpsCell label="Driver" value={openShipment.driverName ?? "—"} />
+                <OpsCell label="Driver phone" value={openShipment.driverPhone ?? "—"} mono />
                 <OpsCell
                   label="Check-in"
-                  value={openShipment.checkInAt ? fmtDateTime(openShipment.checkInAt) : "â€”"}
+                  value={openShipment.checkInAt ? fmtDateTime(openShipment.checkInAt) : "—"}
                 />
                 <OpsCell
                   label="Departed"
-                  value={openShipment.departedAt ? fmtDateTime(openShipment.departedAt) : "â€”"}
+                  value={openShipment.departedAt ? fmtDateTime(openShipment.departedAt) : "—"}
                 />
                 <OpsCell
                   label="Delivered"
-                  value={openShipment.deliveredAt ? fmtDateTime(openShipment.deliveredAt) : "â€”"}
+                  value={openShipment.deliveredAt ? fmtDateTime(openShipment.deliveredAt) : "—"}
                 />
-                <OpsCell label="POD signed by" value={openShipment.podSignedBy ?? "â€”"} />
+                <OpsCell label="POD signed by" value={openShipment.podSignedBy ?? "—"} />
                 <OpsCell
                   label="Pallets / Cartons"
                   value={`${openShipment.pallets} PLT Â· ${openShipment.cartons} CTN`}
@@ -818,7 +818,7 @@ function ShipmentsPage() {
                     label="Driver check-in"
                     disabled={openShipment.status !== "loading"}
                     onClick={() =>
-                      doTransition(openShipment.id, "loading", "driver checked in â€” loading")
+                      doTransition(openShipment.id, "loading", "driver checked in — loading")
                     }
                   />
                   <LifecycleBtn
