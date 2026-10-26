@@ -6,18 +6,19 @@ export interface UCC128Config {
   tenantId: string;
   companyPrefix: string;
   serialStart: number;
+  serialLastUsed: number;
   serialLength: number;
   active: boolean;
 }
 
 export const DEFAULT_UCC128_CONFIGS: Record<string, UCC128Config> = {
-  acme: { tenantId: "acme", companyPrefix: "0012345", serialStart: 100001, serialLength: 12, active: true },
-  global: { tenantId: "global", companyPrefix: "0098765", serialStart: 500001, serialLength: 12, active: true },
-  techcorp: { tenantId: "techcorp", companyPrefix: "0055555", serialStart: 200001, serialLength: 12, active: true },
-  retailco: { tenantId: "retailco", companyPrefix: "0077777", serialStart: 300001, serialLength: 12, active: true },
-  hle: { tenantId: "hle", companyPrefix: "0033333", serialStart: 400001, serialLength: 12, active: true },
-  nsap: { tenantId: "nsap", companyPrefix: "0044444", serialStart: 600001, serialLength: 12, active: true },
-  vrdn: { tenantId: "vrdn", companyPrefix: "0088888", serialStart: 700001, serialLength: 12, active: true },
+  acme: { tenantId: "acme", companyPrefix: "0012345", serialStart: 100001, serialLastUsed: 100000, serialLength: 12, active: true },
+  global: { tenantId: "global", companyPrefix: "0098765", serialStart: 500001, serialLastUsed: 500000, serialLength: 12, active: true },
+  techcorp: { tenantId: "techcorp", companyPrefix: "0055555", serialStart: 200001, serialLastUsed: 200000, serialLength: 12, active: true },
+  retailco: { tenantId: "retailco", companyPrefix: "0077777", serialStart: 300001, serialLastUsed: 300000, serialLength: 12, active: true },
+  hle: { tenantId: "hle", companyPrefix: "0033333", serialStart: 400001, serialLastUsed: 400000, serialLength: 12, active: true },
+  nsap: { tenantId: "nsap", companyPrefix: "0044444", serialStart: 600001, serialLastUsed: 600000, serialLength: 12, active: true },
+  vrdn: { tenantId: "vrdn", companyPrefix: "0088888", serialStart: 700001, serialLastUsed: 700000, serialLength: 12, active: true },
 };
 
 export function computeCheckDigit(base: string): string {
@@ -65,7 +66,7 @@ export async function generateNextUCC128(tenantId: string): Promise<string> {
     const serial = String(config.serialStart).padStart(config.serialLength, "0");
     const base = config.companyPrefix + serial;
     ucc128 = base + computeCheckDigit(base);
-    tx.update(configRef, { serialStart: config.serialStart + 1 });
+    tx.update(configRef, { serialStart: config.serialStart + 1, serialLastUsed: config.serialStart });
   });
   return ucc128;
 }

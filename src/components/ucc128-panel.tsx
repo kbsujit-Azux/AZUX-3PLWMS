@@ -6,13 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getUCC128Config, saveUCC128Config, DEFAULT_UCC128_CONFIGS, computeCheckDigit, type UCC128Config } from "@/lib/ucc128";
 import { doc, deleteDoc } from "firebase/firestore";
-import { db } from "@/lib/firestore";
+import { useWmsData } from "@/components/db-context";
 
 export function UCC128Panel() {
+  const { clients } = useWmsData();
   const [configs, setConfigs] = useState<UCC128Config[]>([]);
   const [selectedTenant, setSelectedTenant] = useState<string>("");
   const [prefix, setPrefix] = useState("");
   const [serialStart, setSerialStart] = useState("");
+  const [serialLastUsed, setSerialLastUsed] = useState("");
   const [serialLength, setSerialLength] = useState("12");
   const [saving, setSaving] = useState(false);
   const [newClientName, setNewClientName] = useState("");
@@ -36,6 +38,7 @@ export function UCC128Panel() {
     if (c) {
       setPrefix(c.companyPrefix);
       setSerialStart(String(c.serialStart));
+      setSerialLastUsed(String(c.serialLastUsed ?? c.serialStart - 1));
       setSerialLength(String(c.serialLength));
     }
   }, [selectedTenant, configs]);
@@ -48,6 +51,7 @@ export function UCC128Panel() {
         tenantId: selectedTenant,
         companyPrefix: prefix,
         serialStart: parseInt(serialStart, 10),
+        serialLastUsed: parseInt(serialLastUsed, 10),
         serialLength: parseInt(serialLength, 10),
         active: true,
       });
@@ -75,22 +79,23 @@ export function UCC128Panel() {
 
   const handleCreateClient = async () => {
     const name = newClientName.trim().toLowerCase();
-    if (!name) { toast.error("Enter a client name"); return; }
+    if (!name) { toast.error("Select a client"); return; }
     setCreating(true);
     try {
       await saveUCC128Config({
         tenantId: name,
         companyPrefix: "0000000",
         serialStart: 100001,
+        serialLastUsed: 100000,
         serialLength: 12,
         active: true,
       });
-      toast.success(`Client ${name} created`);
+      toast.success(`Client ${name} UCC config created`);
       setNewClientName("");
       await loadConfigs();
       setSelectedTenant(name);
     } catch (e) {
-      toast.error("Failed to create client");
+      toast.error("Failed to create client config");
     } finally {
       setCreating(false);
     }
@@ -112,8 +117,17 @@ export function UCC128Panel() {
       <div className="space-y-2">
         <div className="text-sm font-medium">Add New UCC128 Client</div>
         <div className="flex gap-2 max-w-md">
-          <Input className="h-8 text-xs" placeholder="New client name" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} />
-          <Button size="sm" onClick={handleCreateClient} disabled={creating}>
+          <Select value={newClientName} onValueChange={setNewClientName}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select client" />
+            </SelectTrigger>
+            <SelectContent>
+              {(clients ?? []).map((c: any) => (
+                <SelectItem key={c.id ?? c.code} value={c.id ?? c.code ?? c.name}>{c.name ?? c.code ?? c.id}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={handleCreateClient} disabled={creating || !newClientName}>
             {creating ? "Creating..." : "Add Client"}
           </Button>
         </div>
@@ -143,8 +157,12 @@ export function UCC128Panel() {
               <Input className="h-8 text-xs font-mono" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs">Serial Start</Label>
+              <Label className="text-xs">Serial Start (next to use)</Label>
               <Input className="h-8 text-xs font-mono" value={serialStart} onChange={(e) => setSerialStart(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Serial Last Used</Label>
+              <Input className="h-8 text-xs font-mono" value={serialLastUsed} onChange={(e) => setSerialLastUsed(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Serial Length</Label>
