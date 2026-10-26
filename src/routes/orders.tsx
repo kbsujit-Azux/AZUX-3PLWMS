@@ -163,7 +163,7 @@ function OrdersPage() {
   };
 
   const linesFor = (o: Order): OrderLine[] => lineOverrides[o.id] ?? o.lines;
-  const isLocked = (s: Order["status"]) => s === "shipped" || s === "exception";
+  const isLocked = (s: Order["status"]) => s === "picked" || s === "shipped" || s === "exception";
 
   const handleNewOrderSave = async (newOrder: Order) => {
     try {
@@ -1655,7 +1655,7 @@ function OrderDetailDialog({
   );
   const hasExceptions = exceptionReasons.some(Boolean);
   const orderPickTickets = allPickTickets.filter((pt) => pt.orderId === order.id);
-  const linesLocked = order.status === "new" && orderPickTickets.length === 0;
+  const linesLocked = order.status !== "new";
 
   const handleSkuChange = (idx: number, sku: string) => {
     const item = findItem(sku);
@@ -1726,15 +1726,13 @@ function OrderDetailDialog({
           {locked && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
-              This order is in <strong>{order.status}</strong> status — lines are read-only. Only{" "}
-              <em>new</em>, <em>released</em>, <em>packed</em>, or <em>exception</em> orders can be
-              edited.
+              This order is in <strong>{order.status}</strong> status — it cannot be edited.
             </div>
           )}
           {linesLocked && !locked && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
-              Lines are locked until this order is allocated or picked.
+              Lines can only be edited while the order is in <strong>new</strong> status.
             </div>
           )}
 
