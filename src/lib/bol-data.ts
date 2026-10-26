@@ -113,6 +113,7 @@ export type BillOfLading = {
   childBolIds?: string[]; // master BOL → underlying single BOL ids
   lines: BolFreightLine[];
   totals: { units: number; pallets: number; cartons: number; weightLbs: number };
+  ssccs?: string[]; // UCC128 SSCC codes for outbound pallets
 };
 
 export type Bol = BillOfLading;
@@ -486,8 +487,8 @@ export function emit945ForBol(bol: BillOfLading): EdiLog {
     ackStatus: "999",
     message:
       bol.type === "master"
-        ? `945 auto-fired — Master BOL ${bol.bolNumber} tendered to ${bol.carrier} (${bol.scac}), ${bol.childOrderIds.length} sub-shipments, PRO ${bol.proNumber}`
-        : `945 auto-fired — BOL ${bol.bolNumber} tendered to ${bol.carrier} (${bol.scac}), ${bol.totals.pallets} PLT / ${bol.totals.cartons} CTN, PRO ${bol.proNumber}`,
+        ? `945 auto-fired — Master BOL ${bol.bolNumber} tendered to ${bol.carrier} (${bol.scac}), ${bol.childOrderIds.length} sub-shipments, PRO ${bol.proNumber}, SSCCs: ${(bol.ssccs ?? []).join(", ")}`
+        : `945 auto-fired — BOL ${bol.bolNumber} tendered to ${bol.carrier} (${bol.scac}), ${bol.totals.pallets} PLT / ${bol.totals.cartons} CTN, PRO ${bol.proNumber}, SSCCs: ${(bol.ssccs ?? []).join(", ")}`,
   };
   ediLogs.unshift(log);
   return log;
