@@ -141,8 +141,18 @@ function PackingPage() {
     if (!order) return;
     const c = pruneUndefined(cartonizeOrder(order, []));
     try {
+      let ucc = "";
+      try {
+        ucc = await generateNextUCC128(order.tenantId ?? "acme");
+      } catch {
+        // seed default configs if missing
+        const { seedUCC128Configs } = await import("@/lib/ucc128");
+        await seedUCC128Configs();
+        ucc = await generateNextUCC128(order.tenantId ?? "acme");
+      }
+      c.uccId = ucc;
       await setDoc(doc(db, "cartonizations", c.id), c);
-      toast.success(`Cartonization created for ${orderId}`);
+      toast.success(`Cartonization created for ${orderId} (UCC: ${ucc})`);
       setNewCartonizationOpen(false);
     } catch (err) {
       console.error("Failed to create cartonization:", err);
@@ -181,7 +191,14 @@ function PackingPage() {
       for (const order of filteredOrders) {
         const c = pruneUndefined(cartonizeOrder(order, []));
         try {
-          const ucc = await generateNextUCC128(order.tenantId ?? "acme");
+          let ucc = "";
+          try {
+            ucc = await generateNextUCC128(order.tenantId ?? "acme");
+          } catch {
+            const { seedUCC128Configs } = await import("@/lib/ucc128");
+            await seedUCC128Configs();
+            ucc = await generateNextUCC128(order.tenantId ?? "acme");
+          }
           c.uccId = ucc;
         } catch {
           // fallback if no config
