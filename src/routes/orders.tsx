@@ -1632,6 +1632,7 @@ function OrderDetailDialog({
   const [draft, setDraft] = useState<OrderLine[]>([]);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [lineDeleteIdx, setLineDeleteIdx] = useState<number | null>(null);
+  const [headerDraft, setHeaderDraft] = useState<Record<string, string>>({});
 
   // Filter item master by tenant for this order (must be before early return)
   const filteredItemMaster = useMemo(() => {
@@ -1644,6 +1645,16 @@ function OrderDetailDialog({
     setDraft((order?.lines ?? []).map((l) => ({ ...l })));
     setEditingIdx(null);
     setLineDeleteIdx(null);
+    if (order) {
+      setHeaderDraft({
+        poNumber: order.poNumber ?? "",
+        customerOrderNumber: order.customerOrderNumber ?? "",
+        cancelDate: order.cancelDate ?? "",
+        mustShipDate: order.mustShipDate ?? "",
+        carrier: order.carrier ?? "",
+        serviceLevel: order.serviceLevel ?? "",
+      });
+    }
   }, [orderKey, order?.lines]);
 
   if (!order) return null;
@@ -1754,7 +1765,15 @@ function OrderDetailDialog({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
               <div>
                 <span className="text-muted-foreground">Customer Order #:</span>{" "}
-                <span className="font-mono ml-1">{order.customerOrderNumber || "—"}</span>
+                {!locked ? (
+                  <Input
+                    className="h-7 text-xs font-mono ml-1 inline-block w-40"
+                    value={headerDraft.customerOrderNumber ?? ""}
+                    onChange={(e) => setHeaderDraft((p) => ({ ...p, customerOrderNumber: e.target.value }))}
+                  />
+                ) : (
+                  <span className="font-mono ml-1">{order.customerOrderNumber || "—"}</span>
+                )}
               </div>
               <div>
                 <span className="text-muted-foreground">Source:</span>{" "}
@@ -1768,9 +1787,18 @@ function OrderDetailDialog({
               </div>
               <div>
                 <span className="text-muted-foreground">Cancel Date:</span>{" "}
-                <span className="font-mono ml-1">
-                  {new Date(order.cancelDate).toLocaleDateString()}
-                </span>
+                {!locked ? (
+                  <Input
+                    type="date"
+                    className="h-7 text-xs font-mono ml-1 inline-block w-36"
+                    value={headerDraft.cancelDate ?? ""}
+                    onChange={(e) => setHeaderDraft((p) => ({ ...p, cancelDate: e.target.value }))}
+                  />
+                ) : (
+                  <span className="font-mono ml-1">
+                    {new Date(order.cancelDate).toLocaleDateString()}
+                  </span>
+                )}
               </div>
               <div>
                 <span className="text-muted-foreground">Must Ship By:</span>{" "}
@@ -2235,7 +2263,7 @@ function OrderDetailDialog({
                   toast.error("Resolve Item Master exceptions before saving");
                   return;
                 }
-                await onSave({ lines: draft });
+                await onSave({ ...headerDraft, lines: draft });
                 onClose();
               }}
             >
