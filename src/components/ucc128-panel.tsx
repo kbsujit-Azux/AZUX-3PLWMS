@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,10 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getUCC128Config, saveUCC128Config, DEFAULT_UCC128_CONFIGS, computeCheckDigit, type UCC128Config } from "@/lib/ucc128";
 import { doc, deleteDoc } from "firebase/firestore";
-import { useWmsData } from "@/components/db-context";
+import { db } from "@/lib/firestore";
 
 export function UCC128Panel() {
-  const { clients } = useWmsData();
   const [configs, setConfigs] = useState<UCC128Config[]>([]);
   const [selectedTenant, setSelectedTenant] = useState<string>("");
   const [prefix, setPrefix] = useState("");
@@ -17,8 +16,6 @@ export function UCC128Panel() {
   const [serialLastUsed, setSerialLastUsed] = useState("");
   const [serialLength, setSerialLength] = useState("12");
   const [saving, setSaving] = useState(false);
-  const [newClientName, setNewClientName] = useState("");
-  const [creating, setCreating] = useState(false);
 
   const loadConfigs = async () => {
     const list: UCC128Config[] = [];
@@ -77,62 +74,18 @@ export function UCC128Panel() {
     }
   };
 
-  const handleCreateClient = async () => {
-    const name = newClientName.trim().toLowerCase();
-    if (!name) { toast.error("Select a client"); return; }
-    setCreating(true);
-    try {
-      await saveUCC128Config({
-        tenantId: name,
-        companyPrefix: "0000000",
-        serialStart: 100001,
-        serialLastUsed: 100000,
-        serialLength: 12,
-        active: true,
-      });
-      toast.success(`Client ${name} UCC config created`);
-      setNewClientName("");
-      await loadConfigs();
-      setSelectedTenant(name);
-    } catch (e) {
-      toast.error("Failed to create client config");
-    } finally {
-      setCreating(false);
-    }
-  };
-
   const preview = (() => {
     try {
       const base = prefix + String(parseInt(serialStart, 10) || 1).padStart(parseInt(serialLength, 10) || 12, "0");
       if (base.length !== 19) return "Invalid: base must be 19 chars";
       return base + computeCheckDigit(base);
     } catch {
-      return "—";
+      return "â€”";
     }
   })();
 
   return (
     <div className="space-y-6">
-      {/* Create new client */}
-      <div className="space-y-2">
-        <div className="text-sm font-medium">Add New UCC128 Client</div>
-        <div className="flex gap-2 max-w-md">
-          <Select value={newClientName} onValueChange={setNewClientName}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Select client" />
-            </SelectTrigger>
-            <SelectContent>
-              {(clients ?? []).map((c: any) => (
-                <SelectItem key={c.id ?? c.code} value={c.id ?? c.code ?? c.name}>{c.name ?? c.code ?? c.id}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" onClick={handleCreateClient} disabled={creating || !newClientName}>
-            {creating ? "Creating..." : "Add Client"}
-          </Button>
-        </div>
-      </div>
-
       {/* Existing config display + edit */}
       <div className="space-y-2">
         <div className="text-sm font-medium">UCC128 / SSCC Configuration</div>
