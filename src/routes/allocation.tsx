@@ -132,7 +132,7 @@ function AllocationPage() {
 
   const activeOrders = useMemo(() => {
     return orders.filter((o) => {
-      if (!["ALLOCATED", "PICKED", "OUTBOUND_PALLETIZED"].includes(o.status)) return false;
+      if (!["ALLOCATED", "picking", "PICKED", "OUTBOUND_PALLETIZED"].includes(o.status)) return false;
       if (tenantId !== "all" && o.tenantId !== tenantId) return false;
       if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
       if (search) {

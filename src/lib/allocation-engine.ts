@@ -257,6 +257,16 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
   }
 
   if (allocatedLines.length > 0) {
+    // Check if pick tickets already exist for this order to avoid duplicates
+    const existingTickets = pickTickets.filter((pt) => pt.orderId === order.id);
+    if (existingTickets.length > 0) {
+      // Reuse existing tickets, don't create new ones
+      pickTicketNum = existingTickets[0].pickTicketNum;
+      order.status = "ALLOCATED";
+      const orderIdx = orders.findIndex((o) => o.id === order.id);
+      if (orderIdx >= 0) orders[orderIdx] = { ...order };
+      return { success: true, pickTicketNum, allocatedLines };
+    }
     // Generate unique pick tickets - one per allocated line
     const tickets: PickTicket[] = [];
     const allocateTxns: Promise<any>[] = [];
