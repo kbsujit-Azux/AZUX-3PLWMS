@@ -48,6 +48,7 @@ export type Carton = {
 
 export type Cartonization = {
   id: string;
+  uccId?: string; // UCC128 SSCC for outbound pallet
   orderId: string;
   shipmentId?: string;
   cartons: Carton[];
