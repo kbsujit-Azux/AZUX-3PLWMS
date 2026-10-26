@@ -62,7 +62,7 @@ import {
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { cartonSizes, recommendCartonSize } from "@/lib/carton-catalog";
-import { cartonizeOrder } from "@/lib/cubing-engine";
+import { generateNextUCC128 } from "@/lib/ucc128";
 import type { Cartonization, Carton } from "@/lib/cubing-engine";
 import type { Order, OrderLine } from "@/lib/edi-data";
 import type { ItemMasterRecord } from "@/lib/master-data";
@@ -173,11 +173,19 @@ function PackingPage() {
     refreshData();
   };
 
+  const [autoSynced, setAutoSynced] = useState(false);
   const handleAutoSync = async () => {
+    if (autoSynced) return;
     if (liveCartonizations.length === 0 && filteredOrders.length > 0) {
       const results: Cartonization[] = [];
       for (const order of filteredOrders) {
         const c = pruneUndefined(cartonizeOrder(order, []));
+        try {
+          const ucc = await generateNextUCC128(order.tenantId ?? "acme");
+          c.uccId = ucc;
+        } catch {
+          // fallback if no config
+        }
         results.push(c);
       }
       if (results.length > 0) {
@@ -193,6 +201,7 @@ function PackingPage() {
         }
       }
     }
+    setAutoSynced(true);
   };
 
   useEffect(() => {
