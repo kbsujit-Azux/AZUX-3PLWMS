@@ -157,7 +157,7 @@ function PackingPage() {
       setNewCartonizationOpen(false);
     } catch (err) {
       console.error("Failed to create cartonization:", err);
-      toast.error("Failed to create cartonization");
+      toast.error(`Failed to create cartonization: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -492,7 +492,7 @@ function PackingPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Select Order</Label>
-              <Select value={selectedOrderId} onValueChange={(v) => setSelectedOrderId(v)}>
+              <Select onValueChange={(v) => setSelectedOrderId(v)}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Choose an order..." />
                 </SelectTrigger>
