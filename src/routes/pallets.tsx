@@ -565,11 +565,40 @@ const reportData = visiblePallets.map((p) => ({
 
         {/* ─── Pallet Builder ───────────────────────────────────────── */}
         <TabsContent value="build" className="mt-3 space-y-3">
-          <Toolbar
-            query={query}
-            setQuery={setQuery}
-            placeholder="Search pallet ID, SKU, style, PO, container/trailer…"
-          />
+          <div className="flex justify-end mb-2">
+            <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={() => {
+              const filtered = palletList.filter((p: any) => !query || (p.poNumber && p.poNumber.includes(query)) || (p.id && p.id.includes(query)));
+              if (filtered.length === 0) { toast.error("No pallets match"); return; }
+              const win = window.open("", "_blank");
+              if (!win) return;
+              const labels = filtered.map((p: any) => {
+                const ucc = String(p.id).replace(/\D/g, "").padStart(20, "0").slice(-20);
+                const bars = Array.from({ length: 64 }).map((_, i) => `<span style="display:inline-block;background:#000;width:${((i * 31 + ucc.charCodeAt(i % ucc.length)) % 3) + 1}px;height:100%;"></span>`).join("");
+                return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
+                  <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;">
+                    <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">AZUX 3PL WMS Systems</span>
+                    <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">UCC128 SSCC</span>
+                  </div>
+                  <div style="margin-top:8px;font-size:16px;font-weight:bold;letter-spacing:0.1em;">${ucc}</div>
+                  <div class="barcode" style="margin-top:4px;text-align:center;font-size:48px;line-height:1;">${ucc}</div>
+                  <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:11px;">
+                    <span style="color:#666;">STYLE</span><span style="text-align:right;">${p.itemStyle}</span>
+                    <span style="color:#666;">SKU</span><span style="text-align:right;">${p.sku}</span>
+                    <span style="color:#666;">QTY</span><span style="text-align:right;">${p.units}</span>
+                    <span style="color:#666;">PO</span><span style="text-align:right;">${p.poNumber}</span>
+                    <span style="color:#666;">SLOT</span><span style="text-align:right;">${p.suggestedLocation ?? p.location ?? "—"}</span>
+                  </div>
+                  <div style="margin-top:8px;display:flex;align-items:flex-end;gap:1px;overflow:hidden;height:40px;background:#111;padding:4px;">${bars}</div>
+                  <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${ucc}</div>
+                </div>`;
+              }).join("");
+              win.document.write(`<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; }</style></head><body>${labels}</body></html>`);
+              win.document.close();
+              setTimeout(() => win.print(), 500);
+            }}>
+              <Printer className="h-3.5 w-3.5" /> Print UCC128 Labels
+            </Button>
+          </div>
           <div className="rounded-md border border-border bg-card overflow-hidden">
             <Table>
               <TableHeader>
