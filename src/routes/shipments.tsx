@@ -284,7 +284,7 @@ function ShipmentsPage() {
           cod: 0,
           declaredValue: tenderShipment.declaredValue,
           shipper: {
-            name: `AZUX 3PL Â· ${warehouses.find((w) => w.id === tenderShipment.warehouseId)?.code ?? "WH"}`,
+            name: `AZUX 3PL · ${warehouses.find((w) => w.id === tenderShipment.warehouseId)?.code ?? "WH"}`,
             address1: "—",
             city: "—",
             state: "—",
@@ -380,7 +380,7 @@ function ShipmentsPage() {
       emit945ForBol(bol);
 
       toast.success(`${tenderShipment.id} tendered`, {
-        description: `BOL ${bol.bolNumber} Â· PRO ${bol.proNumber} Â· 945 transmitted`,
+        description: `BOL ${bol.bolNumber} · PRO ${bol.proNumber} · 945 transmitted`,
       });
 
       setTenderOpen(false);
@@ -436,7 +436,7 @@ function ShipmentsPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Shipments</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Dock-door scheduling Â· driver check-in Â· EDI 945 tender Â· POD capture Â· every shipment
+            Dock-door scheduling · driver check-in · EDI 945 tender · POD capture · every shipment
             ties to a systemic VICS BOL
           </p>
         </div>
@@ -557,7 +557,7 @@ function ShipmentsPage() {
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search shipment, BOL, PRO, trailer, driver, ship-toâ€¦"
+                placeholder="Search shipment, BOL, PRO, trailer, driver, ship-to…"
                 className="h-8 pl-8 text-xs"
               />
             </div>
@@ -573,11 +573,11 @@ function ShipmentsPage() {
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="text-[10px] uppercase tracking-wider">Shipment</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">BOL Â· PRO</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">BOL · PRO</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Client</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider">WH Â· Door</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider">WH · Door</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">
-                    Carrier Â· Mode
+                    Carrier · Mode
                   </TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Ship-to</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider">Appt</TableHead>
@@ -756,8 +756,8 @@ function ShipmentsPage() {
                   </span>
                 </DialogTitle>
                 <DialogDescription className="text-xs">
-                  Tied to BOL <span className="font-mono">{openShipment.bolId || "Pending"}</span> Â·
-                  PRO <span className="font-mono">{openShipment.proNumber}</span> Â·{" "}
+                  Tied to BOL <span className="font-mono">{openShipment.bolId || "Pending"}</span> ·
+                  PRO <span className="font-mono">{openShipment.proNumber}</span> ·{" "}
                   {openShipment.carrier} ({openShipment.scac})
                 </DialogDescription>
               </DialogHeader>
@@ -785,11 +785,11 @@ function ShipmentsPage() {
                 <OpsCell label="POD signed by" value={openShipment.podSignedBy ?? "—"} />
                 <OpsCell
                   label="Pallets / Cartons"
-                  value={`${openShipment.pallets} PLT Â· ${openShipment.cartons} CTN`}
+                  value={`${openShipment.pallets} PLT · ${openShipment.cartons} CTN`}
                 />
                 <OpsCell
-                  label="Weight Â· Value"
-                  value={`${openShipment.weightLbs.toLocaleString()} lb Â· $${openShipment.declaredValue.toLocaleString()}`}
+                  label="Weight · Value"
+                  value={`${openShipment.weightLbs.toLocaleString()} lb · $${openShipment.declaredValue.toLocaleString()}`}
                 />
               </div>
 
@@ -932,7 +932,7 @@ function ShipmentsPage() {
                   <textarea
                     value={tenderAuth}
                     onChange={(e) => setTenderAuth(e.target.value)}
-                    placeholder="BOL authorization, special instructions, reference numbersâ€¦"
+                    placeholder="BOL authorization, special instructions, reference numbers…"
                     className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   />
                 </div>
@@ -1026,7 +1026,7 @@ function ShipmentsPage() {
                 });
                 setPodOpen(false);
                 setTick((t) => t + 1);
-                toast.success(`POD captured Â· ${openShipment.id}`, {
+                toast.success(`POD captured · ${openShipment.id}`, {
                   description: `Signed by ${podSigner.trim()}`,
                 });
               }}

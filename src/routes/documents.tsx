@@ -54,7 +54,7 @@ import { useEffect } from "react";
 export const Route = createFileRoute("/documents")({
   head: () => ({
     meta: [
-      { title: "Documents Â· BOL — AZUX 3PL WMS Systems" },
+      { title: "Documents · BOL — AZUX 3PL WMS Systems" },
       {
         name: "description",
         content:
@@ -157,7 +157,7 @@ function DocumentsPage() {
     setConsolidateOpen(false);
     setPreviewing(mbol);
     toast.success(`Master BOL ${mbol.bolNumber} created`, {
-      description: `${orderIds.length} orders consolidated â†’ ${mbol.consignee.city}, ${mbol.consignee.state}`,
+      description: `${orderIds.length} orders consolidated → ${mbol.consignee.city}, ${mbol.consignee.state}`,
     });
   };
 
@@ -178,11 +178,11 @@ function DocumentsPage() {
     );
     const fired = emitted as ReturnType<typeof emit945ForBol> | null;
     if (next === "in-transit" && fired) {
-      toast.success(`EDI 945 transmitted Â· ${fired.id}`, {
-        description: `${fired.partner} Â· ISA ${fired.isaControl} Â· ack ${fired.ackStatus}`,
+      toast.success(`EDI 945 transmitted · ${fired.id}`, {
+        description: `${fired.partner} · ISA ${fired.isaControl} · ack ${fired.ackStatus}`,
       });
     } else {
-      toast.success(`BOL status â†’ ${next}`);
+      toast.success(`BOL status → ${next}`);
     }
   };
 
@@ -190,7 +190,7 @@ function DocumentsPage() {
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Documents Â· Bill of Lading</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Documents · Bill of Lading</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             VICS BOL v3.1 engine — generate single & master BOLs consolidating multiple orders by
             destination
@@ -242,7 +242,7 @@ function DocumentsPage() {
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search BOL #, PRO, consignee, orderâ€¦"
+                placeholder="Search BOL #, PRO, consignee, order…"
                 className="h-8 pl-8 text-xs"
               />
             </div>
@@ -304,7 +304,7 @@ function DocumentsPage() {
                           <Truck className="h-3 w-3 text-muted-foreground" />
                           {b.carrier}
                           <span className="text-[10px] text-muted-foreground font-mono">
-                            Â· {b.scac}
+                            · {b.scac}
                           </span>
                         </div>
                       </TableCell>
@@ -331,7 +331,7 @@ function DocumentsPage() {
                           )}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
-                          {tenant?.code} Â· {wh?.code}
+                          {tenant?.code} · {wh?.code}
                         </div>
                       </TableCell>
                       <TableCell className="py-2 text-right tabular-nums">
@@ -423,13 +423,13 @@ function DocumentsPage() {
                             {tenant?.code}
                           </span>
                           {tenant?.name?.split(" ")[0]}
-                          <span className="text-muted-foreground"> Â· {wh?.code}</span>
+                          <span className="text-muted-foreground"> · {wh?.code}</span>
                         </TableCell>
                         <TableCell className="py-2">{o.shipToName}</TableCell>
                         <TableCell className="py-2">
                           {o.carrier}{" "}
                           <span className="text-[10px] text-muted-foreground">
-                            Â· {o.serviceLevel}
+                            · {o.serviceLevel}
                           </span>
                         </TableCell>
                         <TableCell className="py-2 text-right tabular-nums">
@@ -542,9 +542,9 @@ function ConsolidateDialog({
                 <div className="flex items-center justify-between bg-muted/30 px-3 py-2 border-b border-border">
                   <div className="text-xs">
                     <span className="font-semibold">{g.shipToName}</span>
-                    <span className="text-muted-foreground"> Â· {g.carrier}</span>
+                    <span className="text-muted-foreground"> · {g.carrier}</span>
                     <span className="text-[10px] text-muted-foreground font-mono ml-2">
-                      {g.orderIds.length} orders Â· {g.totalUnits.toLocaleString()} units Â·{" "}
+                      {g.orderIds.length} orders · {g.totalUnits.toLocaleString()} units ·{" "}
                       {g.totalWeightLbs.toLocaleString()} lb
                     </span>
                   </div>
@@ -582,7 +582,7 @@ function ConsolidateDialog({
                         </span>
                         <span className="flex-1 truncate text-muted-foreground">
                           {Array.isArray(o?.lines)
-                            ? o.lines.map((l) => `${l.qtyOrdered}Ã— ${l.sku}`).join(" Â· ")
+                            ? o.lines.map((l) => `${l.qtyOrdered}Ã— ${l.sku}`).join(" · ")
                             : ""}
                         </span>
                         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -627,10 +627,10 @@ function BolPreviewDialog({
       <DialogContent className="max-w-5xl p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-4 py-2.5 border-b border-border">
           <DialogTitle className="text-sm font-semibold">
-            {bol.type === "master" ? "Master BOL" : "Bill of Lading"} Â· {bol.bolNumber}
+            {bol.type === "master" ? "Master BOL" : "Bill of Lading"} · {bol.bolNumber}
           </DialogTitle>
           <DialogDescription className="text-[11px]">
-            VICS v3.1 Â· PRO {bol.proNumber} Â· {bol.carrier} {bol.scac}
+            VICS v3.1 · PRO {bol.proNumber} · {bol.carrier} {bol.scac}
           </DialogDescription>
         </DialogHeader>
         <div className="px-4 py-2 border-b border-border">

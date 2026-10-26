@@ -75,7 +75,7 @@ function WorkOrdersPage() {
   const { workOrders, inboundShipments, locationMaster, warehouses, pallets } = useWmsData();
 
   /**
-   * The physical warehouses (EWR, ORD, ATL, LAX â€¦) the container is booked
+   * The physical warehouses (EWR, ORD, ATL, LAX …) the container is booked
    * into. This is the site, not a rack slot.
    */
   const warehouseOptions = useMemo(() => {
@@ -365,7 +365,7 @@ function WorkOrdersPage() {
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Work Orders Â· Container Management</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Work Orders · Container Management</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Track containers from inbound entry through departure
           </p>
@@ -831,7 +831,7 @@ function EditWorkOrderDialog({
                   }}
                   className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
                 >
-                  <option value="">Select warehouseâ€¦</option>
+                  <option value="">Select warehouse…</option>
                   {warehouseOptions?.map((w) => (
                     <option key={w.id} value={w.id}>
                       {w.code} — {w.city}

@@ -319,7 +319,7 @@ function OrdersPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Outbound Orders</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            EDI 940 pool Â· CSV fallback ingestion Â· 945 confirmations on ship
+            EDI 940 pool · CSV fallback ingestion · 945 confirmations on ship
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -371,7 +371,7 @@ function OrdersPage() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search order #, PO, EDI ref, ship-toâ€¦"
+            placeholder="Search order #, PO, EDI ref, ship-to…"
             className="h-8 pl-8 text-xs"
           />
         </div>
@@ -446,7 +446,7 @@ function OrdersPage() {
                     <div className="flex items-center gap-1">
                       <Truck className="h-3 w-3 text-muted-foreground" />
                       <span>{o.carrier}</span>
-                      <span className="text-[10px] text-muted-foreground">Â· {o.serviceLevel}</span>
+                      <span className="text-[10px] text-muted-foreground">· {o.serviceLevel}</span>
                     </div>
                   </TableCell>
                   <TableCell className="py-2 text-right tabular-nums">{lines.length}</TableCell>
@@ -1548,8 +1548,8 @@ function NewOrderDialog({
 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">
-                    {form.lines.length} line{form.lines.length === 1 ? "" : "s"} Â·{" "}
-                    {totalUnits.toLocaleString()} units Â· ${totalValue.toFixed(2)}
+                    {form.lines.length} line{form.lines.length === 1 ? "" : "s"} ·{" "}
+                    {totalUnits.toLocaleString()} units · ${totalValue.toFixed(2)}
                   </span>
                 </div>
               </TabsContent>
@@ -1718,7 +1718,7 @@ function OrderDetailDialog({
               </span>
             </DialogTitle>
             <DialogDescription className="text-xs">
-              PO {order.poNumber} Â· EDI {order.ediRef} Â· Ship to {order.shipToName} Â·{" "}
+              PO {order.poNumber} · EDI {order.ediRef} · Ship to {order.shipToName} ·{" "}
               {order.carrier} {order.serviceLevel}
             </DialogDescription>
           </DialogHeader>
