@@ -62,6 +62,7 @@ import {
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { cartonSizes, recommendCartonSize } from "@/lib/carton-catalog";
+import { cartonizeOrder } from "@/lib/cubing-engine";
 import { generateNextUCC128 } from "@/lib/ucc128";
 import type { Cartonization, Carton } from "@/lib/cubing-engine";
 import type { Order, OrderLine } from "@/lib/edi-data";
