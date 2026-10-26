@@ -11,6 +11,7 @@ import {
   Users as UsersIcon,
   Settings as SettingsIcon,
   Truck,
+  Hash,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
