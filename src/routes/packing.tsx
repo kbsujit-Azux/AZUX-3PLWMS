@@ -150,7 +150,12 @@ function PackingPage() {
         // seed default configs if missing
         const { seedUCC128Configs } = await import("@/lib/ucc128");
         await seedUCC128Configs();
-        ucc = await generateNextUCC128(order.tenantId ?? "acme");
+        try {
+          ucc = await generateNextUCC128(order.tenantId ?? "acme");
+        } catch {
+          // fallback to acme config
+          ucc = await generateNextUCC128("acme");
+        }
       }
       c.uccId = ucc;
       await setDoc(doc(db, "cartonizations", c.id), c);
@@ -199,7 +204,11 @@ function PackingPage() {
           } catch {
             const { seedUCC128Configs } = await import("@/lib/ucc128");
             await seedUCC128Configs();
-            ucc = await generateNextUCC128(order.tenantId ?? "acme");
+            try {
+              ucc = await generateNextUCC128(order.tenantId ?? "acme");
+            } catch {
+              ucc = await generateNextUCC128("acme");
+            }
           }
           c.uccId = ucc;
         } catch {
