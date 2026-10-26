@@ -8,6 +8,7 @@ import { getUCC128Config, saveUCC128Config, DEFAULT_UCC128_CONFIGS, computeCheck
 
 export function UCC128Panel() {
   const [tenantId, setTenantId] = useState("acme");
+  const [newTenant, setNewTenant] = useState("");
   const [prefix, setPrefix] = useState("");
   const [serialStart, setSerialStart] = useState("");
   const [serialLength, setSerialLength] = useState("12");
@@ -83,6 +84,12 @@ export function UCC128Panel() {
             ))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="flex gap-2">
+        <Input className="h-8 text-xs" placeholder="New client name" value={newTenant} onChange={(e) => setNewTenant(e.target.value)} />
+        <Button size="sm" variant="outline" onClick={() => { if (newTenant.trim()) { setTenantId(newTenant.trim().toLowerCase()); setNewTenant(""); } }}>
+          Add Client
+        </Button>
       </div>
       <div className="space-y-2">
         <Label className="text-xs">Company Prefix (7-10 digits)</Label>

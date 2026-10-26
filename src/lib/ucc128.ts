@@ -15,6 +15,9 @@ export const DEFAULT_UCC128_CONFIGS: Record<string, UCC128Config> = {
   global: { tenantId: "global", companyPrefix: "0098765", serialStart: 500001, serialLength: 12, active: true },
   techcorp: { tenantId: "techcorp", companyPrefix: "0055555", serialStart: 200001, serialLength: 12, active: true },
   retailco: { tenantId: "retailco", companyPrefix: "0077777", serialStart: 300001, serialLength: 12, active: true },
+  hle: { tenantId: "hle", companyPrefix: "0033333", serialStart: 400001, serialLength: 12, active: true },
+  nsap: { tenantId: "nsap", companyPrefix: "0044444", serialStart: 600001, serialLength: 12, active: true },
+  vrdn: { tenantId: "vrdn", companyPrefix: "0088888", serialStart: 700001, serialLength: 12, active: true },
 };
 
 export function computeCheckDigit(base: string): string {
