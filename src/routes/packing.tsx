@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -84,7 +84,7 @@ import { db } from "@/lib/firestore";
 export const Route = createFileRoute("/packing")({
   head: () => ({
     meta: [
-      { title: "Packing & Cartonization — AZUX 3PL WMS Systems" },
+      { title: "Packing & UCC128 — AZUX 3PL WMS Systems" },
       {
         name: "description",
         content:
@@ -203,15 +203,45 @@ function PackingPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Packing & Cartonization</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Packing & UCC128</h1>
           <p className="text-sm text-muted-foreground">
             Automated volumetric calculation to determine optimal carton sizes before picking starts.
           </p>
         </div>
-        <Button size="sm" onClick={() => setNewCartonizationOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Cartonize Order
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => {
+            const win = window.open("", "_blank");
+            if (!win) return;
+            const labels = (liveCartonizations ?? []).map((c: any) => {
+              const ucc = String(c.id ?? "").replace(/\D/g, "").padStart(20, "0").slice(-20);
+              const bars = Array.from({ length: 64 }).map((_, i) => `<span style="display:inline-block;background:#000;width:${((i * 31 + ucc.charCodeAt(i % ucc.length)) % 3) + 1}px;height:100%;"></span>`).join("");
+              return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
+                <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;">
+                  <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">AZUX 3PL WMS Systems</span>
+                  <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">UCC128 SSCC</span>
+                </div>
+                <div style="margin-top:8px;font-size:16px;font-weight:bold;letter-spacing:0.1em;">${ucc}</div>
+                <div class="barcode" style="margin-top:4px;text-align:center;font-size:48px;line-height:1;">${ucc}</div>
+                <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:11px;">
+                  <span style="color:#666;">ORDER</span><span style="text-align:right;">${c.orderId ?? "—"}</span>
+                  <span style="color:#666;">CARTONS</span><span style="text-align:right;">${c.totalCartons ?? 0}</span>
+                  <span style="color:#666;">WEIGHT</span><span style="text-align:right;">${c.totalWeight ?? 0} lb</span>
+                </div>
+                <div style="margin-top:8px;display:flex;align-items:flex-end;gap:1px;overflow:hidden;height:40px;background:#111;padding:4px;">${bars}</div>
+                <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${ucc}</div>
+              </div>`;
+            }).join("");
+            win.document.write(`<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; }</style></head><body>${labels}</body></html>`);
+            win.document.close();
+            setTimeout(() => win.print(), 500);
+          }}>
+            <Printer className="mr-2 h-4 w-4" /> Print UCC128
+          </Button>
+          <Button size="sm" onClick={() => setNewCartonizationOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Cartonize Order
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -336,7 +366,7 @@ function PackingPage() {
               {selectedCartonization?.id}
             </DialogTitle>
             <DialogDescription>
-              Order {selectedCartonization?.orderId} — {selectedCartonization?.cartons.length}{" "}
+              Order {selectedCartonization?.orderId} â€” {selectedCartonization?.cartons.length}{" "}
               carton(s)
             </DialogDescription>
           </DialogHeader>
@@ -442,7 +472,7 @@ function PackingPage() {
                 <SelectContent>
                   {filteredOrders.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
-                      {o.id} — {o.lines.length} lines
+                      {o.id} â€” {o.lines.length} lines
                     </SelectItem>
                   ))}
                 </SelectContent>
