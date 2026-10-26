@@ -1,5 +1,7 @@
+import { createFileRoute } from '@tanstack/react-router'
 import { useMemo, useState, type ReactNode } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { UCC128Panel } from "@/components/ucc128-panel";
+import { generateNextUCC128, getUCC128Config, saveUCC128Config, DEFAULT_UCC128_CONFIGS, type UCC128Config } from "@/lib/ucc128";
 import {
   Plus,
   Pencil,
@@ -132,8 +134,8 @@ function SettingsPage() {
             <TabsTrigger value="warehouses" className="gap-2">
               <WarehouseIcon className="h-3.5 w-3.5" /> Warehouses
             </TabsTrigger>
-            <TabsTrigger value="users" className="gap-2">
-              <UsersIcon className="h-3.5 w-3.5" /> Users & Roles
+            <TabsTrigger value="ucc128" className="gap-2">
+              <Hash className="h-3.5 w-3.5" /> UCC128 Config
             </TabsTrigger>
             <TabsTrigger value="carriers" className="gap-2">
               <Truck className="h-3.5 w-3.5" /> Carriers & Services
@@ -151,6 +153,9 @@ function SettingsPage() {
           </TabsContent>
           <TabsContent value="carriers">
             <CarriersPanel items={carrierServices} q={q} onSearch={setQ} />
+          </TabsContent>
+          <TabsContent value="ucc128">
+            <UCC128Panel />
           </TabsContent>
         </Tabs>
       )}
