@@ -107,6 +107,7 @@ function PackingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedCartonization, setSelectedCartonization] = useState<Cartonization | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [newCartonizationOpen, setNewCartonizationOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Cartonization | null>(null);
@@ -482,7 +483,7 @@ function PackingPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={newCartonizationOpen} onOpenChange={setNewCartonizationOpen}>
+      <Dialog open={newCartonizationOpen} onOpenChange={(o) => { setNewCartonizationOpen(o); if (!o) setSelectedOrderId(""); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cartonize Order</DialogTitle>
@@ -491,7 +492,7 @@ function PackingPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Select Order</Label>
-              <Select onValueChange={(v) => handleCartonize(v)}>
+              <Select value={selectedOrderId} onValueChange={(v) => setSelectedOrderId(v)}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Choose an order..." />
                 </SelectTrigger>
@@ -507,6 +508,9 @@ function PackingPage() {
             <DialogFooter>
               <Button variant="outline" size="sm" onClick={() => setNewCartonizationOpen(false)}>
                 Cancel
+              </Button>
+              <Button size="sm" disabled={!selectedOrderId} onClick={() => { if (selectedOrderId) handleCartonize(selectedOrderId); }}>
+                Generate UCC & Cartonize
               </Button>
             </DialogFooter>
           </div>
