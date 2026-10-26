@@ -1707,7 +1707,7 @@ function OrderDetailDialog({
   return (
     <>
       <Dialog open={!!order} onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-mono">
               {order.id}
