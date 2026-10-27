@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -82,7 +82,7 @@ import { db } from "@/lib/firestore";
 export const Route = createFileRoute("/packing")({
   head: () => ({
     meta: [
-      { title: "Packing & Cartonization — AZUX 3PL WMS Systems" },
+      { title: "Packing & Cartonization â€” AZUX 3PL WMS Systems" },
       {
         name: "description",
         content:
@@ -130,7 +130,7 @@ function PackingPage() {
     const loadCartonizations = async () => {
       setDbLoading(true);
       try {
-        const q = query(collection(db, "cartonizations"), orderBy("createdAt", "desc"));
+        const q = query(collection(db, "ucc128Records"), orderBy("createdAt", "desc"));
         unsub = onSnapshot(q, (snap) => {
           const list = snap.docs.map((d) => d.data() as Cartonization);
           setCartonizations(list);
@@ -159,7 +159,7 @@ function PackingPage() {
       (async () => {
         try {
           const batch = results.map((c) =>
-            addDoc(collection(db, "cartonizations"), pruneUndefined(c)),
+            addDoc(collection(db, "ucc128Records"), pruneUndefined(c)),
           );
           await Promise.all(batch);
           toast.success(`Synced ${results.length} cartonization(s) to Firestore`);
@@ -186,7 +186,7 @@ function PackingPage() {
     if (!order) return;
     const c = pruneUndefined(cartonizeOrder(order, []));
     try {
-      await addDoc(collection(db, "cartonizations"), c);
+      await addDoc(collection(db, "ucc128Records"), c);
       toast.success(`Cartonization created for ${orderId}`);
       setNewCartonizationOpen(false);
     } catch (err) {
@@ -203,7 +203,7 @@ function PackingPage() {
   const handleDeleteConfirm = async () => {
     if (!toDelete) return;
     try {
-      await deleteDoc(doc(db, "cartonizations", toDelete.id));
+      await deleteDoc(doc(db, "ucc128Records", toDelete.id));
       if (selectedCartonization?.id === toDelete.id) setSelectedCartonization(null);
       toast.success("Cartonization deleted");
       setDeleteOpen(false);
@@ -289,11 +289,11 @@ function PackingPage() {
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Total Cube</span>
-                  <span className="font-medium">{c.totalCubicFt.toFixed(2)} cu ft</span>
+                  <span className="font-medium">{(c.totalCubicFt ?? 0).toFixed(2)} cu ft</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Total Weight</span>
-                  <span className="font-medium">{c.totalWeightLbs.toFixed(1)} lbs</span>
+                  <span className="font-medium">{(c.totalWeightLbs ?? 0).toFixed(1)} lbs</span>
                 </div>
                 {c.recommendedCartonId && (
                   <div className="flex items-center justify-between text-xs">
@@ -351,7 +351,7 @@ function PackingPage() {
               {selectedCartonization?.id}
             </DialogTitle>
             <DialogDescription>
-              Order {selectedCartonization?.orderId} — {selectedCartonization?.cartons.length}{" "}
+              Order {selectedCartonization?.orderId} â€” {selectedCartonization?.cartons.length}{" "}
               carton(s)
             </DialogDescription>
           </DialogHeader>
@@ -364,7 +364,7 @@ function PackingPage() {
                     Total Cube
                   </p>
                   <p className="text-lg font-semibold">
-                    {selectedCartonization.totalCubicFt.toFixed(2)} cu ft
+                    {(selectedCartonization.totalCubicFt ?? 0).toFixed(2)} cu ft
                   </p>
                 </div>
                 <div className="rounded-lg border p-3 space-y-1">
@@ -372,7 +372,7 @@ function PackingPage() {
                     Total Weight
                   </p>
                   <p className="text-lg font-semibold">
-                    {selectedCartonization.totalWeightLbs.toFixed(1)} lbs
+                    {(selectedCartonization.totalWeightLbs ?? 0).toFixed(1)} lbs
                   </p>
                 </div>
                 <div className="rounded-lg border p-3 space-y-1">
@@ -418,10 +418,10 @@ function PackingPage() {
                             {carton.totalQty}
                           </TableCell>
                           <TableCell className="text-right font-mono text-xs">
-                            {carton.cubicFt.toFixed(2)}
+                            {(carton.cubicFt ?? 0).toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-xs">
-                            {carton.weightLbs.toFixed(1)}
+                            {(carton.weightLbs ?? 0).toFixed(1)}
                           </TableCell>
                           <TableCell className="text-xs">
                             {carton.items.map((i) => i.sku).join(", ")}
@@ -453,7 +453,7 @@ function PackingPage() {
                 <SelectContent>
                   {filteredOrders.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
-                      {o.id} — {o.lines.length} lines
+                      {o.id} â€” {o.lines.length} lines
                     </SelectItem>
                   ))}
                 </SelectContent>
