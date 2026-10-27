@@ -505,7 +505,7 @@ function OrdersPage() {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      {o.status === "PICKED" && (
+                      {o.status?.toUpperCase() === "PICKED" && (
                         <Button
                           size="icon"
                           variant="ghost"
@@ -513,7 +513,7 @@ function OrdersPage() {
                           disabled={uccBuiltOrders.has(o.id)}
                           onClick={async (e) => {
                             e.stopPropagation();
-                            const hasUcc = await hasUCC128Records(o.id);
+                            const hasUcc = await hasUCC128Records(o.id).catch(() => false);
                             if (hasUcc) {
                               setUccBuiltOrders((prev) => new Set(prev).add(o.id));
                               toast.error("UCC128 already built for this order. Manage from Packing & UCC128 screen.");
