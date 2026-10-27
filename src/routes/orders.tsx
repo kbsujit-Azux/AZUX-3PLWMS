@@ -505,7 +505,7 @@ function OrdersPage() {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      {o.status?.toUpperCase() === "PICKED" && (
+                      {["PICKED", "picked", "packed", "picking", "ALLOCATED"].includes(o.status) && (
                         <Button
                           size="icon"
                           variant="ghost"
@@ -533,6 +533,7 @@ function OrdersPage() {
                               setUccPlan(plan);
                               setUccOrderTarget(o);
                               setUccConfirmOpen(true);
+                              toast.info(`Preparing UCC128 confirmation for ${o.id} (${plan.length} SKUs)`);
                             } catch (err) {
                               toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
                             }
