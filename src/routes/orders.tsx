@@ -150,6 +150,9 @@ function OrdersPage() {
   const [lineOverrides, setLineOverrides] = useState<Record<string, OrderLine[]>>({});
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [uccBuiltOrders, setUccBuiltOrders] = useState<Set<string>>(new Set());
+  const [uccConfirmOpen, setUccConfirmOpen] = useState(false);
+  const [uccPlan, setUccPlan] = useState<{ sku: string; units: number; casePack: number; cartons: number }[]>([]);
+  const [uccOrderTarget, setUccOrderTarget] = useState<any>(null);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -518,9 +521,18 @@ function OrdersPage() {
                             }
                             try {
                               const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === o.id);
-                              const records = await buildUCC128ForOrder(o, pts, itemMaster);
-                              setUccBuiltOrders((prev) => new Set(prev).add(o.id));
-                              toast.success(`Built ${records.length} UCC128 labels for ${o.id}`);
+                              const plan = pts.map((pt: any) => {
+                                const item = itemMaster.find((i: any) => i.sku === pt.sku);
+                                const casePack = item ? (item.packHierarchy?.find((h: any) => h.packLevel === "inner")?.qtyPerParent || item.caseQty || item.innerPackQty || 1) : 1;
+                                const units = pt.quantityToPick ?? 0;
+                                const fullCartons = Math.floor(units / casePack);
+                                const remainder = units % casePack;
+                                const cartons = fullCartons + (remainder > 0 ? 1 : 0);
+                                return { sku: pt.sku, units, casePack, cartons };
+                              });
+                              setUccPlan(plan);
+                              setUccOrderTarget(o);
+                              setUccConfirmOpen(true);
                             } catch (err) {
                               toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
                             }
@@ -2371,6 +2383,41 @@ function OrderDetailDialog({
             >
               Delete
             </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={uccConfirmOpen} onOpenChange={setUccConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Build UCC128 Labels</AlertDialogTitle>
+            <AlertDialogDescription>
+              The following UCC128 labels will be created for {uccOrderTarget?.id}:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 text-xs">
+            {uccPlan.map((p, i) => (
+              <div key={i} className="flex items-center justify-between rounded border border-border p-2">
+                <span className="font-mono">{p.sku}</span>
+                <span>{p.units} units ÷ {p.casePack} case pack = {p.cartons} UCC{p.cartons > 1 ? "s" : ""}</span>
+              </div>
+            ))}
+            <div className="font-medium pt-2">Total UCCs: {uccPlan.reduce((s, p) => s + p.cartons, 0)}</div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setUccConfirmOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              setUccConfirmOpen(false);
+              try {
+                const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === uccOrderTarget?.id);
+                const records = await buildUCC128ForOrder(uccOrderTarget, pts, itemMaster);
+                setUccBuiltOrders((prev) => new Set(prev).add(uccOrderTarget.id));
+                toast.success(`Built ${records.length} UCC128 labels for ${uccOrderTarget.id}`);
+              } catch (err) {
+                toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+              }
+            }}>
+              Confirm & Build
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
