@@ -1,488 +1,307 @@
-﻿import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import {
-  Search,
-  RefreshCw,
-  Plus,
-  Filter,
-  Package,
-  Boxes,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  X,
-  Eye,
-  Trash2,
-  PackageSearch,
-  BarChart3,
-  ClipboardList,
-  ChevronRight,
-  Hash,
-  Printer,
-} from "lucide-react";
-import { toast } from "sonner";
+﻿import { createFileRoute } from "@tanstack/react-router";
+import { useState, useMemo, useEffect } from "react";
+import { useWmsData } from "@/components/db-context";
+import { useWorkspace } from "@/components/workspace-context";
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc, addDoc } from "firebase/firestore";
+import { db } from "@/lib/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useWorkspace } from "@/components/workspace-context";
-import { useWmsData } from "@/components/db-context";
-import { cartonSizes, recommendCartonSize } from "@/lib/carton-catalog";
-import { cartonizeOrder } from "@/lib/cubing-engine";
-import type { Cartonization, Carton } from "@/lib/cubing-engine";
-import type { Order, OrderLine } from "@/lib/edi-data";
-import type { ItemMasterRecord } from "@/lib/master-data";
-import { fmtDateTime } from "@/lib/utils";
-import {
-  collection,
-  addDoc,
-  deleteDoc,
-  doc,
-  query,
-  where,
-  onSnapshot,
-  orderBy,
-} from "firebase/firestore";
-import { db } from "@/lib/firestore";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { Plus, Trash2, Printer, RefreshCw, Search, ChevronDown, ChevronRight, Package } from "lucide-react";
+import { generateNextUCC128 } from "@/lib/ucc128";
 
 export const Route = createFileRoute("/packing")({
   head: () => ({
     meta: [
-      { title: "Packing & Cartonization â€” AZUX 3PL WMS Systems" },
-      {
-        name: "description",
-        content:
-          "Advanced containerization and cubing logic: automated volumetric calculation to dictate carton sizes.",
-      },
+      { title: "Packing & UCC128 — AZUX 3PL WMS Systems" },
+      { name: "description", content: "UCC128 outbound pallet management" },
     ],
   }),
   component: PackingPage,
 });
 
+interface UCCRecord {
+  id: string;
+  orderId: string;
+  tenantId: string;
+  warehouseId: string;
+  sku: string;
+  itemStyle: string;
+  itemDescription: string;
+  upc: string;
+  units: number;
+  cartonNumber: number;
+  totalCartons: number;
+  weightLbs: number;
+  fromAddress: string;
+  toAddress: string;
+  billToAddress: string;
+  carrier: string;
+  scac: string;
+  serviceLevel: string;
+  poNumber: string;
+  palletId: string;
+  bolNumber: string;
+  masterBolNumber: string;
+  shipDate: string;
+  ediDate: string;
+  cancelDate: string;
+  mustShipDate: string;
+  createdAt: string;
+  status: string;
+}
+
 function PackingPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const {
-    orders: liveOrders,
-    cartonizations: liveCartonizations,
-    loading,
-    refreshData,
-  } = useWmsData();
-
-  const [cartonizations, setCartonizations] = useState<Cartonization[]>([]);
+  const { orders: liveOrders, loading, refreshData } = useWmsData();
+  const [uccRecords, setUccRecords] = useState<UCCRecord[]>([]);
   const [dbLoading, setDbLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedCartonization, setSelectedCartonization] = useState<Cartonization | null>(null);
-  const [newCartonizationOpen, setNewCartonizationOpen] = useState(false);
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<UCCRecord | null>(null);
+  const [massDeleteOrder, setMassDeleteOrder] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [toDelete, setToDelete] = useState<Cartonization | null>(null);
-
-  const pruneUndefined = <T extends Record<string, unknown>>(obj: T): T => {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(obj)) {
-      if (v !== undefined) out[k] = v;
-    }
-    return out as T;
-  };
-
-  const filteredOrders = useMemo(() => {
-    if (tenantId === "all" && warehouseId === "all") return liveOrders;
-    return liveOrders.filter((o) => o.tenantId === tenantId && o.warehouseId === warehouseId);
-  }, [liveOrders, tenantId, warehouseId]);
+  const [massDeleteOpen, setMassDeleteOpen] = useState(false);
 
   useEffect(() => {
-    let unsub: (() => void) | undefined;
-
-    const loadCartonizations = async () => {
-      setDbLoading(true);
-      try {
-        const q = query(collection(db, "ucc128Records"), orderBy("createdAt", "desc"));
-        unsub = onSnapshot(q, (snap) => {
-          const list = snap.docs.map((d) => d.data() as Cartonization);
-          setCartonizations(list);
-          setDbLoading(false);
-        });
-      } catch (err) {
-        console.error("Failed to load cartonizations:", err);
-        setDbLoading(false);
-      }
-    };
-
-    loadCartonizations();
-
-    return () => {
-      if (unsub) unsub();
-    };
+    const q = query(collection(db, "ucc128Records"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(q, (snap) => {
+      const list = snap.docs.map((d) => d.data() as UCCRecord);
+      setUccRecords(list);
+      setDbLoading(false);
+    });
+    return () => unsub();
   }, []);
 
-  useEffect(() => {
-    if (!dbLoading && cartonizations.length === 0 && filteredOrders.length > 0) {
-      const results: Cartonization[] = [];
-      for (const order of filteredOrders) {
-        const c = pruneUndefined(cartonizeOrder(order, []));
-        results.push(c);
-      }
-      (async () => {
-        try {
-          const batch = results.map((c) =>
-            addDoc(collection(db, "ucc128Records"), pruneUndefined(c)),
-          );
-          await Promise.all(batch);
-          toast.success(`Synced ${results.length} cartonization(s) to Firestore`);
-        } catch (err) {
-          console.error("Failed to sync cartonizations:", err);
-          toast.error("Failed to sync cartonizations");
-        }
-      })();
+  // Group by orderId, most recent first
+  const grouped = useMemo(() => {
+    const map = new Map<string, UCCRecord[]>();
+    for (const r of uccRecords) {
+      if (!map.has(r.orderId)) map.set(r.orderId, []);
+      map.get(r.orderId)!.push(r);
     }
-  }, [dbLoading, cartonizations.length, filteredOrders]);
-
-  const filtered = useMemo(() => {
-    return cartonizations.filter((c) => {
-      const matchesQuery =
-        c.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.orderId.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-      return matchesQuery && matchesStatus;
+    // Sort orders by most recent createdAt
+    const entries = Array.from(map.entries()).sort((a, b) => {
+      const aDate = a[1][0]?.createdAt ?? "";
+      const bDate = b[1][0]?.createdAt ?? "";
+      return bDate.localeCompare(aDate);
     });
-  }, [cartonizations, searchQuery, statusFilter]);
-
-  const handleCartonize = async (orderId: string) => {
-    const order = filteredOrders.find((o) => o.id === orderId);
-    if (!order) return;
-    const c = pruneUndefined(cartonizeOrder(order, []));
-    try {
-      await addDoc(collection(db, "ucc128Records"), c);
-      toast.success(`Cartonization created for ${orderId}`);
-      setNewCartonizationOpen(false);
-    } catch (err) {
-      console.error("Failed to create cartonization:", err);
-      toast.error("Failed to create cartonization");
+    // Filter by search
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return entries.filter(([orderId]) => orderId.toLowerCase().includes(q));
     }
+    return entries;
+  }, [uccRecords, searchQuery]);
+
+  const toggleExpand = (orderId: string) => {
+    setExpandedOrders((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
   };
 
-  const handleDeleteClick = (c: Cartonization) => {
-    setToDelete(c);
-    setDeleteOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!toDelete) return;
+  const handleDelete = async (record: UCCRecord) => {
     try {
-      await deleteDoc(doc(db, "ucc128Records", toDelete.id));
-      if (selectedCartonization?.id === toDelete.id) setSelectedCartonization(null);
-      toast.success("Cartonization deleted");
+      await deleteDoc(doc(db, "ucc128Records", record.id));
+      toast.success(`UCC ${record.id} deleted`);
       setDeleteOpen(false);
-      setToDelete(null);
+      setDeleteTarget(null);
     } catch (err) {
-      console.error("Failed to delete cartonization:", err);
-      toast.error("Failed to delete cartonization");
+      toast.error("Failed to delete UCC");
     }
   };
+
+  const handleMassDelete = async (orderId: string) => {
+    try {
+      const records = uccRecords.filter((r) => r.orderId === orderId);
+      for (const r of records) {
+        await deleteDoc(doc(db, "ucc128Records", r.id));
+      }
+      toast.success(`Deleted ${records.length} UCC records for ${orderId}`);
+      setMassDeleteOpen(false);
+      setMassDeleteOrder(null);
+    } catch (err) {
+      toast.error("Failed to delete UCC records");
+    }
+  };
+
+  const handlePrintAll = (orderId: string) => {
+    const records = uccRecords.filter((r) => r.orderId === orderId);
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const labels = records.map((r) => {
+      const bars = Array.from({ length: 48 }).map((_, i) => `<span style="display:inline-block;background:#000;width:${((i * 31 + r.id.charCodeAt(i % r.id.length)) % 3) + 1}px;height:100%;"></span>`).join("");
+      return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
+        <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;">
+          <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">AZUX 3PL WMS Systems</span>
+          <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">UCC128 SSCC</span>
+        </div>
+        <div style="margin-top:8px;font-size:16px;font-weight:bold;letter-spacing:0.1em;">${r.id}</div>
+        <div class="barcode" style="margin-top:4px;text-align:center;font-size:48px;line-height:1;">${r.id}</div>
+        <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:11px;">
+          <span style="color:#666;">ORDER</span><span style="text-align:right;">${r.orderId}</span>
+          <span style="color:#666;">SKU</span><span style="text-align:right;">${r.sku}</span>
+          <span style="color:#666;">STYLE</span><span style="text-align:right;">${r.itemStyle}</span>
+          <span style="color:#666;">QTY</span><span style="text-align:right;">${r.units}</span>
+          <span style="color:#666;">CARTON</span><span style="text-align:right;">${r.cartonNumber}/${r.totalCartons}</span>
+          <span style="color:#666;">PO</span><span style="text-align:right;">${r.poNumber}</span>
+          <span style="color:#666;">SHIP TO</span><span style="text-align:right;">${r.toAddress}</span>
+        </div>
+        <div style="margin-top:8px;display:flex;align-items:flex-end;gap:1px;overflow:hidden;height:40px;background:#111;padding:4px;">${bars}</div>
+        <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${r.id}</div>
+      </div>`;
+    }).join("");
+    win.document.write(`<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; }</style></head><body>${labels}</body></html>`);
+    win.document.close();
+    setTimeout(() => win.print(), 500);
+  };
+
+  if (dbLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Packing & Cartonization</h1>
-          <p className="text-sm text-muted-foreground">
-            Automated volumetric calculation to determine optimal carton sizes before picking
-            starts.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">Packing & UCC128</h1>
+          <p className="text-sm text-muted-foreground">UCC128 outbound pallet management — grouped by order</p>
         </div>
-        <Button size="sm" onClick={() => setNewCartonizationOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Cartonize Order
-        </Button>
-      </div>
-
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex gap-2">
           <Input
-            placeholder="Search cartonizations..."
+            placeholder="Search by order #..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-8 text-xs"
+            className="w-64 h-8 text-xs"
           />
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={refreshData}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px] h-8 text-xs">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="optimized">Optimized</SelectItem>
-            <SelectItem value="confirmed">Confirmed</SelectItem>
-            <SelectItem value="printed">Printed</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={refreshData}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
       </div>
 
-      {dbLoading || loading ? (
-        <div className="text-center py-12 text-muted-foreground text-sm">
-          Loading cartonizations...
+      {grouped.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          No UCC128 records found. Build UCC128 from the Orders page for picked orders.
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((c) => (
-            <div
-              key={c.id}
-              className="rounded-lg border p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => setSelectedCartonization(c)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Hash className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-mono text-xs font-semibold">{c.id}</span>
-                </div>
-                <Badge variant="outline" className="text-[10px] h-5">
-                  {c.status}
-                </Badge>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Order</span>
-                  <span className="font-medium">{c.orderId}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Cartons</span>
-                  <span className="font-medium">{c.cartonCount}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Total Cube</span>
-                  <span className="font-medium">{(c.totalCubicFt ?? 0).toFixed(2)} cu ft</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Total Weight</span>
-                  <span className="font-medium">{(c.totalWeightLbs ?? 0).toFixed(1)} lbs</span>
-                </div>
-                {c.recommendedCartonId && (
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Recommended</span>
-                    <span className="font-medium">{c.recommendedCartonId}</span>
+      )}
+
+      <div className="space-y-3">
+        {grouped.map(([orderId, records]) => {
+          const totalUnits = records.reduce((s, r) => s + (r.units ?? 0), 0);
+          const order = liveOrders.find((o: any) => o.id === orderId);
+          const shipTo = records[0]?.toAddress ?? order?.shipToName ?? "—";
+          const uccBuildDate = records[0]?.createdAt ?? "";
+          const pickDate = order?.pickedAt ?? "—";
+          return (
+            <div key={orderId} className="rounded-md border border-border bg-card overflow-hidden">
+              <div className="flex items-center justify-between p-3 bg-muted/30">
+                <div className="flex items-center gap-4">
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => toggleExpand(orderId)}>
+                    {expandedOrders.has(orderId) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </Button>
+                  <div>
+                    <div className="font-mono font-semibold text-sm">{orderId}</div>
+                    <div className="text-xs text-muted-foreground">{shipTo}</div>
                   </div>
-                )}
-              </div>
-              <div className="flex items-center justify-between pt-2">
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 text-[10px]"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedCartonization(c);
-                    }}
-                  >
-                    <Eye className="mr-1 h-3 w-3" />
-                    View
+                </div>
+                <div className="flex items-center gap-4 text-xs">
+                  <div><span className="text-muted-foreground">Units:</span> <span className="font-medium">{totalUnits}</span></div>
+                  <div><span className="text-muted-foreground">UCCs:</span> <span className="font-medium">{records.length}</span></div>
+                  <div><span className="text-muted-foreground">Pick:</span> <span className="font-medium">{typeof pickDate === "string" ? pickDate.slice(0, 10) : "—"}</span></div>
+                  <div><span className="text-muted-foreground">UCC Built:</span> <span className="font-medium">{uccBuildDate ? new Date(uccBuildDate).toLocaleDateString() : "—"}</span></div>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => handlePrintAll(orderId)}>
+                    <Printer className="h-3 w-3" /> Print All
+                  </Button>
+                  <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" onClick={() => { setMassDeleteOrder(orderId); setMassDeleteOpen(true); }}>
+                    <Trash2 className="h-3 w-3" /> Delete All
                   </Button>
                 </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteClick(c);
-                  }}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!dbLoading && !loading && filtered.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground text-sm">
-          No cartonizations found. Cartonize an order to get started.
-        </div>
-      )}
-
-      <Dialog
-        open={!!selectedCartonization}
-        onOpenChange={(open) => !open && setSelectedCartonization(null)}
-      >
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              {selectedCartonization?.id}
-            </DialogTitle>
-            <DialogDescription>
-              Order {selectedCartonization?.orderId} â€” {selectedCartonization?.cartons.length}{" "}
-              carton(s)
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedCartonization && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="rounded-lg border p-3 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Total Cube
-                  </p>
-                  <p className="text-lg font-semibold">
-                    {(selectedCartonization.totalCubicFt ?? 0).toFixed(2)} cu ft
-                  </p>
-                </div>
-                <div className="rounded-lg border p-3 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Total Weight
-                  </p>
-                  <p className="text-lg font-semibold">
-                    {(selectedCartonization.totalWeightLbs ?? 0).toFixed(1)} lbs
-                  </p>
-                </div>
-                <div className="rounded-lg border p-3 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Cartons
-                  </p>
-                  <p className="text-lg font-semibold">{selectedCartonization.cartonCount}</p>
-                </div>
-                <div className="rounded-lg border p-3 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Status
-                  </p>
-                  <Badge variant="outline">{selectedCartonization.status}</Badge>
-                </div>
-              </div>
-
-              <h3 className="font-semibold text-sm">Cartons</h3>
-              {selectedCartonization.cartons.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No cartons defined.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-xs">Seq</TableHead>
-                        <TableHead className="text-xs">Carton ID</TableHead>
-                        <TableHead className="text-xs">Size</TableHead>
-                        <TableHead className="text-xs text-right">Qty</TableHead>
-                        <TableHead className="text-xs text-right">Cube</TableHead>
-                        <TableHead className="text-xs text-right">Weight</TableHead>
-                        <TableHead className="text-xs">Items</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedCartonization.cartons.map((carton) => (
-                        <TableRow key={carton.cartonId}>
-                          <TableCell className="text-xs">{carton.seq}</TableCell>
-                          <TableCell className="font-mono text-xs">{carton.cartonId}</TableCell>
-                          <TableCell className="text-xs">{carton.cartonName}</TableCell>
-                          <TableCell className="text-right font-mono text-xs">
-                            {carton.totalQty}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs">
-                            {(carton.cubicFt ?? 0).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs">
-                            {(carton.weightLbs ?? 0).toFixed(1)}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {carton.items.map((i) => i.sku).join(", ")}
-                          </TableCell>
-                        </TableRow>
+              {expandedOrders.has(orderId) && (
+                <div className="border-t border-border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/20">
+                      <tr>
+                        <th className="text-left p-2">UCC (SSCC)</th>
+                        <th className="text-left p-2">SKU</th>
+                        <th className="text-left p-2">Style</th>
+                        <th className="text-right p-2">Units</th>
+                        <th className="text-right p-2">Carton</th>
+                        <th className="text-left p-2">Pallet</th>
+                        <th className="text-left p-2">Status</th>
+                        <th className="text-right p-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {records.map((r) => (
+                        <tr key={r.id} className="border-t border-border/50">
+                          <td className="p-2 font-mono text-[10px]">{r.id}</td>
+                          <td className="p-2">{r.sku}</td>
+                          <td className="p-2">{r.itemStyle}</td>
+                          <td className="p-2 text-right">{r.units}</td>
+                          <td className="p-2 text-right">{r.cartonNumber}/{r.totalCartons}</td>
+                          <td className="p-2">{r.palletId || "—"}</td>
+                          <td className="p-2"><Badge variant="outline" className="text-[10px] h-5">{r.status}</Badge></td>
+                          <td className="p-2 text-right">
+                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setDeleteTarget(r); setDeleteOpen(true); }}>
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </Button>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          );
+        })}
+      </div>
 
-      <Dialog open={newCartonizationOpen} onOpenChange={setNewCartonizationOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cartonize Order</DialogTitle>
-            <DialogDescription>Select an order to generate cartonization.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Select Order</Label>
-              <Select onValueChange={(v) => handleCartonize(v)}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Choose an order..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredOrders.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.id} â€” {o.lines.length} lines
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" size="sm" onClick={() => setNewCartonizationOpen(false)}>
-                Cancel
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
-
+      {/* Delete single UCC dialog */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Cartonization</AlertDialogTitle>
+            <AlertDialogTitle>Delete UCC Record</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete cartonization {toDelete?.id}.
+              This will permanently delete UCC {deleteTarget?.id}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground"
-            >
+            <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => { if (deleteTarget) handleDelete(deleteTarget); }}>
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Mass delete dialog */}
+      <AlertDialog open={massDeleteOpen} onOpenChange={setMassDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete All UCCs for {massDeleteOrder}</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all UCC records for this order. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMassDeleteOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => { if (massDeleteOrder) handleMassDelete(massDeleteOrder); }}>
+              Delete All
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
