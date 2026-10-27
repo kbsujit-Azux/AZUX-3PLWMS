@@ -1,5 +1,6 @@
 import { collection, doc, setDoc, getDocs, query, where, deleteDoc } from "firebase/firestore";
 import { db } from "./firestore";
+import { packSizeOf } from "./pallet-build-engine";
 import { generateNextUCC128 } from "./ucc128";
 import type { UCC128Record } from "./ucc128-record";
 
@@ -13,7 +14,10 @@ export async function buildUCC128ForOrder(order: any, pickTickets: any[], itemMa
     const sku = pt.sku;
     const qtyToPick = pt.quantityToPick ?? pt.qtyToPick ?? 0;
     const item = itemMaster?.find((i: any) => i.sku === sku);
-    const casePack = item?.casePack ?? item?.case_pack ?? 24;
+    const casePack = item ? packSizeOf(item) : 1;
+    if (casePack <= 1) {
+      // No case pack info — treat each unit as its own carton
+    }
     const itemStyle = item?.itemStyle ?? item?.style ?? pt.style ?? "";
     const itemDescription = item?.description ?? pt.description ?? "";
     const upc = item?.upc ?? pt.upc ?? "";
