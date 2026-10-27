@@ -503,7 +503,44 @@ function OrdersPage() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === o.id);
+                          if (pts.length === 0) { toast.error("No pick tickets for this order"); return; }
+                          const win = window.open("", "_blank");
+                          if (!win) return;
+                          const labels = pts.map((pt: any) => {
+                            const bars = Array.from({ length: 48 }).map((_, i) => `<span style="display:inline-block;background:#000;width:${((i * 31 + String(pt.pickTicketNum).charCodeAt(i % String(pt.pickTicketNum).length)) % 3) + 1}px;height:100%;"></span>`).join("");
+                            return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
+                              <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;">
+                                <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">AZUX 3PL WMS Systems</span>
+                                <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">PICK TICKET</span>
+                              </div>
+                              <div style="margin-top:8px;font-size:16px;font-weight:bold;letter-spacing:0.1em;">#${pt.pickTicketNum}</div>
+                              <div class="barcode" style="margin-top:4px;text-align:center;font-size:48px;line-height:1;">${pt.pickTicketNum}</div>
+                              <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:11px;">
+                                <span style="color:#666;">ORDER</span><span style="text-align:right;">${o.id}</span>
+                                <span style="color:#666;">SKU</span><span style="text-align:right;">${pt.sku}</span>
+                                <span style="color:#666;">UPC</span><span style="text-align:right;">${pt.upc ?? "—"}</span>
+                                <span style="color:#666;">STYLE</span><span style="text-align:right;">${pt.style ?? "—"}</span>
+                                <span style="color:#666;">FROM LOC</span><span style="text-align:right;">${pt.fromLocation}</span>
+                                <span style="color:#666;">PALLET</span><span style="text-align:right;">${pt.palletId ?? "—"}</span>
+                                <span style="color:#666;">QTY TO PICK</span><span style="text-align:right;font-weight:bold;">${pt.quantityToPick}</span>
+                              </div>
+                              <div style="margin-top:8px;display:flex;align-items:flex-end;gap:1px;overflow:hidden;height:40px;background:#111;padding:4px;">${bars}</div>
+                              <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${pt.pickTicketNum}</div>
+                            </div>`;
+                          }).join("");
+                          win.document.write(`<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; }</style></head><body>${labels}</body></html>`);
+                          win.document.close();
+                          setTimeout(() => win.print(), 500);
+                        }}
+                        title="Print pick tickets"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
                         disabled={o.status !== "new"}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1529,10 +1566,49 @@ function NewOrderDialog({
                                     <Pencil className="h-3.5 w-3.5" />
                                   )}
                                 </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7 text-destructive hover:text-destructive"
+                      {["ALLOCATED", "picking", "PICKED", "packed"].includes(o.status) && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === o.id);
+                          if (pts.length === 0) { toast.error("No pick tickets for this order"); return; }
+                          const win = window.open("", "_blank");
+                          if (!win) return;
+                          const labels = pts.map((pt: any) => {
+                            const bars = Array.from({ length: 48 }).map((_, i) => `<span style="display:inline-block;background:#000;width:${((i * 31 + String(pt.pickTicketNum).charCodeAt(i % String(pt.pickTicketNum).length)) % 3) + 1}px;height:100%;"></span>`).join("");
+                            return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
+                              <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;">
+                                <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">AZUX 3PL WMS Systems</span>
+                                <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">PICK TICKET</span>
+                              </div>
+                              <div style="margin-top:8px;font-size:16px;font-weight:bold;letter-spacing:0.1em;">#${pt.pickTicketNum}</div>
+                              <div class="barcode" style="margin-top:4px;text-align:center;font-size:48px;line-height:1;">${pt.pickTicketNum}</div>
+                              <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:11px;">
+                                <span style="color:#666;">ORDER</span><span style="text-align:right;">${o.id}</span>
+                                <span style="color:#666;">SKU</span><span style="text-align:right;">${pt.sku}</span>
+                                <span style="color:#666;">UPC</span><span style="text-align:right;">${pt.upc ?? "—"}</span>
+                                <span style="color:#666;">STYLE</span><span style="text-align:right;">${pt.style ?? "—"}</span>
+                                <span style="color:#666;">FROM LOC</span><span style="text-align:right;">${pt.fromLocation}</span>
+                                <span style="color:#666;">PALLET</span><span style="text-align:right;">${pt.palletId ?? "—"}</span>
+                                <span style="color:#666;">QTY TO PICK</span><span style="text-align:right;font-weight:bold;">${pt.quantityToPick}</span>
+                              </div>
+                              <div style="margin-top:8px;display:flex;align-items:flex-end;gap:1px;overflow:hidden;height:40px;background:#111;padding:4px;">${bars}</div>
+                              <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${pt.pickTicketNum}</div>
+                            </div>`;
+                          }).join("");
+                          win.document.write(`<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; }</style></head><body>${labels}</body></html>`);
+                          win.document.close();
+                          setTimeout(() => win.print(), 500);
+                        }}
+                        title="Print pick tickets"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                      </Button>
+                      )}
+                      <Button
                                   onClick={() => requestDeleteLine(idx)}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
