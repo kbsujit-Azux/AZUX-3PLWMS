@@ -500,6 +500,20 @@ function OrdersPage() {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
+                      {o.status === "PICKED" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toast.info("Building UCC128 labels...");
+                          }}
+                          title="Build UCC128"
+                        >
+                          <Package className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       {["ALLOCATED", "picking", "PICKED", "packed"].includes(o.status) && (
                       <Button
                         size="icon"

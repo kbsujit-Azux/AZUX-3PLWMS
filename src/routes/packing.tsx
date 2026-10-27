@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -63,7 +63,6 @@ import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { cartonSizes, recommendCartonSize } from "@/lib/carton-catalog";
 import { cartonizeOrder } from "@/lib/cubing-engine";
-import { generateNextUCC128 } from "@/lib/ucc128";
 import type { Cartonization, Carton } from "@/lib/cubing-engine";
 import type { Order, OrderLine } from "@/lib/edi-data";
 import type { ItemMasterRecord } from "@/lib/master-data";
@@ -77,15 +76,13 @@ import {
   where,
   onSnapshot,
   orderBy,
-  setDoc,
-  getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 
 export const Route = createFileRoute("/packing")({
   head: () => ({
     meta: [
-      { title: "Packing & UCC128 — AZUX 3PL WMS Systems" },
+      { title: "Packing & Cartonization — AZUX 3PL WMS Systems" },
       {
         name: "description",
         content:
@@ -105,10 +102,11 @@ function PackingPage() {
     refreshData,
   } = useWmsData();
 
+  const [cartonizations, setCartonizations] = useState<Cartonization[]>([]);
+  const [dbLoading, setDbLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedCartonization, setSelectedCartonization] = useState<Cartonization | null>(null);
-  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [newCartonizationOpen, setNewCartonizationOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Cartonization | null>(null);
@@ -123,47 +121,77 @@ function PackingPage() {
 
   const filteredOrders = useMemo(() => {
     if (tenantId === "all" && warehouseId === "all") return liveOrders;
-    return liveOrders.filter(
-      (o) => o.tenantId === tenantId && o.warehouseId === warehouseId,
-    );
+    return liveOrders.filter((o) => o.tenantId === tenantId && o.warehouseId === warehouseId);
   }, [liveOrders, tenantId, warehouseId]);
 
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+
+    const loadCartonizations = async () => {
+      setDbLoading(true);
+      try {
+        const q = query(collection(db, "cartonizations"), orderBy("createdAt", "desc"));
+        unsub = onSnapshot(q, (snap) => {
+          const list = snap.docs.map((d) => d.data() as Cartonization);
+          setCartonizations(list);
+          setDbLoading(false);
+        });
+      } catch (err) {
+        console.error("Failed to load cartonizations:", err);
+        setDbLoading(false);
+      }
+    };
+
+    loadCartonizations();
+
+    return () => {
+      if (unsub) unsub();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!dbLoading && cartonizations.length === 0 && filteredOrders.length > 0) {
+      const results: Cartonization[] = [];
+      for (const order of filteredOrders) {
+        const c = pruneUndefined(cartonizeOrder(order, []));
+        results.push(c);
+      }
+      (async () => {
+        try {
+          const batch = results.map((c) =>
+            addDoc(collection(db, "cartonizations"), pruneUndefined(c)),
+          );
+          await Promise.all(batch);
+          toast.success(`Synced ${results.length} cartonization(s) to Firestore`);
+        } catch (err) {
+          console.error("Failed to sync cartonizations:", err);
+          toast.error("Failed to sync cartonizations");
+        }
+      })();
+    }
+  }, [dbLoading, cartonizations.length, filteredOrders]);
+
   const filtered = useMemo(() => {
-    return liveCartonizations.filter((c) => {
+    return cartonizations.filter((c) => {
       const matchesQuery =
         c.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.orderId.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === "all" || c.status === statusFilter;
       return matchesQuery && matchesStatus;
     });
-  }, [liveCartonizations, searchQuery, statusFilter]);
+  }, [cartonizations, searchQuery, statusFilter]);
 
   const handleCartonize = async (orderId: string) => {
     const order = filteredOrders.find((o) => o.id === orderId);
     if (!order) return;
     const c = pruneUndefined(cartonizeOrder(order, []));
     try {
-      let ucc = "";
-      try {
-        ucc = await generateNextUCC128(order.tenantId ?? "acme");
-      } catch {
-        // seed default configs if missing
-        const { seedUCC128Configs } = await import("@/lib/ucc128");
-        await seedUCC128Configs();
-        try {
-          ucc = await generateNextUCC128(order.tenantId ?? "acme");
-        } catch {
-          // fallback to acme config
-          ucc = await generateNextUCC128("acme");
-        }
-      }
-      c.uccId = ucc;
-      await setDoc(doc(db, "cartonizations", c.id), c);
-      toast.success(`Cartonization created for ${orderId} (UCC: ${ucc})`);
+      await addDoc(collection(db, "cartonizations"), c);
+      toast.success(`Cartonization created for ${orderId}`);
       setNewCartonizationOpen(false);
     } catch (err) {
       console.error("Failed to create cartonization:", err);
-      toast.error(`Failed to create cartonization: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error("Failed to create cartonization");
     }
   };
 
@@ -186,99 +214,20 @@ function PackingPage() {
     }
   };
 
-  const handleRefresh = () => {
-    refreshData();
-  };
-
-  const [autoSynced, setAutoSynced] = useState(false);
-  const handleAutoSync = async () => {
-    if (autoSynced) return;
-    if (liveCartonizations.length === 0 && filteredOrders.length > 0) {
-      const results: Cartonization[] = [];
-      for (const order of filteredOrders) {
-        const c = pruneUndefined(cartonizeOrder(order, []));
-        try {
-          let ucc = "";
-          try {
-            ucc = await generateNextUCC128(order.tenantId ?? "acme");
-          } catch {
-            const { seedUCC128Configs } = await import("@/lib/ucc128");
-            await seedUCC128Configs();
-            try {
-              ucc = await generateNextUCC128(order.tenantId ?? "acme");
-            } catch {
-              ucc = await generateNextUCC128("acme");
-            }
-          }
-          c.uccId = ucc;
-        } catch {
-          // fallback if no config
-        }
-        results.push(c);
-      }
-      if (results.length > 0) {
-        try {
-          const batch = results.map((c) =>
-            setDoc(doc(db, "cartonizations", c.id), pruneUndefined(c)),
-          );
-          await Promise.all(batch);
-          toast.success(`Synced ${results.length} cartonization(s) to Firestore`);
-        } catch (err) {
-          console.error("Failed to sync cartonizations:", err);
-          toast.error("Failed to sync cartonizations");
-        }
-      }
-    }
-    setAutoSynced(true);
-  };
-
-  useEffect(() => {
-    handleAutoSync();
-  }, [liveCartonizations.length, filteredOrders]);
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Packing & UCC128</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Packing & Cartonization</h1>
           <p className="text-sm text-muted-foreground">
-            Automated volumetric calculation to determine optimal carton sizes before picking starts.
+            Automated volumetric calculation to determine optimal carton sizes before picking
+            starts.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => {
-            const win = window.open("", "_blank");
-            if (!win) return;
-            const labels = (liveCartonizations ?? []).map((c: any) => {
-              const ucc = String(c.id ?? "").replace(/\D/g, "").padStart(20, "0").slice(-20);
-              const bars = Array.from({ length: 64 }).map((_, i) => `<span style="display:inline-block;background:#000;width:${((i * 31 + ucc.charCodeAt(i % ucc.length)) % 3) + 1}px;height:100%;"></span>`).join("");
-              return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
-                <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;">
-                  <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">AZUX 3PL WMS Systems</span>
-                  <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">UCC128 SSCC</span>
-                </div>
-                <div style="margin-top:8px;font-size:16px;font-weight:bold;letter-spacing:0.1em;">${ucc}</div>
-                <div class="barcode" style="margin-top:4px;text-align:center;font-size:48px;line-height:1;">${ucc}</div>
-                <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:11px;">
-                  <span style="color:#666;">ORDER</span><span style="text-align:right;">${c.orderId ?? "—"}</span>
-                  <span style="color:#666;">CARTONS</span><span style="text-align:right;">${c.totalCartons ?? 0}</span>
-                  <span style="color:#666;">WEIGHT</span><span style="text-align:right;">${c.totalWeight ?? 0} lb</span>
-                </div>
-                <div style="margin-top:8px;display:flex;align-items:flex-end;gap:1px;overflow:hidden;height:40px;background:#111;padding:4px;">${bars}</div>
-                <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${ucc}</div>
-              </div>`;
-            }).join("");
-            win.document.write(`<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; }</style></head><body>${labels}</body></html>`);
-            win.document.close();
-            setTimeout(() => win.print(), 500);
-          }}>
-            <Printer className="mr-2 h-4 w-4" /> Print UCC128
-          </Button>
-          <Button size="sm" onClick={() => setNewCartonizationOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Cartonize Order
-          </Button>
-        </div>
+        <Button size="sm" onClick={() => setNewCartonizationOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Cartonize Order
+        </Button>
       </div>
 
       <div className="flex items-center gap-4">
@@ -303,13 +252,12 @@ function PackingPage() {
             <SelectItem value="printed">Printed</SelectItem>
           </SelectContent>
         </Select>
-        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={handleRefresh}>
-          <RefreshCw className="h-3.5 w-3.5" />
-          Refresh
+        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={refreshData}>
+          <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
-      {loading ? (
+      {dbLoading || loading ? (
         <div className="text-center py-12 text-muted-foreground text-sm">
           Loading cartonizations...
         </div>
@@ -386,7 +334,7 @@ function PackingPage() {
         </div>
       )}
 
-      {!loading && filtered.length === 0 && (
+      {!dbLoading && !loading && filtered.length === 0 && (
         <div className="text-center py-12 text-muted-foreground text-sm">
           No cartonizations found. Cartonize an order to get started.
         </div>
@@ -403,7 +351,7 @@ function PackingPage() {
               {selectedCartonization?.id}
             </DialogTitle>
             <DialogDescription>
-              Order {selectedCartonization?.orderId} â€” {selectedCartonization?.cartons.length}{" "}
+              Order {selectedCartonization?.orderId} — {selectedCartonization?.cartons.length}{" "}
               carton(s)
             </DialogDescription>
           </DialogHeader>
@@ -431,9 +379,7 @@ function PackingPage() {
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     Cartons
                   </p>
-                  <p className="text-lg font-semibold">
-                    {selectedCartonization.cartonCount}
-                  </p>
+                  <p className="text-lg font-semibold">{selectedCartonization.cartonCount}</p>
                 </div>
                 <div className="rounded-lg border p-3 space-y-1">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -466,9 +412,7 @@ function PackingPage() {
                       {selectedCartonization.cartons.map((carton) => (
                         <TableRow key={carton.cartonId}>
                           <TableCell className="text-xs">{carton.seq}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {carton.cartonId}
-                          </TableCell>
+                          <TableCell className="font-mono text-xs">{carton.cartonId}</TableCell>
                           <TableCell className="text-xs">{carton.cartonName}</TableCell>
                           <TableCell className="text-right font-mono text-xs">
                             {carton.totalQty}
@@ -493,7 +437,7 @@ function PackingPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={newCartonizationOpen} onOpenChange={(o) => { setNewCartonizationOpen(o); if (!o) setSelectedOrderId(""); }}>
+      <Dialog open={newCartonizationOpen} onOpenChange={setNewCartonizationOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cartonize Order</DialogTitle>
@@ -502,14 +446,14 @@ function PackingPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Select Order</Label>
-              <Select onValueChange={(v) => setSelectedOrderId(v)}>
+              <Select onValueChange={(v) => handleCartonize(v)}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Choose an order..." />
                 </SelectTrigger>
                 <SelectContent>
                   {filteredOrders.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
-                      {o.id} â€” {o.lines.length} lines
+                      {o.id} — {o.lines.length} lines
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -518,9 +462,6 @@ function PackingPage() {
             <DialogFooter>
               <Button variant="outline" size="sm" onClick={() => setNewCartonizationOpen(false)}>
                 Cancel
-              </Button>
-              <Button size="sm" disabled={!selectedOrderId} onClick={() => { if (selectedOrderId) handleCartonize(selectedOrderId); }}>
-                Generate UCC & Cartonize
               </Button>
             </DialogFooter>
           </div>
