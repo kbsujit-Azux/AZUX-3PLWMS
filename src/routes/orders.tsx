@@ -148,6 +148,7 @@ function OrdersPage() {
   const [csvOpen, setCsvOpen] = useState(false);
   const [tick, setTick] = useState(0);
   const [lineOverrides, setLineOverrides] = useState<Record<string, OrderLine[]>>({});
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [uccBuiltOrders, setUccBuiltOrders] = useState<Set<string>>(new Set());
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
