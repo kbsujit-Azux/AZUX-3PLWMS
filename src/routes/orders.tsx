@@ -1,4 +1,5 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from '@tanstack/react-router'
+﻿import { buildUCC128ForOrder, hasUCC128Records } from "@/lib/ucc128-build";
 import { useMemo, useState, useEffect } from "react";
 import Papa from "papaparse";
 import {
@@ -505,9 +506,15 @@ function OrdersPage() {
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            toast.info("Building UCC128 labels...");
+                            try {
+                              const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === o.id);
+                              const records = await buildUCC128ForOrder(o, pts);
+                              toast.success(`Built ${records.length} UCC128 labels for ${o.id}`);
+                            } catch (err) {
+                              toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+                            }
                           }}
                           title="Build UCC128"
                         >
