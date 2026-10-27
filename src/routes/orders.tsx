@@ -505,7 +505,7 @@ function OrdersPage() {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      {true && (
+                      {["PICKED", "picked", "picking", "packed", "ALLOCATED", "released", "new"].includes(o.status) && (
                         <Button
                           size="icon"
                           variant="ghost"
