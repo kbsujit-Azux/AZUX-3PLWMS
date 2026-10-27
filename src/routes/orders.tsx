@@ -533,7 +533,6 @@ function OrdersPage() {
                               setUccPlan(plan);
                               setUccOrderTarget(o);
                               setUccConfirmOpen(true);
-                              toast.info(`Preparing UCC128 confirmation for ${o.id} (${plan.length} SKUs)`);
                             } catch (err) {
                               toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
                             }
