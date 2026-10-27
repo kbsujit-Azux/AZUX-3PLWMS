@@ -148,7 +148,7 @@ function OrdersPage() {
   const [csvOpen, setCsvOpen] = useState(false);
   const [tick, setTick] = useState(0);
   const [lineOverrides, setLineOverrides] = useState<Record<string, OrderLine[]>>({});
-  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
+  const [uccBuiltOrders, setUccBuiltOrders] = useState<Set<string>>(new Set());
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -506,17 +506,25 @@ function OrdersPage() {
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
+                          disabled={uccBuiltOrders.has(o.id)}
                           onClick={async (e) => {
                             e.stopPropagation();
+                            const hasUcc = await hasUCC128Records(o.id);
+                            if (hasUcc) {
+                              setUccBuiltOrders((prev) => new Set(prev).add(o.id));
+                              toast.error("UCC128 already built for this order. Manage from Packing & UCC128 screen.");
+                              return;
+                            }
                             try {
                               const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === o.id);
-                              const records = await buildUCC128ForOrder(o, pts);
+                              const records = await buildUCC128ForOrder(o, pts, itemMaster);
+                              setUccBuiltOrders((prev) => new Set(prev).add(o.id));
                               toast.success(`Built ${records.length} UCC128 labels for ${o.id}`);
                             } catch (err) {
                               toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
                             }
                           }}
-                          title="Build UCC128"
+                          title={uccBuiltOrders.has(o.id) ? "UCC128 already built" : "Build UCC128"}
                         >
                           <Package className="h-3.5 w-3.5" />
                         </Button>

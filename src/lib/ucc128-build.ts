@@ -3,7 +3,7 @@ import { db } from "./firestore";
 import { generateNextUCC128 } from "./ucc128";
 import type { UCC128Record } from "./ucc128-record";
 
-export async function buildUCC128ForOrder(order: any, pickTickets: any[]): Promise<UCC128Record[]> {
+export async function buildUCC128ForOrder(order: any, pickTickets: any[], itemMaster?: any[]): Promise<UCC128Record[]> {
   const records: UCC128Record[] = [];
   const tenantId = order.tenantId ?? "acme";
   const warehouseId = order.warehouseId ?? "atl1";
@@ -12,11 +12,12 @@ export async function buildUCC128ForOrder(order: any, pickTickets: any[]): Promi
     if (pt.orderId !== order.id) continue;
     const sku = pt.sku;
     const qtyToPick = pt.quantityToPick ?? pt.qtyToPick ?? 0;
-    const casePack = pt.casePack ?? 24;
-    const itemStyle = pt.style ?? "";
-    const itemDescription = pt.description ?? "";
-    const upc = pt.upc ?? "";
-    const weightLbs = pt.weightLbs ?? 0;
+    const item = itemMaster?.find((i: any) => i.sku === sku);
+    const casePack = item?.casePack ?? item?.case_pack ?? 24;
+    const itemStyle = item?.itemStyle ?? item?.style ?? pt.style ?? "";
+    const itemDescription = item?.description ?? pt.description ?? "";
+    const upc = item?.upc ?? pt.upc ?? "";
+    const weightLbs = item?.weightLbs ?? item?.weight ?? pt.weightLbs ?? 0;
     const fromLocation = pt.fromLocation ?? "";
     const palletId = pt.palletId ?? "";
 
