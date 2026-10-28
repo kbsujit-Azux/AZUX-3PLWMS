@@ -156,6 +156,15 @@ function EdiPage() {
           }}>
             <PlugZap className="h-3.5 w-3.5" /> Sandbox 943
           </Button>
+          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={async () => {
+            const now = new Date().toISOString();
+            const ltlId = `SO-SBX-LTL-${Date.now()}`;
+            await setDoc(doc(db, "orders", ltlId), { id: ltlId, customerOrderNumber: `CO-${ltlId}`, poNumber: `PO-${ltlId}`, ediRef: `EDI-940-${ltlId}`, tenantId: "acme", warehouseId: "atl1", shipToCode: "LAX", shipToName: "Los Angeles DC", shipToAddress1: "4500 S Alameda St", shipToCity: "Los Angeles", shipToState: "CA", shipToZip: "90058", carrier: "XPO", serviceLevel: "LTL Standard", status: "new", source: "EDI-940", receivedAt: now, entryDate: now, cancelDate: "2026-12-31T23:59:00Z", mustShipDate: "2026-11-15T17:00:00Z", lines: [{ sku: "ACM-TENT-2P-OLV", description: "Ridgeline 2-Person Tent, Olive", qtyOrdered: 100, qtyAllocated: 0, unitPrice: 189 }] });
+            const parcelId = `SO-SBX-PARCEL-${Date.now() + 1}`;
+            await setDoc(doc(db, "orders", parcelId), { id: parcelId, customerOrderNumber: `CO-${parcelId}`, poNumber: `PO-${parcelId}`, ediRef: `EDI-940-${parcelId}`, tenantId: "acme", warehouseId: "atl1", shipToCode: "NYC", shipToName: "New York Retail", shipToAddress1: "200 5th Ave", shipToCity: "New York", shipToState: "NY", shipToZip: "10010", carrier: "UPS", serviceLevel: "Ground", status: "new", source: "EDI-940", receivedAt: now, entryDate: now, cancelDate: "2026-12-31T23:59:00Z", mustShipDate: "2026-11-10T17:00:00Z", lines: [{ sku: "ACM-TENT-2P-OLV", description: "Ridgeline 2-Person Tent, Olive", qtyOrdered: 8, qtyAllocated: 0, unitPrice: 189 }] });
+          }}>
+            <PlugZap className="h-3.5 w-3.5" /> Sandbox 940
+          </Button>
         </div>
       </div>
 
@@ -390,4 +399,6 @@ IEA*1*${detail.isaControl}~`}
     </div>
   );
 }
+
+
 
