@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-﻿import { buildUCC128ForOrder, hasUCC128Records } from "@/lib/ucc128-build";
+﻿import { buildUCC128ForOrder, hasUCC128Records, getUCC128RecordsByOrder } from "@/lib/ucc128-build";
 import { useMemo, useState, useEffect } from "react";
 import Papa from "papaparse";
 import {
@@ -542,7 +542,7 @@ function OrdersPage() {
                           <Package className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      {["ALLOCATED", "picking", "PICKED", "packed"].includes(o.status) && (
+                      {["PICKED", "picked", "picking", "packed"].includes(o.status) && (
                       <Button
                         size="icon"
                         variant="ghost"
@@ -2424,6 +2424,12 @@ function OrderDetailDialog({
     </>
   );
 }
+
+
+
+
+
+
 
 
 
