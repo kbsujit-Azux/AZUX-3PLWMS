@@ -153,6 +153,22 @@ function OrdersPage() {
   const [uccConfirmOpen, setUccConfirmOpen] = useState(false);
   const [uccPlan, setUccPlan] = useState<{ sku: string; units: number; casePack: number; cartons: number }[]>([]);
   const [uccOrderTarget, setUccOrderTarget] = useState<any>(null);
+
+  useEffect(() => {
+    const loadUCCRecords = async () => {
+      try {
+        const ordersWithUCC = new Set<string>();
+        const allOrders = orders ?? [];
+        for (const o of allOrders) {
+          const records = await getUCC128RecordsByOrder(o.id).catch(() => []);
+          if (records.length > 0) ordersWithUCC.add(o.id);
+        }
+        setUccBuiltOrders(ordersWithUCC);
+      } catch {}
+    };
+    loadUCCRecords();
+  }, [orders]);
+
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -505,20 +521,14 @@ function OrdersPage() {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      {["PICKED", "picked", "picking", "packed", "ALLOCATED", "released", "new"].includes(o.status) && (
+                      {["PICKED", "picked", "picking", "packed"].includes(o.status) && (
                         <Button
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
                           disabled={uccBuiltOrders.has(o.id)}
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.stopPropagation();
-                            const hasUcc = await hasUCC128Records(o.id).catch(() => false);
-                            if (hasUcc) {
-                              setUccBuiltOrders((prev) => new Set(prev).add(o.id));
-                              toast.error("UCC128 already built for this order. Manage from Packing & UCC128 screen.");
-                              return;
-                            }
                             try {
                               const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === o.id);
                               const plan = pts.map((pt: any) => {
@@ -1685,11 +1695,47 @@ function NewOrderDialog({
               onClick={confirmDeleteLine}
             >
               Remove
-            </Button>
+</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={uccConfirmOpen} onOpenChange={setUccConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Build UCC128 Labels</AlertDialogTitle>
+            <AlertDialogDescription>
+              The following UCC128 labels will be created for {uccOrderTarget?.id}:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 text-xs">
+            {uccPlan.map((p, i) => (
+              <div key={i} className="flex items-center justify-between rounded border border-border p-2">
+                <span className="font-mono">{p.sku}</span>
+                <span>{p.units} units ÷ {p.casePack} case pack = {p.cartons} UCC{p.cartons > 1 ? "s" : ""}</span>
+              </div>
+            ))}
+            <div className="font-medium pt-2">Total UCCs: {uccPlan.reduce((s, p) => s + p.cartons, 0)}</div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setUccConfirmOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              setUccConfirmOpen(false);
+              try {
+                const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === uccOrderTarget?.id);
+                const records = await buildUCC128ForOrder(uccOrderTarget, pts, itemMaster);
+                setUccBuiltOrders((prev) => new Set(prev).add(uccOrderTarget.id));
+                toast.success(`Built ${records.length} UCC128 labels for ${uccOrderTarget.id}`);
+              } catch (err) {
+                toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+              }
+            }}>
+              Confirm & Build
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
+
   );
 }
 
@@ -2381,47 +2427,13 @@ function OrderDetailDialog({
               className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={confirmDeleteLine}
             >
-              Delete
+Delete
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <AlertDialog open={uccConfirmOpen} onOpenChange={setUccConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Build UCC128 Labels</AlertDialogTitle>
-            <AlertDialogDescription>
-              The following UCC128 labels will be created for {uccOrderTarget?.id}:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-2 text-xs">
-            {uccPlan.map((p, i) => (
-              <div key={i} className="flex items-center justify-between rounded border border-border p-2">
-                <span className="font-mono">{p.sku}</span>
-                <span>{p.units} units ÷ {p.casePack} case pack = {p.cartons} UCC{p.cartons > 1 ? "s" : ""}</span>
-              </div>
-            ))}
-            <div className="font-medium pt-2">Total UCCs: {uccPlan.reduce((s, p) => s + p.cartons, 0)}</div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setUccConfirmOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => {
-              setUccConfirmOpen(false);
-              try {
-                const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === uccOrderTarget?.id);
-                const records = await buildUCC128ForOrder(uccOrderTarget, pts, itemMaster);
-                setUccBuiltOrders((prev) => new Set(prev).add(uccOrderTarget.id));
-                toast.success(`Built ${records.length} UCC128 labels for ${uccOrderTarget.id}`);
-              } catch (err) {
-                toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
-              }
-            }}>
-              Confirm & Build
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
+
   );
 }
 
