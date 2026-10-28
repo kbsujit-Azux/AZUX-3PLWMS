@@ -839,6 +839,41 @@ function OrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={uccConfirmOpen} onOpenChange={setUccConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Build UCC128 Labels</AlertDialogTitle>
+            <AlertDialogDescription>
+              The following UCC128 labels will be created for {uccOrderTarget?.id}:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 text-xs">
+            {uccPlan.map((p, i) => (
+              <div key={i} className="flex items-center justify-between rounded border border-border p-2">
+                <span className="font-mono">{p.sku}</span>
+                <span>{p.units} units ÷ {p.casePack} case pack = {p.cartons} UCC{p.cartons > 1 ? "s" : ""}</span>
+              </div>
+            ))}
+            <div className="font-medium pt-2">Total UCCs: {uccPlan.reduce((s, p) => s + p.cartons, 0)}</div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setUccConfirmOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              setUccConfirmOpen(false);
+              try {
+                const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === uccOrderTarget?.id);
+                const records = await buildUCC128ForOrder(uccOrderTarget, pts, itemMaster);
+                setUccBuiltOrders((prev) => new Set(prev).add(uccOrderTarget.id));
+                toast.success(`Built ${records.length} UCC128 labels for ${uccOrderTarget.id}`);
+              } catch (err) {
+                toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+              }
+            }}>
+              Confirm & Build
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1695,42 +1730,7 @@ function NewOrderDialog({
               onClick={confirmDeleteLine}
             >
               Remove
-</Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={uccConfirmOpen} onOpenChange={setUccConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Build UCC128 Labels</AlertDialogTitle>
-            <AlertDialogDescription>
-              The following UCC128 labels will be created for {uccOrderTarget?.id}:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-2 text-xs">
-            {uccPlan.map((p, i) => (
-              <div key={i} className="flex items-center justify-between rounded border border-border p-2">
-                <span className="font-mono">{p.sku}</span>
-                <span>{p.units} units ÷ {p.casePack} case pack = {p.cartons} UCC{p.cartons > 1 ? "s" : ""}</span>
-              </div>
-            ))}
-            <div className="font-medium pt-2">Total UCCs: {uccPlan.reduce((s, p) => s + p.cartons, 0)}</div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setUccConfirmOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => {
-              setUccConfirmOpen(false);
-              try {
-                const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === uccOrderTarget?.id);
-                const records = await buildUCC128ForOrder(uccOrderTarget, pts, itemMaster);
-                setUccBuiltOrders((prev) => new Set(prev).add(uccOrderTarget.id));
-                toast.success(`Built ${records.length} UCC128 labels for ${uccOrderTarget.id}`);
-              } catch (err) {
-                toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
-              }
-            }}>
-              Confirm & Build
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
