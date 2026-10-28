@@ -846,7 +846,7 @@ function OrdersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Build UCC128 Labels</AlertDialogTitle>
             <AlertDialogDescription>
-              The following UCC128 labels will be created for {uccOrderTarget?.id}:
+              {uccPlan.reduce((s, p) => s + p.cartons, 0)} UCC128 labels will be created for {uccOrderTarget?.id}:
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 text-xs">
