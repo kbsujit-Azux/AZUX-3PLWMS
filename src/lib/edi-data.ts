@@ -371,6 +371,7 @@ export type Order = {
   mustShipDate: string;
 
   lines: OrderLine[];
+  waveId?: string | null; // Wave/batch ID this order belongs to
 };
 
 const defaultAddress = {

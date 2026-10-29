@@ -195,7 +195,18 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
       };
     }
 
-    const candidates = item.batches
+  // Helper: location priority for wave/batch picking (lower = higher priority)
+  const locationPriority = (loc: string): number => {
+    const l = loc.toUpperCase();
+    if (l.startsWith("PK-") || l.startsWith("PRIMARY") || l.startsWith("A")) return 1;
+    if (l.startsWith("SP-") || l.startsWith("SECONDARY") || l.startsWith("B")) return 2;
+    if (l.startsWith("BLK-") || l.startsWith("BULK") || l.startsWith("C")) return 3;
+    if (l.startsWith("FLR-") || l.startsWith("FLOOR") || l.startsWith("D")) return 4;
+    if (l.startsWith("HLD-") || l.startsWith("HOLD") || l.startsWith("Q")) return 99;
+    return 5; // default
+  };
+
+  const candidates = item.batches
       .filter((b) => !NON_ALLOCATABLE_LOCATIONS.includes(b.location))
       .map((b) => ({
         batch: b,
@@ -203,31 +214,24 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
       }))
       .filter((c) => c.available > 0);
 
+    // Sort by location priority first, then by LIFO/FIFO within same priority
+    candidates.sort((a, b) => {
+      const prioDiff = locationPriority(a.batch.location) - locationPriority(b.batch.location);
+      if (prioDiff !== 0) return prioDiff;
+      return config.strategy === "LIFO"
+        ? new Date(b.batch.receivedAt).getTime() - new Date(a.batch.receivedAt).getTime()
+        : new Date(a.batch.receivedAt).getTime() - new Date(b.batch.receivedAt).getTime();
+    });
+
     if (config.locationPrefix) {
       const prefixed = candidates.filter((c) =>
         c.batch.location.startsWith(config.locationPrefix!),
       );
-      prefixed.sort((a, b) =>
-        config.strategy === "LIFO"
-          ? new Date(b.batch.receivedAt).getTime() - new Date(a.batch.receivedAt).getTime()
-          : new Date(a.batch.receivedAt).getTime() - new Date(b.batch.receivedAt).getTime(),
-      );
       const nonPrefixed = candidates.filter(
         (c) => !c.batch.location.startsWith(config.locationPrefix!),
       );
-      nonPrefixed.sort((a, b) =>
-        config.strategy === "LIFO"
-          ? new Date(b.batch.receivedAt).getTime() - new Date(a.batch.receivedAt).getTime()
-          : new Date(a.batch.receivedAt).getTime() - new Date(b.batch.receivedAt).getTime(),
-      );
       candidates.length = 0;
       candidates.push(...prefixed, ...nonPrefixed);
-    } else {
-      candidates.sort((a, b) =>
-        config.strategy === "LIFO"
-          ? new Date(b.batch.receivedAt).getTime() - new Date(a.batch.receivedAt).getTime()
-          : new Date(a.batch.receivedAt).getTime() - new Date(b.batch.receivedAt).getTime(),
-      );
     }
 
     let remaining = line.qtyOrdered;
