@@ -49,6 +49,7 @@ const operations = [
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Orders", url: "/orders", icon: ClipboardList },
   { title: "Allocation", url: "/allocation", icon: PackageSearch },
+  { title: "Waves", url: "/waves", icon: Layers },
   { title: "Picks", url: "/picks", icon: PackageCheck },
   { title: "Packing and UCC128", url: "/packing", icon: Package },
   { title: "Shipments", url: "/shipments", icon: Truck },

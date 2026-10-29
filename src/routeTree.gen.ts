@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkordersRouteImport } from './routes/workorders'
+import { Route as WavesRouteImport } from './routes/waves'
 import { Route as VasRouteImport } from './routes/vas'
 import { Route as SlottingRouteImport } from './routes/slotting'
 import { Route as ShipmentsRouteImport } from './routes/shipments'
@@ -49,6 +50,11 @@ import { Route as MastersEmployeesRouteImport } from './routes/masters/employees
 const WorkordersRoute = WorkordersRouteImport.update({
   id: '/workorders',
   path: '/workorders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WavesRoute = WavesRouteImport.update({
+  id: '/waves',
+  path: '/waves',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VasRoute = VasRouteImport.update({
@@ -249,6 +255,7 @@ export interface FileRoutesByFullPath {
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/vas': typeof VasRoute
+  '/waves': typeof WavesRoute
   '/workorders': typeof WorkordersRoute
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
@@ -287,6 +294,7 @@ export interface FileRoutesByTo {
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/vas': typeof VasRoute
+  '/waves': typeof WavesRoute
   '/workorders': typeof WorkordersRoute
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
@@ -326,6 +334,7 @@ export interface FileRoutesById {
   '/shipments': typeof ShipmentsRoute
   '/slotting': typeof SlottingRoute
   '/vas': typeof VasRoute
+  '/waves': typeof WavesRoute
   '/workorders': typeof WorkordersRoute
   '/masters/employees': typeof MastersEmployeesRoute
   '/masters/warehouses': typeof MastersWarehousesRoute
@@ -366,6 +375,7 @@ export interface FileRouteTypes {
     | '/shipments'
     | '/slotting'
     | '/vas'
+    | '/waves'
     | '/workorders'
     | '/masters/employees'
     | '/masters/warehouses'
@@ -404,6 +414,7 @@ export interface FileRouteTypes {
     | '/shipments'
     | '/slotting'
     | '/vas'
+    | '/waves'
     | '/workorders'
     | '/masters/employees'
     | '/masters/warehouses'
@@ -442,6 +453,7 @@ export interface FileRouteTypes {
     | '/shipments'
     | '/slotting'
     | '/vas'
+    | '/waves'
     | '/workorders'
     | '/masters/employees'
     | '/masters/warehouses'
@@ -481,6 +493,7 @@ export interface RootRouteChildren {
   ShipmentsRoute: typeof ShipmentsRoute
   SlottingRoute: typeof SlottingRoute
   VasRoute: typeof VasRoute
+  WavesRoute: typeof WavesRoute
   WorkordersRoute: typeof WorkordersRoute
   RfHistoryRoute: typeof RfHistoryRoute
   RfInquiryRoute: typeof RfInquiryRoute
@@ -503,6 +516,13 @@ declare module '@tanstack/react-router' {
       path: '/workorders'
       fullPath: '/workorders'
       preLoaderRoute: typeof WorkordersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/waves': {
+      id: '/waves'
+      path: '/waves'
+      fullPath: '/waves'
+      preLoaderRoute: typeof WavesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vas': {
@@ -788,6 +808,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShipmentsRoute: ShipmentsRoute,
   SlottingRoute: SlottingRoute,
   VasRoute: VasRoute,
+  WavesRoute: WavesRoute,
   WorkordersRoute: WorkordersRoute,
   RfHistoryRoute: RfHistoryRoute,
   RfInquiryRoute: RfInquiryRoute,
