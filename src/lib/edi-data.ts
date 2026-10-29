@@ -328,6 +328,36 @@ export type OrderStatus =
   | "PICKED"
   | "OUTBOUND_PALLETIZED";
 
+export type WaveStatus = "draft" | "released" | "picking" | "picked" | "closed" | "cancelled";
+
+export type WavePickMethod = "single" | "batch" | "zone" | "cluster";
+
+export type Wave = {
+  id: string;
+  waveNumber: string;
+  name?: string;
+  tenantId: string;
+  warehouseId: string;
+  status: WaveStatus;
+  type: "batch" | "wave";
+  pickMethod: WavePickMethod;
+  carrierFilter?: string;
+  serviceLevelFilter?: string;
+  shipToStateFilter?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  orderIds: string[];
+  pickTicketIds: string[];
+  createdAt: string;
+  releasedAt?: string;
+  completedAt?: string;
+  totalOrders: number;
+  totalLines: number;
+  totalUnits: number;
+  allocatablePct: number;
+  createdBy?: string;
+};
+
 export type Order = {
   id: string; // Internal order number
   customerOrderNumber?: string;

@@ -48,7 +48,7 @@ export const Route = createFileRoute("/waves")({
 
 function WavesPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { orders, refreshData } = useWmsData();
+  const { orders, pickTickets, refreshData } = useWmsData();
 
   const [query, setQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -60,7 +60,7 @@ function WavesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [previewOpen, setPreviewOpen] = useState(false);
   const [waveName, setWaveName] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [showPicking, setShowPicking] = useState(false);
 
   // Candidate orders: unallocated, matching filters
   const candidates = useMemo(() => {
@@ -285,6 +285,74 @@ function WavesPage() {
           </Button>
         </div>
       )}
+
+      {/* Wave Picking Section */}
+      <div className="border rounded-md">
+        <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+          <h2 className="text-sm font-semibold">Wave Picking — Consolidated Pick List</h2>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowPicking(!showPicking)}>
+            {showPicking ? "Hide" : "Show"} Pick List
+          </Button>
+        </div>
+        {showPicking && (
+          <div className="p-3 space-y-3">
+            {(() => {
+              // Get all allocated pick tickets, sorted by location
+              const allocatedTickets = (pickTickets ?? []).filter((pt: any) => pt.status === "GENERATED" || pt.status === "allocated");
+              const sorted = [...allocatedTickets].sort((a: any, b: any) => {
+                const locA = (a.fromLocation || "").toUpperCase();
+                const locB = (b.fromLocation || "").toUpperCase();
+                return locA.localeCompare(locB);
+              });
+              if (sorted.length === 0) {
+                return <p className="text-xs text-muted-foreground py-4 text-center">No allocated pick tickets to pick. Allocate orders first.</p>;
+              }
+              // Group by location
+              const byLocation: Record<string, any[]> = {};
+              for (const pt of sorted) {
+                const loc = pt.fromLocation || "UNKNOWN";
+                if (!byLocation[loc]) byLocation[loc] = [];
+                byLocation[loc].push(pt);
+              }
+              return (
+                <div className="space-y-3">
+                  <div className="text-xs text-muted-foreground">
+                    {sorted.length} pick tickets · {allocatedTickets.reduce((s: number, pt: any) => s + (pt.quantityToPick || 0), 0)} units · {Object.keys(byLocation).length} locations
+                  </div>
+                  {Object.entries(byLocation).map(([loc, tickets]) => (
+                    <div key={loc} className="border rounded">
+                      <div className="px-3 py-1.5 bg-muted/50 text-xs font-semibold flex items-center gap-2">
+                        <MapPin className="h-3 w-3" /> {loc}
+                        <span className="text-muted-foreground ml-auto">{tickets.reduce((s: number, t: any) => s + (t.quantityToPick || 0), 0)} units</span>
+                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-[10px]">Order #</TableHead>
+                            <TableHead className="text-[10px]">SKU</TableHead>
+                            <TableHead className="text-[10px] text-right">Qty</TableHead>
+                            <TableHead className="text-[10px]">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {tickets.map((pt: any, i: number) => (
+                            <TableRow key={i}>
+                              <TableCell className="text-[10px] font-mono">{pt.orderId}</TableCell>
+                              <TableCell className="text-[10px]">{pt.sku}</TableCell>
+                              <TableCell className="text-[10px] text-right">{pt.quantityToPick}</TableCell>
+                              <TableCell className="text-[10px]">{pt.status}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </div>
 
       {/* Wave Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
