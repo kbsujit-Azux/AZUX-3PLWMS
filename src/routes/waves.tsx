@@ -37,7 +37,7 @@ import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { allocate_order } from "@/lib/allocation-engine";
 import { tenants, warehouses } from "@/lib/mock-data";
-import type { Order } from "@/lib/edi-data";
+import type { Order, Wave, WaveStatus } from "@/lib/edi-data";
 
 export const Route = createFileRoute("/waves")({
   head: () => ({
@@ -60,7 +60,9 @@ function WavesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [previewOpen, setPreviewOpen] = useState(false);
   const [waveName, setWaveName] = useState("");
-  const [showPicking, setShowPicking] = useState(false);
+  const [waves, setWaves] = useState<Wave[]>([]);
+  const [selectedWave, setSelectedWave] = useState<Wave | null>(null);
+  const [waveFilter, setWaveFilter] = useState("all");
 
   // Candidate orders: unallocated, matching filters
   const candidates = useMemo(() => {
@@ -151,10 +153,36 @@ function WavesPage() {
         if (result.success) successCount++;
         else failCount++;
       }
+      // Create wave record
+      const waveId = `WAVE-${Date.now()}`;
+      const wave: Wave = {
+        id: waveId,
+        waveNumber: waveId,
+        name: waveName || `Wave ${waveId}`,
+        tenantId: tenantId !== "all" ? tenantId : "acme",
+        warehouseId: warehouseId !== "all" ? warehouseId : "atl1",
+        status: "released",
+        type: "wave",
+        pickMethod: "batch",
+        carrierFilter: carrierFilter !== "all" ? carrierFilter : undefined,
+        serviceLevelFilter: serviceFilter !== "all" ? serviceFilter : undefined,
+        shipToStateFilter: shipToState !== "all" ? shipToState : undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        orderIds: selectedOrders.map((o) => o.id),
+        pickTicketIds: [],
+        createdAt: new Date().toISOString(),
+        releasedAt: new Date().toISOString(),
+        totalOrders: selectedOrders.length,
+        totalLines: selectedOrders.reduce((s, o) => s + o.lines.length, 0),
+        totalUnits: selectedUnits,
+        allocatablePct: 100,
+      };
+      setWaves((prev) => [wave, ...prev]);
       if (failCount > 0) {
         toast.warning(`Wave partially allocated: ${successCount} succeeded, ${failCount} failed`);
       } else {
-        toast.success(`Wave allocated: ${successCount} orders allocated successfully`);
+        toast.success(`Wave "${wave.name}" created: ${successCount} orders allocated`);
       }
       setSelectedIds(new Set());
       setPreviewOpen(false);
@@ -283,6 +311,78 @@ function WavesPage() {
           <Button size="sm" className="h-7 text-xs ml-auto" onClick={() => setPreviewOpen(true)} disabled={!allAllocatable}>
             Create Wave
           </Button>
+        </div>
+      )}
+
+      {/* Wave List */}
+      {waves.length > 0 && (
+        <div className="border rounded-md">
+          <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+            <h2 className="text-sm font-semibold">Wave List ({waves.length})</h2>
+            <select value={waveFilter} onChange={(e) => setWaveFilter(e.target.value)} className="h-7 text-xs border rounded px-2">
+              <option value="all">All Statuses</option>
+              <option value="released">Released</option>
+              <option value="picking">Picking</option>
+              <option value="picked">Picked</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div className="p-3">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Wave #</TableHead>
+                  <TableHead className="text-xs">Name</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs text-right">Orders</TableHead>
+                  <TableHead className="text-xs text-right">Lines</TableHead>
+                  <TableHead className="text-xs text-right">Units</TableHead>
+                  <TableHead className="text-xs">Created</TableHead>
+                  <TableHead className="text-xs">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {waves.filter((w) => waveFilter === "all" || w.status === waveFilter).map((w) => (
+                  <TableRow key={w.id}>
+                    <TableCell className="text-xs font-mono">{w.waveNumber}</TableCell>
+                    <TableCell className="text-xs">{w.name}</TableCell>
+                    <TableCell className="text-xs">
+                      <Badge className={
+                        w.status === "released" ? "bg-blue-100 text-blue-800 text-[10px]" :
+                        w.status === "picking" ? "bg-yellow-100 text-yellow-800 text-[10px]" :
+                        w.status === "picked" ? "bg-green-100 text-green-800 text-[10px]" :
+                        "bg-gray-100 text-gray-800 text-[10px]"
+                      }>{w.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-right">{w.totalOrders}</TableCell>
+                    <TableCell className="text-xs text-right">{w.totalLines}</TableCell>
+                    <TableCell className="text-xs text-right">{w.totalUnits}</TableCell>
+                    <TableCell className="text-xs">{new Date(w.createdAt).toLocaleString()}</TableCell>
+                    <TableCell className="text-xs">
+                      {w.status === "released" && (
+                        <Button size="sm" className="h-6 text-[10px]" onClick={() => {
+                          setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picking", releasedAt: wave.releasedAt } : wave));
+                          toast.success(`Wave ${w.waveNumber} started picking`);
+                        }}>Start Picking</Button>
+                      )}
+                      {w.status === "picking" && (
+                        <Button size="sm" className="h-6 text-[10px]" onClick={() => {
+                          setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picked", completedAt: new Date().toISOString() } : wave));
+                          toast.success(`Wave ${w.waveNumber} marked as picked`);
+                        }}>Complete Pick</Button>
+                      )}
+                      {w.status === "picked" && (
+                        <Button size="sm" className="h-6 text-[10px]" onClick={() => {
+                          setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
+                          toast.success(`Wave ${w.waveNumber} closed`);
+                        }}>Close Wave</Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 
