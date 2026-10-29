@@ -25,6 +25,7 @@ import {
   Zap,
   Scale,
   Activity,
+  Layers,
 } from "lucide-react";
 import {
   Sidebar,
@@ -48,8 +49,8 @@ const operations = [
   { title: "Inbound Pallets", url: "/pallets", icon: Boxes },
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Orders", url: "/orders", icon: ClipboardList },
-  { title: "Allocation", url: "/allocation", icon: PackageSearch },
   { title: "Waves", url: "/waves", icon: Layers },
+  { title: "Allocation", url: "/allocation", icon: PackageSearch },
   { title: "Picks", url: "/picks", icon: PackageCheck },
   { title: "Packing and UCC128", url: "/packing", icon: Package },
   { title: "Shipments", url: "/shipments", icon: Truck },
