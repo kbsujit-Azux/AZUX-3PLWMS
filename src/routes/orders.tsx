@@ -147,6 +147,10 @@ function OrdersPage() {
   const { tenantId, warehouseId } = useWorkspace();
   const { refreshData, orders, pickTickets } = useWmsData();
   const [query, setQuery] = useState("");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportDateFrom, setReportDateFrom] = useState("");
+  const [reportDateTo, setReportDateTo] = useState("");
+  const [reportStatus, setReportStatus] = useState("all");
   const [csvOpen, setCsvOpen] = useState(false);
   const [tick, setTick] = useState(0);
   const [lineOverrides, setLineOverrides] = useState<Record<string, OrderLine[]>>({});
@@ -359,6 +363,9 @@ function OrdersPage() {
           </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={exportCsv}>
             <Download className="h-3.5 w-3.5" /> Export
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setReportOpen(true)}>
+            <FileText className="h-3.5 w-3.5" /> Report
           </Button>
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setNewOrderOpen(true)}>
             <Plus className="h-3.5 w-3.5" /> New order
@@ -876,6 +883,100 @@ function OrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Outbound Orders Report</DialogTitle>
+            <DialogDescription>Filter and export orders by date range, client, warehouse, and status.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium">From Date</label>
+                <Input type="date" value={reportDateFrom} onChange={(e) => setReportDateFrom(e.target.value)} className="h-8 text-xs" />
+              </div>
+              <div>
+                <label className="text-xs font-medium">To Date</label>
+                <Input type="date" value={reportDateTo} onChange={(e) => setReportDateTo(e.target.value)} className="h-8 text-xs" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium">Status</label>
+              <select value={reportStatus} onChange={(e) => setReportStatus(e.target.value)} className="w-full h-8 text-xs border rounded px-2">
+                <option value="all">All Statuses</option>
+                <option value="new">New</option>
+                <option value="released">Released</option>
+                <option value="ALLOCATED">Allocated</option>
+                <option value="PICKED">Picked</option>
+                <option value="picking">Picking</option>
+                <option value="packed">Packed</option>
+                <option value="shipped">Shipped</option>
+                <option value="exception">Exception</option>
+              </select>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => {
+                const from = reportDateFrom ? new Date(reportDateFrom) : null;
+                const to = reportDateTo ? new Date(reportDateTo) : null;
+                const filteredReport = orders.filter((o) => {
+                  if (tenantId !== "all" && o.tenantId !== tenantId) return false;
+                  if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
+                  if (reportStatus !== "all" && o.status !== reportStatus) return false;
+                  const d = new Date(o.receivedAt || o.entryDate);
+                  if (from && d < from) return false;
+                  if (to && d > to) return false;
+                  return true;
+                });
+                const headers = ["Order #", "PO Number", "Client", "Warehouse", "Ship-to", "Carrier", "Service", "Lines", "Units", "Status", "Source", "Received"];
+                const lines = [headers.join(",")];
+                for (const o of filteredReport) {
+                  const tenant = tenants.find((t) => t.id === o.tenantId);
+                  const wh = warehouses.find((w) => w.id === o.warehouseId);
+                  const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
+                  lines.push([o.id, o.poNumber, tenant?.code ?? o.tenantId, wh?.code ?? o.warehouseId, o.shipToName, o.carrier, o.serviceLevel, String(linesFor(o).length), String(units), o.status, o.source, new Date(o.receivedAt).toLocaleDateString()].join(","));
+                }
+                const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `azux-orders-report-${new Date().toISOString().slice(0,10)}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                toast.success(`Report exported: ${filteredReport.length} records`);
+              }}>
+                <Download className="h-3.5 w-3.5" /> Export CSV
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => {
+                const from = reportDateFrom ? new Date(reportDateFrom) : null;
+                const to = reportDateTo ? new Date(reportDateTo) : null;
+                const filteredReport = orders.filter((o) => {
+                  if (tenantId !== "all" && o.tenantId !== tenantId) return false;
+                  if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
+                  if (reportStatus !== "all" && o.status !== reportStatus) return false;
+                  const d = new Date(o.receivedAt || o.entryDate);
+                  if (from && d < from) return false;
+                  if (to && d > to) return false;
+                  return true;
+                });
+                const win = window.open("", "_blank");
+                if (!win) return;
+                const rows = filteredReport.map((o) => {
+                  const tenant = tenants.find((t) => t.id === o.tenantId);
+                  const wh = warehouses.find((w) => w.id === o.warehouseId);
+                  const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
+                  return `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${tenant?.code ?? o.tenantId}</td><td>${wh?.code ?? o.warehouseId}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.serviceLevel}</td><td>${linesFor(o).length}</td><td>${units}</td><td>${o.status}</td><td>${o.source}</td><td>${new Date(o.receivedAt).toLocaleDateString()}</td></tr>`;
+                }).join("");
+                win.document.write(`<!DOCTYPE html><html><head><title>Outbound Orders Report</title><style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#1a365d;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#1a365d;color:#fff;font-weight:600}tr:nth-child(even){background:#f7f9fc}td{white-space:nowrap}@media print{body{padding:0}}</style></head><body><h1>AZUX 3PL WMS - Outbound Orders Report</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${filteredReport.length} | Date range: ${reportDateFrom || "All"} to ${reportDateTo || "All"} | Status: ${reportStatus}</p><table><thead><tr><th>Order #</th><th>PO #</th><th>Client</th><th>Warehouse</th><th>Ship-to</th><th>Carrier</th><th>Service</th><th>Lines</th><th>Units</th><th>Status</th><th>Source</th><th>Received</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();}</script></body></html>`);
+                win.document.close();
+              }}>
+                <FileText className="h-3.5 w-3.5" /> Print PDF
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
