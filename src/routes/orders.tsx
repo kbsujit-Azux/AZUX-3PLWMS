@@ -191,7 +191,7 @@ function OrdersPage() {
   };
 
   const linesFor = (o: Order): OrderLine[] => lineOverrides[o.id] ?? o.lines;
-  const isLocked = (s: Order["status"]) => s === "picked" || s === "shipped" || s === "exception";
+  const isLocked = (s: Order["status"]) => s === "PICKED" || s === "shipped" || s === "exception";
 
   const handleNewOrderSave = async (newOrder: Order) => {
     try {

@@ -52,7 +52,7 @@ export const Route = createFileRoute("/waves")({
 
 function WavesPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { orders, pickTickets, refreshData } = useWmsData();
+  const { orders, pickTickets, tenants, refreshData } = useWmsData();
 
   const [query, setQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -408,7 +408,7 @@ function WavesPage() {
                         <div className="flex gap-1">
                           <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
                             try {
-                              const masterBol = buildMasterBol(w.orderIds, orders);
+                              const masterBol = buildMasterBol(w.orderIds);
                               await createBol(masterBol);
                               toast.success(`Master BOL ${masterBol.bolNumber} created for ${w.orderIds.length} orders`);
                             } catch (err) {

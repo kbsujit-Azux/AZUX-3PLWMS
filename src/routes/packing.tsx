@@ -201,7 +201,7 @@ function PackingPage() {
       <div className="space-y-3">
         {grouped.map(([orderId, records]) => {
           const totalUnits = records.reduce((s, r) => s + (r.units ?? 0), 0);
-          const order = liveOrders.find((o: any) => o.id === orderId);
+           const order = liveOrders.find((o: any) => o.id === orderId) as any;
           const shipTo = records[0]?.toAddress ?? order?.shipToName ?? "—";
           const uccBuildDate = records[0]?.createdAt ?? "";
           const pickDate = order?.pickedAt ?? "—";
