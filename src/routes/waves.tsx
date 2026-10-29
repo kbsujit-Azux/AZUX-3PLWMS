@@ -60,6 +60,8 @@ function WavesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [previewOpen, setPreviewOpen] = useState(false);
   const [waveName, setWaveName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [showPicking, setShowPicking] = useState(false);
   const [waves, setWaves] = useState<Wave[]>([]);
   const [selectedWave, setSelectedWave] = useState<Wave | null>(null);
   const [waveFilter, setWaveFilter] = useState("all");
