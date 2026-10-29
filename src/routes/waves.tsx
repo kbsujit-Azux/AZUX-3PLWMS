@@ -39,7 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { allocate_order } from "@/lib/allocation-engine";
-import { tenants, warehouses } from "@/lib/mock-data";
+import { updatePickTicket } from "@/lib/firestore-data";
 import type { Order, Wave, WaveStatus } from "@/lib/edi-data";
 
 export const Route = createFileRoute("/waves")({
@@ -385,22 +385,32 @@ function WavesPage() {
                     <TableCell className="text-xs">{new Date(w.createdAt).toLocaleString()}</TableCell>
                     <TableCell className="text-xs">
                       {w.status === "released" && (
-                        <Button size="sm" className="h-6 text-[10px]" onClick={() => {
-                          setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picking", releasedAt: wave.releasedAt } : wave));
+                        <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
+                          await updateDoc(doc(db, "waves", w.id), { status: "picking" });
+                          setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picking" } : wave));
                           toast.success(`Wave ${w.waveNumber} started picking`);
                         }}>Start Picking</Button>
                       )}
                       {w.status === "picking" && (
-                        <Button size="sm" className="h-6 text-[10px]" onClick={() => {
+                        <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
+                          const unpicked = (pickTickets ?? []).filter((pt: any) => pt.status !== "PICKED" && pt.status !== "picked");
+                          if (unpicked.length > 0) {
+                            toast.error(`Cannot complete: ${unpicked.length} pick tickets still unpicked`);
+                            return;
+                          }
+                          await updateDoc(doc(db, "waves", w.id), { status: "picked", completedAt: new Date().toISOString() });
                           setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picked", completedAt: new Date().toISOString() } : wave));
                           toast.success(`Wave ${w.waveNumber} marked as picked`);
                         }}>Complete Pick</Button>
                       )}
                       {w.status === "picked" && (
-                        <Button size="sm" className="h-6 text-[10px]" onClick={() => {
-                          setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
-                          toast.success(`Wave ${w.waveNumber} closed`);
-                        }}>Close Wave</Button>
+                        <div className="flex gap-1">
+                          <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
+                            await updateDoc(doc(db, "waves", w.id), { status: "closed" });
+                            setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
+                            toast.success(`Wave ${w.waveNumber} closed`);
+                          }}>Close Wave</Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -457,6 +467,7 @@ function WavesPage() {
                             <TableHead className="text-[10px]">SKU</TableHead>
                             <TableHead className="text-[10px] text-right">Qty</TableHead>
                             <TableHead className="text-[10px]">Status</TableHead>
+                            <TableHead className="text-[10px]">Action</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -466,6 +477,21 @@ function WavesPage() {
                               <TableCell className="text-[10px]">{pt.sku}</TableCell>
                               <TableCell className="text-[10px] text-right">{pt.quantityToPick}</TableCell>
                               <TableCell className="text-[10px]">{pt.status}</TableCell>
+                              <TableCell className="text-[10px]">
+                                {pt.status === "GENERATED" || pt.status === "allocated" ? (
+                                  <Button size="sm" className="h-5 text-[9px] px-2" onClick={async () => {
+                                    try {
+                                      await updatePickTicket(pt.id, { status: "PICKED", pickedAt: new Date().toISOString(), qtyPicked: pt.quantityToPick });
+                                      toast.success(`Picked ${pt.quantityToPick} units of ${pt.sku} for ${pt.orderId}`);
+                                      refreshData();
+                                    } catch (err) {
+                                      toast.error(`Pick failed: ${err instanceof Error ? err.message : String(err)}`);
+                                    }
+                                  }}>Pick</Button>
+                                ) : (
+                                  <span className="text-green-600 text-[9px]">✓ Picked</span>
+                                )}
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
