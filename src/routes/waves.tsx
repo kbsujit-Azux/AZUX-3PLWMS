@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Search,
   RefreshCw,
@@ -12,10 +12,13 @@ import {
   MapPin,
   Calendar,
   Filter,
+  ScanLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { db } from "@/lib/firestore";
+import { collection, doc, setDoc, getDocs, updateDoc, query, where } from "firebase/firestore";
 import {
   Table,
   TableBody,
@@ -65,6 +68,20 @@ function WavesPage() {
   const [waves, setWaves] = useState<Wave[]>([]);
   const [selectedWave, setSelectedWave] = useState<Wave | null>(null);
   const [waveFilter, setWaveFilter] = useState("all");
+
+  // Load waves from Firestore on mount
+  useEffect(() => {
+    const loadWaves = async () => {
+      try {
+        const snap = await getDocs(collection(db, "waves"));
+        const loaded = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as Wave);
+        setWaves(loaded.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      } catch (err) {
+        console.error("Failed to load waves:", err);
+      }
+    };
+    loadWaves();
+  }, []);
 
   // Candidate orders: unallocated, matching filters
   const candidates = useMemo(() => {
@@ -180,6 +197,12 @@ function WavesPage() {
         totalUnits: selectedUnits,
         allocatablePct: 100,
       };
+      // Save wave to Firestore
+      await setDoc(doc(db, "waves", waveId), wave);
+      // Set waveId on orders
+      for (const o of selectedOrders) {
+        await updateDoc(doc(db, "orders", o.id), { waveId });
+      }
       setWaves((prev) => [wave, ...prev]);
       if (failCount > 0) {
         toast.warning(`Wave partially allocated: ${successCount} succeeded, ${failCount} failed`);
@@ -517,3 +540,6 @@ function WavesPage() {
     </div>
   );
 }
+
+
+
