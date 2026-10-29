@@ -493,3 +493,4 @@ export function emit945ForBol(bol: BillOfLading): EdiLog {
   ediLogs.unshift(log);
   return log;
 }
+

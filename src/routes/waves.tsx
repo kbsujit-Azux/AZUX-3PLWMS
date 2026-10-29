@@ -39,7 +39,8 @@ import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { allocate_order } from "@/lib/allocation-engine";
-import { updatePickTicket } from "@/lib/firestore-data";
+import { updatePickTicket, createBol } from "@/lib/firestore-data";
+import { buildMasterBol } from "@/lib/bol-data";
 import type { Order, Wave, WaveStatus } from "@/lib/edi-data";
 
 export const Route = createFileRoute("/waves")({
@@ -405,6 +406,15 @@ function WavesPage() {
                       )}
                       {w.status === "picked" && (
                         <div className="flex gap-1">
+                          <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
+                            try {
+                              const masterBol = buildMasterBol(w.orderIds, orders);
+                              await createBol(masterBol);
+                              toast.success(`Master BOL ${masterBol.bolNumber} created for ${w.orderIds.length} orders`);
+                            } catch (err) {
+                              toast.error(`Master BOL failed: ${err instanceof Error ? err.message : String(err)}`);
+                            }
+                          }}>Master BOL</Button>
                           <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
                             await updateDoc(doc(db, "waves", w.id), { status: "closed" });
                             setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
