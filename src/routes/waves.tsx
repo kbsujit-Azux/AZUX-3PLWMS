@@ -132,19 +132,15 @@ function WavesPage() {
 
   const selectedOrders = useMemo(() => candidates.filter((o) => selectedIds.has(o.id)), [candidates, selectedIds]);
   const selectedUnits = selectedOrders.reduce((s, o) => s + o.lines.reduce((l, line) => l + line.qtyOrdered, 0), 0);
-  const allAllocatable = selectedOrders.every((o) => allocatability[o.id]?.allocatable) && combinedAllocPct >= 100;
-
   // Combined allocation feasibility across selected orders
   const combinedAllocPct = useMemo(() => {
     if (selectedOrders.length === 0) return 0;
-    // Aggregate needed units per SKU
     const needed: Record<string, number> = {};
     for (const o of selectedOrders) {
       for (const l of o.lines) {
         needed[l.sku] = (needed[l.sku] || 0) + (l.qtyOrdered || 0);
       }
     }
-    // Available units per SKU from inventory
     let minPct = 100;
     for (const sku of Object.keys(needed)) {
       const item = (inventoryItems || []).find((i: any) => i.sku === sku);
@@ -154,6 +150,8 @@ function WavesPage() {
     }
     return Math.round(minPct);
   }, [selectedOrders, inventoryItems]);
+
+  const allAllocatable = selectedOrders.every((o) => allocatability[o.id]?.allocatable) && combinedAllocPct >= 100;
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
