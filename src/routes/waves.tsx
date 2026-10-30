@@ -38,7 +38,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
-import { allocate_order } from "@/lib/allocation-engine";
+import { allocate_order, deallocate_order } from "@/lib/allocation-engine";
 import { updatePickTicket, createBol } from "@/lib/firestore-data";
 import { buildMasterBol } from "@/lib/bol-data";
 import type { Order, Wave, WaveStatus } from "@/lib/edi-data";
@@ -176,7 +176,24 @@ function WavesPage() {
 
   const deselectAll = () => setSelectedIds(new Set());
 
-  const carriers = [...new Set(orders.map((o) => o.carrier).filter(Boolean))];
+  const handleDeallocateWave = async (w: Wave) => {
+    if (!confirm(`Deallocate all orders in wave ${w.name}?`)) return;
+    setCreating(true);
+    try {
+      for (const oid of w.orderIds) {
+        await deallocate_order(oid);
+        await updateDoc(doc(db, "orders", oid), { waveId: null });
+      }
+      await updateDoc(doc(db, "waves", w.id), { status: "cancelled" });
+      setWaves((prev) => prev.map((x) => (x.id === w.id ? { ...x, status: "cancelled" } : x)));
+      toast.success(`Wave ${w.name} deallocated`);
+      refreshData();
+    } catch (err) {
+      toast.error(`Deallocate failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setCreating(false);
+    }
+  };
   const services = [...new Set(orders.map((o) => o.serviceLevel).filter(Boolean))];
   const states = [...new Set(orders.map((o) => o.shipToState).filter(Boolean))];
 
@@ -455,7 +472,8 @@ function WavesPage() {
                             await updateDoc(doc(db, "waves", w.id), { status: "closed" });
                             setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
                             toast.success(`Wave ${w.waveNumber} closed`);
-                          }}>Close Wave</Button>
+                           }}>Close Wave</Button>
+                           <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={() => handleDeallocateWave(w)}>Deallocate</Button>
                         </div>
                       )}
                     </TableCell>
