@@ -194,6 +194,7 @@ function WavesPage() {
       setCreating(false);
     }
   };
+  const carriers = [...new Set(orders.map((o) => o.carrier).filter(Boolean))];
   const services = [...new Set(orders.map((o) => o.serviceLevel).filter(Boolean))];
   const states = [...new Set(orders.map((o) => o.shipToState).filter(Boolean))];
 
