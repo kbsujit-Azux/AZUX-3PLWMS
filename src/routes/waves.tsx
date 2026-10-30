@@ -165,10 +165,15 @@ function WavesPage() {
     }
     setCreating(true);
     try {
-      // Allocate each selected order
-      let successCount = 0;
-      let failCount = 0;
-      for (const o of selectedOrders) {
+     // Allocate each selected order (largest first to ensure combined 100% allocation)
+     const orderedForAlloc = [...selectedOrders].sort((a, b) => {
+       const ua = a.lines.reduce((s, l) => s + l.qtyOrdered, 0);
+       const ub = b.lines.reduce((s, l) => s + l.qtyOrdered, 0);
+       return ub - ua;
+     });
+     let successCount = 0;
+     let failCount = 0;
+     for (const o of orderedForAlloc) {
         const result = await allocate_order(o.id);
         if (result.success) successCount++;
         else failCount++;
