@@ -110,25 +110,32 @@ function WavesPage() {
 
   // Check allocatability for each candidate
   const allocatability = useMemo(() => {
-    const map: Record<string, { allocatable: boolean; reason?: string; units: number }> = {};
+    const map: Record<string, { allocatable: boolean; reason?: string; units: number; pct: number }> = {};
     for (const o of candidates) {
       const units = o.lines.reduce((s, l) => s + l.qtyOrdered, 0);
-      // Check if all lines have sufficient inventory
       let allocatable = true;
       let reason = "";
+      let pct = 100;
       for (const line of o.lines) {
-        // We can't check inventory without the engine, so we'll assume allocatable for now
-        // In production, this would call a checkAllocationFeasibility function
         if (line.qtyOrdered <= 0) {
           allocatable = false;
           reason = "Zero qty";
+          pct = 0;
           break;
         }
+        const item = (inventoryItems || []).find((i: any) => i.sku === line.sku);
+        const avail = (item?.batches || []).reduce((s: number, b: any) => s + (b.qty - (b.qtyAllocated || 0)), 0);
+        const linePct = line.qtyOrdered > 0 ? Math.min(100, (avail / line.qtyOrdered) * 100) : 100;
+        if (linePct < pct) pct = linePct;
+        if (avail < line.qtyOrdered) {
+          allocatable = false;
+          reason = `Insufficient stock (${avail} avail)`;
+        }
       }
-      map[o.id] = { allocatable, reason, units };
+      map[o.id] = { allocatable, reason, units, pct: Math.round(pct) };
     }
     return map;
-  }, [candidates]);
+  }, [candidates, inventoryItems]);
 
   const selectedOrders = useMemo(() => candidates.filter((o) => selectedIds.has(o.id)), [candidates, selectedIds]);
   const selectedUnits = selectedOrders.reduce((s, o) => s + o.lines.reduce((l, line) => l + line.qtyOrdered, 0), 0);
@@ -577,11 +584,11 @@ function WavesPage() {
                       <TableCell className="text-xs">{o.carrier} / {o.serviceLevel}</TableCell>
                       <TableCell className="text-xs text-right">{o.lines.reduce((s, l) => s + l.qtyOrdered, 0)}</TableCell>
                       <TableCell className="text-xs">
-                        {allocatability[o.id]?.allocatable ? (
-                          <Badge className="bg-green-100 text-green-800 text-[10px]">✅</Badge>
-                        ) : (
-                          <Badge className="bg-red-100 text-red-800 text-[10px]">❌</Badge>
-                        )}
+                         {allocatability[o.id]?.allocatable ? (
+                           <Badge className="bg-green-100 text-green-800 text-[10px]">✅ {allocatability[o.id]?.pct}%</Badge>
+                         ) : (
+                           <Badge className="bg-red-100 text-red-800 text-[10px]">❌ {allocatability[o.id]?.pct}%</Badge>
+                         )}
                       </TableCell>
                     </TableRow>
                   ))}
