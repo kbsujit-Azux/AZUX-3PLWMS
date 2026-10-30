@@ -149,7 +149,6 @@ const statusStyles: Record<Order["status"], string> = {
 function OrdersPage() {
   const { tenantId, warehouseId } = useWorkspace();
   const { refreshData, orders, pickTickets } = useWmsData();
-  useEffect(() => { refreshData(); }, []);
   const [waves, setWaves] = useState<any[]>([]);
   useEffect(() => {
     getDocs(collection(db, "waves")).then((snap) => setWaves(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
