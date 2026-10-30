@@ -132,7 +132,7 @@ function WavesPage() {
 
   const selectedOrders = useMemo(() => candidates.filter((o) => selectedIds.has(o.id)), [candidates, selectedIds]);
   const selectedUnits = selectedOrders.reduce((s, o) => s + o.lines.reduce((l, line) => l + line.qtyOrdered, 0), 0);
-  const allAllocatable = selectedOrders.every((o) => allocatability[o.id]?.allocatable);
+  const allAllocatable = selectedOrders.every((o) => allocatability[o.id]?.allocatable) && combinedAllocPct >= 100;
 
   // Combined allocation feasibility across selected orders
   const combinedAllocPct = useMemo(() => {
