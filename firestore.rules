@@ -283,6 +283,9 @@ service cloud.firestore {
     match /pickWaves/{waveId} {
       allow read, write: if isSignedIn();
     }
+    match /waves/{waveId} {
+      allow read, write: if isSignedIn();
+    }
 
     match /locationMaster/{locId} {
       allow read, write: if isSignedIn();
