@@ -465,6 +465,8 @@ onClick={() => {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="text-[10px] uppercase tracking-wider">Client</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider">Warehouse</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">SKU</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">
                 Container / Trailer
@@ -500,7 +502,7 @@ onClick={() => {
           <TableBody>
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={14} className="text-center text-xs text-muted-foreground py-10">
+                <TableCell colSpan={16} className="text-center text-xs text-muted-foreground py-10">
                   No inventory matches the current filter.
                 </TableCell>
               </TableRow>
@@ -509,6 +511,8 @@ onClick={() => {
               const item = liveInventory.find((i) => i.sku === r.sku);
               return (
                 <TableRow key={`${r.batchId}-${r.palletId}`} className="text-xs hover:bg-muted/30">
+                  <TableCell className="py-2 text-xs">{tenants.find((t) => t.id === r.tenantId)?.code ?? r.tenantId}</TableCell>
+                  <TableCell className="py-2 text-xs">{warehouses.find((w) => w.id === r.warehouseId)?.code ?? r.warehouseId}</TableCell>
                   <TableCell className="py-2 font-mono">
                     <div className="font-medium">{r.sku}</div>
                     <div className="text-[10px] text-muted-foreground font-sans">
