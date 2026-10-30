@@ -1031,13 +1031,19 @@ function OrdersPage() {
                 });
                 const win = window.open("", "_blank");
                 if (!win) return;
-                const rows = filteredReport.map((o) => {
-                  const tenant = tenants.find((t) => t.id === o.tenantId);
-                  const wh = warehouses.find((w) => w.id === o.warehouseId);
-                  const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
-                  return `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${tenant?.code ?? o.tenantId}</td><td>${wh?.code ?? o.warehouseId}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.serviceLevel}</td><td>${linesFor(o).length}</td><td>${units}</td><td>${o.status}</td><td>${o.source}</td><td>${new Date(o.receivedAt).toLocaleDateString()}</td></tr>`;
-                }).join("");
-                win.document.write(`<!DOCTYPE html><html><head><title>Outbound Orders Report</title><style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#1a365d;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#1a365d;color:#fff;font-weight:600}tr:nth-child(even){background:#f7f9fc}td{white-space:nowrap}@media print{body{padding:0}}</style></head><body><h1>AZUX 3PL WMS - Outbound Orders Report</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${filteredReport.length} | Date range: ${reportDateFrom || "All"} to ${reportDateTo || "All"} | Status: ${reportStatus}</p><table><thead><tr><th>Order #</th><th>PO #</th><th>Client</th><th>Warehouse</th><th>Ship-to</th><th>Carrier</th><th>Service</th><th>Lines</th><th>Units</th><th>Status</th><th>Source</th><th>Received</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();}</script></body></html>`);
+                const rows = reportDetail
+                  ? filteredReport.flatMap((o) => {
+                      const tenant = tenants.find((t) => t.id === o.tenantId);
+                      const wh = warehouses.find((w) => w.id === o.warehouseId);
+                      return linesFor(o).map((l) => `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${tenant?.code ?? o.tenantId}</td><td>${wh?.code ?? o.warehouseId}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.serviceLevel}</td><td>${l.sku}</td><td>${l.description}</td><td>${l.qtyOrdered}</td><td>${l.qtyAllocated ?? 0}</td><td>${o.status}</td><td>${o.source}</td><td>${o.entryDate ? new Date(o.entryDate).toLocaleDateString() : ""}</td></tr>`).join("");
+                    }).join("")
+                  : filteredReport.map((o) => {
+                      const tenant = tenants.find((t) => t.id === o.tenantId);
+                      const wh = warehouses.find((w) => w.id === o.warehouseId);
+                      const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
+                      return `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${tenant?.code ?? o.tenantId}</td><td>${wh?.code ?? o.warehouseId}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.serviceLevel}</td><td>${linesFor(o).length}</td><td>${units}</td><td>${o.status}</td><td>${o.source}</td><td>${new Date(o.receivedAt).toLocaleDateString()}</td></tr>`;
+                    }).join("");
+                win.document.write(`<!DOCTYPE html><html><head><title>Outbound Orders Report</title><style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#1a365d;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#1a365d;color:#fff;font-weight:600}tr:nth-child(even){background:#f7f9fc}td{white-space:nowrap}@media print{body{padding:0}}</style></head><body><h1>AZUX 3PL WMS - Outbound Orders Report</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${filteredReport.length} | Date range: ${reportDateFrom || "All"} to ${reportDateTo || "All"} | Status: ${reportStatus}</p><table><thead><tr>${reportDetail ? "<th>Order #</th><th>PO #</th><th>Client</th><th>Warehouse</th><th>Ship-to</th><th>Carrier</th><th>Service</th><th>SKU</th><th>Description</th><th>Qty Ordered</th><th>Qty Allocated</th><th>Status</th><th>Source</th><th>940 Add Date</th>" : "<th>Order #</th><th>PO #</th><th>Client</th><th>Warehouse</th><th>Ship-to</th><th>Carrier</th><th>Service</th><th>Lines</th><th>Units</th><th>Status</th><th>Source</th><th>Received</th>"}</tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();}</script></body></html>`);
                 win.document.close();
               }}>
                 <FileText className="h-3.5 w-3.5" /> Print PDF
