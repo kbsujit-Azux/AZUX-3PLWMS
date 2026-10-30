@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 ﻿import { buildUCC128ForOrder, hasUCC128Records, getUCC128RecordsByOrder } from "@/lib/ucc128-build";
+import { db } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
 import { useMemo, useState, useEffect } from "react";
 import Papa from "papaparse";
 import {
@@ -147,6 +149,10 @@ const statusStyles: Record<Order["status"], string> = {
 function OrdersPage() {
   const { tenantId, warehouseId } = useWorkspace();
   const { refreshData, orders, pickTickets } = useWmsData();
+  const [waves, setWaves] = useState<any[]>([]);
+  useEffect(() => {
+    getDocs(collection(db, "waves")).then((snap) => setWaves(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  }, []);
   const [query, setQuery] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const [reportDateFrom, setReportDateFrom] = useState("");
@@ -421,6 +427,7 @@ function OrdersPage() {
               <TableHead className="text-[10px] uppercase tracking-wider">WH</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Ship-to</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Carrier</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider">Wave</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right">
                 Lines
               </TableHead>
@@ -473,13 +480,14 @@ function OrdersPage() {
                   </TableCell>
                   <TableCell className="py-2 font-mono text-[11px]">{wh?.code}</TableCell>
                   <TableCell className="py-2">{o.shipToName}</TableCell>
-                  <TableCell className="py-2">
-                    <div className="flex items-center gap-1">
-                      <Truck className="h-3 w-3 text-muted-foreground" />
-                      <span>{o.carrier}</span>
-                      <span className="text-[10px] text-muted-foreground">· {o.serviceLevel}</span>
-                    </div>
-                  </TableCell>
+                   <TableCell className="py-2">
+                      <div className="flex items-center gap-1">
+                        <Truck className="h-3 w-3 text-muted-foreground" />
+                        <span>{o.carrier}</span>
+                        <span className="text-[10px] text-muted-foreground">· {o.serviceLevel}</span>
+                      </div>
+                   </TableCell>
+                   <TableCell className="text-xs">{waves.find((w) => w.id === (o as any).waveId)?.name || (o as any).waveId || "—"}</TableCell>
                   <TableCell className="py-2 text-right tabular-nums">{lines.length}</TableCell>
                   <TableCell className="py-2 text-right tabular-nums font-medium">
                     {units.toLocaleString()}

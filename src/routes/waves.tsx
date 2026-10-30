@@ -159,6 +159,10 @@ function WavesPage() {
       toast.error("Select at least one order");
       return;
     }
+    if (!waveName.trim()) {
+      toast.error("Wave name is required");
+      return;
+    }
     if (!allAllocatable) {
       toast.error("Deselect non-allocatable orders first");
       return;
@@ -183,7 +187,7 @@ function WavesPage() {
       const wave: Wave = {
         id: waveId,
         waveNumber: waveId,
-        name: waveName || `Wave ${waveId}`,
+         name: waveName,
         tenantId: tenantId !== "all" ? tenantId : "acme",
         warehouseId: warehouseId !== "all" ? warehouseId : "atl1",
         status: "released",
@@ -528,7 +532,7 @@ function WavesPage() {
             <DialogDescription>Review selected orders before allocating as a batch.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <Input placeholder="Wave name (optional)" value={waveName} onChange={(e) => setWaveName(e.target.value)} className="h-8 text-xs" />
+            <Input placeholder="Wave name (required)" value={waveName} onChange={(e) => setWaveName(e.target.value)} className="h-8 text-xs" />
             <div className="text-xs text-muted-foreground">
               {selectedOrders.length} orders · {selectedOrders.reduce((s, o) => s + o.lines.length, 0)} lines · {selectedUnits} units
             </div>
@@ -572,7 +576,7 @@ function WavesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPreviewOpen(false)}>Cancel</Button>
-            <Button size="sm" className="h-8 text-xs" onClick={handleCreateWave} disabled={creating || !allAllocatable}>
+            <Button size="sm" className="h-8 text-xs" onClick={handleCreateWave} disabled={creating || !allAllocatable || !waveName.trim()}>
               {creating ? "Allocating..." : `Allocate ${selectedIds.size} Orders`}
             </Button>
           </DialogFooter>
