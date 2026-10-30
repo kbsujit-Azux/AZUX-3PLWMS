@@ -156,6 +156,7 @@ function OrdersPage() {
   const [query, setQuery] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const [reportDateFrom, setReportDateFrom] = useState("");
+  const [reportDetail, setReportDetail] = useState(false);
   const [reportDateTo, setReportDateTo] = useState("");
   const [reportStatus, setReportStatus] = useState("all");
   const [csvOpen, setCsvOpen] = useState(false);
@@ -292,23 +293,72 @@ function OrdersPage() {
   }, [filtered, lineOverrides]);
 
   const exportCsv = () => {
-    const headers = [
-      "Order #",
-      "PO Number",
-      "Customer Order #",
-      "EDI Ref",
-      "Client",
-      "Warehouse",
-      "Ship-to",
-      "Carrier",
-      "Service",
-      "Lines",
-      "Units",
-      "Status",
-      "Source",
-      "Required by",
-    ];
+    const headers = reportDetail
+      ? [
+          "Order #",
+          "PO Number",
+          "Customer Order #",
+          "EDI Ref",
+          "Client",
+          "Warehouse",
+          "Ship-to",
+          "Carrier",
+          "Service",
+          "SKU",
+          "Description",
+          "Qty Ordered",
+          "Qty Allocated",
+          "Status",
+          "Source",
+          "Required by",
+          "940 Add Date",
+        ]
+      : [
+          "Order #",
+          "PO Number",
+          "Customer Order #",
+          "EDI Ref",
+          "Client",
+          "Warehouse",
+          "Ship-to",
+          "Carrier",
+          "Service",
+          "Lines",
+          "Units",
+          "Status",
+          "Source",
+          "Required by",
+        ];
     const lines = [headers.join(",")];
+    if (reportDetail) {
+      for (const o of filtered) {
+        const tenant = tenants.find((t) => t.id === o.tenantId);
+        const wh = warehouses.find((w) => w.id === o.warehouseId);
+        for (const l of linesFor(o)) {
+          lines.push(
+            [
+              o.id,
+              o.poNumber,
+              o.customerOrderNumber,
+              o.ediRef,
+              tenant?.code ?? o.tenantId,
+              wh?.code ?? o.warehouseId,
+              o.shipToName,
+              o.carrier,
+              o.serviceLevel,
+              l.sku,
+              l.description,
+              String(l.qtyOrdered),
+              String(l.qtyAllocated ?? 0),
+              o.status,
+              o.source,
+              new Date(o.mustShipDate).toLocaleDateString(),
+              o.entryDate ? new Date(o.entryDate).toLocaleDateString() : "",
+            ].join(","),
+          );
+        }
+      }
+    } else {
     for (const o of filtered) {
       const tenant = tenants.find((t) => t.id === o.tenantId);
       const wh = warehouses.find((w) => w.id === o.warehouseId);
@@ -331,6 +381,7 @@ function OrdersPage() {
           new Date(o.mustShipDate).toLocaleDateString(),
         ].join(","),
       );
+    }
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -428,6 +479,7 @@ function OrdersPage() {
               <TableHead className="text-[10px] uppercase tracking-wider">Ship-to</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Carrier</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider">Wave</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider">940 Add Date</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right">
                 Lines
               </TableHead>
@@ -488,6 +540,7 @@ function OrdersPage() {
                       </div>
                    </TableCell>
                    <TableCell className="text-xs">{waves.find((w) => w.id === (o as any).waveId)?.name || (o as any).waveId || "—"}</TableCell>
+                   <TableCell className="text-xs">{o.entryDate ? new Date(o.entryDate).toLocaleDateString() : "—"}</TableCell>
                   <TableCell className="py-2 text-right tabular-nums">{lines.length}</TableCell>
                   <TableCell className="py-2 text-right tabular-nums font-medium">
                     {units.toLocaleString()}
@@ -909,9 +962,16 @@ function OrdersPage() {
                 <Input type="date" value={reportDateTo} onChange={(e) => setReportDateTo(e.target.value)} className="h-8 text-xs" />
               </div>
             </div>
-            <div>
-              <label className="text-xs font-medium">Status</label>
-              <select value={reportStatus} onChange={(e) => setReportStatus(e.target.value)} className="w-full h-8 text-xs border rounded px-2">
+              <div>
+                <label className="text-xs font-medium">Report Type</label>
+                <select value={reportDetail ? "detail" : "summary"} onChange={(e) => setReportDetail(e.target.value === "detail")} className="w-full h-8 text-xs border rounded px-2">
+                  <option value="summary">Summary (order level)</option>
+                  <option value="detail">Detail (line level)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium">Status</label>
+                <select value={reportStatus} onChange={(e) => setReportStatus(e.target.value)} className="w-full h-8 text-xs border rounded px-2">
                 <option value="all">All Statuses</option>
                 <option value="new">New</option>
                 <option value="released">Released</option>
