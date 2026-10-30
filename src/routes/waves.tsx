@@ -300,8 +300,9 @@ function WavesPage() {
         totalUnits: selectedUnits,
         allocatablePct: 100,
       };
-      // Save wave to Firestore
-      await setDoc(doc(db, "waves", waveId), wave);
+      // Save wave to Firestore (strip undefined values)
+      const cleanWave = Object.fromEntries(Object.entries(wave).filter(([, v]) => v !== undefined));
+      await setDoc(doc(db, "waves", waveId), cleanWave);
       // Set waveId on orders
       for (const o of selectedOrders) {
         await updateDoc(doc(db, "orders", o.id), { waveId });
