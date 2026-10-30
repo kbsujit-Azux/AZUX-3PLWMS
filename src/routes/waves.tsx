@@ -398,7 +398,7 @@ function WavesPage() {
       {waves.length > 0 && (
         <div className="border rounded-md">
           <div className="flex items-center justify-between p-3 border-b bg-muted/30">
-            <h2 className="text-sm font-semibold">Wave List ({waves.length})</h2>
+            <h2 className="text-sm font-semibold">Wave History ({waves.length})</h2>
             <select value={waveFilter} onChange={(e) => setWaveFilter(e.target.value)} className="h-7 text-xs border rounded px-2">
               <option value="all">All Statuses</option>
               <option value="released">Released</option>
