@@ -52,7 +52,7 @@ export const Route = createFileRoute("/waves")({
 
 function WavesPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { orders, pickTickets, tenants, refreshData } = useWmsData();
+  const { orders, pickTickets, tenants, inventoryItems, refreshData } = useWmsData();
 
   const [query, setQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -133,6 +133,27 @@ function WavesPage() {
   const selectedOrders = useMemo(() => candidates.filter((o) => selectedIds.has(o.id)), [candidates, selectedIds]);
   const selectedUnits = selectedOrders.reduce((s, o) => s + o.lines.reduce((l, line) => l + line.qtyOrdered, 0), 0);
   const allAllocatable = selectedOrders.every((o) => allocatability[o.id]?.allocatable);
+
+  // Combined allocation feasibility across selected orders
+  const combinedAllocPct = useMemo(() => {
+    if (selectedOrders.length === 0) return 0;
+    // Aggregate needed units per SKU
+    const needed: Record<string, number> = {};
+    for (const o of selectedOrders) {
+      for (const l of o.lines) {
+        needed[l.sku] = (needed[l.sku] || 0) + (l.qtyOrdered || 0);
+      }
+    }
+    // Available units per SKU from inventory
+    let minPct = 100;
+    for (const sku of Object.keys(needed)) {
+      const item = (inventoryItems || []).find((i: any) => i.sku === sku);
+      const avail = (item?.batches || []).reduce((s: number, b: any) => s + (b.qty - (b.qtyAllocated || 0)), 0);
+      const pct = needed[sku] > 0 ? Math.min(100, (avail / needed[sku]) * 100) : 100;
+      if (pct < minPct) minPct = pct;
+    }
+    return Math.round(minPct);
+  }, [selectedOrders, inventoryItems]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -340,6 +361,7 @@ function WavesPage() {
         <div className="flex items-center gap-4 p-3 rounded-md border bg-muted/50 text-xs">
           <span className="font-medium">Selected: {selectedIds.size} orders</span>
           <span>Units: {selectedUnits}</span>
+          <span>Combined Alloc: {combinedAllocPct}%</span>
           <span className={allAllocatable ? "text-green-700 font-medium" : "text-red-700 font-medium"}>
             {allAllocatable ? "✅ All allocatable" : "❌ Some not allocatable"}
           </span>
