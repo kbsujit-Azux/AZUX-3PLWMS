@@ -39,7 +39,9 @@ import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { allocate_order, deallocate_order } from "@/lib/allocation-engine";
+import { pick_pick_ticket, unpick_order } from "@/lib/allocation-engine";
 import { updatePickTicket, createBol } from "@/lib/firestore-data";
+import { buildUCC128ForOrder, hasUCC128Records } from "@/lib/ucc128-build";
 import { buildMasterBol } from "@/lib/bol-data";
 import type { Order, Wave, WaveStatus } from "@/lib/edi-data";
 
@@ -52,7 +54,7 @@ export const Route = createFileRoute("/waves")({
 
 function WavesPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { orders, pickTickets, tenants, inventoryItems, refreshData } = useWmsData();
+  const { orders, pickTickets, tenants, inventoryItems, itemMaster, refreshData } = useWmsData();
 
   const [query, setQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -190,6 +192,53 @@ function WavesPage() {
       refreshData();
     } catch (err) {
       toast.error(`Deallocate failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+  const handleMassPick = async (w: Wave) => {
+    const pts = pickTickets.filter((pt: any) => w.orderIds.includes(pt.orderId) && pt.status !== "PICKED");
+    if (pts.length === 0) { toast.info("All pick tickets already picked"); return; }
+    if (!confirm(`Pick ${pts.length} tickets (${pts.reduce((s, p) => s + (p.quantityToPick || 0), 0)} units) for wave ${w.name}?`)) return;
+    setCreating(true);
+    try {
+      await updateDoc(doc(db, "waves", w.id), { status: "picking" });
+      setWaves((prev) => prev.map((x) => (x.id === w.id ? { ...x, status: "picking" } : x)));
+      let ok = 0, fail = 0;
+      const sorted = [...pts].sort((a, b) => String(a.fromLocation).localeCompare(String(b.fromLocation)));
+      for (const pt of sorted) {
+        try { await pick_pick_ticket(pt.pickTicketNum); ok++; }
+        catch { fail++; }
+      }
+      if (fail === 0) {
+        await updateDoc(doc(db, "waves", w.id), { status: "picked" });
+        setWaves((prev) => prev.map((x) => (x.id === w.id ? { ...x, status: "picked" } : x)));
+        toast.success(`Wave ${w.name} fully picked (${ok} tickets)`);
+      } else {
+        toast.warning(`Picked ${ok}, failed ${fail}`);
+      }
+      refreshData();
+    } catch (err) {
+      toast.error(`Mass pick failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+  const handleWaveUccBuild = async (w: Wave) => {
+    const waveOrders = orders.filter((o: any) => w.orderIds.includes(o.id));
+    if (!confirm(`Build UCC128 for ${waveOrders.length} orders in wave ${w.name}?`)) return;
+    setCreating(true);
+    try {
+      for (const o of waveOrders) {
+        const pts = pickTickets.filter((p: any) => p.orderId === o.id);
+        await buildUCC128ForOrder(o, pts, itemMaster);
+      }
+      await updateDoc(doc(db, "waves", w.id), { uccBuilt: true });
+      setWaves((prev) => prev.map((x) => (x.id === w.id ? { ...x, uccBuilt: true } : x)));
+      toast.success(`UCC128 built for wave ${w.name}`);
+      refreshData();
+    } catch (err) {
+      toast.error(`UCC build failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setCreating(false);
     }
@@ -468,7 +517,9 @@ function WavesPage() {
                             } catch (err) {
                               toast.error(`Master BOL failed: ${err instanceof Error ? err.message : String(err)}`);
                             }
-                          }}>Master BOL</Button>
+                           }}>Master BOL</Button>
+                           <Button size="sm" className="h-6 text-[10px]" onClick={() => handleMassPick(w)} disabled={creating || w.status !== "released"}>Mass Pick</Button>
+                           <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveUccBuild(w)} disabled={creating || w.status !== "picked"}>Build UCC128</Button>
                           <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
                             await updateDoc(doc(db, "waves", w.id), { status: "closed" });
                             setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
