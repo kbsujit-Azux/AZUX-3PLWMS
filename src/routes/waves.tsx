@@ -243,6 +243,14 @@ function WavesPage() {
       setCreating(false);
     }
   };
+  const handleWaveReport = (w: Wave) => {
+    const waveOrders = orders.filter((o: any) => w.orderIds.includes(o.id));
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const rows = waveOrders.map((o: any) => `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.lines?.length ?? 0}</td><td>${o.lines?.reduce((s: number, l: any) => s + l.qtyOrdered, 0) ?? 0}</td><td>${o.status}</td></tr>`).join("");
+    win.document.write(`<!DOCTYPE html><html><head><title>Wave Report ${w.name}</title><style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#1a365d}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:6px 8px}th{background:#1a365d;color:#fff}</style></head><body><h1>Wave Report: ${w.name}</h1><p>Wave #: ${w.waveNumber} | Status: ${w.status} | Orders: ${waveOrders.length} | Units: ${w.totalUnits}</p><table><thead><tr><th>Order #</th><th>PO #</th><th>Ship-to</th><th>Carrier</th><th>Lines</th><th>Units</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();}</script></body></html>`);
+    win.document.close();
+  };
   const carriers = [...new Set(orders.map((o) => o.carrier).filter(Boolean))];
   const services = [...new Set(orders.map((o) => o.serviceLevel).filter(Boolean))];
   const states = [...new Set(orders.map((o) => o.shipToState).filter(Boolean))];
@@ -521,6 +529,7 @@ function WavesPage() {
                            }}>Master BOL</Button>
                            <Button size="sm" className="h-6 text-[10px]" onClick={() => handleMassPick(w)} disabled={creating || w.status !== "released"}>Mass Pick</Button>
                            <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveUccBuild(w)} disabled={creating || w.status !== "picked"}>Build UCC128</Button>
+                           <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveReport(w)}>Wave Report</Button>
                           <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
                             await updateDoc(doc(db, "waves", w.id), { status: "closed" });
                             setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
