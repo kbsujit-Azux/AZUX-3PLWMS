@@ -13,12 +13,25 @@ import {
   Calendar,
   Filter,
   ScanLine,
+  FileText,
+  FileSpreadsheet,
+  Printer,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { db } from "@/lib/firestore";
-import { collection, doc, setDoc, getDocs, updateDoc, query, where, deleteDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  updateDoc,
+  query,
+  where,
+  deleteDoc,
+} from "firebase/firestore";
 import {
   Table,
   TableBody,
@@ -36,12 +49,24 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useWorkspace } from "@/components/workspace-context";
 import { useWmsData } from "@/components/db-context";
 import { allocate_order, deallocate_order } from "@/lib/allocation-engine";
 import { pick_pick_ticket, unpick_order } from "@/lib/allocation-engine";
 import { updatePickTicket, createBol } from "@/lib/firestore-data";
-import { buildUCC128ForOrder, hasUCC128Records } from "@/lib/ucc128-build";
+import {
+  buildUCC128ForOrder,
+  deleteUCC128RecordsByOrder,
+  hasUCC128Records,
+} from "@/lib/ucc128-build";
 import { buildMasterBol } from "@/lib/bol-data";
 import type { Order, Wave, WaveStatus } from "@/lib/edi-data";
 
@@ -71,6 +96,8 @@ function WavesPage() {
   const [waves, setWaves] = useState<Wave[]>([]);
   const [selectedWave, setSelectedWave] = useState<Wave | null>(null);
   const [expandedWaves, setExpandedWaves] = useState<Set<string>>(new Set());
+  const [waveFilter, setWaveFilter] = useState("all");
+  const [reportOpen, setReportOpen] = useState(false);
 
   // Load waves from Firestore on mount
   useEffect(() => {
@@ -80,14 +107,22 @@ function WavesPage() {
         const loaded = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as Wave);
         // Auto-remove waves with no active orders
         const orderWaveIds = new Set(orders.map((o: any) => o.waveId).filter(Boolean));
-        const active = loaded.filter((w) => orderWaveIds.has(w.id) || (w.status !== "cancelled" && w.orderIds?.some((oid: string) => orders.some((o: any) => o.id === oid)));
+        const active = loaded.filter((w) => {
+          if (orderWaveIds.has(w.id)) return true;
+          if (w.status === "cancelled") return false;
+          return (w.orderIds ?? []).some((oid: string) => orders.some((o: any) => o.id === oid));
+        });
         // Delete orphaned waves from Firestore
         for (const w of loaded) {
           if (!active.includes(w)) {
-            try { await deleteDoc(doc(db, "waves", w.id)); } catch {}
+            try {
+              await deleteDoc(doc(db, "waves", w.id));
+            } catch {}
           }
         }
-        setWaves(active.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        setWaves(
+          active.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+        );
       } catch (err) {
         console.error("Failed to load waves:", err);
       }
@@ -117,11 +152,25 @@ function WavesPage() {
       if (to && d > to) return false;
       return true;
     });
-  }, [orders, tenantId, warehouseId, query, dateFrom, dateTo, carrierFilter, serviceFilter, statusFilter, shipToState]);
+  }, [
+    orders,
+    tenantId,
+    warehouseId,
+    query,
+    dateFrom,
+    dateTo,
+    carrierFilter,
+    serviceFilter,
+    statusFilter,
+    shipToState,
+  ]);
 
   // Check allocatability for each candidate
   const allocatability = useMemo(() => {
-    const map: Record<string, { allocatable: boolean; reason?: string; units: number; pct: number }> = {};
+    const map: Record<
+      string,
+      { allocatable: boolean; reason?: string; units: number; pct: number }
+    > = {};
     for (const o of candidates) {
       const units = o.lines.reduce((s, l) => s + l.qtyOrdered, 0);
       let allocatable = true;
@@ -135,7 +184,10 @@ function WavesPage() {
           break;
         }
         const item = (inventoryItems || []).find((i: any) => i.sku === line.sku);
-        const avail = (item?.batches || []).reduce((s: number, b: any) => s + (b.qty - (b.qtyAllocated || 0)), 0);
+        const avail = (item?.batches || []).reduce(
+          (s: number, b: any) => s + (b.qty - (b.qtyAllocated || 0)),
+          0,
+        );
         const linePct = line.qtyOrdered > 0 ? Math.min(100, (avail / line.qtyOrdered) * 100) : 100;
         if (linePct < pct) pct = linePct;
         if (avail < line.qtyOrdered) {
@@ -148,8 +200,14 @@ function WavesPage() {
     return map;
   }, [candidates, inventoryItems]);
 
-  const selectedOrders = useMemo(() => candidates.filter((o) => selectedIds.has(o.id)), [candidates, selectedIds]);
-  const selectedUnits = selectedOrders.reduce((s, o) => s + o.lines.reduce((l, line) => l + line.qtyOrdered, 0), 0);
+  const selectedOrders = useMemo(
+    () => candidates.filter((o) => selectedIds.has(o.id)),
+    [candidates, selectedIds],
+  );
+  const selectedUnits = selectedOrders.reduce(
+    (s, o) => s + o.lines.reduce((l, line) => l + line.qtyOrdered, 0),
+    0,
+  );
   // Combined allocation feasibility across selected orders
   const combinedAllocPct = useMemo(() => {
     if (selectedOrders.length === 0) return 0;
@@ -162,14 +220,18 @@ function WavesPage() {
     let minPct = 100;
     for (const sku of Object.keys(needed)) {
       const item = (inventoryItems || []).find((i: any) => i.sku === sku);
-      const avail = (item?.batches || []).reduce((s: number, b: any) => s + (b.qty - (b.qtyAllocated || 0)), 0);
+      const avail = (item?.batches || []).reduce(
+        (s: number, b: any) => s + (b.qty - (b.qtyAllocated || 0)),
+        0,
+      );
       const pct = needed[sku] > 0 ? Math.min(100, (avail / needed[sku]) * 100) : 100;
       if (pct < minPct) minPct = pct;
     }
     return Math.round(minPct);
   }, [selectedOrders, inventoryItems]);
 
-  const allAllocatable = selectedOrders.every((o) => allocatability[o.id]?.allocatable) && combinedAllocPct >= 100;
+  const allAllocatable =
+    selectedOrders.every((o) => allocatability[o.id]?.allocatable) && combinedAllocPct >= 100;
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -181,7 +243,9 @@ function WavesPage() {
   };
 
   const selectAll = () => {
-    const allocatableIds = candidates.filter((o) => allocatability[o.id]?.allocatable).map((o) => o.id);
+    const allocatableIds = candidates
+      .filter((o) => allocatability[o.id]?.allocatable)
+      .map((o) => o.id);
     setSelectedIds(new Set(allocatableIds));
   };
 
@@ -197,7 +261,12 @@ function WavesPage() {
         }
       }
     } catch {}
-    if (!confirm(`Deallocate all ${w.orderIds.length} orders in wave ${w.name}? This reverts allocations to NEW.`)) return;
+    if (
+      !confirm(
+        `Deallocate all ${w.orderIds.length} orders in wave ${w.name}? This reverts allocations to NEW.`,
+      )
+    )
+      return;
     setCreating(true);
     try {
       for (const oid of w.orderIds) {
@@ -215,18 +284,35 @@ function WavesPage() {
     }
   };
   const handleMassPick = async (w: Wave) => {
-    const pts = pickTickets.filter((pt: any) => w.orderIds.includes(pt.orderId) && pt.status !== "PICKED");
-    if (pts.length === 0) { toast.info("All pick tickets already picked"); return; }
-    if (!confirm(`Pick ${pts.length} tickets (${pts.reduce((s, p) => s + (p.quantityToPick || 0), 0)} units) for wave ${w.name}?`)) return;
+    const pts = pickTickets.filter(
+      (pt: any) => w.orderIds.includes(pt.orderId) && pt.status !== "PICKED",
+    );
+    if (pts.length === 0) {
+      toast.info("All pick tickets already picked");
+      return;
+    }
+    if (
+      !confirm(
+        `Pick ${pts.length} tickets (${pts.reduce((s, p) => s + (p.quantityToPick || 0), 0)} units) for wave ${w.name}?`,
+      )
+    )
+      return;
     setCreating(true);
     try {
       await updateDoc(doc(db, "waves", w.id), { status: "picking" });
       setWaves((prev) => prev.map((x) => (x.id === w.id ? { ...x, status: "picking" } : x)));
-      let ok = 0, fail = 0;
-      const sorted = [...pts].sort((a, b) => String(a.fromLocation).localeCompare(String(b.fromLocation)));
+      let ok = 0,
+        fail = 0;
+      const sorted = [...pts].sort((a, b) =>
+        String(a.fromLocation).localeCompare(String(b.fromLocation)),
+      );
       for (const pt of sorted) {
-        try { await pick_pick_ticket(pt.pickTicketNum); ok++; }
-        catch { fail++; }
+        try {
+          await pick_pick_ticket(pt.pickTicketNum);
+          ok++;
+        } catch {
+          fail++;
+        }
       }
       if (fail === 0) {
         await updateDoc(doc(db, "waves", w.id), { status: "picked" });
@@ -265,9 +351,114 @@ function WavesPage() {
     const waveOrders = orders.filter((o: any) => w.orderIds.includes(o.id));
     const win = window.open("", "_blank");
     if (!win) return;
-    const rows = waveOrders.map((o: any) => `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.lines?.length ?? 0}</td><td>${o.lines?.reduce((s: number, l: any) => s + l.qtyOrdered, 0) ?? 0}</td><td>${o.status}</td></tr>`).join("");
-    win.document.write(`<!DOCTYPE html><html><head><title>Wave Report ${w.name}</title><style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#1a365d}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:6px 8px}th{background:#1a365d;color:#fff}</style></head><body><h1>Wave Report: ${w.name}</h1><p>Wave #: ${w.waveNumber} | Status: ${w.status} | Orders: ${waveOrders.length} | Units: ${w.totalUnits}</p><table><thead><tr><th>Order #</th><th>PO #</th><th>Ship-to</th><th>Carrier</th><th>Lines</th><th>Units</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();}</script></body></html>`);
+    const rows = waveOrders
+      .map(
+        (o: any) =>
+          `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.lines?.length ?? 0}</td><td>${o.lines?.reduce((s: number, l: any) => s + l.qtyOrdered, 0) ?? 0}</td><td>${o.status}</td></tr>`,
+      )
+      .join("");
+    win.document.write(
+      `<!DOCTYPE html><html><head><title>Wave Report ${w.name}</title><style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#1a365d}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:6px 8px}th{background:#1a365d;color:#fff}</style></head><body><h1>Wave Report: ${w.name}</h1><p>Wave #: ${w.waveNumber} | Status: ${w.status} | Orders: ${waveOrders.length} | Units: ${w.totalUnits}</p><table><thead><tr><th>Order #</th><th>PO #</th><th>Ship-to</th><th>Carrier</th><th>Lines</th><th>Units</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();}</script></body></html>`,
+    );
     win.document.close();
+  };
+  const handleWaveUnpick = async (w: Wave) => {
+    // Block if any UCC128 records exist
+    try {
+      for (const oid of w.orderIds) {
+        if (await hasUCC128Records(oid)) {
+          toast.error("Cannot unpick: UCC128 labels already built. Remove UCC128 first.");
+          return;
+        }
+      }
+    } catch {}
+    const unpickable = w.orderIds
+      .map((oid: string) => orders.find((x: any) => x.id === oid))
+      .filter((o: any) => o?.status === "PICKED");
+    if (unpickable.length === 0) {
+      toast.info("No picked orders in this wave to unpick");
+      return;
+    }
+    if (
+      !confirm(
+        `Unpick ${unpickable.length} picked order(s) in wave ${w.name}? This returns inventory to its original location.`,
+      )
+    )
+      return;
+    setCreating(true);
+    try {
+      let ok = 0,
+        fail = 0;
+      for (const o of unpickable) {
+        try {
+          await unpick_order(o.id);
+          ok++;
+        } catch {
+          fail++;
+        }
+      }
+      if (fail === 0) {
+        await updateDoc(doc(db, "waves", w.id), { status: "released", uccBuilt: false });
+        setWaves((prev) =>
+          prev.map((x) => (x.id === w.id ? { ...x, status: "released", uccBuilt: false } : x)),
+        );
+        toast.success(`Wave ${w.name} unpicked (${ok} orders)`);
+      } else {
+        toast.warning(`Unpicked ${ok}, failed ${fail}`);
+      }
+      refreshData();
+    } catch (err) {
+      toast.error(`Wave unpick failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+  const handleWaveUccRemove = async (w: Wave) => {
+    if (!w.uccBuilt) {
+      toast.info("No UCC128 labels built for this wave");
+      return;
+    }
+    if (
+      !confirm(
+        `Remove UCC128 labels for ${w.orderIds.length} order(s) in wave ${w.name}? Labels will be deleted.`,
+      )
+    )
+      return;
+    setCreating(true);
+    try {
+      let removed = 0;
+      for (const oid of w.orderIds) {
+        try {
+          await deleteUCC128RecordsByOrder(oid);
+          removed++;
+        } catch {}
+      }
+      await updateDoc(doc(db, "waves", w.id), { uccBuilt: false });
+      setWaves((prev) => prev.map((x) => (x.id === w.id ? { ...x, uccBuilt: false } : x)));
+      toast.success(`UCC128 labels removed for wave ${w.name} (${removed} orders)`);
+      refreshData();
+    } catch (err) {
+      toast.error(`UCC128 remove failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+  const handleWavePrint = () => {
+    window.print();
+  };
+  const isWaveDeallocatable = (w: Wave): boolean => {
+    if (creating) return false;
+    return w.orderIds.every((oid: string) => {
+      const o = orders.find((x: any) => x.id === oid);
+      return o?.status === "ALLOCATED";
+    });
+  };
+  const isWaveUnpickable = (w: Wave): boolean => {
+    if (creating) return false;
+    return w.orderIds.some((oid: string) => {
+      const o = orders.find((x: any) => x.id === oid);
+      return o?.status === "PICKED";
+    });
   };
   const carriers = [...new Set(orders.map((o) => o.carrier).filter(Boolean))];
   const services = [...new Set(orders.map((o) => o.serviceLevel).filter(Boolean))];
@@ -288,15 +479,15 @@ function WavesPage() {
     }
     setCreating(true);
     try {
-     // Allocate each selected order (largest first to ensure combined 100% allocation)
-     const orderedForAlloc = [...selectedOrders].sort((a, b) => {
-       const ua = a.lines.reduce((s, l) => s + l.qtyOrdered, 0);
-       const ub = b.lines.reduce((s, l) => s + l.qtyOrdered, 0);
-       return ub - ua;
-     });
-     let successCount = 0;
-     let failCount = 0;
-     for (const o of orderedForAlloc) {
+      // Allocate each selected order (largest first to ensure combined 100% allocation)
+      const orderedForAlloc = [...selectedOrders].sort((a, b) => {
+        const ua = a.lines.reduce((s, l) => s + l.qtyOrdered, 0);
+        const ub = b.lines.reduce((s, l) => s + l.qtyOrdered, 0);
+        return ub - ua;
+      });
+      let successCount = 0;
+      let failCount = 0;
+      for (const o of orderedForAlloc) {
         const result = await allocate_order(o.id);
         if (result.success) successCount++;
         else failCount++;
@@ -306,7 +497,7 @@ function WavesPage() {
       const wave: Wave = {
         id: waveId,
         waveNumber: waveId,
-         name: waveName,
+        name: waveName,
         tenantId: tenantId !== "all" ? tenantId : "acme",
         warehouseId: warehouseId !== "all" ? warehouseId : "atl1",
         status: "released",
@@ -355,14 +546,50 @@ function WavesPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Wave Allocation</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Batch allocate orders by filters · Preview allocatability · Create waves for optimal picking
+            Batch allocate orders by filters · Preview allocatability · Create waves for optimal
+            picking
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                <FileSpreadsheet className="h-3.5 w-3.5" /> Reporting
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Wave Reports</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleWavePrint}>
+                <Printer className="h-4 w-4 mr-2" /> Print Current View
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setReportOpen(true)}>
+                <FileText className="h-4 w-4 mr-2" /> Wave Summary Report
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Per-Wave Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={waves.length === 0}
+                onClick={() => {
+                  const w = waves[0];
+                  if (w) handleWaveReport(w);
+                }}
+              >
+                <FileText className="h-4 w-4 mr-2" /> Print Latest Wave Detail
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </Button>
-          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setPreviewOpen(true)} disabled={selectedIds.size === 0}>
+          <Button
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setPreviewOpen(true)}
+            disabled={selectedIds.size === 0}
+          >
             <Layers className="h-3.5 w-3.5" /> Create Wave ({selectedIds.size})
           </Button>
         </div>
@@ -370,22 +597,67 @@ function WavesPage() {
 
       {/* Filters */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-        <Input placeholder="Search..." value={query} onChange={(e) => setQuery(e.target.value)} className="h-8 text-xs" />
-        <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-8 text-xs" placeholder="From" />
-        <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-8 text-xs" placeholder="To" />
-        <select value={carrierFilter} onChange={(e) => setCarrierFilter(e.target.value)} className="h-8 text-xs border rounded px-2">
+        <Input
+          placeholder="Search..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="h-8 text-xs"
+        />
+        <Input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="h-8 text-xs"
+          placeholder="From"
+        />
+        <Input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="h-8 text-xs"
+          placeholder="To"
+        />
+        <select
+          value={carrierFilter}
+          onChange={(e) => setCarrierFilter(e.target.value)}
+          className="h-8 text-xs border rounded px-2"
+        >
           <option value="all">All Carriers</option>
-          {carriers.map((c) => <option key={c} value={c}>{c}</option>)}
+          {carriers.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </select>
-        <select value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)} className="h-8 text-xs border rounded px-2">
+        <select
+          value={serviceFilter}
+          onChange={(e) => setServiceFilter(e.target.value)}
+          className="h-8 text-xs border rounded px-2"
+        >
           <option value="all">All Services</option>
-          {services.map((s) => <option key={s} value={s}>{s}</option>)}
+          {services.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
-        <select value={shipToState} onChange={(e) => setShipToState(e.target.value)} className="h-8 text-xs border rounded px-2">
+        <select
+          value={shipToState}
+          onChange={(e) => setShipToState(e.target.value)}
+          className="h-8 text-xs border rounded px-2"
+        >
           <option value="all">All States</option>
-          {states.map((s) => <option key={s} value={s}>{s}</option>)}
+          {states.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-8 text-xs border rounded px-2">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="h-8 text-xs border rounded px-2"
+        >
           <option value="new">New</option>
           <option value="released">Released</option>
           <option value="all">All Open</option>
@@ -398,7 +670,15 @@ function WavesPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">
-                <input type="checkbox" checked={selectedIds.size === candidates.filter((o) => allocatability[o.id]?.allocatable).length && candidates.length > 0} onChange={(e) => e.target.checked ? selectAll() : deselectAll()} />
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedIds.size ===
+                      candidates.filter((o) => allocatability[o.id]?.allocatable).length &&
+                    candidates.length > 0
+                  }
+                  onChange={(e) => (e.target.checked ? selectAll() : deselectAll())}
+                />
               </TableHead>
               <TableHead className="text-xs">Order #</TableHead>
               <TableHead className="text-xs">PO #</TableHead>
@@ -416,27 +696,8 @@ function WavesPage() {
               <TableRow>
                 <TableCell colSpan={10} className="text-center text-xs text-muted-foreground py-8">
                   No candidate orders match the filters.
-                     </TableCell>
-                   </TableRow>
-                   {expandedWaves.has(w.id) && (
-                     <TableRow>
-                       <TableCell colSpan={8} className="bg-muted/20 p-2">
-                         <div className="text-xs space-y-1">
-                           {w.orderIds.map((oid: string) => {
-                             const o = orders.find((x: any) => x.id === oid);
-                             return (
-                               <div key={oid} className="flex gap-3 border-b py-1">
-                                 <span className="font-mono">{oid}</span>
-                                 <span>{o?.shipToName ?? "—"}</span>
-                                 <span className="text-muted-foreground">{o?.status ?? "—"}</span>
-                                 <span>{o?.lines?.reduce((s: number, l: any) => s + l.qtyOrdered, 0) ?? 0} units</span>
-                               </div>
-                             );
-                           })}
-                         </div>
-                       </TableCell>
-                     </TableRow>
-                   )}
+                </TableCell>
+              </TableRow>
             ) : (
               candidates.map((o) => {
                 const tenant = tenants.find((t) => t.id === o.tenantId);
@@ -454,16 +715,22 @@ function WavesPage() {
                     <TableCell className="text-xs font-mono">{o.id}</TableCell>
                     <TableCell className="text-xs">{o.poNumber}</TableCell>
                     <TableCell className="text-xs">{tenant?.code ?? o.tenantId}</TableCell>
-                    <TableCell className="text-xs">{o.shipToName} ({o.shipToState})</TableCell>
+                    <TableCell className="text-xs">
+                      {o.shipToName} ({o.shipToState})
+                    </TableCell>
                     <TableCell className="text-xs">{o.carrier}</TableCell>
                     <TableCell className="text-xs">{o.serviceLevel}</TableCell>
                     <TableCell className="text-xs text-right">{o.lines.length}</TableCell>
-                    <TableCell className="text-xs text-right">{o.lines.reduce((s, l) => s + l.qtyOrdered, 0)}</TableCell>
+                    <TableCell className="text-xs text-right">
+                      {o.lines.reduce((s, l) => s + l.qtyOrdered, 0)}
+                    </TableCell>
                     <TableCell className="text-xs">
                       {alloc?.allocatable ? (
                         <Badge className="bg-green-100 text-green-800 text-[10px]">✅ 100%</Badge>
                       ) : (
-                        <Badge className="bg-red-100 text-red-800 text-[10px]">❌ {alloc?.reason || "No"}</Badge>
+                        <Badge className="bg-red-100 text-red-800 text-[10px]">
+                          ❌ {alloc?.reason || "No"}
+                        </Badge>
                       )}
                     </TableCell>
                   </TableRow>
@@ -480,10 +747,17 @@ function WavesPage() {
           <span className="font-medium">Selected: {selectedIds.size} orders</span>
           <span>Units: {selectedUnits}</span>
           <span>Combined Alloc: {combinedAllocPct}%</span>
-          <span className={allAllocatable ? "text-green-700 font-medium" : "text-red-700 font-medium"}>
+          <span
+            className={allAllocatable ? "text-green-700 font-medium" : "text-red-700 font-medium"}
+          >
             {allAllocatable ? "✅ All allocatable" : "❌ Some not allocatable"}
           </span>
-          <Button size="sm" className="h-7 text-xs ml-auto" onClick={() => setPreviewOpen(true)} disabled={!allAllocatable}>
+          <Button
+            size="sm"
+            className="h-7 text-xs ml-auto"
+            onClick={() => setPreviewOpen(true)}
+            disabled={!allAllocatable}
+          >
             Create Wave
           </Button>
         </div>
@@ -494,7 +768,11 @@ function WavesPage() {
         <div className="border rounded-md">
           <div className="flex items-center justify-between p-3 border-b bg-muted/30">
             <h2 className="text-sm font-semibold">Wave History ({waves.length})</h2>
-            <select value={waveFilter} onChange={(e) => setWaveFilter(e.target.value)} className="h-7 text-xs border rounded px-2">
+            <select
+              value={waveFilter}
+              onChange={(e) => setWaveFilter(e.target.value)}
+              className="h-7 text-xs border rounded px-2"
+            >
               <option value="all">All Statuses</option>
               <option value="released">Released</option>
               <option value="picking">Picking</option>
@@ -517,69 +795,218 @@ function WavesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {waves.filter((w) => waveFilter === "all" || w.status === waveFilter).map((w) => (
-                  <TableRow key={w.id}>
-                    <TableCell className="text-xs font-mono">{w.waveNumber}</TableCell>
-                    <TableCell className="text-xs">{w.name}</TableCell>
-                    <TableCell className="text-xs">
-                      <Badge className={
-                        w.status === "released" ? "bg-blue-100 text-blue-800 text-[10px]" :
-                        w.status === "picking" ? "bg-yellow-100 text-yellow-800 text-[10px]" :
-                        w.status === "picked" ? "bg-green-100 text-green-800 text-[10px]" :
-                        "bg-gray-100 text-gray-800 text-[10px]"
-                      }>{w.status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-right">{w.totalOrders}</TableCell>
-                    <TableCell className="text-xs text-right">{w.totalLines}</TableCell>
-                    <TableCell className="text-xs text-right">{w.totalUnits}</TableCell>
-                    <TableCell className="text-xs">{new Date(w.createdAt).toLocaleString()}</TableCell>
-                     <TableCell className="text-xs">
-                       <div className="flex flex-wrap gap-1">
-                         {w.status === "released" && (
-                           <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
-                             await updateDoc(doc(db, "waves", w.id), { status: "picking" });
-                             setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picking" } : wave));
-                             toast.success(`Wave ${w.waveNumber} started picking`);
-                           }}>Start Picking</Button>
-                         )}
-                         {w.status === "picking" && (
-                           <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
-                             const unpicked = (pickTickets ?? []).filter((pt: any) => pt.status !== "PICKED" && pt.status !== "picked");
-                             if (unpicked.length > 0) {
-                               toast.error(`Cannot complete: ${unpicked.length} pick tickets still unpicked`);
-                               return;
-                             }
-                             await updateDoc(doc(db, "waves", w.id), { status: "picked", completedAt: new Date().toISOString() });
-                             setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picked", completedAt: new Date().toISOString() } : wave));
-                             toast.success(`Wave ${w.waveNumber} marked as picked`);
-                           }}>Complete Pick</Button>
-                         )}
-                         <Button size="sm" className="h-6 text-[10px]" onClick={() => setExpandedWaves((prev) => { const n = new Set(prev); if (n.has(w.id)) n.delete(w.id); else n.add(w.id); return n; })}>{expandedWaves.has(w.id) ? "Collapse" : "Expand"}</Button>
-                         <Button size="sm" className="h-6 text-[10px]" onClick={() => handleMassPick(w)} disabled={creating || w.status !== "released"}>Mass Pick</Button>
-                         <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveUccBuild(w)} disabled={creating || w.status !== "picked"}>Build UCC128</Button>
-                         <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveReport(w)}>Wave Report</Button>
-                         {w.status === "picked" && (
-                           <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
-                             try {
-                               const masterBol = buildMasterBol(w.orderIds);
-                               await createBol(masterBol);
-                               toast.success(`Master BOL ${masterBol.bolNumber} created for ${w.orderIds.length} orders`);
-                             } catch (err) {
-                               toast.error(`Master BOL failed: ${err instanceof Error ? err.message : String(err)}`);
-                             }
-                           }}>Master BOL</Button>
-                         )}
-                         <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
-                           await updateDoc(doc(db, "waves", w.id), { status: "closed" });
-                           setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
-                           toast.success(`Wave ${w.waveNumber} closed`);
-                         }}>Close Wave</Button>
-                         <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={() => handleDeallocateWave(w)} disabled={creating || !w.orderIds.every((oid: string) => { const o = orders.find((x: any) => x.id === oid); return o?.status === "ALLOCATED"; })}>Deallocate</Button>
-                       </div>
-                     </TableCell>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {waves
+                  .filter((w) => waveFilter === "all" || w.status === waveFilter)
+                  .map((w) => (
+                    <>
+                      <TableRow key={w.id}>
+                        <TableCell className="text-xs font-mono">{w.waveNumber}</TableCell>
+                        <TableCell className="text-xs">{w.name}</TableCell>
+                        <TableCell className="text-xs">
+                          <Badge
+                            className={
+                              w.status === "released"
+                                ? "bg-blue-100 text-blue-800 text-[10px]"
+                                : w.status === "picking"
+                                  ? "bg-yellow-100 text-yellow-800 text-[10px]"
+                                  : w.status === "picked"
+                                    ? "bg-green-100 text-green-800 text-[10px]"
+                                    : "bg-gray-100 text-gray-800 text-[10px]"
+                            }
+                          >
+                            {w.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-right">{w.totalOrders}</TableCell>
+                        <TableCell className="text-xs text-right">{w.totalLines}</TableCell>
+                        <TableCell className="text-xs text-right">{w.totalUnits}</TableCell>
+                        <TableCell className="text-xs">
+                          {new Date(w.createdAt).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="flex flex-wrap gap-1">
+                            {w.status === "released" && (
+                              <Button
+                                size="sm"
+                                className="h-6 text-[10px]"
+                                onClick={async () => {
+                                  await updateDoc(doc(db, "waves", w.id), { status: "picking" });
+                                  setWaves((prev) =>
+                                    prev.map((wave) =>
+                                      wave.id === w.id ? { ...wave, status: "picking" } : wave,
+                                    ),
+                                  );
+                                  toast.success(`Wave ${w.waveNumber} started picking`);
+                                }}
+                              >
+                                Start Picking
+                              </Button>
+                            )}
+                            {w.status === "picking" && (
+                              <Button
+                                size="sm"
+                                className="h-6 text-[10px]"
+                                onClick={async () => {
+                                  const unpicked = (pickTickets ?? []).filter(
+                                    (pt: any) => pt.status !== "PICKED" && pt.status !== "picked",
+                                  );
+                                  if (unpicked.length > 0) {
+                                    toast.error(
+                                      `Cannot complete: ${unpicked.length} pick tickets still unpicked`,
+                                    );
+                                    return;
+                                  }
+                                  await updateDoc(doc(db, "waves", w.id), {
+                                    status: "picked",
+                                    completedAt: new Date().toISOString(),
+                                  });
+                                  setWaves((prev) =>
+                                    prev.map((wave) =>
+                                      wave.id === w.id
+                                        ? {
+                                            ...wave,
+                                            status: "picked",
+                                            completedAt: new Date().toISOString(),
+                                          }
+                                        : wave,
+                                    ),
+                                  );
+                                  toast.success(`Wave ${w.waveNumber} marked as picked`);
+                                }}
+                              >
+                                Complete Pick
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px]"
+                              onClick={() =>
+                                setExpandedWaves((prev) => {
+                                  const n = new Set(prev);
+                                  if (n.has(w.id)) n.delete(w.id);
+                                  else n.add(w.id);
+                                  return n;
+                                })
+                              }
+                            >
+                              {expandedWaves.has(w.id) ? "Collapse" : "Expand"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px]"
+                              onClick={() => handleMassPick(w)}
+                              disabled={creating || w.status !== "released"}
+                            >
+                              Mass Pick
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px]"
+                              onClick={() => handleWaveUccBuild(w)}
+                              disabled={creating || w.status !== "picked"}
+                            >
+                              Build UCC128
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px]"
+                              onClick={() => handleWaveUccRemove(w)}
+                              disabled={creating || !w.uccBuilt}
+                            >
+                              Remove UCC128
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px]"
+                              onClick={() => handleWaveUnpick(w)}
+                              disabled={!isWaveUnpickable(w)}
+                            >
+                              Unpick
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px]"
+                              onClick={() => handleWaveReport(w)}
+                            >
+                              Wave Report
+                            </Button>
+                            {w.status === "picked" && (
+                              <Button
+                                size="sm"
+                                className="h-6 text-[10px]"
+                                onClick={async () => {
+                                  try {
+                                    const masterBol = buildMasterBol(w.orderIds);
+                                    await createBol(masterBol);
+                                    toast.success(
+                                      `Master BOL ${masterBol.bolNumber} created for ${w.orderIds.length} orders`,
+                                    );
+                                  } catch (err) {
+                                    toast.error(
+                                      `Master BOL failed: ${err instanceof Error ? err.message : String(err)}`,
+                                    );
+                                  }
+                                }}
+                              >
+                                Master BOL
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px]"
+                              onClick={async () => {
+                                await updateDoc(doc(db, "waves", w.id), { status: "closed" });
+                                setWaves((prev) =>
+                                  prev.map((wave) =>
+                                    wave.id === w.id ? { ...wave, status: "closed" } : wave,
+                                  ),
+                                );
+                                toast.success(`Wave ${w.waveNumber} closed`);
+                              }}
+                            >
+                              Close Wave
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-6 text-[10px]"
+                              onClick={() => handleDeallocateWave(w)}
+                              disabled={!isWaveDeallocatable(w)}
+                            >
+                              Deallocate
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {expandedWaves.has(w.id) && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="bg-muted/20 p-2">
+                            <div className="text-xs space-y-1">
+                              {w.orderIds.map((oid: string) => {
+                                const o = orders.find((x: any) => x.id === oid);
+                                return (
+                                  <div key={oid} className="flex gap-3 border-b py-1">
+                                    <span className="font-mono">{oid}</span>
+                                    <span>{o?.shipToName ?? "—"}</span>
+                                    <span className="text-muted-foreground">
+                                      {o?.status ?? "—"}
+                                    </span>
+                                    <span>
+                                      {o?.lines?.reduce(
+                                        (s: number, l: any) => s + l.qtyOrdered,
+                                        0,
+                                      ) ?? 0}{" "}
+                                      units
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  ))}
               </TableBody>
             </Table>
           </div>
@@ -590,7 +1017,12 @@ function WavesPage() {
       <div className="border rounded-md">
         <div className="flex items-center justify-between p-3 border-b bg-muted/30">
           <h2 className="text-sm font-semibold">Wave Picking — Consolidated Pick List</h2>
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowPicking(!showPicking)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={() => setShowPicking(!showPicking)}
+          >
             {showPicking ? "Hide" : "Show"} Pick List
           </Button>
         </div>
@@ -612,7 +1044,11 @@ function WavesPage() {
                 return locA.localeCompare(locB);
               });
               if (sorted.length === 0) {
-                return <p className="text-xs text-muted-foreground py-4 text-center">No allocated pick tickets to pick. Allocate orders first.</p>;
+                return (
+                  <p className="text-xs text-muted-foreground py-4 text-center">
+                    No allocated pick tickets to pick. Allocate orders first.
+                  </p>
+                );
               }
               // Group by location
               const byLocation: Record<string, any[]> = {};
@@ -624,13 +1060,21 @@ function WavesPage() {
               return (
                 <div className="space-y-3">
                   <div className="text-xs text-muted-foreground">
-                    {sorted.length} pick tickets · {allocatedTickets.reduce((s: number, pt: any) => s + (pt.quantityToPick || 0), 0)} units · {Object.keys(byLocation).length} locations
+                    {sorted.length} pick tickets ·{" "}
+                    {allocatedTickets.reduce(
+                      (s: number, pt: any) => s + (pt.quantityToPick || 0),
+                      0,
+                    )}{" "}
+                    units · {Object.keys(byLocation).length} locations
                   </div>
                   {Object.entries(byLocation).map(([loc, tickets]) => (
                     <div key={loc} className="border rounded">
                       <div className="px-3 py-1.5 bg-muted/50 text-xs font-semibold flex items-center gap-2">
                         <MapPin className="h-3 w-3" /> {loc}
-                        <span className="text-muted-foreground ml-auto">{tickets.reduce((s: number, t: any) => s + (t.quantityToPick || 0), 0)} units</span>
+                        <span className="text-muted-foreground ml-auto">
+                          {tickets.reduce((s: number, t: any) => s + (t.quantityToPick || 0), 0)}{" "}
+                          units
+                        </span>
                       </div>
                       <Table>
                         <TableHeader>
@@ -647,19 +1091,35 @@ function WavesPage() {
                             <TableRow key={i}>
                               <TableCell className="text-[10px] font-mono">{pt.orderId}</TableCell>
                               <TableCell className="text-[10px]">{pt.sku}</TableCell>
-                              <TableCell className="text-[10px] text-right">{pt.quantityToPick}</TableCell>
+                              <TableCell className="text-[10px] text-right">
+                                {pt.quantityToPick}
+                              </TableCell>
                               <TableCell className="text-[10px]">{pt.status}</TableCell>
                               <TableCell className="text-[10px]">
                                 {pt.status === "GENERATED" || pt.status === "allocated" ? (
-                                  <Button size="sm" className="h-5 text-[9px] px-2" onClick={async () => {
-                                    try {
-                                      await updatePickTicket(pt.id, { status: "PICKED", pickedAt: new Date().toISOString(), qtyPicked: pt.quantityToPick });
-                                      toast.success(`Picked ${pt.quantityToPick} units of ${pt.sku} for ${pt.orderId}`);
-                                      refreshData();
-                                    } catch (err) {
-                                      toast.error(`Pick failed: ${err instanceof Error ? err.message : String(err)}`);
-                                    }
-                                  }}>Pick</Button>
+                                  <Button
+                                    size="sm"
+                                    className="h-5 text-[9px] px-2"
+                                    onClick={async () => {
+                                      try {
+                                        await updatePickTicket(pt.id, {
+                                          status: "PICKED",
+                                          pickedAt: new Date().toISOString(),
+                                          qtyPicked: pt.quantityToPick,
+                                        });
+                                        toast.success(
+                                          `Picked ${pt.quantityToPick} units of ${pt.sku} for ${pt.orderId}`,
+                                        );
+                                        refreshData();
+                                      } catch (err) {
+                                        toast.error(
+                                          `Pick failed: ${err instanceof Error ? err.message : String(err)}`,
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    Pick
+                                  </Button>
                                 ) : (
                                   <span className="text-green-600 text-[9px]">✓ Picked</span>
                                 )}
@@ -682,12 +1142,20 @@ function WavesPage() {
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Create Wave</DialogTitle>
-            <DialogDescription>Review selected orders before allocating as a batch.</DialogDescription>
+            <DialogDescription>
+              Review selected orders before allocating as a batch.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <Input placeholder="Wave name (required)" value={waveName} onChange={(e) => setWaveName(e.target.value)} className="h-8 text-xs" />
+            <Input
+              placeholder="Wave name (required)"
+              value={waveName}
+              onChange={(e) => setWaveName(e.target.value)}
+              className="h-8 text-xs"
+            />
             <div className="text-xs text-muted-foreground">
-              {selectedOrders.length} orders · {selectedOrders.reduce((s, o) => s + o.lines.length, 0)} lines · {selectedUnits} units
+              {selectedOrders.length} orders ·{" "}
+              {selectedOrders.reduce((s, o) => s + o.lines.length, 0)} lines · {selectedUnits} units
             </div>
             <div className="max-h-60 overflow-y-auto rounded border">
               <Table>
@@ -706,15 +1174,25 @@ function WavesPage() {
                     <TableRow key={o.id}>
                       <TableCell className="text-xs font-mono">{o.id}</TableCell>
                       <TableCell className="text-xs">{o.poNumber}</TableCell>
-                      <TableCell className="text-xs">{o.shipToName} ({o.shipToState})</TableCell>
-                      <TableCell className="text-xs">{o.carrier} / {o.serviceLevel}</TableCell>
-                      <TableCell className="text-xs text-right">{o.lines.reduce((s, l) => s + l.qtyOrdered, 0)}</TableCell>
                       <TableCell className="text-xs">
-                         {allocatability[o.id]?.allocatable ? (
-                           <Badge className="bg-green-100 text-green-800 text-[10px]">✅ {allocatability[o.id]?.pct}%</Badge>
-                         ) : (
-                           <Badge className="bg-red-100 text-red-800 text-[10px]">❌ {allocatability[o.id]?.pct}%</Badge>
-                         )}
+                        {o.shipToName} ({o.shipToState})
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {o.carrier} / {o.serviceLevel}
+                      </TableCell>
+                      <TableCell className="text-xs text-right">
+                        {o.lines.reduce((s, l) => s + l.qtyOrdered, 0)}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {allocatability[o.id]?.allocatable ? (
+                          <Badge className="bg-green-100 text-green-800 text-[10px]">
+                            ✅ {allocatability[o.id]?.pct}%
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-red-100 text-red-800 text-[10px]">
+                            ❌ {allocatability[o.id]?.pct}%
+                          </Badge>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -728,9 +1206,130 @@ function WavesPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPreviewOpen(false)}>Cancel</Button>
-            <Button size="sm" className="h-8 text-xs" onClick={handleCreateWave} disabled={creating || !allAllocatable || !waveName.trim()}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setPreviewOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs"
+              onClick={handleCreateWave}
+              disabled={creating || !allAllocatable || !waveName.trim()}
+            >
               {creating ? "Allocating..." : `Allocate ${selectedIds.size} Orders`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Wave Summary Report Dialog */}
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Wave Summary Report</DialogTitle>
+            <DialogDescription>
+              Consolidated view of all waves in this tenant / warehouse.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="rounded-md border p-2">
+                <div className="text-lg font-semibold">{waves.length}</div>
+                <div className="text-[10px] text-muted-foreground">Total Waves</div>
+              </div>
+              <div className="rounded-md border p-2">
+                <div className="text-lg font-semibold">
+                  {waves.filter((w) => w.status === "released").length}
+                </div>
+                <div className="text-[10px] text-muted-foreground">Released</div>
+              </div>
+              <div className="rounded-md border p-2">
+                <div className="text-lg font-semibold">
+                  {waves.filter((w) => w.status === "picked" || w.status === "closed").length}
+                </div>
+                <div className="text-[10px] text-muted-foreground">Picked / Closed</div>
+              </div>
+              <div className="rounded-md border p-2">
+                <div className="text-lg font-semibold">
+                  {waves.reduce((s, w) => s + w.totalOrders, 0)}
+                </div>
+                <div className="text-[10px] text-muted-foreground">Total Orders</div>
+              </div>
+            </div>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Wave #</TableHead>
+                    <TableHead className="text-xs">Name</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs text-right">Orders</TableHead>
+                    <TableHead className="text-xs text-right">Lines</TableHead>
+                    <TableHead className="text-xs text-right">Units</TableHead>
+                    <TableHead className="text-xs">Created</TableHead>
+                    <TableHead className="text-xs">UCC128</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {waves.map((w) => (
+                    <TableRow key={w.id}>
+                      <TableCell className="text-xs font-mono">{w.waveNumber}</TableCell>
+                      <TableCell className="text-xs">{w.name}</TableCell>
+                      <TableCell className="text-xs">
+                        <Badge
+                          className={
+                            w.status === "released"
+                              ? "bg-blue-100 text-blue-800 text-[10px]"
+                              : w.status === "picking"
+                                ? "bg-yellow-100 text-yellow-800 text-[10px]"
+                                : w.status === "picked"
+                                  ? "bg-green-100 text-green-800 text-[10px]"
+                                  : w.status === "closed"
+                                    ? "bg-gray-100 text-gray-800 text-[10px]"
+                                    : "bg-red-100 text-red-800 text-[10px]"
+                          }
+                        >
+                          {w.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-right">{w.totalOrders}</TableCell>
+                      <TableCell className="text-xs text-right">{w.totalLines}</TableCell>
+                      <TableCell className="text-xs text-right">{w.totalUnits}</TableCell>
+                      <TableCell className="text-xs">
+                        {new Date(w.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-xs">{w.uccBuilt ? "✅" : "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                  {waves.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={8}
+                        className="text-center text-xs text-muted-foreground py-6"
+                      >
+                        No waves found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={handleWavePrint}
+            >
+              <Printer className="h-3.5 w-3.5" /> Print
+            </Button>
+            <Button size="sm" className="h-8 text-xs" onClick={() => setReportOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -738,6 +1337,3 @@ function WavesPage() {
     </div>
   );
 }
-
-
-

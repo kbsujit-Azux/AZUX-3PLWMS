@@ -123,7 +123,7 @@ export function validateCatchWeight(
     };
   }
 
-  const variance = Math.abs(log.netWeightLbs - item.targetWeightLbs) / item.targetWeightLbs * 100;
+  const variance = (Math.abs(log.netWeightLbs - item.targetWeightLbs) / item.targetWeightLbs) * 100;
   if (variance > item.weightTolerancePct) {
     return {
       valid: false,

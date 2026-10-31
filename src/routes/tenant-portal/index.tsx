@@ -106,7 +106,11 @@ function TenantPortalPage() {
     primaryColor: "#0f172a",
   });
 
-  const [newUser, setNewUser] = useState({ name: "", email: "", role: "Viewer" as TenantPortalUser["role"] });
+  const [newUser, setNewUser] = useState({
+    name: "",
+    email: "",
+    role: "Viewer" as TenantPortalUser["role"],
+  });
 
   // Demo: auto-login first tenant user
   useEffect(() => {
@@ -151,20 +155,26 @@ function TenantPortalPage() {
     }
 
     loadTenantConfig();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [session]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session) return;
     try {
-      await setDoc(doc(db, "tenantConfigs", session.tenantId), {
-        tenantId: session.tenantId,
-        portalName: whiteLabel.portalName,
-        logoUrl: whiteLabel.logoUrl,
-        primaryColor: whiteLabel.primaryColor,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      await setDoc(
+        doc(db, "tenantConfigs", session.tenantId),
+        {
+          tenantId: session.tenantId,
+          portalName: whiteLabel.portalName,
+          logoUrl: whiteLabel.logoUrl,
+          primaryColor: whiteLabel.primaryColor,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
       toast.success("Settings saved");
     } catch (err) {
       console.error(err);
@@ -289,10 +299,20 @@ function TenantPortalPage() {
       let content = "";
 
       if (reportType === "inventory_summary") {
-        content = inventory.map((item) => `${item.sku},"${item.description}",${item.batches.reduce((s, b) => s + b.qty, 0)},${item.unitCost}`).join("\n");
+        content = inventory
+          .map(
+            (item) =>
+              `${item.sku},"${item.description}",${item.batches.reduce((s, b) => s + b.qty, 0)},${item.unitCost}`,
+          )
+          .join("\n");
         fileUrl = `data:text/csv;charset=utf-8,${encodeURIComponent("SKU,Description,Qty,UnitCost\n" + content)}`;
       } else if (reportType === "inventory_valuation") {
-        content = inventory.map((item) => `${item.sku},"${item.description}",${item.batches.reduce((s, b) => s + b.qty, 0)},${item.unitCost},${item.batches.reduce((s, b) => s + b.qty * item.unitCost, 0)}`).join("\n");
+        content = inventory
+          .map(
+            (item) =>
+              `${item.sku},"${item.description}",${item.batches.reduce((s, b) => s + b.qty, 0)},${item.unitCost},${item.batches.reduce((s, b) => s + b.qty * item.unitCost, 0)}`,
+          )
+          .join("\n");
         fileUrl = `data:text/csv;charset=utf-8,${encodeURIComponent("SKU,Description,Qty,UnitCost,TotalValue\n" + content)}`;
       } else if (reportType === "order_history") {
         content = orders.map((o) => `${o.id},"${o.status}",${o.lines?.length || 0}`).join("\n");
@@ -338,16 +358,19 @@ function TenantPortalPage() {
         role: newUser.role,
         active: true,
       });
-      setPortalUsers((prev) => [...prev, {
-        id: `tp-${Date.now()}`,
-        tenantId: session.tenantId,
-        email: newUser.email,
-        name: newUser.name,
-        role: newUser.role,
-        active: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }]);
+      setPortalUsers((prev) => [
+        ...prev,
+        {
+          id: `tp-${Date.now()}`,
+          tenantId: session.tenantId,
+          email: newUser.email,
+          name: newUser.name,
+          role: newUser.role,
+          active: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]);
       setNewUser({ name: "", email: "", role: "Viewer" });
       toast.success("User added");
     } catch (err) {
@@ -387,8 +410,14 @@ function TenantPortalPage() {
   }
 
   const tenantName = getTenantById(session.tenantId)?.name || "Tenant";
-  const totalUnits = inventory.reduce((s, i) => s + i.batches.reduce((b, batch) => b + batch.qty, 0), 0);
-  const totalValue = inventory.reduce((s, i) => s + i.batches.reduce((b, batch) => b + batch.qty * i.unitCost, 0), 0);
+  const totalUnits = inventory.reduce(
+    (s, i) => s + i.batches.reduce((b, batch) => b + batch.qty, 0),
+    0,
+  );
+  const totalValue = inventory.reduce(
+    (s, i) => s + i.batches.reduce((b, batch) => b + batch.qty * i.unitCost, 0),
+    0,
+  );
 
   return (
     <div className="flex h-screen bg-background">
@@ -403,7 +432,12 @@ function TenantPortalPage() {
             <Warehouse className="h-5 w-5" />
             <span className="font-semibold">{whiteLabel.portalName || "Tenant Portal"}</span>
           </div>
-          <Button variant="ghost" size="sm" className="lg:hidden text-white" onClick={() => setSidebarOpen(false)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="lg:hidden text-white"
+            onClick={() => setSidebarOpen(false)}
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -421,42 +455,60 @@ function TenantPortalPage() {
           <Button
             variant={activeTab === "inventory" ? "secondary" : "ghost"}
             className="w-full justify-start text-white hover:text-white"
-            onClick={() => { setActiveTab("inventory"); setSidebarOpen(false); }}
+            onClick={() => {
+              setActiveTab("inventory");
+              setSidebarOpen(false);
+            }}
           >
             <Package className="h-4 w-4 mr-2" /> Inventory
           </Button>
           <Button
             variant={activeTab === "reports" ? "secondary" : "ghost"}
             className="w-full justify-start text-white hover:text-white"
-            onClick={() => { setActiveTab("reports"); setSidebarOpen(false); }}
+            onClick={() => {
+              setActiveTab("reports");
+              setSidebarOpen(false);
+            }}
           >
             <FileText className="h-4 w-4 mr-2" /> Reports
           </Button>
           <Button
             variant={activeTab === "invoices" ? "secondary" : "ghost"}
             className="w-full justify-start text-white hover:text-white"
-            onClick={() => { setActiveTab("invoices"); setSidebarOpen(false); }}
+            onClick={() => {
+              setActiveTab("invoices");
+              setSidebarOpen(false);
+            }}
           >
             <CreditCard className="h-4 w-4 mr-2" /> Invoices
           </Button>
           <Button
             variant={activeTab === "users" ? "secondary" : "ghost"}
             className="w-full justify-start text-white hover:text-white"
-            onClick={() => { setActiveTab("users"); setSidebarOpen(false); }}
+            onClick={() => {
+              setActiveTab("users");
+              setSidebarOpen(false);
+            }}
           >
             <Users className="h-4 w-4 mr-2" /> Users
           </Button>
           <Button
             variant={activeTab === "uploads" ? "secondary" : "ghost"}
             className="w-full justify-start text-white hover:text-white"
-            onClick={() => { setActiveTab("uploads"); setSidebarOpen(false); }}
+            onClick={() => {
+              setActiveTab("uploads");
+              setSidebarOpen(false);
+            }}
           >
             <Upload className="h-4 w-4 mr-2" /> Uploads
           </Button>
           <Button
             variant={activeTab === "settings" ? "secondary" : "ghost"}
             className="w-full justify-start text-white hover:text-white"
-            onClick={() => { setActiveTab("settings"); setSidebarOpen(false); }}
+            onClick={() => {
+              setActiveTab("settings");
+              setSidebarOpen(false);
+            }}
           >
             <Settings className="h-4 w-4 mr-2" /> Settings
           </Button>
@@ -565,7 +617,10 @@ function TenantPortalPage() {
                 <CardContent>
                   <div className="space-y-2">
                     {inventory.slice(0, 20).map((item) => (
-                      <div key={item.sku} className="flex items-center justify-between py-2 border-b last:border-0">
+                      <div
+                        key={item.sku}
+                        className="flex items-center justify-between py-2 border-b last:border-0"
+                      >
                         <div>
                           <div className="font-mono text-sm">{item.sku}</div>
                           <div className="text-xs text-muted-foreground">{item.description}</div>
@@ -575,7 +630,10 @@ function TenantPortalPage() {
                             {item.batches.reduce((s, b) => s + b.qty, 0).toLocaleString()} units
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            ${(item.batches.reduce((s, b) => s + b.qty * item.unitCost, 0)).toLocaleString()}
+                            $
+                            {item.batches
+                              .reduce((s, b) => s + b.qty * item.unitCost, 0)
+                              .toLocaleString()}
                           </div>
                         </div>
                       </div>
@@ -635,15 +693,23 @@ function TenantPortalPage() {
                   <CardContent>
                     <div className="space-y-2">
                       {reports.slice(0, 10).map((report) => (
-                        <div key={report.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                        <div
+                          key={report.id}
+                          className="flex items-center justify-between py-2 border-b last:border-0"
+                        >
                           <div>
                             <div className="text-sm font-medium">{report.name}</div>
                             <div className="text-xs text-muted-foreground">
-                              {new Date(report.generatedAt).toLocaleDateString()} — {report.format.toUpperCase()}
+                              {new Date(report.generatedAt).toLocaleDateString()} —{" "}
+                              {report.format.toUpperCase()}
                             </div>
                           </div>
                           {report.fileUrl && (
-                            <a href={report.fileUrl} download className="text-xs text-primary hover:underline">
+                            <a
+                              href={report.fileUrl}
+                              download
+                              className="text-xs text-primary hover:underline"
+                            >
                               Download
                             </a>
                           )}
@@ -666,7 +732,10 @@ function TenantPortalPage() {
                   ) : (
                     <div className="space-y-2">
                       {invoices.map((inv) => (
-                        <div key={inv.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                        <div
+                          key={inv.id}
+                          className="flex items-center justify-between py-2 border-b last:border-0"
+                        >
                           <div>
                             <div className="font-mono text-sm">{inv.number || inv.id}</div>
                             <div className="text-xs text-muted-foreground">
@@ -674,7 +743,13 @@ function TenantPortalPage() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-sm font-medium">${(inv.lines?.reduce?.((s: number, l: any) => s + (l.total || 0), 0) || 0).toLocaleString()}</div>
+                            <div className="text-sm font-medium">
+                              $
+                              {(
+                                inv.lines?.reduce?.((s: number, l: any) => s + (l.total || 0), 0) ||
+                                0
+                              ).toLocaleString()}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -713,19 +788,29 @@ function TenantPortalPage() {
                       <select
                         className="w-full p-2 border rounded-md bg-background"
                         value={newUser.role}
-                        onChange={(e) => setNewUser({ ...newUser, role: e.target.value as TenantPortalUser["role"] })}
+                        onChange={(e) =>
+                          setNewUser({
+                            ...newUser,
+                            role: e.target.value as TenantPortalUser["role"],
+                          })
+                        }
                       >
                         <option value="Admin">Admin</option>
                         <option value="Viewer">Viewer</option>
                         <option value="Reports">Reports</option>
                       </select>
                     </div>
-                    <Button type="submit" className="self-end">Add User</Button>
+                    <Button type="submit" className="self-end">
+                      Add User
+                    </Button>
                   </form>
 
                   <div className="space-y-2">
                     {portalUsers.map((user) => (
-                      <div key={user.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between py-2 border-b last:border-0"
+                      >
                         <div>
                           <div className="text-sm font-medium">{user.name}</div>
                           <div className="text-xs text-muted-foreground">{user.email}</div>
@@ -758,15 +843,21 @@ function TenantPortalPage() {
                   ) : (
                     <div className="space-y-2">
                       {csvUploads.map((upload) => (
-                        <div key={upload.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                        <div
+                          key={upload.id}
+                          className="flex items-center justify-between py-2 border-b last:border-0"
+                        >
                           <div>
                             <div className="text-sm font-medium">{upload.fileName}</div>
                             <div className="text-xs text-muted-foreground">
-                              {upload.uploadType} — {new Date(upload.uploadedAt).toLocaleDateString()}
+                              {upload.uploadType} —{" "}
+                              {new Date(upload.uploadedAt).toLocaleDateString()}
                             </div>
                           </div>
                           <div className="text-right">
-                            <Badge variant={upload.status === "completed" ? "default" : "secondary"}>
+                            <Badge
+                              variant={upload.status === "completed" ? "default" : "secondary"}
+                            >
                               {upload.status}
                             </Badge>
                             <div className="text-xs text-muted-foreground">
@@ -792,7 +883,9 @@ function TenantPortalPage() {
                       <Label>Portal Name</Label>
                       <Input
                         value={whiteLabel.portalName}
-                        onChange={(e) => setWhiteLabel({ ...whiteLabel, portalName: e.target.value })}
+                        onChange={(e) =>
+                          setWhiteLabel({ ...whiteLabel, portalName: e.target.value })
+                        }
                       />
                     </div>
                     <div className="space-y-2">
@@ -808,10 +901,14 @@ function TenantPortalPage() {
                       <Input
                         type="color"
                         value={whiteLabel.primaryColor}
-                        onChange={(e) => setWhiteLabel({ ...whiteLabel, primaryColor: e.target.value })}
+                        onChange={(e) =>
+                          setWhiteLabel({ ...whiteLabel, primaryColor: e.target.value })
+                        }
                       />
                     </div>
-                    <Button type="submit" className="w-full">Save Settings</Button>
+                    <Button type="submit" className="w-full">
+                      Save Settings
+                    </Button>
                   </form>
                 </CardContent>
               </Card>

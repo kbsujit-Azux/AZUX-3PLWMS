@@ -36,20 +36,10 @@
 
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "./firestore";
-import {
-  createBillableEvent,
-  createInvoice,
-  updateBillableEvent,
-} from "./firestore-data";
+import { createBillableEvent, createInvoice, updateBillableEvent } from "./firestore-data";
 import { buildInvoiceLines, matchEventToRule, applyPeakSurcharge } from "./billing-engine";
 import type { MatchedBillableEvent } from "./billing-engine";
-import type {
-  BillableEvent,
-  ChargeRule,
-  Invoice,
-  InvoiceLine,
-  RateUnit,
-} from "./billing-data";
+import type { BillableEvent, ChargeRule, Invoice, InvoiceLine, RateUnit } from "./billing-data";
 
 /** What the container close captured. */
 export type AutoBillInput = {
@@ -116,16 +106,11 @@ function billableUnits(input: AutoBillInput): BillableUnit[] {
  * configuration driven — a client with only a carton rule is billed for
  * cartons, a client with a pallet rule is also billed for palletising.
  */
-export function selectBillableUnits(
-  input: AutoBillInput,
-  rules: ChargeRule[],
-): BillableUnit[] {
+export function selectBillableUnits(input: AutoBillInput, rules: ChargeRule[]): BillableUnit[] {
   return billableUnits(input).filter(
     (u) =>
       u.quantity > 0 &&
-      rules.some(
-        (r) => r.enabled && r.category === "Inbound" && r.unit === u.unit,
-      ),
+      rules.some((r) => r.enabled && r.category === "Inbound" && r.unit === u.unit),
   );
 }
 
@@ -136,16 +121,11 @@ export function selectBillableUnits(
  * `autoCapture: false` — closing a container bills the client's configured
  * Inbound rules by default.
  */
-async function loadAutoRules(
-  clientId: string,
-  warehouseId?: string,
-): Promise<ChargeRule[]> {
+async function loadAutoRules(clientId: string, warehouseId?: string): Promise<ChargeRule[]> {
   const snap = await getDocs(
     query(collection(db, "chargeRules"), where("clientId", "==", clientId)),
   );
-  const rules = snap.docs.map(
-    (d) => ({ id: d.id, ...(d.data() ?? {}) }) as ChargeRule,
-  );
+  const rules = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as ChargeRule);
   return rules.filter(
     (r) =>
       r.enabled &&
@@ -170,9 +150,7 @@ export async function resolveBillingClientId(tenantId: string): Promise<string> 
 }
 
 /** The billable events already recorded against a container. */
-async function eventsForContainer(
-  shipmentId: string,
-): Promise<BillableEvent[]> {
+async function eventsForContainer(shipmentId: string): Promise<BillableEvent[]> {
   const snap = await getDocs(
     query(collection(db, "billableEvents"), where("reference", "==", shipmentId)),
   );
@@ -180,11 +158,7 @@ async function eventsForContainer(
 }
 
 /** A human-readable description for a captured event. */
-function buildDescription(
-  input: AutoBillInput,
-  unit: string,
-  qty: number,
-): string {
+function buildDescription(input: AutoBillInput, unit: string, qty: number): string {
   const container = input.containerNumber || input.trailerNumber || input.shipmentId;
   switch (unit) {
     case "carton":
@@ -208,9 +182,7 @@ function buildDescription(
  * The billable events are keyed by the container id, so calling this twice
  * for the same container reuses the events and never double bills.
  */
-export async function autoBillContainer(
-  input: AutoBillInput,
-): Promise<AutoBillResult> {
+export async function autoBillContainer(input: AutoBillInput): Promise<AutoBillResult> {
   // 1. Has this container already been billed?
   const priorEvents = await eventsForContainer(input.shipmentId);
   if (priorEvents.length > 0 && priorEvents.every((e) => e.billed)) {
@@ -384,9 +356,7 @@ export async function autoBillContainer(
  * Check whether a container already has an auto-generated invoice.
  * Used by the UI to show the "already billed" state.
  */
-export async function findAutoInvoiceForContainer(
-  shipmentId: string,
-): Promise<Invoice | null> {
+export async function findAutoInvoiceForContainer(shipmentId: string): Promise<Invoice | null> {
   const snap = await getDocs(
     query(collection(db, "invoices"), where("id", "==", `inv-auto-${shipmentId}`)),
   );

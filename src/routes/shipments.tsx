@@ -320,7 +320,10 @@ function ShipmentsPage() {
           totals: {
             units: palletsForOrder.reduce(
               (s: number, p: any) =>
-                s + (Array.isArray(p.lines) ? p.lines.reduce((ls: number, l: any) => ls + l.unitsPicked, 0) : 0),
+                s +
+                (Array.isArray(p.lines)
+                  ? p.lines.reduce((ls: number, l: any) => ls + l.unitsPicked, 0)
+                  : 0),
               0,
             ),
             pallets: palletsForOrder.length,
@@ -329,7 +332,8 @@ function ShipmentsPage() {
                 s +
                 (Array.isArray(p.lines)
                   ? p.lines.reduce(
-                      (ls: number, l: any) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)),
+                      (ls: number, l: any) =>
+                        ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)),
                       0,
                     )
                   : 0),
@@ -339,7 +343,10 @@ function ShipmentsPage() {
               Math.round(
                 palletsForOrder.reduce(
                   (s: number, p: any) =>
-                    s + (Array.isArray(p.lines) ? p.lines.reduce((ls: number, l: any) => ls + l.weightLbs, 0) : 0),
+                    s +
+                    (Array.isArray(p.lines)
+                      ? p.lines.reduce((ls: number, l: any) => ls + l.weightLbs, 0)
+                      : 0),
                   0,
                 ) * 10,
               ) / 10,

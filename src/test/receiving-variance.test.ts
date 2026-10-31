@@ -20,13 +20,7 @@ function splitVariance(osd: OSD) {
   const goodQty = Math.max(0, osd.foundQty - osd.damagedQty);
   const variance = osd.foundQty - osd.expected;
   const osdType: "over" | "short" | "damaged" | "wrong_item" | null =
-    osd.damagedQty > 0
-      ? "damaged"
-      : variance > 0
-        ? "over"
-        : variance < 0
-          ? "short"
-          : null;
+    osd.damagedQty > 0 ? "damaged" : variance > 0 ? "over" : variance < 0 ? "short" : null;
   return { goodQty, variance, osdType };
 }
 

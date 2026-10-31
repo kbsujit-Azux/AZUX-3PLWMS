@@ -89,7 +89,9 @@ function RmaPage() {
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -118,7 +120,9 @@ function RmaPage() {
       }
     }
     loadLines();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedOrder]);
 
   const handleCreateOrder = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -161,11 +165,22 @@ function RmaPage() {
 
       await updateRmaLine(lineId, { disposition, dispositionStatus: "in_progress" });
 
-      const feeTypes: Record<DispositionType, { type: ReturnProcessingFeeType; amount: number; description: string }> = {
-        return_to_stock: { type: "restocking", amount: 0.15, description: "Restocking fee (15% of unit cost)" },
+      const feeTypes: Record<
+        DispositionType,
+        { type: ReturnProcessingFeeType; amount: number; description: string }
+      > = {
+        return_to_stock: {
+          type: "restocking",
+          amount: 0.15,
+          description: "Restocking fee (15% of unit cost)",
+        },
         quarantine: { type: "inspection", amount: 5.0, description: "Inspection fee" },
         destroy: { type: "disposal", amount: 2.5, description: "Disposal fee per unit" },
-        vendor_return: { type: "vendor_return", amount: 0, description: "Vendor return processing" },
+        vendor_return: {
+          type: "vendor_return",
+          amount: 0,
+          description: "Vendor return processing",
+        },
         refurbish: { type: "refurbish", amount: 10.0, description: "Refurbishment labor" },
       };
 
@@ -202,7 +217,9 @@ function RmaPage() {
       }
 
       await updateRmaOrder(selectedOrder.id, { status: "dispositioned" });
-      setSelectedOrder((prev: RmaOrder | null) => prev ? { ...prev, status: "dispositioned" } : prev);
+      setSelectedOrder((prev: RmaOrder | null) =>
+        prev ? { ...prev, status: "dispositioned" } : prev,
+      );
 
       const updatedLines = await fetchRmaLines(selectedOrder.id);
       setLines(updatedLines);
@@ -216,9 +233,10 @@ function RmaPage() {
     }
   };
 
-  const filteredOrders = orders.filter((o) =>
-    o.rmaNumber.toLowerCase().includes(search.toLowerCase()) ||
-    o.customerName?.toLowerCase().includes(search.toLowerCase())
+  const filteredOrders = orders.filter(
+    (o) =>
+      o.rmaNumber.toLowerCase().includes(search.toLowerCase()) ||
+      o.customerName?.toLowerCase().includes(search.toLowerCase()),
   );
 
   const getStatusBadge = (status: RmaStatus) => {
@@ -236,12 +254,15 @@ function RmaPage() {
 
   const openOrders = orders.filter((o) => !["closed", "cancelled"].includes(o.status)).length;
   const totalReturnValue = lines.reduce((s, l) => s + l.qtyReceived * l.unitCost, 0);
-  const avgProcessingTime = orders.length > 0
-    ? Math.round(orders.reduce((s, o) => {
-        const diff = new Date(o.updatedAt).getTime() - new Date(o.createdAt).getTime();
-        return s + diff / (1000 * 60 * 60 * 24);
-      }, 0) / orders.length)
-    : 0;
+  const avgProcessingTime =
+    orders.length > 0
+      ? Math.round(
+          orders.reduce((s, o) => {
+            const diff = new Date(o.updatedAt).getTime() - new Date(o.createdAt).getTime();
+            return s + diff / (1000 * 60 * 60 * 24);
+          }, 0) / orders.length,
+        )
+      : 0;
 
   if (loading) {
     return (
@@ -256,7 +277,9 @@ function RmaPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Returns Management (RMA)</h1>
-          <p className="text-muted-foreground">Process reverse logistics and disposition workflows.</p>
+          <p className="text-muted-foreground">
+            Process reverse logistics and disposition workflows.
+          </p>
         </div>
         <Button onClick={() => setActiveTab("orders")}>
           <Plus className="h-4 w-4 mr-2" /> New RMA
@@ -267,9 +290,15 @@ function RmaPage() {
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="orders">Orders</TabsTrigger>
-          <TabsTrigger value="lines" disabled={!selectedOrder}>Lines</TabsTrigger>
-          <TabsTrigger value="disposition" disabled={!selectedOrder}>Disposition</TabsTrigger>
-          <TabsTrigger value="fees" disabled={!selectedOrder}>Fees</TabsTrigger>
+          <TabsTrigger value="lines" disabled={!selectedOrder}>
+            Lines
+          </TabsTrigger>
+          <TabsTrigger value="disposition" disabled={!selectedOrder}>
+            Disposition
+          </TabsTrigger>
+          <TabsTrigger value="fees" disabled={!selectedOrder}>
+            Fees
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-4">
@@ -328,7 +357,10 @@ function RmaPage() {
                     className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted/50 ${
                       selectedOrder?.id === order.id ? "border-primary" : ""
                     }`}
-                    onClick={() => { setSelectedOrder(order); setActiveTab("lines"); }}
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setActiveTab("lines");
+                    }}
                   >
                     <div>
                       <div className="font-mono text-sm">{order.rmaNumber}</div>
@@ -397,7 +429,10 @@ function RmaPage() {
                     className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted/50 ${
                       selectedOrder?.id === order.id ? "border-primary" : ""
                     }`}
-                    onClick={() => { setSelectedOrder(order); setActiveTab("lines"); }}
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setActiveTab("lines");
+                    }}
                   >
                     <div>
                       <div className="font-mono text-sm">{order.rmaNumber}</div>
@@ -424,7 +459,10 @@ function RmaPage() {
               ) : (
                 <div className="space-y-2">
                   {lines.map((line) => (
-                    <div key={line.id} className="flex items-center justify-between py-3 border-b last:border-0">
+                    <div
+                      key={line.id}
+                      className="flex items-center justify-between py-3 border-b last:border-0"
+                    >
                       <div>
                         <div className="font-mono text-sm">{line.sku}</div>
                         <div className="text-xs text-muted-foreground">{line.description}</div>
@@ -433,7 +471,9 @@ function RmaPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-medium">${(line.qtyReceived * line.unitCost).toLocaleString()}</div>
+                        <div className="text-sm font-medium">
+                          ${(line.qtyReceived * line.unitCost).toLocaleString()}
+                        </div>
                         {line.disposition && (
                           <Badge variant="secondary" className="text-xs mt-1">
                             {getDispositionLabel(line.disposition)}
@@ -458,14 +498,21 @@ function RmaPage() {
                 <p className="text-muted-foreground text-sm">No lines to disposition.</p>
               ) : (
                 lines.map((line) => {
-                  const defaultDisposition = getDefaultDisposition(selectedOrder?.returnReason || "customer_return");
+                  const defaultDisposition = getDefaultDisposition(
+                    selectedOrder?.returnReason || "customer_return",
+                  );
                   return (
-                    <div key={line.id} className="flex items-center justify-between py-3 border-b last:border-0">
+                    <div
+                      key={line.id}
+                      className="flex items-center justify-between py-3 border-b last:border-0"
+                    >
                       <div>
                         <div className="font-mono text-sm">{line.sku}</div>
                         <div className="text-xs text-muted-foreground">{line.description}</div>
                         {line.dispositionNotes && (
-                          <div className="text-xs text-muted-foreground mt-1">{line.dispositionNotes}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {line.dispositionNotes}
+                          </div>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
@@ -499,7 +546,9 @@ function RmaPage() {
               <CardTitle>Return Processing Fees</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground text-sm">Auto-billing for return processing fees is enabled.</p>
+              <p className="text-muted-foreground text-sm">
+                Auto-billing for return processing fees is enabled.
+              </p>
               <div className="mt-4 space-y-2">
                 <div className="flex items-center justify-between py-2 border-b">
                   <div>
@@ -540,9 +589,14 @@ function RmaPage() {
 
               {fees.length > 0 && (
                 <div className="mt-6 space-y-2">
-                  <div className="text-sm font-medium">Generated Fees for {selectedOrder?.rmaNumber}</div>
+                  <div className="text-sm font-medium">
+                    Generated Fees for {selectedOrder?.rmaNumber}
+                  </div>
                   {fees.map((fee) => (
-                    <div key={fee.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                    <div
+                      key={fee.id}
+                      className="flex items-center justify-between py-2 border-b last:border-0"
+                    >
                       <div>
                         <div className="text-sm">{fee.feeType}</div>
                         <div className="text-xs text-muted-foreground">{fee.description}</div>

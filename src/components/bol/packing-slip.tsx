@@ -62,17 +62,18 @@ export function PackingSlip({ bol }: { bol: BillOfLading }) {
           </tr>
         </thead>
         <tbody>
-          {Array.isArray(bol.lines) && bol.lines.map((l, i) => (
-            <tr key={i} className="border-t border-black/30">
-              <Td mono>{l.sku}</Td>
-              <Td>{l.description}</Td>
-              <Td className="text-right tabular-nums">
-                {l.qty} {l.pkgType}
-              </Td>
-              <Td className="text-right tabular-nums">{l.weightLbs.toFixed(1)}</Td>
-              <Td className="font-mono text-[9px]">{l.poNumber}</Td>
-            </tr>
-          ))}
+          {Array.isArray(bol.lines) &&
+            bol.lines.map((l, i) => (
+              <tr key={i} className="border-t border-black/30">
+                <Td mono>{l.sku}</Td>
+                <Td>{l.description}</Td>
+                <Td className="text-right tabular-nums">
+                  {l.qty} {l.pkgType}
+                </Td>
+                <Td className="text-right tabular-nums">{l.weightLbs.toFixed(1)}</Td>
+                <Td className="font-mono text-[9px]">{l.poNumber}</Td>
+              </tr>
+            ))}
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-black/80 bg-black/5 font-semibold">

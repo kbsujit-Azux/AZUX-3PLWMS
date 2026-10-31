@@ -19,7 +19,15 @@
  * ============================================================
  */
 
-import { doc, updateDoc, getDoc, runTransaction, writeBatch, increment, type DocumentReference } from "firebase/firestore";
+import {
+  doc,
+  updateDoc,
+  getDoc,
+  runTransaction,
+  writeBatch,
+  increment,
+  type DocumentReference,
+} from "firebase/firestore";
 import { db } from "./firestore";
 
 /**

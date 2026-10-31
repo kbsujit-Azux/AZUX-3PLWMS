@@ -53,7 +53,14 @@ describe("projectInboundLine", () => {
   });
 
   it("omits the variance fields when there is no variance", () => {
-    const clean = { ...line, foundQty: undefined, damagedQty: undefined, osdType: undefined, osdReason: undefined, damagePalletId: undefined };
+    const clean = {
+      ...line,
+      foundQty: undefined,
+      damagedQty: undefined,
+      osdType: undefined,
+      osdReason: undefined,
+      damagePalletId: undefined,
+    };
     const p = projectInboundLine(clean, 0);
     expect(p).not.toHaveProperty("foundQty");
     expect(p).not.toHaveProperty("osdType");
@@ -71,9 +78,7 @@ describe("projectWorkOrderLines", () => {
     // A container that has not been received yet, but the work order already
     // recorded a receipt — the work order state must win.
     const notReceived = { ...line, receivedQty: 0, status: "expected" as const };
-    const existing = [
-      { lineNo: 1, sku: "VRD-MAG-GLY", qtyReceived: 96, status: "partial" },
-    ];
+    const existing = [{ lineNo: 1, sku: "VRD-MAG-GLY", qtyReceived: 96, status: "partial" }];
     const wo = projectWorkOrderLines([notReceived], existing);
     expect(wo[0].qtyReceived).toBe(96);
     expect(wo[0].status).toBe("partial");

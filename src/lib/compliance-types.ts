@@ -184,7 +184,7 @@ export type TempUnit = "F" | "C";
 
 export function normalizeTemp(valueCelsius: number, unit: TempUnit): number {
   if (unit === "C") return valueCelsius;
-  return +(valueCelsius * 9 / 5 + 32).toFixed(2);
+  return +((valueCelsius * 9) / 5 + 32).toFixed(2);
 }
 
 export function isTempCompatible(

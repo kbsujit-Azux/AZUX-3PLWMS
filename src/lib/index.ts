@@ -53,14 +53,7 @@ export {
 } from "./mock-data";
 
 // ─── Auth & RBAC ────────────────────────────────────────────────────────
-export {
-  type Role,
-  type AuthUser,
-  AuthProvider,
-  useAuth,
-  SignInScreen,
-  ROLE_ROUTES,
-} from "./auth";
+export { type Role, type AuthUser, AuthProvider, useAuth, SignInScreen, ROLE_ROUTES } from "./auth";
 
 // ─── Workspace Context ──────────────────────────────────────────────────
 export { WorkspaceProvider, useWorkspace } from "../components/workspace-context";
@@ -200,10 +193,7 @@ export {
   nmfcFor,
 } from "./master-data";
 
-export {
-  addItemToMaster,
-  deleteItemFromMaster,
-} from "./firestore-data";
+export { addItemToMaster, deleteItemFromMaster } from "./firestore-data";
 
 // ─── Compliance & Governance ────────────────────────────────────────────
 export {
@@ -225,10 +215,7 @@ export {
   isTempCompatible,
 } from "./compliance-types";
 
-export {
-  validateItemForLocation,
-  getValidationBadge,
-} from "./compliance-validator";
+export { validateItemForLocation, getValidationBadge } from "./compliance-validator";
 
 // ─── Cycle Counting & Physical Inventory ─────────────────────────────────
 export {
@@ -354,12 +341,7 @@ export {
 } from "./glass-bridge";
 
 // ─── Text-to-Speech ──────────────────────────────────────────────────────
-export {
-  ttsSpeak,
-  ttsStop,
-  ttsAvailable,
-  useTTS,
-} from "./tts";
+export { ttsSpeak, ttsStop, ttsAvailable, useTTS } from "./tts";
 
 // ─── Carrier Services ───────────────────────────────────────────────────
 export {
@@ -469,9 +451,7 @@ export {
 
 export { RFSessionProvider, useRfSession } from "./rf-session";
 
-export {
-  employees,
-} from "./rf-employees";
+export { employees } from "./rf-employees";
 
 // ─── Labor Management (LMS) ────────────────────────────────────────────
 export {
@@ -480,11 +460,7 @@ export {
   computeStandardSec,
   computeEfficiencyPct,
 } from "./labor-data";
-export {
-  type LaborStandard,
-  type LaborEvent,
-  type LaborTaskType,
-} from "./rf-types";
+export { type LaborStandard, type LaborEvent, type LaborTaskType } from "./rf-types";
 
 // ─── Task Interleaving ──────────────────────────────────────────────────
 export {
@@ -734,12 +710,7 @@ export {
 } from "./crossdock-engine";
 
 // ─── Containerization & Cubing ───────────────────────────────────────────
-export {
-  type CartonSize,
-  cartonSizes,
-  getCartonById,
-  recommendCartonSize,
-} from "./carton-catalog";
+export { type CartonSize, cartonSizes, getCartonById, recommendCartonSize } from "./carton-catalog";
 
 export {
   type PackedItem,
@@ -822,7 +793,3 @@ export type { SettingsClient, SettingsUser, CsvUploadHistory } from "./firestore
 
 // ─── Re-export db-context (React data provider) ─────────────────────────
 export { DatabaseProvider, useWmsData } from "./db-context";
-
-
-
-

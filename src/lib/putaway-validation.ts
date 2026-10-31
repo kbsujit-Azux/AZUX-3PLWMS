@@ -74,9 +74,7 @@ export type ValidatePutawayTargetArgs = {
 /**
  * Validate a putaway target.
  */
-export function validatePutawayTarget(
-  args: ValidatePutawayTargetArgs,
-): PutawayValidation {
+export function validatePutawayTarget(args: ValidatePutawayTargetArgs): PutawayValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -100,15 +98,11 @@ export function validatePutawayTarget(
     return { ok: false, errors, warnings };
   }
 
-  const location = args.locations.find(
-    (l) => l.id.toUpperCase() === scanned.toUpperCase(),
-  );
+  const location = args.locations.find((l) => l.id.toUpperCase() === scanned.toUpperCase());
 
   if (!location) {
     errors.push(
-      `Location ${scanned} is not in the Location Master for ${warehouseLabel(
-        args.warehouseId,
-      )}`,
+      `Location ${scanned} is not in the Location Master for ${warehouseLabel(args.warehouseId)}`,
     );
   } else if (location.warehouseId !== args.warehouseId) {
     errors.push(
@@ -134,9 +128,7 @@ export function validatePutawayTarget(
   /* 3. The recommendation is advisory */
   const suggestedId = args.suggestedLocation?.trim();
   if (suggestedId) {
-    const suggested = args.locations.find(
-      (l) => l.id.toUpperCase() === suggestedId.toUpperCase(),
-    );
+    const suggested = args.locations.find((l) => l.id.toUpperCase() === suggestedId.toUpperCase());
     if (
       !suggested ||
       suggested.warehouseId !== args.warehouseId ||
@@ -172,8 +164,7 @@ export function validLocationsFor(
       l.warehouseId === warehouseId &&
       locationAvailableToClient(l, tenantId) &&
       (!l.status || l.status === "active") &&
-      (l.capacityPallets === 0 ||
-        (l.occupiedPallets ?? 0) < l.capacityPallets),
+      (l.capacityPallets === 0 || (l.occupiedPallets ?? 0) < l.capacityPallets),
   );
 }
 

@@ -523,9 +523,7 @@ const checkCartonizationOrder: Check = (ctx) => {
  */
 const checkPalletInventory: Check = (ctx) => {
   const batchPalletIds = new Set(
-    (ctx.inventoryItems ?? []).flatMap((i) =>
-      (i.batches ?? []).map((b: any) => b.palletId),
-    ),
+    (ctx.inventoryItems ?? []).flatMap((i) => (i.batches ?? []).map((b: any) => b.palletId)),
   );
   const out: IntegrityIssue[] = [];
   for (const p of ctx.pallets ?? []) {
@@ -588,9 +586,7 @@ const checkInventoryFields: Check = (ctx) => {
  * transaction cannot be explained in an audit.
  */
 const checkAuditTrail: Check = (ctx) => {
-  const audited = new Set(
-    (ctx.transactions ?? []).map((t: any) => t.palletId).filter(Boolean),
-  );
+  const audited = new Set((ctx.transactions ?? []).map((t: any) => t.palletId).filter(Boolean));
   const out: IntegrityIssue[] = [];
   for (const p of ctx.pallets ?? []) {
     if (!p.location) continue;

@@ -93,11 +93,29 @@ export function forecastLaborFromEdi(
     });
 
     const inboundPallets = daysInbound.length;
-    const inboundCases = daysInbound.reduce((sum, s) => sum + (Array.isArray(s.lines) ? s.lines.reduce((s2, l) => s2 + (l.cartonsExpected || 0), 0) : 0), 0);
-    const inboundLines = daysInbound.reduce((sum, s) => sum + (Array.isArray(s.lines) ? s.lines.length : 0), 0);
+    const inboundCases = daysInbound.reduce(
+      (sum, s) =>
+        sum +
+        (Array.isArray(s.lines) ? s.lines.reduce((s2, l) => s2 + (l.cartonsExpected || 0), 0) : 0),
+      0,
+    );
+    const inboundLines = daysInbound.reduce(
+      (sum, s) => sum + (Array.isArray(s.lines) ? s.lines.length : 0),
+      0,
+    );
     const outboundOrders = daysOrders.length;
-    const outboundPicks = daysOrders.reduce((sum, o) => sum + (Array.isArray(o.lines) ? o.lines.length : 0), 0);
-    const outboundCartons = daysOrders.reduce((sum, o) => sum + (Array.isArray(o.lines) ? o.lines.reduce((s2, l) => s2 + (l.cartons || l.qtyOrdered || 0), 0) : 0), 0);
+    const outboundPicks = daysOrders.reduce(
+      (sum, o) => sum + (Array.isArray(o.lines) ? o.lines.length : 0),
+      0,
+    );
+    const outboundCartons = daysOrders.reduce(
+      (sum, o) =>
+        sum +
+        (Array.isArray(o.lines)
+          ? o.lines.reduce((s2, l) => s2 + (l.cartons || l.qtyOrdered || 0), 0)
+          : 0),
+      0,
+    );
 
     const receivingStandard = laborStandards.find((s) => s.taskType === "DOCK_RECEIVING");
     const putawayStandard = laborStandards.find((s) => s.taskType === "PUTAWAY");
@@ -110,7 +128,8 @@ export function forecastLaborFromEdi(
     const shippingHours = outboundOrders * 0.25;
     const vasHours = 0;
 
-    const totalHours = receivingHours + putawayHours + pickingHours + packingHours + shippingHours + vasHours;
+    const totalHours =
+      receivingHours + putawayHours + pickingHours + packingHours + shippingHours + vasHours;
     const scheduledHeadcount = Math.max(1, Math.ceil(totalHours / 8));
     const availableHeadcount = scheduledHeadcount;
     const hoursGap = Math.max(0, totalHours - availableHeadcount * 8);
@@ -119,7 +138,11 @@ export function forecastLaborFromEdi(
     const inboundCertainty = daysInbound.length > 0 ? 85 : 100;
     const outboundCertainty = daysOrders.length > 0 ? 75 : 100;
     const confidence: "high" | "medium" | "low" =
-      inboundCertainty >= 80 && outboundCertainty >= 80 ? "high" : inboundCertainty >= 50 ? "medium" : "low";
+      inboundCertainty >= 80 && outboundCertainty >= 80
+        ? "high"
+        : inboundCertainty >= 50
+          ? "medium"
+          : "low";
 
     forecasts.push({
       id: `FC-${dateStr}-${Math.random().toString(36).slice(2, 5)}`,
@@ -153,9 +176,7 @@ export function forecastLaborFromEdi(
   return forecasts;
 }
 
-export function computeShiftSchedule(
-  forecast: LaborForecast,
-): ShiftSchedule {
+export function computeShiftSchedule(forecast: LaborForecast): ShiftSchedule {
   const receivers = Math.max(1, Math.ceil(forecast.receivingHours / 8));
   const putaway = Math.max(1, Math.ceil(forecast.putawayHours / 8));
   const pickers = Math.max(1, Math.ceil(forecast.pickingHours / 8));

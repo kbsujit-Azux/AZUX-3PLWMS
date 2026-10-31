@@ -95,8 +95,7 @@ export const Route = createFileRoute("/vas")({
       { title: "VAS Work Orders — AZUX 3PL WMS Systems" },
       {
         name: "description",
-        content:
-          "Kitting, labeling, assembly, and value-added services work order management.",
+        content: "Kitting, labeling, assembly, and value-added services work order management.",
       },
     ],
   }),
@@ -146,7 +145,7 @@ function VasPage() {
       return;
     }
 
-    let cancelled = false;
+    const cancelled = false;
     const unsub = subscribeVasWorkOrderLines((data) => {
       if (!cancelled) {
         setLines(data);
@@ -454,7 +453,9 @@ function VasPage() {
                 {selectedOrder?.status === "released" && (
                   <Button
                     size="sm"
-                    onClick={() => selectedOrder && handleUpdateStatus(selectedOrder, "in_progress")}
+                    onClick={() =>
+                      selectedOrder && handleUpdateStatus(selectedOrder, "in_progress")
+                    }
                   >
                     Start
                   </Button>
@@ -473,7 +474,9 @@ function VasPage() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-4">
             <div className="rounded-lg border p-3 space-y-1">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Client Ref</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Client Ref
+              </p>
               <p className="text-sm font-semibold">{selectedOrder?.clientRef}</p>
             </div>
             <div className="rounded-lg border p-3 space-y-1">
@@ -487,7 +490,9 @@ function VasPage() {
               <p className="text-sm font-semibold">{selectedOrder?.assignedEmployee || "—"}</p>
             </div>
             <div className="rounded-lg border p-3 space-y-1">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Est. Cost</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Est. Cost
+              </p>
               <p className="text-sm font-semibold">
                 ${selectedOrder?.estimatedCost?.toFixed(2) || "—"}
               </p>
@@ -517,8 +522,10 @@ function VasPage() {
                   </TableHeader>
                   <TableBody>
                     {lines.map((line) => {
-                      const issuePct = line.qtyRequired > 0 ? (line.qtyIssued / line.qtyRequired) * 100 : 0;
-                      const consumePct = line.qtyRequired > 0 ? (line.qtyConsumed / line.qtyRequired) * 100 : 0;
+                      const issuePct =
+                        line.qtyRequired > 0 ? (line.qtyIssued / line.qtyRequired) * 100 : 0;
+                      const consumePct =
+                        line.qtyRequired > 0 ? (line.qtyConsumed / line.qtyRequired) * 100 : 0;
                       return (
                         <TableRow key={line.id}>
                           <TableCell className="text-xs">{line.lineNo}</TableCell>
@@ -560,7 +567,9 @@ function VasPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New VAS Work Order</DialogTitle>
-            <DialogDescription>Create a new kitting, labeling, or assembly work order.</DialogDescription>
+            <DialogDescription>
+              Create a new kitting, labeling, or assembly work order.
+            </DialogDescription>
           </DialogHeader>
           <VasOrderForm onSubmit={handleCreateOrder} onCancel={() => setNewOrderOpen(false)} />
         </DialogContent>
@@ -572,12 +581,16 @@ function VasPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Work Order</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete work order {orderToDelete?.id}. This action cannot be undone.
+              This will permanently delete work order {orderToDelete?.id}. This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground">
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -668,7 +681,10 @@ function VasOrderForm({
         </div>
         <div className="space-y-2">
           <Label>Priority</Label>
-          <Select value={priority} onValueChange={(v) => setPriority(v as "standard" | "rush" | "same_day")}>
+          <Select
+            value={priority}
+            onValueChange={(v) => setPriority(v as "standard" | "rush" | "same_day")}
+          >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>

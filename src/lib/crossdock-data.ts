@@ -106,7 +106,9 @@ export const crossdockMatches: CrossDockMatch[] = [
   },
 ];
 
-export function crossdockPriorityColor(priority: CrossDockMatchPriority): "default" | "destructive" | "secondary" | "outline" {
+export function crossdockPriorityColor(
+  priority: CrossDockMatchPriority,
+): "default" | "destructive" | "secondary" | "outline" {
   switch (priority) {
     case "critical":
       return "destructive";

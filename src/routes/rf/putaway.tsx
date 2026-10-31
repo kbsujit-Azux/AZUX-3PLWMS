@@ -49,10 +49,7 @@ import {
   subscribeLocations,
 } from "@/lib/firestore-data";
 import { locationAvailableToClient } from "@/lib/putaway-engine";
-import {
-  DROP001_LOCATION,
-  inventoryItems,
-} from "@/lib/mock-data";
+import { DROP001_LOCATION, inventoryItems } from "@/lib/mock-data";
 import { type Pallet } from "@/lib/pallet-data";
 import { type LocationRecord } from "@/lib/master-data";
 import { useVoicePicking } from "@/hooks/useVoicePicking";
@@ -235,9 +232,7 @@ function PutawayInner() {
       }
       // The location must belong to this client / physical warehouse.
       if (!locationAvailableToClient(loc, employee.assignedClientId)) {
-        setError(
-          `${locId} is assigned to another client and cannot be used for this receipt`,
-        );
+        setError(`${locId} is assigned to another client and cannot be used for this receipt`);
         playChime("err");
         return;
       }
@@ -256,9 +251,7 @@ function PutawayInner() {
         loc.occupiedPallets !== undefined &&
         loc.occupiedPallets >= loc.capacityPallets
       ) {
-        setError(
-          `${locId} is full (${loc.occupiedPallets}/${loc.capacityPallets} positions)`,
-        );
+        setError(`${locId} is full (${loc.occupiedPallets}/${loc.capacityPallets} positions)`);
         playChime("err");
         return;
       }
@@ -357,28 +350,25 @@ function PutawayInner() {
             AR VISION
           </div>
           <div className="text-xs text-slate-300 space-y-1 font-mono">
-            <div>Target: <span className="text-indigo-400">{location}</span></div>
-            <div>SKU: <span className="text-white">{pallet.sku}</span></div>
-            <div>Units: <span className="text-white">{pallet.units}</span></div>
-            {step === "confirm" && (
-              <div className="text-emerald-400">Ready to confirm putaway</div>
-            )}
+            <div>
+              Target: <span className="text-indigo-400">{location}</span>
+            </div>
+            <div>
+              SKU: <span className="text-white">{pallet.sku}</span>
+            </div>
+            <div>
+              Units: <span className="text-white">{pallet.units}</span>
+            </div>
+            {step === "confirm" && <div className="text-emerald-400">Ready to confirm putaway</div>}
           </div>
         </Card>
       )}
 
       {scanMode === "camera" && (
         <Card className="p-2 space-y-2">
-          <video
-            ref={videoRef}
-            className="w-full h-40 bg-black rounded"
-            playsInline
-            muted
-          />
+          <video ref={videoRef} className="w-full h-40 bg-black rounded" playsInline muted />
           {lastCode && (
-            <div className="text-xs font-mono text-emerald-400">
-              Last scan: {lastCode}
-            </div>
+            <div className="text-xs font-mono text-emerald-400">Last scan: {lastCode}</div>
           )}
         </Card>
       )}

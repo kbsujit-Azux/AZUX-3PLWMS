@@ -60,7 +60,14 @@ export type BillingClient = {
   billingCycle?: "weekly" | "monthly" | "quarterly";
 };
 
-export type RateUnit = "carton" | "pallet" | "container" | "bol" | "location" | "warehouse" | "cubicFeet";
+export type RateUnit =
+  | "carton"
+  | "pallet"
+  | "container"
+  | "bol"
+  | "location"
+  | "warehouse"
+  | "cubicFeet";
 export type StorageFrequency = "daily" | "weekly" | "monthly" | "custom";
 
 export type ChargeRule = {
@@ -86,7 +93,7 @@ export type ChargeRule = {
   // Peak season surcharge
   peakSurchargePct?: number;
   peakStartMonth?: number; // 1-12
-  peakEndMonth?: number;   // 1-12
+  peakEndMonth?: number; // 1-12
   // Effective date range
   effectiveFrom?: string;
   effectiveTo?: string;
@@ -112,9 +119,9 @@ export type AccessorialType =
 
 /** Volume-based pricing tier */
 export type PriceTier = {
-  minQty: number;           // inclusive lower bound
-  maxQty: number | null;    // inclusive upper bound, null = unlimited
-  rate: number;             // rate for this tier
+  minQty: number; // inclusive lower bound
+  maxQty: number | null; // inclusive upper bound, null = unlimited
+  rate: number; // rate for this tier
 };
 
 export type BillableEvent = {
@@ -441,7 +448,7 @@ export const defaultRules: ChargeRule[] = [
     rate: 1.75,
     priceTiers: [
       { minQty: 0, maxQty: 100, rate: 1.75 },
-      { minQty: 101, maxQty: 500, rate: 1.50 },
+      { minQty: 101, maxQty: 500, rate: 1.5 },
       { minQty: 501, maxQty: null, rate: 1.25 },
     ],
     enabled: true,
@@ -485,7 +492,7 @@ export const defaultRules: ChargeRule[] = [
     category: "Custom",
     description: "Kitting & assembly — per unit",
     unit: "flat",
-    rate: 2.50,
+    rate: 2.5,
     accessorialType: "KITTING",
     enabled: true,
   },
@@ -507,7 +514,7 @@ export const defaultRules: ChargeRule[] = [
     category: "Custom",
     description: "Manual wrapping — per pallet",
     unit: "flat",
-    rate: 12.00,
+    rate: 12.0,
     accessorialType: "MANUAL_WRAPPING",
     enabled: true,
   },
@@ -518,7 +525,7 @@ export const defaultRules: ChargeRule[] = [
     category: "Custom",
     description: "Container devanning — per container",
     unit: "flat",
-    rate: 185.00,
+    rate: 185.0,
     accessorialType: "CONTAINER_DEVANNING",
     enabled: true,
   },

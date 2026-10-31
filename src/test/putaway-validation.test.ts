@@ -195,11 +195,7 @@ describe("validLocationsFor", () => {
   });
 
   it("excludes locations in another warehouse", () => {
-    const valid = validLocationsFor(
-      [loc({ warehouseId: "atl1" })],
-      "acme",
-      "ewr1",
-    );
+    const valid = validLocationsFor([loc({ warehouseId: "atl1" })], "acme", "ewr1");
     expect(valid).toHaveLength(0);
   });
 });

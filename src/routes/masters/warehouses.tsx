@@ -1,14 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
-import {
-  Warehouse,
-  Plus,
-  Pencil,
-  Trash2,
-  Search,
-  MapPin,
-  ShieldCheck,
-} from "lucide-react";
+import { Warehouse, Plus, Pencil, Trash2, Search, MapPin, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,7 +76,9 @@ function WarehousesPage() {
         setLoading(false);
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -269,7 +263,9 @@ function WarehousesPage() {
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Warehouse" : "Add Warehouse"}</DialogTitle>
             <DialogDescription>
-              {editing ? "Update warehouse details below." : "Enter the new warehouse details below."}
+              {editing
+                ? "Update warehouse details below."
+                : "Enter the new warehouse details below."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
@@ -314,7 +310,9 @@ function WarehousesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setFormOpen(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setFormOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleSave}>Save</Button>
           </DialogFooter>
         </DialogContent>
@@ -326,12 +324,18 @@ function WarehousesPage() {
           <DialogHeader>
             <DialogTitle>Delete Warehouse</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <span className="font-mono text-foreground">{deleting?.code}</span>? This action cannot be undone.
+              Are you sure you want to delete{" "}
+              <span className="font-mono text-foreground">{deleting?.code}</span>? This action
+              cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+            <Button variant="ghost" onClick={() => setDeleting(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

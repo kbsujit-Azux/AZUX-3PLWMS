@@ -137,32 +137,248 @@ function EdiPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
-              <RefreshCw className="h-3.5 w-3.5" /> Sync VAN
-            </Button>
-          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={async () => {
-            const now = new Date().toISOString();
-            await setDoc(doc(db, "itemMaster", "SBX-832-001"), { sku: "SBX-832-001", upc: "012345678905", itemStyle: "SBX-STYLE-A", description: "Sandbox Item A", category: "Accessories", uom: "EA", tenantId: "acme", packHierarchy: [], basePackLevel: "each", caseQty: 1, caseWeightLbs: 2.5, cbmPerCase: 0.001, lengthIn: 10, widthIn: 6, heightIn: 4, weightLbs: 2.5, palletBuild: { ti: 10, hi: 5, maxWeightLbs: 1000 }, unitCost: 12.5, unitPrice: 24.99, nmfc: "116030", freightClass: "85", lotControl: false, expiryControl: false, serialControl: false, hazmat: false, active: true, source: "EDI_832", effectiveAt: now });
-            await addDoc(collection(db, "ediLogs"), { id: `EDI-SBX-832-${Date.now()}`, txn: "832", direction: "inbound", partner: "SBX-PARTNER", documentRef: "SBX-CATALOG", tenantId: "acme", warehouseId: "atl1", isaControl: "999999999", gsControl: "9999", segments: 12, bytes: 420, ackStatus: "AK", status: "processed", message: "Sandbox 832 created.", receivedAt: now });
-          }}>
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
+            <RefreshCw className="h-3.5 w-3.5" /> Sync VAN
+          </Button>
+          <Button
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={async () => {
+              const now = new Date().toISOString();
+              await setDoc(doc(db, "itemMaster", "SBX-832-001"), {
+                sku: "SBX-832-001",
+                upc: "012345678905",
+                itemStyle: "SBX-STYLE-A",
+                description: "Sandbox Item A",
+                category: "Accessories",
+                uom: "EA",
+                tenantId: "acme",
+                packHierarchy: [],
+                basePackLevel: "each",
+                caseQty: 1,
+                caseWeightLbs: 2.5,
+                cbmPerCase: 0.001,
+                lengthIn: 10,
+                widthIn: 6,
+                heightIn: 4,
+                weightLbs: 2.5,
+                palletBuild: { ti: 10, hi: 5, maxWeightLbs: 1000 },
+                unitCost: 12.5,
+                unitPrice: 24.99,
+                nmfc: "116030",
+                freightClass: "85",
+                lotControl: false,
+                expiryControl: false,
+                serialControl: false,
+                hazmat: false,
+                active: true,
+                source: "EDI_832",
+                effectiveAt: now,
+              });
+              await addDoc(collection(db, "ediLogs"), {
+                id: `EDI-SBX-832-${Date.now()}`,
+                txn: "832",
+                direction: "inbound",
+                partner: "SBX-PARTNER",
+                documentRef: "SBX-CATALOG",
+                tenantId: "acme",
+                warehouseId: "atl1",
+                isaControl: "999999999",
+                gsControl: "9999",
+                segments: 12,
+                bytes: 420,
+                ackStatus: "AK",
+                status: "processed",
+                message: "Sandbox 832 created.",
+                receivedAt: now,
+              });
+            }}
+          >
             <PlugZap className="h-3.5 w-3.5" /> Sandbox 832
           </Button>
-          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={async () => {
-            const now = new Date().toISOString();
-            const id = `INB-SBX-943-${Date.now()}`;
-            await setDoc(doc(db, "inboundShipments", id), { id, ediRef: "ASN-SBX-943", isaControl: "999999998", tenantId: "acme", warehouseId: "atl1", partner: "SBX-PARTNER", carrier: "Sandbox Carrier", trailerNumber: "SBX-TRL", containerNumber: "—", sealNumber: "SL-SBX", bolNumber: "BOL-SBX", origin: "Sandbox", poNumber: "PO-SBX", appointmentAt: now, expectedAt: now, receivedAt: null, doorAssigned: "D-01", status: "scheduled", source: "EDI_943", workOrderId: id, lines: [{ lineNo: 1, sku: "SBX-832-001", upc: "012345678905", itemStyle: "SBX-STYLE-A", description: "Sandbox Item A", lot: "LOT-SBX", expirationDate: now, qtyExpected: 10, cartonsExpected: 10, uom: "EA", weightLbsPerUnit: 2.5, unitsPerPallet: 10, receivedQty: 0, palletIds: [], status: "expected" }] });
-            await setDoc(doc(db, "workOrders", id), { id, woNumber: id, tenantId: "acme", warehouseId: "atl1", clientName: "Sandbox Partner", containerNumber: "—", trailerNumber: "SBX-TRL", sealNumber: "SL-SBX", bolNumber: "BOL-SBX", poNumber: "PO-SBX", ediRef: "ASN-SBX-943", carrier: "Sandbox Carrier", vessel: "", voyageNumber: "", port: "", origin: "Sandbox", arrivalDate: now, departureDate: null, yardInDate: null, yardLeaveDate: null, inboundEntryDate: now, receivedDate: null, status: "scheduled", totalUnits: 10, totalCartons: 10, lineCount: 1, lines: [{ lineNo: 1, sku: "SBX-832-001", upc: "012345678905", description: "Sandbox Item A", lot: "LOT-SBX", qtyExpected: 10, qtyReceived: 0, cartons: 10, status: "pending" }], createdAt: now, updatedAt: now, inboundShipmentId: id });
-            await addDoc(collection(db, "ediLogs"), { id: `EDI-SBX-943-${Date.now()}`, txn: "943", direction: "inbound", partner: "SBX-PARTNER", documentRef: "ASN-SBX-943", tenantId: "acme", warehouseId: "atl1", isaControl: "999999998", gsControl: "9998", segments: 20, bytes: 600, ackStatus: "AK", status: "processed", message: "Sandbox 943 created.", receivedAt: now });
-          }}>
+          <Button
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={async () => {
+              const now = new Date().toISOString();
+              const id = `INB-SBX-943-${Date.now()}`;
+              await setDoc(doc(db, "inboundShipments", id), {
+                id,
+                ediRef: "ASN-SBX-943",
+                isaControl: "999999998",
+                tenantId: "acme",
+                warehouseId: "atl1",
+                partner: "SBX-PARTNER",
+                carrier: "Sandbox Carrier",
+                trailerNumber: "SBX-TRL",
+                containerNumber: "—",
+                sealNumber: "SL-SBX",
+                bolNumber: "BOL-SBX",
+                origin: "Sandbox",
+                poNumber: "PO-SBX",
+                appointmentAt: now,
+                expectedAt: now,
+                receivedAt: null,
+                doorAssigned: "D-01",
+                status: "scheduled",
+                source: "EDI_943",
+                workOrderId: id,
+                lines: [
+                  {
+                    lineNo: 1,
+                    sku: "SBX-832-001",
+                    upc: "012345678905",
+                    itemStyle: "SBX-STYLE-A",
+                    description: "Sandbox Item A",
+                    lot: "LOT-SBX",
+                    expirationDate: now,
+                    qtyExpected: 10,
+                    cartonsExpected: 10,
+                    uom: "EA",
+                    weightLbsPerUnit: 2.5,
+                    unitsPerPallet: 10,
+                    receivedQty: 0,
+                    palletIds: [],
+                    status: "expected",
+                  },
+                ],
+              });
+              await setDoc(doc(db, "workOrders", id), {
+                id,
+                woNumber: id,
+                tenantId: "acme",
+                warehouseId: "atl1",
+                clientName: "Sandbox Partner",
+                containerNumber: "—",
+                trailerNumber: "SBX-TRL",
+                sealNumber: "SL-SBX",
+                bolNumber: "BOL-SBX",
+                poNumber: "PO-SBX",
+                ediRef: "ASN-SBX-943",
+                carrier: "Sandbox Carrier",
+                vessel: "",
+                voyageNumber: "",
+                port: "",
+                origin: "Sandbox",
+                arrivalDate: now,
+                departureDate: null,
+                yardInDate: null,
+                yardLeaveDate: null,
+                inboundEntryDate: now,
+                receivedDate: null,
+                status: "scheduled",
+                totalUnits: 10,
+                totalCartons: 10,
+                lineCount: 1,
+                lines: [
+                  {
+                    lineNo: 1,
+                    sku: "SBX-832-001",
+                    upc: "012345678905",
+                    description: "Sandbox Item A",
+                    lot: "LOT-SBX",
+                    qtyExpected: 10,
+                    qtyReceived: 0,
+                    cartons: 10,
+                    status: "pending",
+                  },
+                ],
+                createdAt: now,
+                updatedAt: now,
+                inboundShipmentId: id,
+              });
+              await addDoc(collection(db, "ediLogs"), {
+                id: `EDI-SBX-943-${Date.now()}`,
+                txn: "943",
+                direction: "inbound",
+                partner: "SBX-PARTNER",
+                documentRef: "ASN-SBX-943",
+                tenantId: "acme",
+                warehouseId: "atl1",
+                isaControl: "999999998",
+                gsControl: "9998",
+                segments: 20,
+                bytes: 600,
+                ackStatus: "AK",
+                status: "processed",
+                message: "Sandbox 943 created.",
+                receivedAt: now,
+              });
+            }}
+          >
             <PlugZap className="h-3.5 w-3.5" /> Sandbox 943
           </Button>
-          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={async () => {
-            const now = new Date().toISOString();
-            const ltlId = `SO-SBX-LTL-${Date.now()}`;
-            await setDoc(doc(db, "orders", ltlId), { id: ltlId, customerOrderNumber: `CO-${ltlId}`, poNumber: `PO-${ltlId}`, ediRef: `EDI-940-${ltlId}`, tenantId: "acme", warehouseId: "atl1", shipToCode: "LAX", shipToName: "Los Angeles DC", shipToAddress1: "4500 S Alameda St", shipToCity: "Los Angeles", shipToState: "CA", shipToZip: "90058", carrier: "XPO", serviceLevel: "LTL Standard", status: "new", source: "EDI-940", receivedAt: now, entryDate: now, cancelDate: "2026-12-31T23:59:00Z", mustShipDate: "2026-11-15T17:00:00Z", lines: [{ sku: "ACM-TENT-2P-OLV", description: "Ridgeline 2-Person Tent, Olive", qtyOrdered: 100, qtyAllocated: 0, unitPrice: 189 }] });
-            const parcelId = `SO-SBX-PARCEL-${Date.now() + 1}`;
-            await setDoc(doc(db, "orders", parcelId), { id: parcelId, customerOrderNumber: `CO-${parcelId}`, poNumber: `PO-${parcelId}`, ediRef: `EDI-940-${parcelId}`, tenantId: "acme", warehouseId: "atl1", shipToCode: "NYC", shipToName: "New York Retail", shipToAddress1: "200 5th Ave", shipToCity: "New York", shipToState: "NY", shipToZip: "10010", carrier: "UPS", serviceLevel: "Ground", status: "new", source: "EDI-940", receivedAt: now, entryDate: now, cancelDate: "2026-12-31T23:59:00Z", mustShipDate: "2026-11-10T17:00:00Z", lines: [{ sku: "ACM-TENT-2P-OLV", description: "Ridgeline 2-Person Tent, Olive", qtyOrdered: 8, qtyAllocated: 0, unitPrice: 189 }] });
-          }}>
+          <Button
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={async () => {
+              const now = new Date().toISOString();
+              const ltlId = `SO-SBX-LTL-${Date.now()}`;
+              await setDoc(doc(db, "orders", ltlId), {
+                id: ltlId,
+                customerOrderNumber: `CO-${ltlId}`,
+                poNumber: `PO-${ltlId}`,
+                ediRef: `EDI-940-${ltlId}`,
+                tenantId: "acme",
+                warehouseId: "atl1",
+                shipToCode: "LAX",
+                shipToName: "Los Angeles DC",
+                shipToAddress1: "4500 S Alameda St",
+                shipToCity: "Los Angeles",
+                shipToState: "CA",
+                shipToZip: "90058",
+                carrier: "XPO",
+                serviceLevel: "LTL Standard",
+                status: "new",
+                source: "EDI-940",
+                receivedAt: now,
+                entryDate: now,
+                cancelDate: "2026-12-31T23:59:00Z",
+                mustShipDate: "2026-11-15T17:00:00Z",
+                lines: [
+                  {
+                    sku: "ACM-TENT-2P-OLV",
+                    description: "Ridgeline 2-Person Tent, Olive",
+                    qtyOrdered: 100,
+                    qtyAllocated: 0,
+                    unitPrice: 189,
+                  },
+                ],
+              });
+              const parcelId = `SO-SBX-PARCEL-${Date.now() + 1}`;
+              await setDoc(doc(db, "orders", parcelId), {
+                id: parcelId,
+                customerOrderNumber: `CO-${parcelId}`,
+                poNumber: `PO-${parcelId}`,
+                ediRef: `EDI-940-${parcelId}`,
+                tenantId: "acme",
+                warehouseId: "atl1",
+                shipToCode: "NYC",
+                shipToName: "New York Retail",
+                shipToAddress1: "200 5th Ave",
+                shipToCity: "New York",
+                shipToState: "NY",
+                shipToZip: "10010",
+                carrier: "UPS",
+                serviceLevel: "Ground",
+                status: "new",
+                source: "EDI-940",
+                receivedAt: now,
+                entryDate: now,
+                cancelDate: "2026-12-31T23:59:00Z",
+                mustShipDate: "2026-11-10T17:00:00Z",
+                lines: [
+                  {
+                    sku: "ACM-TENT-2P-OLV",
+                    description: "Ridgeline 2-Person Tent, Olive",
+                    qtyOrdered: 8,
+                    qtyAllocated: 0,
+                    unitPrice: 189,
+                  },
+                ],
+              });
+            }}
+          >
             <PlugZap className="h-3.5 w-3.5" /> Sandbox 940
           </Button>
         </div>
@@ -399,7 +615,3 @@ IEA*1*${detail.isaControl}~`}
     </div>
   );
 }
-
-
-
-

@@ -1,6 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
-import { PackageSearch, TrendingUp, TrendingDown, ArrowUpRight, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  PackageSearch,
+  TrendingUp,
+  TrendingDown,
+  ArrowUpRight,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +29,10 @@ export const Route = createFileRoute("/slotting")({
   head: () => ({
     meta: [
       { title: "Dynamic Slotting — AZUX 3PL WMS Systems" },
-      { name: "description", content: "AI-driven slotting recommendations based on velocity analysis." },
+      {
+        name: "description",
+        content: "AI-driven slotting recommendations based on velocity analysis.",
+      },
     ],
   }),
   component: SlottingPage,
@@ -52,7 +63,13 @@ function SlottingPage() {
     let cancelled = false;
     fetchMovementHistory().then((allMovements) => {
       if (cancelled) return;
-      const recs = analyzeSlottingEfficiency(pallets, locationMaster, allMovements, itemMaster, warehouseId);
+      const recs = analyzeSlottingEfficiency(
+        pallets,
+        locationMaster,
+        allMovements,
+        itemMaster,
+        warehouseId,
+      );
       setRecommendations(recs);
 
       const velMap = new Map<string, VelocityProfile>();
@@ -62,11 +79,19 @@ function SlottingPage() {
       setVelocityBySku(velMap);
       setLoading(false);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [warehouseId, pallets, locationMaster, itemMaster]);
 
-  const highPriority = useMemo(() => recommendations.filter((r) => r.priority === "high"), [recommendations]);
-  const mediumPriority = useMemo(() => recommendations.filter((r) => r.priority === "medium"), [recommendations]);
+  const highPriority = useMemo(
+    () => recommendations.filter((r) => r.priority === "high"),
+    [recommendations],
+  );
+  const mediumPriority = useMemo(
+    () => recommendations.filter((r) => r.priority === "medium"),
+    [recommendations],
+  );
 
   const handleReslotClick = (rec: SlottingRecommendation) => {
     setSelectedRec(rec);
@@ -102,7 +127,12 @@ function SlottingPage() {
           occupiedPallets: (target.occupiedPallets ?? 0) + 1,
         });
       }
-      setRecommendations((prev) => prev.filter((r) => !(r.sku === selectedRec.sku && r.currentLocationId === selectedRec.currentLocationId)));
+      setRecommendations((prev) =>
+        prev.filter(
+          (r) =>
+            !(r.sku === selectedRec.sku && r.currentLocationId === selectedRec.currentLocationId),
+        ),
+      );
       toast.success(`Reslotted ${selectedRec.sku} to ${selectedRec.suggestedLocationId}`);
     } catch (e: unknown) {
       toast.error("Reslot failed: " + (e instanceof Error ? e.message : "unknown error"));
@@ -127,9 +157,13 @@ function SlottingPage() {
           onChange={(e) => setWarehouseId(e.target.value)}
           className="h-8 rounded-md border border-border bg-background px-2 text-xs"
         >
-          {liveWarehouses.filter((w) => w.id !== "all").map((w) => (
-            <option key={w.id} value={w.id}>{w.code} — {w.city}</option>
-          ))}
+          {liveWarehouses
+            .filter((w) => w.id !== "all")
+            .map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.code} — {w.city}
+              </option>
+            ))}
         </select>
       </div>
 
@@ -138,27 +172,37 @@ function SlottingPage() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">High Priority</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                High Priority
+              </span>
               <AlertTriangle className="h-4 w-4 text-red-400" />
             </div>
-            <div className="mt-2 text-2xl font-semibold tabular-nums text-red-400">{highPriority.length}</div>
+            <div className="mt-2 text-2xl font-semibold tabular-nums text-red-400">
+              {highPriority.length}
+            </div>
             <p className="text-[10px] text-muted-foreground mt-1">Fast movers in wrong zones</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Medium Priority</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Medium Priority
+              </span>
               <TrendingDown className="h-4 w-4 text-orange-400" />
             </div>
-            <div className="mt-2 text-2xl font-semibold tabular-nums text-orange-400">{mediumPriority.length}</div>
+            <div className="mt-2 text-2xl font-semibold tabular-nums text-orange-400">
+              {mediumPriority.length}
+            </div>
             <p className="text-[10px] text-muted-foreground mt-1">Slow movers in forward pick</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Recommendations</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Total Recommendations
+              </span>
               <PackageSearch className="h-4 w-4 text-primary" />
             </div>
             <div className="mt-2 text-2xl font-semibold tabular-nums">{recommendations.length}</div>
@@ -202,23 +246,32 @@ function SlottingPage() {
                   {recommendations.map((rec, i) => {
                     const velocity = velocityBySku.get(rec.sku);
                     return (
-                      <tr key={`${rec.sku}-${rec.currentLocationId}-${i}`} className="border-t border-border hover:bg-muted/20">
+                      <tr
+                        key={`${rec.sku}-${rec.currentLocationId}-${i}`}
+                        className="border-t border-border hover:bg-muted/20"
+                      >
                         <td className="px-3 py-2">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${getPriorityBadge(rec.priority)}`}>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${getPriorityBadge(rec.priority)}`}
+                          >
                             {rec.priority.toUpperCase()}
                           </span>
                         </td>
                         <td className="px-3 py-2">
                           <div className="font-medium">{rec.sku}</div>
                           {velocity && (
-                            <div className={`text-[10px] ${getVelocityColor(Math.round(velocity.totalVelocity * 100))}`}>
+                            <div
+                              className={`text-[10px] ${getVelocityColor(Math.round(velocity.totalVelocity * 100))}`}
+                            >
                               {velocity.picksPerDay.toFixed(1)} picks/day
                             </div>
                           )}
                         </td>
                         <td className="px-3 py-2 font-mono">{rec.currentLocationId}</td>
                         <td className="px-3 py-2 font-mono">{rec.suggestedLocationId || "—"}</td>
-                        <td className="px-3 py-2 text-muted-foreground max-w-[240px]">{rec.impact}</td>
+                        <td className="px-3 py-2 text-muted-foreground max-w-[240px]">
+                          {rec.impact}
+                        </td>
                         <td className="px-3 py-2 text-right">
                           {rec.suggestedLocationId ? (
                             <Button
@@ -231,7 +284,9 @@ function SlottingPage() {
                               {executing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Reslot"}
                             </Button>
                           ) : (
-                            <span className="text-[10px] text-muted-foreground">No slot available</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              No slot available
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -249,13 +304,32 @@ function SlottingPage() {
           <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 space-y-4">
             <h3 className="text-lg font-semibold">Confirm Reslot</h3>
             <div className="text-xs text-muted-foreground space-y-1">
-              <div>SKU: <span className="font-mono text-foreground">{selectedRec.sku}</span></div>
-              <div>From: <span className="font-mono text-foreground">{selectedRec.currentLocationId}</span></div>
-              <div>To: <span className="font-mono text-foreground">{selectedRec.suggestedLocationId}</span></div>
-              <div>Reason: <span className="text-foreground">{selectedRec.impact}</span></div>
+              <div>
+                SKU: <span className="font-mono text-foreground">{selectedRec.sku}</span>
+              </div>
+              <div>
+                From:{" "}
+                <span className="font-mono text-foreground">{selectedRec.currentLocationId}</span>
+              </div>
+              <div>
+                To:{" "}
+                <span className="font-mono text-foreground">{selectedRec.suggestedLocationId}</span>
+              </div>
+              <div>
+                Reason: <span className="text-foreground">{selectedRec.impact}</span>
+              </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => { setConfirmOpen(false); setSelectedRec(null); }} disabled={executing}>Cancel</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setConfirmOpen(false);
+                  setSelectedRec(null);
+                }}
+                disabled={executing}
+              >
+                Cancel
+              </Button>
               <Button onClick={handleReslotConfirm} disabled={executing}>
                 {executing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Reslot"}
               </Button>

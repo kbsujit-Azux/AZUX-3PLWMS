@@ -3,8 +3,20 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getUCC128Config, saveUCC128Config, DEFAULT_UCC128_CONFIGS, computeCheckDigit, type UCC128Config } from "@/lib/ucc128";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  getUCC128Config,
+  saveUCC128Config,
+  DEFAULT_UCC128_CONFIGS,
+  computeCheckDigit,
+  type UCC128Config,
+} from "@/lib/ucc128";
 import { doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 
@@ -28,7 +40,9 @@ export function UCC128Panel() {
     if (!selectedTenant && list.length > 0) setSelectedTenant(list[0].tenantId);
   };
 
-  useEffect(() => { loadConfigs(); }, []);
+  useEffect(() => {
+    loadConfigs();
+  }, []);
 
   useEffect(() => {
     const c = configs.find((x) => x.tenantId === selectedTenant);
@@ -76,7 +90,9 @@ export function UCC128Panel() {
 
   const preview = (() => {
     try {
-      const base = prefix + String(parseInt(serialStart, 10) || 1).padStart(parseInt(serialLength, 10) || 12, "0");
+      const base =
+        prefix +
+        String(parseInt(serialStart, 10) || 1).padStart(parseInt(serialLength, 10) || 12, "0");
       if (base.length !== 19) return "Invalid: base must be 19 chars";
       return base + computeCheckDigit(base);
     } catch {
@@ -97,7 +113,9 @@ export function UCC128Panel() {
             </SelectTrigger>
             <SelectContent>
               {configs.map((c) => (
-                <SelectItem key={c.tenantId} value={c.tenantId}>{c.tenantId}</SelectItem>
+                <SelectItem key={c.tenantId} value={c.tenantId}>
+                  {c.tenantId}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -107,19 +125,35 @@ export function UCC128Panel() {
           <div className="space-y-3 max-w-md">
             <div className="space-y-2">
               <Label className="text-xs">Company Prefix (7-10 digits)</Label>
-              <Input className="h-8 text-xs font-mono" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
+              <Input
+                className="h-8 text-xs font-mono"
+                value={prefix}
+                onChange={(e) => setPrefix(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Serial Start (next to use)</Label>
-              <Input className="h-8 text-xs font-mono" value={serialStart} onChange={(e) => setSerialStart(e.target.value)} />
+              <Input
+                className="h-8 text-xs font-mono"
+                value={serialStart}
+                onChange={(e) => setSerialStart(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Serial Last Used</Label>
-              <Input className="h-8 text-xs font-mono" value={serialLastUsed} onChange={(e) => setSerialLastUsed(e.target.value)} />
+              <Input
+                className="h-8 text-xs font-mono"
+                value={serialLastUsed}
+                onChange={(e) => setSerialLastUsed(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Serial Length</Label>
-              <Input className="h-8 text-xs font-mono" value={serialLength} onChange={(e) => setSerialLength(e.target.value)} />
+              <Input
+                className="h-8 text-xs font-mono"
+                value={serialLength}
+                onChange={(e) => setSerialLength(e.target.value)}
+              />
             </div>
             <div className="text-xs text-muted-foreground">
               Preview UCC128: <span className="font-mono font-semibold">{preview}</span>

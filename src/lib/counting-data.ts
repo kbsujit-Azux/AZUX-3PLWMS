@@ -62,7 +62,13 @@ export type VarianceReason =
 
 export type CountPriority = "low" | "medium" | "high" | "critical";
 
-export type CountScheduleFrequency = "daily" | "weekly" | "monthly" | "quarterly" | "semi_annual" | "annual";
+export type CountScheduleFrequency =
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "quarterly"
+  | "semi_annual"
+  | "annual";
 
 export type CountSchedule = {
   id: string;
@@ -236,7 +242,8 @@ export function classifyAbc(
   cutoff.setDate(cutoff.getDate() - windowDays);
 
   const relevantMovements = movements.filter((m) => {
-    const t = m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as unknown as string);
+    const t =
+      m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as unknown as string);
     return t >= cutoff;
   });
 
@@ -256,9 +263,9 @@ export function classifyAbc(
     cumulative += value;
     const pct = total > 0 ? cumulative / total : 0;
 
-    if (pct <= 0.20) classes.set(sku, "A");
-    else if (pct <= 0.50) classes.set(sku, "B");
-    else if (pct <= 0.80) classes.set(sku, "C");
+    if (pct <= 0.2) classes.set(sku, "A");
+    else if (pct <= 0.5) classes.set(sku, "B");
+    else if (pct <= 0.8) classes.set(sku, "C");
     else classes.set(sku, "D");
   }
 
@@ -282,7 +289,9 @@ export function generateCycleCountSchedule(
   const eligible: string[] = [];
 
   for (const locId of locationIds) {
-    const lastCountDate = new Date(now.getTime() - Math.floor(Math.random() * days * 1.5 * 24 * 60 * 60 * 1000));
+    const lastCountDate = new Date(
+      now.getTime() - Math.floor(Math.random() * days * 1.5 * 24 * 60 * 60 * 1000),
+    );
     const nextDue = new Date(lastCountDate.getTime() + days * 24 * 60 * 60 * 1000);
     if (nextDue <= now) {
       eligible.push(locId);
@@ -299,7 +308,8 @@ export function computeVariance(
   countedWeightLbs?: number,
 ): { varianceQty: number; variancePct: number; varianceWeightLbs?: number } {
   const varianceQty = countedQty - expectedQty;
-  const variancePct = expectedQty !== 0 ? (varianceQty / expectedQty) * 100 : (countedQty !== 0 ? 100 : 0);
+  const variancePct =
+    expectedQty !== 0 ? (varianceQty / expectedQty) * 100 : countedQty !== 0 ? 100 : 0;
   const varianceWeightLbs =
     expectedWeightLbs !== undefined && countedWeightLbs !== undefined
       ? countedWeightLbs - expectedWeightLbs
@@ -308,7 +318,9 @@ export function computeVariance(
   return { varianceQty, variancePct, varianceWeightLbs };
 }
 
-export function getAbcClassColor(abcClass: AbcClass): "default" | "destructive" | "outline" | "secondary" {
+export function getAbcClassColor(
+  abcClass: AbcClass,
+): "default" | "destructive" | "outline" | "secondary" {
   switch (abcClass) {
     case "A":
       return "destructive";

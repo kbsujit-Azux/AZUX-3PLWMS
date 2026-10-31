@@ -225,15 +225,15 @@ function MastersPage() {
         pallets: livePallets ?? [],
         inboundShipments: liveInboundShipments ?? [],
         workOrders: liveWorkOrders ?? [],
-    inventoryItems: liveInventoryItems ?? [],
-    cartonizations: liveCartonizations ?? [],
-    orders: liveOrders ?? [],
-    transactions: liveTransactions ?? [],
-    itemMaster: liveItemMaster ?? [],
-    locationMaster: liveLocationMaster ?? [],
-    tenants: liveTenants ?? [],
-    warehouses: liveWarehouses ?? [],
-  }),
+        inventoryItems: liveInventoryItems ?? [],
+        cartonizations: liveCartonizations ?? [],
+        orders: liveOrders ?? [],
+        transactions: liveTransactions ?? [],
+        itemMaster: liveItemMaster ?? [],
+        locationMaster: liveLocationMaster ?? [],
+        tenants: liveTenants ?? [],
+        warehouses: liveWarehouses ?? [],
+      }),
     [
       livePallets,
       liveInboundShipments,
@@ -281,7 +281,14 @@ function MastersPage() {
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const t = sp.get("tab");
-    if (t === "items" || t === "locations" || t === "exceptions" || t === "integrity" || t === "admin" || t === "audit")
+    if (
+      t === "items" ||
+      t === "locations" ||
+      t === "exceptions" ||
+      t === "integrity" ||
+      t === "admin" ||
+      t === "audit"
+    )
       setTab(t);
     const addSku = sp.get("addSku");
     if (addSku) {
@@ -304,7 +311,7 @@ function MastersPage() {
     tenantId !== "all" ? liveItemMaster.filter((i) => i.tenantId === tenantId) : liveItemMaster;
 
   const locationMaster =
-    (warehouseId !== "all" || tenantId !== "all")
+    warehouseId !== "all" || tenantId !== "all"
       ? liveLocationMaster.filter((l) => {
           const warehouseMatch = warehouseId === "all" || l.warehouseId === warehouseId;
           const tenantMatch = tenantId === "all" || l.tenantId === tenantId;
@@ -337,12 +344,12 @@ function MastersPage() {
         l.zone.toLowerCase().includes(q) ||
         l.type.toLowerCase().includes(q) ||
         (l.warehouseId?.toLowerCase().includes(q) ?? false) ||
-        ((liveWarehouses.find((w) => w.id === l.warehouseId)?.code ?? "")
+        (liveWarehouses.find((w) => w.id === l.warehouseId)?.code ?? "")
           .toLowerCase()
           .includes(q) ||
-          (liveWarehouses.find((w) => w.id === l.warehouseId)?.city ?? "")
-            .toLowerCase()
-            .includes(q)) ||
+        (liveWarehouses.find((w) => w.id === l.warehouseId)?.city ?? "")
+          .toLowerCase()
+          .includes(q) ||
         (l.tenantId?.toLowerCase().includes(q) ?? false),
     );
   }, [locationMaster, locQuery, locWarehouseFilter, warehouseId, tenantId, liveWarehouses]);
@@ -372,12 +379,7 @@ function MastersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-9"
-            onClick={() => refreshData()}
-          >
+          <Button size="sm" variant="outline" className="h-9" onClick={() => refreshData()}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
           <Button asChild size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-500">
@@ -440,28 +442,28 @@ function MastersPage() {
           <TabsTrigger value="locations">
             <MapPin className="h-3.5 w-3.5 mr-1.5" /> Location Master
           </TabsTrigger>
-            <TabsTrigger value="exceptions">
-              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" /> Exceptions
-              {exceptions.length > 0 && (
-                <span className="ml-1.5 rounded-sm bg-destructive/15 text-destructive text-[10px] px-1.5 py-0.5">
-                  {exceptions.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="integrity">
-              <ShieldAlert className="h-3.5 w-3.5 mr-1.5" /> Data Integrity
-              {integrityIssues.length > 0 && (
-                <span
-                  className={`ml-1.5 rounded-sm text-[10px] px-1.5 py-0.5 ${
-                    integrityErrors.length
-                      ? "bg-destructive text-destructive-foreground"
-                      : "bg-amber-500/20 text-amber-600"
-                  }`}
-                >
-                  {integrityIssues.length}
-                </span>
-              )}
-            </TabsTrigger>
+          <TabsTrigger value="exceptions">
+            <AlertTriangle className="h-3.5 w-3.5 mr-1.5" /> Exceptions
+            {exceptions.length > 0 && (
+              <span className="ml-1.5 rounded-sm bg-destructive/15 text-destructive text-[10px] px-1.5 py-0.5">
+                {exceptions.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="integrity">
+            <ShieldAlert className="h-3.5 w-3.5 mr-1.5" /> Data Integrity
+            {integrityIssues.length > 0 && (
+              <span
+                className={`ml-1.5 rounded-sm text-[10px] px-1.5 py-0.5 ${
+                  integrityErrors.length
+                    ? "bg-destructive text-destructive-foreground"
+                    : "bg-amber-500/20 text-amber-600"
+                }`}
+              >
+                {integrityIssues.length}
+              </span>
+            )}
+          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="admin">
               <ShieldCheck className="h-3.5 w-3.5 mr-1.5" /> Admin Tools
@@ -858,9 +860,8 @@ function MastersPage() {
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Every record is checked against the master data it depends on. Broken
-              references are shown in red and can be repaired without touching the
-              database by hand.
+              Every record is checked against the master data it depends on. Broken references are
+              shown in red and can be repaired without touching the database by hand.
             </p>
           </div>
 
@@ -899,13 +900,9 @@ function MastersPage() {
                         {issue.severity === "error" ? "ERROR" : "WARN"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-medium text-destructive">
-                      {issue.title}
-                    </TableCell>
+                    <TableCell className="font-medium text-destructive">{issue.title}</TableCell>
                     <TableCell className="font-mono text-[11px]">{issue.recordId}</TableCell>
-                    <TableCell className="max-w-md text-muted-foreground">
-                      {issue.detail}
-                    </TableCell>
+                    <TableCell className="max-w-md text-muted-foreground">{issue.detail}</TableCell>
                     <TableCell className="text-right">
                       {issue.autoFixable ? (
                         <Button
@@ -915,7 +912,7 @@ function MastersPage() {
                           disabled={repairingIssue === issue.id}
                           onClick={() => handleRepair(issue)}
                         >
-                          {repairingIssue === issue.id ? "Fixing…" : issue.fixLabel ?? "Fix"}
+                          {repairingIssue === issue.id ? "Fixing…" : (issue.fixLabel ?? "Fix")}
                         </Button>
                       ) : (
                         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -927,10 +924,7 @@ function MastersPage() {
                 ))}
                 {integrityIssues.length === 0 && (
                   <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="text-center text-xs text-emerald-600 py-8"
-                    >
+                    <TableCell colSpan={5} className="text-center text-xs text-emerald-600 py-8">
                       <CheckCircle2 className="h-4 w-4 inline mr-1.5" />
                       No correlation issues found. All records are consistent.
                     </TableCell>
@@ -1210,18 +1204,18 @@ function MastersPage() {
             <Button
               size="sm"
               className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
-onClick={async () => {
-                  if (toDeleteLoc) {
-                    try {
-                      await deleteLocationFromMaster(toDeleteLoc.id);
-                      toast.success(`Deleted location ${toDeleteLoc.id}`);
-                      force((n) => n + 1);
-                    } catch (e) {
-                      toast.error(`Failed to delete: ${e instanceof Error ? e.message : String(e)}`);
-                    }
+              onClick={async () => {
+                if (toDeleteLoc) {
+                  try {
+                    await deleteLocationFromMaster(toDeleteLoc.id);
+                    toast.success(`Deleted location ${toDeleteLoc.id}`);
+                    force((n) => n + 1);
+                  } catch (e) {
+                    toast.error(`Failed to delete: ${e instanceof Error ? e.message : String(e)}`);
                   }
-                  setToDeleteLoc(null);
-                }}
+                }
+                setToDeleteLoc(null);
+              }}
             >
               Delete
             </Button>
@@ -1304,20 +1298,22 @@ function AddItemDialog({
         masterHeightIn: seed.masterHeightIn ?? prefill?.masterHeightIn ?? undefined,
         masterWeightLbs: seed.masterWeightLbs ?? prefill?.masterWeightLbs ?? undefined,
         tenantId: seed.tenantId ?? prefill?.tenantId ?? "",
-        palletBuild: seed.palletBuild ?? prefill?.palletBuild ?? {
-          maxPalletHeightIn: 60,
-          maxPalletWeightLbs: 2500,
-          stackability: "full",
-          palletPattern: "interlock",
-          allowMixedSku: false,
-          palletType: "standard_48x40",
-        },
-        velocity: seed.velocity ?? prefill?.velocity ?? {
-          abcClass: "B",
-          annualPicks: 500,
-          linesPerOrder: 3,
-          storageClass: "reserve",
-        },
+        palletBuild: seed.palletBuild ??
+          prefill?.palletBuild ?? {
+            maxPalletHeightIn: 60,
+            maxPalletWeightLbs: 2500,
+            stackability: "full",
+            palletPattern: "interlock",
+            allowMixedSku: false,
+            palletType: "standard_48x40",
+          },
+        velocity: seed.velocity ??
+          prefill?.velocity ?? {
+            abcClass: "B",
+            annualPicks: 500,
+            linesPerOrder: 3,
+            storageClass: "reserve",
+          },
         substitutions: seed.substitutions ?? prefill?.substitutions ?? [],
         lotControl: seed.lotControl ?? prefill?.lotControl ?? false,
         expiryControl: seed.expiryControl ?? prefill?.expiryControl ?? false,
@@ -1474,508 +1470,817 @@ function AddItemDialog({
 
         <Tabs defaultValue="core" className="flex-1 flex flex-col min-h-0">
           <TabsList className="w-full justify-start h-8 shrink-0">
-            <TabsTrigger value="core" className="text-xs h-7">Core</TabsTrigger>
-            <TabsTrigger value="pack" className="text-xs h-7">Pack</TabsTrigger>
-            <TabsTrigger value="pallet" className="text-xs h-7">Pallet Build</TabsTrigger>
-            <TabsTrigger value="velocity" className="text-xs h-7">Velocity</TabsTrigger>
-            <TabsTrigger value="compliance" className="text-xs h-7">Compliance</TabsTrigger>
-            <TabsTrigger value="commercial" className="text-xs h-7">Commercial</TabsTrigger>
+            <TabsTrigger value="core" className="text-xs h-7">
+              Core
+            </TabsTrigger>
+            <TabsTrigger value="pack" className="text-xs h-7">
+              Pack
+            </TabsTrigger>
+            <TabsTrigger value="pallet" className="text-xs h-7">
+              Pallet Build
+            </TabsTrigger>
+            <TabsTrigger value="velocity" className="text-xs h-7">
+              Velocity
+            </TabsTrigger>
+            <TabsTrigger value="compliance" className="text-xs h-7">
+              Compliance
+            </TabsTrigger>
+            <TabsTrigger value="commercial" className="text-xs h-7">
+              Commercial
+            </TabsTrigger>
           </TabsList>
 
-        <div className="flex-1 overflow-y-auto pr-1 mt-3 min-h-0">
-        <TabsContent value="core" className="mt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="SKU">
-            <Input
-              value={form.sku ?? ""}
-              disabled={!!editItem}
-              onChange={(e) => set("sku", e.target.value)}
-              className="h-8 text-xs font-mono"
-            />
-          </Field>
-          <Field label="Client">
-            <select
-              value={form.tenantId ?? ""}
-              disabled={!!editItem}
-              onChange={(e) => set("tenantId", e.target.value)}
-              className="h-8 text-xs rounded-md border border-input bg-background px-2"
-            >
-              <option value="">Select client…</option>
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.code} · {t.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="UPC / GTIN">
-            <Input
-              value={form.upc ?? ""}
-              onChange={(e) => set("upc", e.target.value)}
-              className="h-8 text-xs font-mono"
-            />
-          </Field>
-          <Field label="Item style">
-            <Input
-              value={form.itemStyle ?? ""}
-              onChange={(e) => set("itemStyle", e.target.value)}
-              className="h-8 text-xs font-mono"
-            />
-          </Field>
-          <Field label="Description" className="col-span-2">
-            <Input
-              value={form.description ?? ""}
-              onChange={(e) => set("description", e.target.value)}
-              className="h-8 text-xs"
-            />
-          </Field>
-          <Field label="Category">
-            <Input
-              value={form.category ?? ""}
-              onChange={(e) => set("category", e.target.value)}
-              className="h-8 text-xs"
-            />
-          </Field>
-          <Field label="UOM">
-            <Input
-              value={form.uom ?? ""}
-              onChange={(e) => set("uom", e.target.value)}
-              className="h-8 text-xs"
-            />
-          </Field>
-          <Field label="Case Qty">
-            <Input
-              type="number"
-              min={1}
-              value={form.caseQty ?? 1}
-              onChange={(e) => set("caseQty", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Unit weight (lb)">
-            <Input
-              type="number"
-              step="0.1"
-              value={form.weightLbs ?? 0}
-              onChange={(e) => set("weightLbs", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Length (in)">
-            <Input
-              type="number"
-              value={form.lengthIn ?? 0}
-              onChange={(e) => set("lengthIn", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Width (in)">
-            <Input
-              type="number"
-              value={form.widthIn ?? 0}
-              onChange={(e) => set("widthIn", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Height (in)">
-            <Input
-              type="number"
-              value={form.heightIn ?? 0}
-              onChange={(e) => set("heightIn", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Case wt (lb)">
-            <Input
-              type="number"
-              step="0.1"
-              value={form.caseWeightLbs ?? 0}
-              onChange={(e) => set("caseWeightLbs", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="GTIN-14">
-            <Input
-              value={form.gtin ?? ""}
-              onChange={(e) => set("gtin", e.target.value)}
-              className="h-8 text-xs font-mono"
-              placeholder="00812345000031"
-            />
-          </Field>
-        </div>
-        </TabsContent>
+          <div className="flex-1 overflow-y-auto pr-1 mt-3 min-h-0">
+            <TabsContent value="core" className="mt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="SKU">
+                  <Input
+                    value={form.sku ?? ""}
+                    disabled={!!editItem}
+                    onChange={(e) => set("sku", e.target.value)}
+                    className="h-8 text-xs font-mono"
+                  />
+                </Field>
+                <Field label="Client">
+                  <select
+                    value={form.tenantId ?? ""}
+                    disabled={!!editItem}
+                    onChange={(e) => set("tenantId", e.target.value)}
+                    className="h-8 text-xs rounded-md border border-input bg-background px-2"
+                  >
+                    <option value="">Select client…</option>
+                    {tenants.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.code} · {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="UPC / GTIN">
+                  <Input
+                    value={form.upc ?? ""}
+                    onChange={(e) => set("upc", e.target.value)}
+                    className="h-8 text-xs font-mono"
+                  />
+                </Field>
+                <Field label="Item style">
+                  <Input
+                    value={form.itemStyle ?? ""}
+                    onChange={(e) => set("itemStyle", e.target.value)}
+                    className="h-8 text-xs font-mono"
+                  />
+                </Field>
+                <Field label="Description" className="col-span-2">
+                  <Input
+                    value={form.description ?? ""}
+                    onChange={(e) => set("description", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </Field>
+                <Field label="Category">
+                  <Input
+                    value={form.category ?? ""}
+                    onChange={(e) => set("category", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </Field>
+                <Field label="UOM">
+                  <Input
+                    value={form.uom ?? ""}
+                    onChange={(e) => set("uom", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </Field>
+                <Field label="Case Qty">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={form.caseQty ?? 1}
+                    onChange={(e) => set("caseQty", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Unit weight (lb)">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.weightLbs ?? 0}
+                    onChange={(e) => set("weightLbs", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Length (in)">
+                  <Input
+                    type="number"
+                    value={form.lengthIn ?? 0}
+                    onChange={(e) => set("lengthIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Width (in)">
+                  <Input
+                    type="number"
+                    value={form.widthIn ?? 0}
+                    onChange={(e) => set("widthIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Height (in)">
+                  <Input
+                    type="number"
+                    value={form.heightIn ?? 0}
+                    onChange={(e) => set("heightIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Case wt (lb)">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.caseWeightLbs ?? 0}
+                    onChange={(e) => set("caseWeightLbs", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="GTIN-14">
+                  <Input
+                    value={form.gtin ?? ""}
+                    onChange={(e) => set("gtin", e.target.value)}
+                    className="h-8 text-xs font-mono"
+                    placeholder="00812345000031"
+                  />
+                </Field>
+              </div>
+            </TabsContent>
 
-        <TabsContent value="pack" className="mt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Inner Pack Qty">
-            <Input
-              type="number"
-              min={1}
-              value={form.innerPackQty ?? 1}
-              onChange={(e) => set("innerPackQty", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Master Pack Qty">
-            <Input
-              type="number"
-              min={1}
-              value={form.masterPackQty ?? 1}
-              onChange={(e) => set("masterPackQty", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Case Length (in)">
-            <Input type="number" value={form.caseLengthIn ?? 0} onChange={(e) => set("caseLengthIn", Number(e.target.value))} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Case Width (in)">
-            <Input type="number" value={form.caseWidthIn ?? 0} onChange={(e) => set("caseWidthIn", Number(e.target.value))} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Case Height (in)">
-            <Input type="number" value={form.caseHeightIn ?? 0} onChange={(e) => set("caseHeightIn", Number(e.target.value))} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Master Length (in)">
-            <Input type="number" value={form.masterLengthIn ?? 0} onChange={(e) => set("masterLengthIn", Number(e.target.value))} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Master Width (in)">
-            <Input type="number" value={form.masterWidthIn ?? 0} onChange={(e) => set("masterWidthIn", Number(e.target.value))} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Master Height (in)">
-            <Input type="number" value={form.masterHeightIn ?? 0} onChange={(e) => set("masterHeightIn", Number(e.target.value))} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Master Weight (lb)">
-            <Input type="number" step="0.1" value={form.masterWeightLbs ?? 0} onChange={(e) => set("masterWeightLbs", Number(e.target.value))} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Base Pack Level">
-            <Select value={form.basePackLevel ?? "each"} onValueChange={(v) => set("basePackLevel", v as any)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="each">Each</SelectItem>
-                <SelectItem value="inner">Inner</SelectItem>
-                <SelectItem value="master">Master</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
+            <TabsContent value="pack" className="mt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Inner Pack Qty">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={form.innerPackQty ?? 1}
+                    onChange={(e) => set("innerPackQty", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Master Pack Qty">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={form.masterPackQty ?? 1}
+                    onChange={(e) => set("masterPackQty", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Case Length (in)">
+                  <Input
+                    type="number"
+                    value={form.caseLengthIn ?? 0}
+                    onChange={(e) => set("caseLengthIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Case Width (in)">
+                  <Input
+                    type="number"
+                    value={form.caseWidthIn ?? 0}
+                    onChange={(e) => set("caseWidthIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Case Height (in)">
+                  <Input
+                    type="number"
+                    value={form.caseHeightIn ?? 0}
+                    onChange={(e) => set("caseHeightIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Master Length (in)">
+                  <Input
+                    type="number"
+                    value={form.masterLengthIn ?? 0}
+                    onChange={(e) => set("masterLengthIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Master Width (in)">
+                  <Input
+                    type="number"
+                    value={form.masterWidthIn ?? 0}
+                    onChange={(e) => set("masterWidthIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Master Height (in)">
+                  <Input
+                    type="number"
+                    value={form.masterHeightIn ?? 0}
+                    onChange={(e) => set("masterHeightIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Master Weight (lb)">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.masterWeightLbs ?? 0}
+                    onChange={(e) => set("masterWeightLbs", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Base Pack Level">
+                  <Select
+                    value={form.basePackLevel ?? "each"}
+                    onValueChange={(v) => set("basePackLevel", v as any)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="each">Each</SelectItem>
+                      <SelectItem value="inner">Inner</SelectItem>
+                      <SelectItem value="master">Master</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
 
-        <div className="mt-4 space-y-3">
-          <div>
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">GTIN Hierarchy (parent / child)</Label>
-            <Textarea
-              value={JSON.stringify(form.packHierarchy ?? [], null, 2)}
-              onChange={(e) => {
-                try {
-                  set("packHierarchy", JSON.parse(e.target.value));
-                } catch {}
-              }}
-              className="h-32 text-xs font-mono"
-              placeholder='[{"parentGtin":"00812345000031","childGtin":"10812345000038","qtyPerParent":6,"packLevel":"inner","packLengthIn":22,"packWidthIn":16,"packHeightIn":14,"packWeightLbs":27.8,"isBaseUnit":false}]'
-            />
-          </div>
+              <div className="mt-4 space-y-3">
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    GTIN Hierarchy (parent / child)
+                  </Label>
+                  <Textarea
+                    value={JSON.stringify(form.packHierarchy ?? [], null, 2)}
+                    onChange={(e) => {
+                      try {
+                        set("packHierarchy", JSON.parse(e.target.value));
+                      } catch {}
+                    }}
+                    className="h-32 text-xs font-mono"
+                    placeholder='[{"parentGtin":"00812345000031","childGtin":"10812345000038","qtyPerParent":6,"packLevel":"inner","packLengthIn":22,"packWidthIn":16,"packHeightIn":14,"packWeightLbs":27.8,"isBaseUnit":false}]'
+                  />
+                </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Apparel Style">
-              <Input
-                value={form.apparelAttrs?.style ?? ""}
-                onChange={(e) => updateApparel({ style: e.target.value })}
-                className="h-8 text-xs"
-                placeholder="HOODIE-PULLOVER"
-              />
-            </Field>
-            <Field label="Color Code / Name">
-              <div className="flex gap-2">
-                <Input
-                  value={form.apparelAttrs?.color?.code ?? ""}
-                  onChange={(e) => updateApparel({ color: { code: e.target.value, name: form.apparelAttrs?.color?.name ?? "" } })}
-                  className="h-8 text-xs w-1/2"
-                  placeholder="BLK"
-                />
-                <Input
-                  value={form.apparelAttrs?.color?.name ?? ""}
-                  onChange={(e) => updateApparel({ color: { code: form.apparelAttrs?.color?.code ?? "", name: e.target.value } })}
-                  className="h-8 text-xs w-1/2"
-                  placeholder="Black"
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Apparel Style">
+                    <Input
+                      value={form.apparelAttrs?.style ?? ""}
+                      onChange={(e) => updateApparel({ style: e.target.value })}
+                      className="h-8 text-xs"
+                      placeholder="HOODIE-PULLOVER"
+                    />
+                  </Field>
+                  <Field label="Color Code / Name">
+                    <div className="flex gap-2">
+                      <Input
+                        value={form.apparelAttrs?.color?.code ?? ""}
+                        onChange={(e) =>
+                          updateApparel({
+                            color: {
+                              code: e.target.value,
+                              name: form.apparelAttrs?.color?.name ?? "",
+                            },
+                          })
+                        }
+                        className="h-8 text-xs w-1/2"
+                        placeholder="BLK"
+                      />
+                      <Input
+                        value={form.apparelAttrs?.color?.name ?? ""}
+                        onChange={(e) =>
+                          updateApparel({
+                            color: {
+                              code: form.apparelAttrs?.color?.code ?? "",
+                              name: e.target.value,
+                            },
+                          })
+                        }
+                        className="h-8 text-xs w-1/2"
+                        placeholder="Black"
+                      />
+                    </div>
+                  </Field>
+                  <Field label="Size Code">
+                    <Input
+                      value={form.apparelAttrs?.size?.code ?? ""}
+                      onChange={(e) =>
+                        updateApparel({
+                          size: { ...form.apparelAttrs?.size, code: e.target.value },
+                        })
+                      }
+                      className="h-8 text-xs"
+                      placeholder="M"
+                    />
+                  </Field>
+                  <Field label="Size L / W / H (in)">
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        value={form.apparelAttrs?.size?.lengthIn ?? 0}
+                        onChange={(e) =>
+                          updateApparel({
+                            size: {
+                              code: form.apparelAttrs?.size?.code ?? "",
+                              lengthIn: Number(e.target.value),
+                            },
+                          })
+                        }
+                        className="h-8 text-xs text-right w-1/3"
+                        placeholder="L"
+                      />
+                      <Input
+                        type="number"
+                        value={form.apparelAttrs?.size?.widthIn ?? 0}
+                        onChange={(e) =>
+                          updateApparel({
+                            size: {
+                              code: form.apparelAttrs?.size?.code ?? "",
+                              widthIn: Number(e.target.value),
+                            },
+                          })
+                        }
+                        className="h-8 text-xs text-right w-1/3"
+                        placeholder="W"
+                      />
+                      <Input
+                        type="number"
+                        value={form.apparelAttrs?.size?.heightIn ?? 0}
+                        onChange={(e) =>
+                          updateApparel({
+                            size: {
+                              code: form.apparelAttrs?.size?.code ?? "",
+                              heightIn: Number(e.target.value),
+                            },
+                          })
+                        }
+                        className="h-8 text-xs text-right w-1/3"
+                        placeholder="H"
+                      />
+                    </div>
+                  </Field>
+                  <Field label="Fit">
+                    <Select
+                      value={form.apparelAttrs?.fit ?? "regular"}
+                      onValueChange={(v) => updateApparel({ fit: v as any })}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="regular">Regular</SelectItem>
+                        <SelectItem value="slim">Slim</SelectItem>
+                        <SelectItem value="relaxed">Relaxed</SelectItem>
+                        <SelectItem value="oversized">Oversized</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Fabric">
+                    <Input
+                      value={form.apparelAttrs?.fabric?.primary ?? ""}
+                      onChange={(e) =>
+                        updateApparel({
+                          fabric: {
+                            primary: e.target.value,
+                            pct: form.apparelAttrs?.fabric?.pct ?? 100,
+                          },
+                        })
+                      }
+                      className="h-8 text-xs"
+                      placeholder="cotton 80%"
+                    />
+                  </Field>
+                  <Field label="Season">
+                    <Input
+                      value={form.apparelAttrs?.season ?? ""}
+                      onChange={(e) => updateApparel({ season: e.target.value })}
+                      className="h-8 text-xs"
+                      placeholder="Fall / Core"
+                    />
+                  </Field>
+                  <Field label="Gender">
+                    <Select
+                      value={form.apparelAttrs?.gender ?? "Unisex"}
+                      onValueChange={(v) => updateApparel({ gender: v })}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Mens">Mens</SelectItem>
+                        <SelectItem value="Womens">Womens</SelectItem>
+                        <SelectItem value="Unisex">Unisex</SelectItem>
+                        <SelectItem value="Kids">Kids</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="pallet" className="mt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Max Pallet Height (in)">
+                  <Input
+                    type="number"
+                    value={form.palletBuild?.maxPalletHeightIn ?? 60}
+                    onChange={(e) =>
+                      updatePalletBuild({ maxPalletHeightIn: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Max Pallet Weight (lb)">
+                  <Input
+                    type="number"
+                    value={form.palletBuild?.maxPalletWeightLbs ?? 2500}
+                    onChange={(e) =>
+                      updatePalletBuild({ maxPalletWeightLbs: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Max Stack Height (in)">
+                  <Input
+                    type="number"
+                    value={form.palletBuild?.maxStackHeightIn ?? ""}
+                    onChange={(e) =>
+                      updatePalletBuild({
+                        maxStackHeightIn: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Overhang (in)">
+                  <Input
+                    type="number"
+                    value={form.palletBuild?.overhangIn ?? ""}
+                    onChange={(e) =>
+                      updatePalletBuild({
+                        overhangIn: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Stackability">
+                  <Select
+                    value={form.palletBuild?.stackability ?? "full"}
+                    onValueChange={(v) => updatePalletBuild({ stackability: v as any })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">Full</SelectItem>
+                      <SelectItem value="limited">Limited</SelectItem>
+                      <SelectItem value="non-stackable">Non-Stackable</SelectItem>
+                      <SelectItem value="crushable">Crushable</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Pallet Pattern">
+                  <Select
+                    value={form.palletBuild?.palletPattern ?? "interlock"}
+                    onValueChange={(v) => updatePalletBuild({ palletPattern: v as any })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="column">Column</SelectItem>
+                      <SelectItem value="interlock">Interlock</SelectItem>
+                      <SelectItem value="brick">Brick</SelectItem>
+                      <SelectItem value="pinwheel">Pinwheel</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Pallet Type">
+                  <Select
+                    value={form.palletBuild?.palletType ?? "standard_48x40"}
+                    onValueChange={(v) => updatePalletBuild({ palletType: v as any })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standard_48x40">Standard 48x40</SelectItem>
+                      <SelectItem value="euro_48x32">Euro 48x32</SelectItem>
+                      <SelectItem value="half_48x20">Half 48x20</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Allow Mixed SKU">
+                  <label className="flex items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={form.palletBuild?.allowMixedSku ?? false}
+                      onCheckedChange={(c) => updatePalletBuild({ allowMixedSku: c === true })}
+                    />
+                    Allow mixed SKU on pallet
+                  </label>
+                </Field>
+                <Field label="Mixed SKU Styles (comma-separated)" className="col-span-2">
+                  <Input
+                    value={form.palletBuild?.mixedSkuStyles?.join(", ") ?? ""}
+                    onChange={(e) =>
+                      updatePalletBuild({
+                        mixedSkuStyles: e.target.value
+                          ? e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean)
+                          : undefined,
+                      })
+                    }
+                    className="h-8 text-xs"
+                    placeholder="STV-CMP, TENT-2P"
+                  />
+                </Field>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="velocity" className="mt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="ABC Class">
+                  <Select
+                    value={form.velocity?.abcClass ?? "B"}
+                    onValueChange={(v) => updateVelocity({ abcClass: v as any })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A">A - Fast</SelectItem>
+                      <SelectItem value="B">B - Medium</SelectItem>
+                      <SelectItem value="C">C - Slow</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Storage Class">
+                  <Select
+                    value={form.velocity?.storageClass ?? "reserve"}
+                    onValueChange={(v) => updateVelocity({ storageClass: v as any })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="forward">Forward Pick</SelectItem>
+                      <SelectItem value="reserve">Reserve</SelectItem>
+                      <SelectItem value="bulk">Bulk</SelectItem>
+                      <SelectItem value="cold">Cold</SelectItem>
+                      <SelectItem value="hazmat">Hazmat</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Annual Picks">
+                  <Input
+                    type="number"
+                    value={form.velocity?.annualPicks ?? 500}
+                    onChange={(e) => updateVelocity({ annualPicks: Number(e.target.value) })}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Lines per Order">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.velocity?.linesPerOrder ?? 3}
+                    onChange={(e) => updateVelocity({ linesPerOrder: Number(e.target.value) })}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Reorder Days">
+                  <Input
+                    type="number"
+                    value={form.velocity?.reorderDays ?? ""}
+                    onChange={(e) =>
+                      updateVelocity({
+                        reorderDays: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Peak Months (comma-separated)">
+                  <Input
+                    value={form.velocity?.peakMonths?.join(", ") ?? ""}
+                    onChange={(e) =>
+                      updateVelocity({
+                        peakMonths: e.target.value
+                          ? e.target.value
+                              .split(",")
+                              .map((s) => Number(s.trim()))
+                              .filter(Boolean)
+                          : undefined,
+                      })
+                    }
+                    className="h-8 text-xs"
+                    placeholder="1,2,11,12"
+                  />
+                </Field>
+              </div>
+              <div className="mt-4">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Substitutions (alternate SKUs)
+                </Label>
+                <Textarea
+                  value={JSON.stringify(form.substitutions ?? [], null, 2)}
+                  onChange={(e) => {
+                    try {
+                      set("substitutions", JSON.parse(e.target.value));
+                    } catch {}
+                  }}
+                  className="h-32 text-xs font-mono"
+                  placeholder='[{"alternateSku":"NSA-HOOD-NVY-M","type":"substitute","priority":1,"condition":"stockout","costImpactPct":0}]'
                 />
               </div>
-            </Field>
-            <Field label="Size Code">
-              <Input
-                value={form.apparelAttrs?.size?.code ?? ""}
-                onChange={(e) => updateApparel({ size: { ...form.apparelAttrs?.size, code: e.target.value } })}
-                className="h-8 text-xs"
-                placeholder="M"
-              />
-            </Field>
-            <Field label="Size L / W / H (in)">
-              <div className="flex gap-2">
-                <Input type="number" value={form.apparelAttrs?.size?.lengthIn ?? 0} onChange={(e) => updateApparel({ size: { code: form.apparelAttrs?.size?.code ?? "", lengthIn: Number(e.target.value) } })} className="h-8 text-xs text-right w-1/3" placeholder="L" />
-                <Input type="number" value={form.apparelAttrs?.size?.widthIn ?? 0} onChange={(e) => updateApparel({ size: { code: form.apparelAttrs?.size?.code ?? "", widthIn: Number(e.target.value) } })} className="h-8 text-xs text-right w-1/3" placeholder="W" />
-                <Input type="number" value={form.apparelAttrs?.size?.heightIn ?? 0} onChange={(e) => updateApparel({ size: { code: form.apparelAttrs?.size?.code ?? "", heightIn: Number(e.target.value) } })} className="h-8 text-xs text-right w-1/3" placeholder="H" />
+            </TabsContent>
+
+            <TabsContent value="compliance" className="mt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Lot Control">
+                  <label className="flex items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={form.lotControl ?? false}
+                      onCheckedChange={(c) => set("lotControl", c === true)}
+                    />
+                    Require lot/batch tracking
+                  </label>
+                </Field>
+                <Field label="Expiry Control">
+                  <label className="flex items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={form.expiryControl ?? false}
+                      onCheckedChange={(c) => set("expiryControl", c === true)}
+                    />
+                    Require expiration tracking
+                  </label>
+                </Field>
+                <Field label="Serial Control">
+                  <label className="flex items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={form.serialControl ?? false}
+                      onCheckedChange={(c) => set("serialControl", c === true)}
+                    />
+                    Require serial tracking
+                  </label>
+                </Field>
+                <Field label="Hazmat">
+                  <label className="flex items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={form.hazmat ?? false}
+                      onCheckedChange={(c) => set("hazmat", c === true)}
+                    />
+                    Hazardous material
+                  </label>
+                </Field>
+                <Field label="Shelf Life (days)">
+                  <Input
+                    type="number"
+                    value={form.shelfLifeDays ?? ""}
+                    onChange={(e) =>
+                      set("shelfLifeDays", e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Temp Unit">
+                  <Select
+                    value={form.storageTempUnit ?? "F"}
+                    onValueChange={(v) => set("storageTempUnit", v as any)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="F">Fahrenheit</SelectItem>
+                      <SelectItem value="C">Celsius</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Storage Temp Min (°F)">
+                  <Input
+                    type="number"
+                    value={form.storageTempMin ?? ""}
+                    onChange={(e) =>
+                      set("storageTempMin", e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Storage Temp Max (°F)">
+                  <Input
+                    type="number"
+                    value={form.storageTempMax ?? ""}
+                    onChange={(e) =>
+                      set("storageTempMax", e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="NMFC">
+                  <Input
+                    value={form.nmfc ?? ""}
+                    onChange={(e) => set("nmfc", e.target.value)}
+                    className="h-8 text-xs font-mono"
+                  />
+                </Field>
+                <Field label="Freight Class">
+                  <Select
+                    value={form.freightClass ?? "100"}
+                    onValueChange={(v) => set("freightClass", v as any)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="55">55</SelectItem>
+                      <SelectItem value="60">60</SelectItem>
+                      <SelectItem value="65">65</SelectItem>
+                      <SelectItem value="70">70</SelectItem>
+                      <SelectItem value="77.5">77.5</SelectItem>
+                      <SelectItem value="85">85</SelectItem>
+                      <SelectItem value="92.5">92.5</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                      <SelectItem value="110">110</SelectItem>
+                      <SelectItem value="125">125</SelectItem>
+                      <SelectItem value="150">150</SelectItem>
+                      <SelectItem value="175">175</SelectItem>
+                      <SelectItem value="200">200</SelectItem>
+                      <SelectItem value="250">250</SelectItem>
+                      <SelectItem value="300">300</SelectItem>
+                      <SelectItem value="400">400</SelectItem>
+                      <SelectItem value="500">500</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
-            </Field>
-            <Field label="Fit">
-              <Select value={form.apparelAttrs?.fit ?? "regular"} onValueChange={(v) => updateApparel({ fit: v as any })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="regular">Regular</SelectItem>
-                  <SelectItem value="slim">Slim</SelectItem>
-                  <SelectItem value="relaxed">Relaxed</SelectItem>
-                  <SelectItem value="oversized">Oversized</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Fabric">
-              <Input
-                value={form.apparelAttrs?.fabric?.primary ?? ""}
-                onChange={(e) => updateApparel({ fabric: { primary: e.target.value, pct: form.apparelAttrs?.fabric?.pct ?? 100 } })}
-                className="h-8 text-xs"
-                placeholder="cotton 80%"
-              />
-            </Field>
-            <Field label="Season">
-              <Input
-                value={form.apparelAttrs?.season ?? ""}
-                onChange={(e) => updateApparel({ season: e.target.value })}
-                className="h-8 text-xs"
-                placeholder="Fall / Core"
-              />
-            </Field>
-            <Field label="Gender">
-              <Select value={form.apparelAttrs?.gender ?? "Unisex"} onValueChange={(v) => updateApparel({ gender: v })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Mens">Mens</SelectItem>
-                  <SelectItem value="Womens">Womens</SelectItem>
-                  <SelectItem value="Unisex">Unisex</SelectItem>
-                  <SelectItem value="Kids">Kids</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
+            </TabsContent>
+
+            <TabsContent value="commercial" className="mt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Unit cost ($)">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={form.unitCost ?? 0}
+                    onChange={(e) => set("unitCost", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Unit price ($)">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={form.unitPrice ?? 0}
+                    onChange={(e) => set("unitPrice", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Country of Origin">
+                  <Input
+                    value={form.countryOfOrigin ?? "US"}
+                    onChange={(e) => set("countryOfOrigin", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </Field>
+                <Field label="HS/HTS Code">
+                  <Input
+                    value={form.harmonizedCode ?? ""}
+                    onChange={(e) => set("harmonizedCode", e.target.value)}
+                    className="h-8 text-xs"
+                    placeholder="6110.20.2020"
+                  />
+                </Field>
+                <Field label="Brand">
+                  <Input
+                    value={form.brand ?? ""}
+                    onChange={(e) => set("brand", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </Field>
+                <Field label="Manufacturer">
+                  <Input
+                    value={form.manufacturer ?? ""}
+                    onChange={(e) => set("manufacturer", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </Field>
+                <Field label="Mfg SKU">
+                  <Input
+                    value={form.manufacturerSku ?? ""}
+                    onChange={(e) => set("manufacturerSku", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </Field>
+              </div>
+            </TabsContent>
           </div>
-        </div>
-        </TabsContent>
-
-        <TabsContent value="pallet" className="mt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Max Pallet Height (in)">
-            <Input type="number" value={form.palletBuild?.maxPalletHeightIn ?? 60} onChange={(e) => updatePalletBuild({ maxPalletHeightIn: Number(e.target.value) })} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Max Pallet Weight (lb)">
-            <Input type="number" value={form.palletBuild?.maxPalletWeightLbs ?? 2500} onChange={(e) => updatePalletBuild({ maxPalletWeightLbs: Number(e.target.value) })} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Max Stack Height (in)">
-            <Input type="number" value={form.palletBuild?.maxStackHeightIn ?? ""} onChange={(e) => updatePalletBuild({ maxStackHeightIn: e.target.value ? Number(e.target.value) : undefined })} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Overhang (in)">
-            <Input type="number" value={form.palletBuild?.overhangIn ?? ""} onChange={(e) => updatePalletBuild({ overhangIn: e.target.value ? Number(e.target.value) : undefined })} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Stackability">
-            <Select value={form.palletBuild?.stackability ?? "full"} onValueChange={(v) => updatePalletBuild({ stackability: v as any })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="full">Full</SelectItem>
-                <SelectItem value="limited">Limited</SelectItem>
-                <SelectItem value="non-stackable">Non-Stackable</SelectItem>
-                <SelectItem value="crushable">Crushable</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Pallet Pattern">
-            <Select value={form.palletBuild?.palletPattern ?? "interlock"} onValueChange={(v) => updatePalletBuild({ palletPattern: v as any })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="column">Column</SelectItem>
-                <SelectItem value="interlock">Interlock</SelectItem>
-                <SelectItem value="brick">Brick</SelectItem>
-                <SelectItem value="pinwheel">Pinwheel</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Pallet Type">
-            <Select value={form.palletBuild?.palletType ?? "standard_48x40"} onValueChange={(v) => updatePalletBuild({ palletType: v as any })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="standard_48x40">Standard 48x40</SelectItem>
-                <SelectItem value="euro_48x32">Euro 48x32</SelectItem>
-                <SelectItem value="half_48x20">Half 48x20</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Allow Mixed SKU">
-            <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.palletBuild?.allowMixedSku ?? false} onCheckedChange={(c) => updatePalletBuild({ allowMixedSku: c === true })} />
-              Allow mixed SKU on pallet
-            </label>
-          </Field>
-          <Field label="Mixed SKU Styles (comma-separated)" className="col-span-2">
-            <Input
-              value={form.palletBuild?.mixedSkuStyles?.join(", ") ?? ""}
-              onChange={(e) => updatePalletBuild({ mixedSkuStyles: e.target.value ? e.target.value.split(",").map(s => s.trim()).filter(Boolean) : undefined })}
-              className="h-8 text-xs"
-              placeholder="STV-CMP, TENT-2P"
-            />
-          </Field>
-        </div>
-        </TabsContent>
-
-        <TabsContent value="velocity" className="mt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="ABC Class">
-            <Select value={form.velocity?.abcClass ?? "B"} onValueChange={(v) => updateVelocity({ abcClass: v as any })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="A">A - Fast</SelectItem>
-                <SelectItem value="B">B - Medium</SelectItem>
-                <SelectItem value="C">C - Slow</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Storage Class">
-            <Select value={form.velocity?.storageClass ?? "reserve"} onValueChange={(v) => updateVelocity({ storageClass: v as any })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="forward">Forward Pick</SelectItem>
-                <SelectItem value="reserve">Reserve</SelectItem>
-                <SelectItem value="bulk">Bulk</SelectItem>
-                <SelectItem value="cold">Cold</SelectItem>
-                <SelectItem value="hazmat">Hazmat</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Annual Picks">
-            <Input type="number" value={form.velocity?.annualPicks ?? 500} onChange={(e) => updateVelocity({ annualPicks: Number(e.target.value) })} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Lines per Order">
-            <Input type="number" step="0.1" value={form.velocity?.linesPerOrder ?? 3} onChange={(e) => updateVelocity({ linesPerOrder: Number(e.target.value) })} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Reorder Days">
-            <Input type="number" value={form.velocity?.reorderDays ?? ""} onChange={(e) => updateVelocity({ reorderDays: e.target.value ? Number(e.target.value) : undefined })} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Peak Months (comma-separated)">
-            <Input
-              value={form.velocity?.peakMonths?.join(", ") ?? ""}
-              onChange={(e) => updateVelocity({ peakMonths: e.target.value ? e.target.value.split(",").map(s => Number(s.trim())).filter(Boolean) : undefined })}
-              className="h-8 text-xs"
-              placeholder="1,2,11,12"
-            />
-          </Field>
-        </div>
-        <div className="mt-4">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Substitutions (alternate SKUs)</Label>
-          <Textarea
-            value={JSON.stringify(form.substitutions ?? [], null, 2)}
-            onChange={(e) => {
-              try {
-                set("substitutions", JSON.parse(e.target.value));
-              } catch {}
-            }}
-            className="h-32 text-xs font-mono"
-            placeholder='[{"alternateSku":"NSA-HOOD-NVY-M","type":"substitute","priority":1,"condition":"stockout","costImpactPct":0}]'
-          />
-        </div>
-        </TabsContent>
-
-        <TabsContent value="compliance" className="mt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Lot Control">
-            <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.lotControl ?? false} onCheckedChange={(c) => set("lotControl", c === true)} />
-              Require lot/batch tracking
-            </label>
-          </Field>
-          <Field label="Expiry Control">
-            <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.expiryControl ?? false} onCheckedChange={(c) => set("expiryControl", c === true)} />
-              Require expiration tracking
-            </label>
-          </Field>
-          <Field label="Serial Control">
-            <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.serialControl ?? false} onCheckedChange={(c) => set("serialControl", c === true)} />
-              Require serial tracking
-            </label>
-          </Field>
-          <Field label="Hazmat">
-            <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.hazmat ?? false} onCheckedChange={(c) => set("hazmat", c === true)} />
-              Hazardous material
-            </label>
-          </Field>
-          <Field label="Shelf Life (days)">
-            <Input type="number" value={form.shelfLifeDays ?? ""} onChange={(e) => set("shelfLifeDays", e.target.value ? Number(e.target.value) : undefined)} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Temp Unit">
-            <Select value={form.storageTempUnit ?? "F"} onValueChange={(v) => set("storageTempUnit", v as any)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="F">Fahrenheit</SelectItem>
-                <SelectItem value="C">Celsius</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Storage Temp Min (°F)">
-            <Input type="number" value={form.storageTempMin ?? ""} onChange={(e) => set("storageTempMin", e.target.value ? Number(e.target.value) : undefined)} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Storage Temp Max (°F)">
-            <Input type="number" value={form.storageTempMax ?? ""} onChange={(e) => set("storageTempMax", e.target.value ? Number(e.target.value) : undefined)} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="NMFC">
-            <Input value={form.nmfc ?? ""} onChange={(e) => set("nmfc", e.target.value)} className="h-8 text-xs font-mono" />
-          </Field>
-          <Field label="Freight Class">
-            <Select value={form.freightClass ?? "100"} onValueChange={(v) => set("freightClass", v as any)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="55">55</SelectItem>
-                <SelectItem value="60">60</SelectItem>
-                <SelectItem value="65">65</SelectItem>
-                <SelectItem value="70">70</SelectItem>
-                <SelectItem value="77.5">77.5</SelectItem>
-                <SelectItem value="85">85</SelectItem>
-                <SelectItem value="92.5">92.5</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-                <SelectItem value="110">110</SelectItem>
-                <SelectItem value="125">125</SelectItem>
-                <SelectItem value="150">150</SelectItem>
-                <SelectItem value="175">175</SelectItem>
-                <SelectItem value="200">200</SelectItem>
-                <SelectItem value="250">250</SelectItem>
-                <SelectItem value="300">300</SelectItem>
-                <SelectItem value="400">400</SelectItem>
-                <SelectItem value="500">500</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-        </TabsContent>
-
-        <TabsContent value="commercial" className="mt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Unit cost ($)">
-            <Input type="number" step="0.01" value={form.unitCost ?? 0} onChange={(e) => set("unitCost", Number(e.target.value))} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Unit price ($)">
-            <Input type="number" step="0.01" value={form.unitPrice ?? 0} onChange={(e) => set("unitPrice", Number(e.target.value))} className="h-8 text-xs text-right" />
-          </Field>
-          <Field label="Country of Origin">
-            <Input value={form.countryOfOrigin ?? "US"} onChange={(e) => set("countryOfOrigin", e.target.value)} className="h-8 text-xs" />
-          </Field>
-          <Field label="HS/HTS Code">
-            <Input value={form.harmonizedCode ?? ""} onChange={(e) => set("harmonizedCode", e.target.value)} className="h-8 text-xs" placeholder="6110.20.2020" />
-          </Field>
-          <Field label="Brand">
-            <Input value={form.brand ?? ""} onChange={(e) => set("brand", e.target.value)} className="h-8 text-xs" />
-          </Field>
-          <Field label="Manufacturer">
-            <Input value={form.manufacturer ?? ""} onChange={(e) => set("manufacturer", e.target.value)} className="h-8 text-xs" />
-          </Field>
-          <Field label="Mfg SKU">
-            <Input value={form.manufacturerSku ?? ""} onChange={(e) => set("manufacturerSku", e.target.value)} className="h-8 text-xs" />
-          </Field>
-        </div>
-        </TabsContent>
-        </div>
         </Tabs>
 
         <DialogFooter>
@@ -2074,9 +2379,7 @@ function AddLocationDialog({
       slottingRules: { ...DEFAULT_SLOTTING, ...f.slottingRules, ...patch },
     }));
 
-  const updateSlottingAttrs = (
-    patch: NonNullable<SlottingRules["requiredItemAttrs"]>,
-  ) =>
+  const updateSlottingAttrs = (patch: NonNullable<SlottingRules["requiredItemAttrs"]>) =>
     setForm((f) => ({
       ...f,
       slottingRules: {
@@ -2188,381 +2491,434 @@ function AddLocationDialog({
 
         <Tabs defaultValue="core" className="flex-1 flex flex-col min-h-0">
           <TabsList className="w-full justify-start h-8 shrink-0">
-            <TabsTrigger value="core" className="text-xs h-7">Core</TabsTrigger>
-            <TabsTrigger value="slotting" className="text-xs h-7">Slotting</TabsTrigger>
-            <TabsTrigger value="velocity" className="text-xs h-7">Velocity</TabsTrigger>
-            <TabsTrigger value="environment" className="text-xs h-7">Environment</TabsTrigger>
+            <TabsTrigger value="core" className="text-xs h-7">
+              Core
+            </TabsTrigger>
+            <TabsTrigger value="slotting" className="text-xs h-7">
+              Slotting
+            </TabsTrigger>
+            <TabsTrigger value="velocity" className="text-xs h-7">
+              Velocity
+            </TabsTrigger>
+            <TabsTrigger value="environment" className="text-xs h-7">
+              Environment
+            </TabsTrigger>
           </TabsList>
 
-        <div className="flex-1 overflow-y-auto pr-1 mt-3 min-h-0">
-        <TabsContent value="core" className="mt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Location ID">
-            <Input
-              value={form.id ?? ""}
-              disabled={isEdit}
-              onChange={(e) => set("id", e.target.value)}
-              className="h-8 text-xs font-mono"
-            />
-          </Field>
-          <Field label="Warehouse">
-            <select
-              value={form.warehouseId ?? ""}
-              disabled={isEdit && !!prefill}
-              onChange={(e) => set("warehouseId", e.target.value)}
-              className="h-8 text-xs rounded-md border border-input bg-background px-2"
-            >
-              <option value="">Select warehouse…</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.code} — {w.city}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Type">
-            <select
-              value={form.type ?? "RACK"}
-              onChange={(e) => set("type", e.target.value as LocationType)}
-              className="h-8 text-xs rounded-md border border-input bg-background px-2"
-            >
-              <option value="FLR">FLR</option>
-              <option value="DROP">DROP</option>
-              <option value="RACK">RACK</option>
-            </select>
-          </Field>
-          <Field label="Zone">
-            <Input
-              value={form.zone ?? ""}
-              onChange={(e) => set("zone", e.target.value)}
-              className="h-8 text-xs"
-            />
-          </Field>
-          <Field label="Capacity (pallets)">
-            <Input
-              type="number"
-              min={1}
-              value={form.capacityPallets ?? 1}
-              onChange={(e) => set("capacityPallets", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Occupied (pallets)">
-            <Input
-              type="number"
-              min={0}
-              value={form.occupiedPallets ?? 0}
-              onChange={(e) => set("occupiedPallets", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Pickable">
-            <select
-              value={form.pickable ? "yes" : "no"}
-              onChange={(e) => set("pickable", e.target.value === "yes")}
-              className="h-8 text-xs rounded-md border border-input bg-background px-2"
-            >
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
-            </select>
-          </Field>
-          <Field label="Allowed item styles (comma-separated)">
-            <Input
-              value={form.allowedItemStyles?.join(", ") ?? ""}
-              onChange={(e) =>
-                set(
-                  "allowedItemStyles",
-                  e.target.value
-                    ? e.target.value
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    : null,
-                )
-              }
-              className="h-8 text-xs"
-            />
-          </Field>
-          <Field label="Tenant / Client (optional)" className="col-span-2">
-            <select
-              value={form.tenantId ?? ""}
-              onChange={(e) => set("tenantId", e.target.value || undefined)}
-              className="h-8 text-xs rounded-md border border-input bg-background px-2"
-            >
-              <option value="">Any / Unassigned</option>
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.code} · {t.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Notes" className="col-span-2">
-            <Input
-              value={form.notes ?? ""}
-              onChange={(e) => set("notes", e.target.value)}
-              className="h-8 text-xs"
-            />
-          </Field>
-          <Field label="Length (ft)" className="col-span-2">
-            <Input
-              type="number"
-              step="0.1"
-              value={form.lengthFt ?? ""}
-              onChange={(e) => set("lengthFt", e.target.value ? Number(e.target.value) : undefined)}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Width (ft)" className="col-span-2">
-            <Input
-              type="number"
-              step="0.1"
-              value={form.widthFt ?? ""}
-              onChange={(e) => set("widthFt", e.target.value ? Number(e.target.value) : undefined)}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Height (ft)" className="col-span-2">
-            <Input
-              type="number"
-              step="0.1"
-              value={form.heightFt ?? ""}
-              onChange={(e) => set("heightFt", e.target.value ? Number(e.target.value) : undefined)}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Cubic Feet" className="col-span-2">
-            <Input
-              type="number"
-              value={form.cubicFeet ?? ""}
-              onChange={(e) => set("cubicFeet", e.target.value ? Number(e.target.value) : undefined)}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Max Pallet Weight (lb)" className="col-span-2">
-            <Input
-              type="number"
-              value={form.maxPalletWeightLbs ?? 2500}
-              onChange={(e) => set("maxPalletWeightLbs", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Max Pallet Height (in)" className="col-span-2">
-            <Input
-              type="number"
-              value={form.maxPalletHeightIn ?? 72}
-              onChange={(e) => set("maxPalletHeightIn", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Clearance Height (in)" className="col-span-2">
-            <Input
-              type="number"
-              value={form.clearanceHeightIn ?? 96}
-              onChange={(e) => set("clearanceHeightIn", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-        </div>
-        </TabsContent>
-
-        <TabsContent value="slotting" className="mt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Allowed Storage Classes" className="col-span-2">
-            <div className="flex flex-wrap gap-3 pt-1">
-              {(["forward", "reserve", "bulk", "cold", "hazmat"] as const).map((sc) => (
-                <label key={sc} className="flex items-center gap-1.5 text-xs">
-                  <Checkbox
-                    checked={form.slottingRules?.allowedStorageClasses?.includes(sc) ?? false}
-                    onCheckedChange={(c) => {
-                      const current = form.slottingRules?.allowedStorageClasses ?? [];
-                      const next = c ? [...current, sc] : current.filter((x) => x !== sc);
-                      updateSlotting({ allowedStorageClasses: next });
-                    }}
+          <div className="flex-1 overflow-y-auto pr-1 mt-3 min-h-0">
+            <TabsContent value="core" className="mt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Location ID">
+                  <Input
+                    value={form.id ?? ""}
+                    disabled={isEdit}
+                    onChange={(e) => set("id", e.target.value)}
+                    className="h-8 text-xs font-mono"
                   />
-                  {sc}
-                </label>
-              ))}
-            </div>
-          </Field>
-          <Field label="Putaway Priority" className="col-span-2">
-            <Input
-              type="number"
-              value={form.slottingRules?.putawayPriority ?? 50}
-              onChange={(e) => updateSlotting({ putawayPriority: Number(e.target.value) })}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Replen Priority" className="col-span-2">
-            <Input
-              type="number"
-              value={form.slottingRules?.replenPriority ?? 50}
-              onChange={(e) => updateSlotting({ replenPriority: Number(e.target.value) })}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Max Weight (lb)" className="col-span-2">
-            <Input
-              type="number"
-              value={form.slottingRules?.requiredItemAttrs?.maxWeightLbs ?? ""}
-              onChange={(e) => updateSlottingAttrs({ maxWeightLbs: e.target.value ? Number(e.target.value) : undefined })}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Allowed Pallet Types" className="col-span-2">
-            <div className="flex flex-wrap gap-3 pt-1">
-              {(["standard_48x40", "euro_48x32", "half_48x20"] as const).map((pt) => (
-                <label key={pt} className="flex items-center gap-1.5 text-xs">
-                  <Checkbox
-                    checked={form.slottingRules?.allowedPalletTypes?.includes(pt) ?? false}
-                    onCheckedChange={(c) => {
-                      const current = form.slottingRules?.allowedPalletTypes ?? [];
-                      const next = c ? [...current, pt] : current.filter((x) => x !== pt);
-                      updateSlotting({ allowedPalletTypes: next });
-                    }}
+                </Field>
+                <Field label="Warehouse">
+                  <select
+                    value={form.warehouseId ?? ""}
+                    disabled={isEdit && !!prefill}
+                    onChange={(e) => set("warehouseId", e.target.value)}
+                    className="h-8 text-xs rounded-md border border-input bg-background px-2"
+                  >
+                    <option value="">Select warehouse…</option>
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.code} — {w.city}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Type">
+                  <select
+                    value={form.type ?? "RACK"}
+                    onChange={(e) => set("type", e.target.value as LocationType)}
+                    className="h-8 text-xs rounded-md border border-input bg-background px-2"
+                  >
+                    <option value="FLR">FLR</option>
+                    <option value="DROP">DROP</option>
+                    <option value="RACK">RACK</option>
+                  </select>
+                </Field>
+                <Field label="Zone">
+                  <Input
+                    value={form.zone ?? ""}
+                    onChange={(e) => set("zone", e.target.value)}
+                    className="h-8 text-xs"
                   />
-                  {pt}
-                </label>
-              ))}
-            </div>
-          </Field>
-          <Field label="Allowed ABC Classes" className="col-span-2">
-            <div className="flex flex-wrap gap-3 pt-1">
-              {(["A", "B", "C"] as const).map((abc) => (
-                <label key={abc} className="flex items-center gap-1.5 text-xs">
-                  <Checkbox
-                    checked={form.slottingRules?.requiredItemAttrs?.abcClass?.includes(abc) ?? false}
-                    onCheckedChange={(c) => {
-                      const current = form.slottingRules?.requiredItemAttrs?.abcClass ?? [];
-                      const next = c === true ? [...current, abc] : current.filter((x) => x !== abc);
-                      updateSlottingAttrs({ abcClass: next });
-                    }}
+                </Field>
+                <Field label="Capacity (pallets)">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={form.capacityPallets ?? 1}
+                    onChange={(e) => set("capacityPallets", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
                   />
-                  {abc}
-                </label>
-              ))}
-            </div>
-          </Field>
-          <Field label="Adjacent Zones (comma-separated)" className="col-span-2">
-            <Input
-              value={form.slottingRules?.adjacentZones?.join(", ") ?? ""}
-              onChange={(e) => updateSlotting({ adjacentZones: e.target.value ? e.target.value.split(",").map((s) => s.trim()).filter(Boolean) : undefined })}
-              className="h-8 text-xs"
-              placeholder="Reserve, Forward Pick"
-            />
-          </Field>
-        </div>
-        </TabsContent>
+                </Field>
+                <Field label="Occupied (pallets)">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.occupiedPallets ?? 0}
+                    onChange={(e) => set("occupiedPallets", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Pickable">
+                  <select
+                    value={form.pickable ? "yes" : "no"}
+                    onChange={(e) => set("pickable", e.target.value === "yes")}
+                    className="h-8 text-xs rounded-md border border-input bg-background px-2"
+                  >
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </Field>
+                <Field label="Allowed item styles (comma-separated)">
+                  <Input
+                    value={form.allowedItemStyles?.join(", ") ?? ""}
+                    onChange={(e) =>
+                      set(
+                        "allowedItemStyles",
+                        e.target.value
+                          ? e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean)
+                          : null,
+                      )
+                    }
+                    className="h-8 text-xs"
+                  />
+                </Field>
+                <Field label="Tenant / Client (optional)" className="col-span-2">
+                  <select
+                    value={form.tenantId ?? ""}
+                    onChange={(e) => set("tenantId", e.target.value || undefined)}
+                    className="h-8 text-xs rounded-md border border-input bg-background px-2"
+                  >
+                    <option value="">Any / Unassigned</option>
+                    {tenants.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.code} · {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Notes" className="col-span-2">
+                  <Input
+                    value={form.notes ?? ""}
+                    onChange={(e) => set("notes", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </Field>
+                <Field label="Length (ft)" className="col-span-2">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.lengthFt ?? ""}
+                    onChange={(e) =>
+                      set("lengthFt", e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Width (ft)" className="col-span-2">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.widthFt ?? ""}
+                    onChange={(e) =>
+                      set("widthFt", e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Height (ft)" className="col-span-2">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.heightFt ?? ""}
+                    onChange={(e) =>
+                      set("heightFt", e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Cubic Feet" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.cubicFeet ?? ""}
+                    onChange={(e) =>
+                      set("cubicFeet", e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Max Pallet Weight (lb)" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.maxPalletWeightLbs ?? 2500}
+                    onChange={(e) => set("maxPalletWeightLbs", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Max Pallet Height (in)" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.maxPalletHeightIn ?? 72}
+                    onChange={(e) => set("maxPalletHeightIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Clearance Height (in)" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.clearanceHeightIn ?? 96}
+                    onChange={(e) => set("clearanceHeightIn", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+              </div>
+            </TabsContent>
 
-        <TabsContent value="velocity" className="mt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Picks / Day" className="col-span-2">
-            <Input
-              type="number"
-              step="0.1"
-              value={form.velocityMetrics?.picksPerDay ?? 0}
-              onChange={(e) => updateVelocityMetrics({ picksPerDay: Number(e.target.value) })}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Lines / Day" className="col-span-2">
-            <Input
-              type="number"
-              step="0.1"
-              value={form.velocityMetrics?.linesPerDay ?? 0}
-              onChange={(e) => updateVelocityMetrics({ linesPerDay: Number(e.target.value) })}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Cubic Velocity" className="col-span-2">
-            <Input
-              type="number"
-              step="0.1"
-              value={form.velocityMetrics?.cubicVelocity ?? 0}
-              onChange={(e) => updateVelocityMetrics({ cubicVelocity: Number(e.target.value) })}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Velocity Score (legacy)" className="col-span-2">
-            <Input
-              type="number"
-              value={form.velocityScore ?? 0}
-              onChange={(e) => set("velocityScore", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="To Shipping Dock (sec)" className="col-span-2">
-            <Input
-              type="number"
-              value={form.zoneAdjacency?.toShippingDockSec ?? 300}
-              onChange={(e) => updateZoneAdjacency({ toShippingDockSec: Number(e.target.value) })}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="To Receiving Dock (sec)" className="col-span-2">
-            <Input
-              type="number"
-              value={form.zoneAdjacency?.toReceivingDockSec ?? 300}
-              onChange={(e) => updateZoneAdjacency({ toReceivingDockSec: Number(e.target.value) })}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-        </div>
-        </TabsContent>
+            <TabsContent value="slotting" className="mt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Allowed Storage Classes" className="col-span-2">
+                  <div className="flex flex-wrap gap-3 pt-1">
+                    {(["forward", "reserve", "bulk", "cold", "hazmat"] as const).map((sc) => (
+                      <label key={sc} className="flex items-center gap-1.5 text-xs">
+                        <Checkbox
+                          checked={form.slottingRules?.allowedStorageClasses?.includes(sc) ?? false}
+                          onCheckedChange={(c) => {
+                            const current = form.slottingRules?.allowedStorageClasses ?? [];
+                            const next = c ? [...current, sc] : current.filter((x) => x !== sc);
+                            updateSlotting({ allowedStorageClasses: next });
+                          }}
+                        />
+                        {sc}
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="Putaway Priority" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.slottingRules?.putawayPriority ?? 50}
+                    onChange={(e) => updateSlotting({ putawayPriority: Number(e.target.value) })}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Replen Priority" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.slottingRules?.replenPriority ?? 50}
+                    onChange={(e) => updateSlotting({ replenPriority: Number(e.target.value) })}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Max Weight (lb)" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.slottingRules?.requiredItemAttrs?.maxWeightLbs ?? ""}
+                    onChange={(e) =>
+                      updateSlottingAttrs({
+                        maxWeightLbs: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Allowed Pallet Types" className="col-span-2">
+                  <div className="flex flex-wrap gap-3 pt-1">
+                    {(["standard_48x40", "euro_48x32", "half_48x20"] as const).map((pt) => (
+                      <label key={pt} className="flex items-center gap-1.5 text-xs">
+                        <Checkbox
+                          checked={form.slottingRules?.allowedPalletTypes?.includes(pt) ?? false}
+                          onCheckedChange={(c) => {
+                            const current = form.slottingRules?.allowedPalletTypes ?? [];
+                            const next = c ? [...current, pt] : current.filter((x) => x !== pt);
+                            updateSlotting({ allowedPalletTypes: next });
+                          }}
+                        />
+                        {pt}
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="Allowed ABC Classes" className="col-span-2">
+                  <div className="flex flex-wrap gap-3 pt-1">
+                    {(["A", "B", "C"] as const).map((abc) => (
+                      <label key={abc} className="flex items-center gap-1.5 text-xs">
+                        <Checkbox
+                          checked={
+                            form.slottingRules?.requiredItemAttrs?.abcClass?.includes(abc) ?? false
+                          }
+                          onCheckedChange={(c) => {
+                            const current = form.slottingRules?.requiredItemAttrs?.abcClass ?? [];
+                            const next =
+                              c === true ? [...current, abc] : current.filter((x) => x !== abc);
+                            updateSlottingAttrs({ abcClass: next });
+                          }}
+                        />
+                        {abc}
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="Adjacent Zones (comma-separated)" className="col-span-2">
+                  <Input
+                    value={form.slottingRules?.adjacentZones?.join(", ") ?? ""}
+                    onChange={(e) =>
+                      updateSlotting({
+                        adjacentZones: e.target.value
+                          ? e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean)
+                          : undefined,
+                      })
+                    }
+                    className="h-8 text-xs"
+                    placeholder="Reserve, Forward Pick"
+                  />
+                </Field>
+              </div>
+            </TabsContent>
 
-        <TabsContent value="environment" className="mt-0">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Hazmat Allowed" className="col-span-2">
-            <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.hazmatAllowed ?? false} onCheckedChange={(c) => set("hazmatAllowed", c === true)} />
-              Allow hazardous materials
-            </label>
-          </Field>
-          <Field label="Temp Controlled" className="col-span-2">
-            <label className="flex items-center gap-2 text-xs">
-              <Checkbox checked={form.tempControlled ?? false} onCheckedChange={(c) => set("tempControlled", c === true)} />
-              Temperature controlled
-            </label>
-          </Field>
-          <Field label="Temp Min (°F)" className="col-span-2">
-            <Input
-              type="number"
-              value={form.tempMin ?? ""}
-              onChange={(e) => set("tempMin", e.target.value ? Number(e.target.value) : undefined)}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Temp Max (°F)" className="col-span-2">
-            <Input
-              type="number"
-              value={form.tempMax ?? ""}
-              onChange={(e) => set("tempMax", e.target.value ? Number(e.target.value) : undefined)}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-          <Field label="Status" className="col-span-2">
-            <Select value={form.status ?? "active"} onValueChange={(v) => set("status", v as any)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="maintenance">Maintenance</SelectItem>
-                <SelectItem value="damaged">Damaged</SelectItem>
-                <SelectItem value="quarantine">Quarantine</SelectItem>
-                <SelectItem value="retired">Retired</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Cycle Count Freq (days)" className="col-span-2">
-            <Input
-              type="number"
-              value={form.cycleCountFreqDays ?? 90}
-              onChange={(e) => set("cycleCountFreqDays", Number(e.target.value))}
-              className="h-8 text-xs text-right"
-            />
-          </Field>
-        </div>
-        </TabsContent>
-        </div>
+            <TabsContent value="velocity" className="mt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Picks / Day" className="col-span-2">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.velocityMetrics?.picksPerDay ?? 0}
+                    onChange={(e) => updateVelocityMetrics({ picksPerDay: Number(e.target.value) })}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Lines / Day" className="col-span-2">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.velocityMetrics?.linesPerDay ?? 0}
+                    onChange={(e) => updateVelocityMetrics({ linesPerDay: Number(e.target.value) })}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Cubic Velocity" className="col-span-2">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={form.velocityMetrics?.cubicVelocity ?? 0}
+                    onChange={(e) =>
+                      updateVelocityMetrics({ cubicVelocity: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Velocity Score (legacy)" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.velocityScore ?? 0}
+                    onChange={(e) => set("velocityScore", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="To Shipping Dock (sec)" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.zoneAdjacency?.toShippingDockSec ?? 300}
+                    onChange={(e) =>
+                      updateZoneAdjacency({ toShippingDockSec: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="To Receiving Dock (sec)" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.zoneAdjacency?.toReceivingDockSec ?? 300}
+                    onChange={(e) =>
+                      updateZoneAdjacency({ toReceivingDockSec: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="environment" className="mt-0">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Hazmat Allowed" className="col-span-2">
+                  <label className="flex items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={form.hazmatAllowed ?? false}
+                      onCheckedChange={(c) => set("hazmatAllowed", c === true)}
+                    />
+                    Allow hazardous materials
+                  </label>
+                </Field>
+                <Field label="Temp Controlled" className="col-span-2">
+                  <label className="flex items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={form.tempControlled ?? false}
+                      onCheckedChange={(c) => set("tempControlled", c === true)}
+                    />
+                    Temperature controlled
+                  </label>
+                </Field>
+                <Field label="Temp Min (°F)" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.tempMin ?? ""}
+                    onChange={(e) =>
+                      set("tempMin", e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Temp Max (°F)" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.tempMax ?? ""}
+                    onChange={(e) =>
+                      set("tempMax", e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+                <Field label="Status" className="col-span-2">
+                  <Select
+                    value={form.status ?? "active"}
+                    onValueChange={(v) => set("status", v as any)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                      <SelectItem value="damaged">Damaged</SelectItem>
+                      <SelectItem value="quarantine">Quarantine</SelectItem>
+                      <SelectItem value="retired">Retired</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Cycle Count Freq (days)" className="col-span-2">
+                  <Input
+                    type="number"
+                    value={form.cycleCountFreqDays ?? 90}
+                    onChange={(e) => set("cycleCountFreqDays", Number(e.target.value))}
+                    className="h-8 text-xs text-right"
+                  />
+                </Field>
+              </div>
+            </TabsContent>
+          </div>
         </Tabs>
 
         <DialogFooter>

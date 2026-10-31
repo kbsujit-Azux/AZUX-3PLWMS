@@ -24,9 +24,9 @@ describe("work order ⇄ inbound status mapping", () => {
     for (const s of woStatuses) {
       const mapped = mapWoStatusToInboundStatus(s);
       expect(mapped).toBeTruthy();
-      expect(
-        ["scheduled", "arrived", "on_dock", "putaway", "received", "exception"],
-      ).toContain(mapped);
+      expect(["scheduled", "arrived", "on_dock", "putaway", "received", "exception"]).toContain(
+        mapped,
+      );
     }
   });
 

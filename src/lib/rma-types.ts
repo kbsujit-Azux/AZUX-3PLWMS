@@ -20,13 +20,32 @@ import type { TenantPortalReport } from "./tenant-portal";
 // RMA Types
 // ============================================================
 
-export type RmaStatus = "draft" | "submitted" | "received" | "inspected" | "dispositioned" | "closed" | "cancelled";
+export type RmaStatus =
+  | "draft"
+  | "submitted"
+  | "received"
+  | "inspected"
+  | "dispositioned"
+  | "closed"
+  | "cancelled";
 
-export type DispositionType = "return_to_stock" | "quarantine" | "destroy" | "vendor_return" | "refurbish";
+export type DispositionType =
+  | "return_to_stock"
+  | "quarantine"
+  | "destroy"
+  | "vendor_return"
+  | "refurbish";
 
 export type DispositionStatus = "pending" | "in_progress" | "completed" | "failed";
 
-export type ReturnReason = "customer_return" | "damaged" | "defective" | "over_shipment" | "wrong_item" | "expired" | "recall";
+export type ReturnReason =
+  | "customer_return"
+  | "damaged"
+  | "defective"
+  | "over_shipment"
+  | "wrong_item"
+  | "expired"
+  | "recall";
 
 export type RmaOrder = {
   id: string;
@@ -86,7 +105,12 @@ export type RmaDisposition = {
 // Return Processing Fee
 // ============================================================
 
-export type ReturnProcessingFeeType = "restocking" | "inspection" | "disposal" | "refurbish" | "vendor_return";
+export type ReturnProcessingFeeType =
+  | "restocking"
+  | "inspection"
+  | "disposal"
+  | "refurbish"
+  | "vendor_return";
 
 export type ReturnProcessingFee = {
   id: string;

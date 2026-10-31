@@ -35,9 +35,7 @@ const rule = (over: Partial<ChargeRule>): ChargeRule =>
 
 describe("auto-billing unit selection", () => {
   it("bills only the units the client has rules for", () => {
-    const units = selectBillableUnits(base, [
-      rule({ unit: "carton" }),
-    ]);
+    const units = selectBillableUnits(base, [rule({ unit: "carton" })]);
     expect(units).toEqual([{ unit: "carton", quantity: 9 }]);
   });
 
@@ -58,17 +56,15 @@ describe("auto-billing unit selection", () => {
   });
 
   it("ignores rules for another category", () => {
-    const units = selectBillableUnits(base, [
-      rule({ unit: "carton", category: "Outbound" }),
-    ]);
+    const units = selectBillableUnits(base, [rule({ unit: "carton", category: "Outbound" })]);
     expect(units).toEqual([]);
   });
 
   it("ignores a unit with nothing captured", () => {
-    const units = selectBillableUnits(
-      { ...base, pallets: 0, cartons: 0 },
-      [rule({ unit: "carton" }), rule({ unit: "pallet" })],
-    );
+    const units = selectBillableUnits({ ...base, pallets: 0, cartons: 0 }, [
+      rule({ unit: "carton" }),
+      rule({ unit: "pallet" }),
+    ]);
     expect(units).toEqual([]);
   });
 
@@ -81,10 +77,7 @@ describe("auto-billing unit selection", () => {
     const withCuFt = selectBillableUnits(base, [rule({ unit: "cubicFeet" })]);
     expect(withCuFt).toEqual([{ unit: "cubicFeet", quantity: 22.96 }]);
 
-    const withoutCuFt = selectBillableUnits(
-      { ...base, cuFt: 0 },
-      [rule({ unit: "cubicFeet" })],
-    );
+    const withoutCuFt = selectBillableUnits({ ...base, cuFt: 0 }, [rule({ unit: "cubicFeet" })]);
     expect(withoutCuFt).toEqual([]);
   });
 

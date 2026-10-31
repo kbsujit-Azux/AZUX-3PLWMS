@@ -21,7 +21,16 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useCallback, useRef } from "react";
-import { ScanLine, Package, MapPin, Boxes, AlertTriangle, CheckCircle2, Mic, MicOff } from "lucide-react";
+import {
+  ScanLine,
+  Package,
+  MapPin,
+  Boxes,
+  AlertTriangle,
+  CheckCircle2,
+  Mic,
+  MicOff,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

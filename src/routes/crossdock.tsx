@@ -238,7 +238,9 @@ function CrossDockPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="rounded-lg border p-3 space-y-1">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Matches</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Total Matches
+          </p>
           <p className="text-lg font-semibold">{summary.total}</p>
         </div>
         <div className="rounded-lg border p-3 space-y-1">
@@ -413,25 +415,35 @@ function CrossDockPage() {
                   <p className="text-sm font-mono font-semibold">{selectedMatch.sku}</p>
                 </div>
                 <div className="rounded-lg border p-3 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Priority</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Priority
+                  </p>
                   <Badge variant={crossdockPriorityColor(selectedMatch.priority)}>
                     {selectedMatch.priority}
                   </Badge>
                 </div>
                 <div className="rounded-lg border p-3 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Order</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Order
+                  </p>
                   <p className="text-sm font-semibold">{selectedMatch.orderId}</p>
                 </div>
                 <div className="rounded-lg border p-3 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Staging</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Staging
+                  </p>
                   <p className="text-sm font-semibold">{selectedMatch.stagingLocation}</p>
                 </div>
                 <div className="rounded-lg border p-3 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Dock Door</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Dock Door
+                  </p>
                   <p className="text-sm font-semibold">{selectedMatch.dockDoor || "—"}</p>
                 </div>
                 <div className="rounded-lg border p-3 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Matched At</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Matched At
+                  </p>
                   <p className="text-sm font-semibold">{fmtDateTime(selectedMatch.matchedAt)}</p>
                 </div>
               </div>
@@ -455,7 +467,9 @@ function CrossDockPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New Cross-Dock Match</DialogTitle>
-            <DialogDescription>Manually create a cross-dock match between inbound and outbound.</DialogDescription>
+            <DialogDescription>
+              Manually create a cross-dock match between inbound and outbound.
+            </DialogDescription>
           </DialogHeader>
           <CrossDockForm onSubmit={handleCreateMatch} onCancel={() => setNewMatchOpen(false)} />
         </DialogContent>
@@ -467,12 +481,16 @@ function CrossDockPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Match</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete cross-dock match {matchToDelete?.id}. This action cannot be undone.
+              This will permanently delete cross-dock match {matchToDelete?.id}. This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground">
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

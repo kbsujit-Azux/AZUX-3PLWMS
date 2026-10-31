@@ -237,10 +237,15 @@ export const vasWorkOrderLines: VasWorkOrderLine[] = [
 export function vasProgressPct(workOrder: VasWorkOrder): number {
   if (workOrder.status === "completed") return 100;
   if (workOrder.status === "draft" || workOrder.status === "cancelled") return 0;
-  return Math.min(100, Math.round((workOrder.outputQty || 0) / Math.max(1, workOrder.outputQty || 0) * 100));
+  return Math.min(
+    100,
+    Math.round(((workOrder.outputQty || 0) / Math.max(1, workOrder.outputQty || 0)) * 100),
+  );
 }
 
-export function vasPriorityColor(priority: VasPriority): "default" | "destructive" | "secondary" | "outline" {
+export function vasPriorityColor(
+  priority: VasPriority,
+): "default" | "destructive" | "secondary" | "outline" {
   switch (priority) {
     case "same_day":
       return "destructive";

@@ -44,7 +44,7 @@ export async function buildTaskQueue(
   picks: PickTicket[],
   putawayPallets: Pallet[],
   tenantId: string,
-  warehouseId: string
+  warehouseId: string,
 ): Promise<Task[]> {
   const tasks: Task[] = [];
 
@@ -120,10 +120,7 @@ function aisleDistance(a: string, b: string): number {
  *
  * Returns null if queue empty.
  */
-export function assignNextTask(
-  currentAisle: string,
-  queue: Task[]
-): Task | null {
+export function assignNextTask(currentAisle: string, queue: Task[]): Task | null {
   if (queue.length === 0) return null;
 
   // Filter out completed/cancelled
@@ -164,22 +161,22 @@ export async function getWorkerCurrentAisle(
   db: any,
   badgeId: string,
   tenantId: string,
-  warehouseId: string
+  warehouseId: string,
 ): Promise<string> {
   const { query, collection, where, orderBy, limit, getDocs } = await import("firebase/firestore");
   const { db: firebaseDb } = await import("./firestore");
-  
+
   const q = query(
     collection(firebaseDb, "laborEvents"),
     where("badgeId", "==", badgeId),
     where("tenantId", "==", tenantId),
     where("warehouseId", "==", warehouseId),
     orderBy("completedAt", "desc"),
-    limit(1)
+    limit(1),
   );
   const snap = await getDocs(q);
   if (snap.empty) return "UNKNOWN";
-  
+
   const event = snap.docs[0].data();
   return event.aisle || getAisleFromLocation((event as { locationId?: string }).locationId || "");
 }

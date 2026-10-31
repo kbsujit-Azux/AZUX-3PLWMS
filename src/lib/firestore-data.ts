@@ -252,7 +252,10 @@ export async function deleteItemFromMaster(sku: string): Promise<{ ok: true }> {
   return { ok: true };
 }
 
-export async function updateItemInMaster(sku: string, updates: Partial<ItemMasterRecord>): Promise<void> {
+export async function updateItemInMaster(
+  sku: string,
+  updates: Partial<ItemMasterRecord>,
+): Promise<void> {
   const full = {
     ...updates,
     cbmPerCase:
@@ -272,13 +275,17 @@ export async function updateItemInMaster(sku: string, updates: Partial<ItemMaste
 export async function addLocationToMaster(loc: LocationRecord): Promise<LocationRecord> {
   const full: LocationRecord = {
     ...loc,
-    cubicFeet: loc.lengthFt && loc.widthFt && loc.heightFt ? loc.lengthFt * loc.widthFt * loc.heightFt : 0,
+    cubicFeet:
+      loc.lengthFt && loc.widthFt && loc.heightFt ? loc.lengthFt * loc.widthFt * loc.heightFt : 0,
   };
   await setDoc(doc(db, "locationMaster", full.id), full);
   return full;
 }
 
-export async function updateLocationInMaster(id: string, updates: Partial<LocationRecord>): Promise<void> {
+export async function updateLocationInMaster(
+  id: string,
+  updates: Partial<LocationRecord>,
+): Promise<void> {
   const full = {
     ...updates,
     cubicFeet:
@@ -437,32 +444,40 @@ export async function createInboundShipmentRecord(
   // Generate ID in format: INB-YYYYMMDD-XXXX (same for both Inbound and WorkOrder)
   const id = `INB-${new Date().getFullYear()}${(new Date().getMonth() + 1)
     .toString()
-    .padStart(2, "0")}${(new Date().getDate()).toString().padStart(2, "0")}-${Math.floor(Math.random() * 10000)
+    .padStart(2, "0")}${new Date().getDate().toString().padStart(2, "0")}-${Math.floor(
+    Math.random() * 10000,
+  )
     .toString()
     .padStart(4, "0")}`;
 
   const woId = id; // Use SAME ID for WorkOrder
 
-  const totalUnits = Array.isArray(shipment.lines) ? shipment.lines.reduce((sum, l) => sum + l.qtyExpected, 0) : 0;
-  const totalCartons = Array.isArray(shipment.lines) ? shipment.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0) : 0;
+  const totalUnits = Array.isArray(shipment.lines)
+    ? shipment.lines.reduce((sum, l) => sum + l.qtyExpected, 0)
+    : 0;
+  const totalCartons = Array.isArray(shipment.lines)
+    ? shipment.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0)
+    : 0;
 
-  const lines: InboundLine[] = Array.isArray(shipment.lines) ? shipment.lines.map((l, idx) => ({
-    lineNo: l.lineNo,
-    sku: l.sku,
-    upc: l.upc || "",
-    itemStyle: l.itemStyle || "",
-    description: l.description || "",
-    lot: l.lot,
-    expirationDate: l.expirationDate || "2099-12-31",
-    qtyExpected: l.qtyExpected,
-    cartonsExpected: l.cartonsExpected || 0,
-    uom: "EA",
-    weightLbsPerUnit: l.weightLbsPerUnit || 0,
-    unitsPerPallet: l.unitsPerPallet || 1,
-    receivedQty: 0,
-    palletIds: [],
-    status: "expected",
-  })) : [];
+  const lines: InboundLine[] = Array.isArray(shipment.lines)
+    ? shipment.lines.map((l, idx) => ({
+        lineNo: l.lineNo,
+        sku: l.sku,
+        upc: l.upc || "",
+        itemStyle: l.itemStyle || "",
+        description: l.description || "",
+        lot: l.lot,
+        expirationDate: l.expirationDate || "2099-12-31",
+        qtyExpected: l.qtyExpected,
+        cartonsExpected: l.cartonsExpected || 0,
+        uom: "EA",
+        weightLbsPerUnit: l.weightLbsPerUnit || 0,
+        unitsPerPallet: l.unitsPerPallet || 1,
+        receivedQty: 0,
+        palletIds: [],
+        status: "expected",
+      }))
+    : [];
 
   const fullShipment: InboundShipment = {
     id,
@@ -492,17 +507,19 @@ export async function createInboundShipmentRecord(
     lines,
   };
 
-  const workOrderLines = Array.isArray(shipment.lines) ? shipment.lines.map((l, idx) => ({
-    lineNo: idx + 1,
-    sku: l.sku,
-    upc: l.upc || "",
-    description: "",
-    lot: l.lot,
-    qtyExpected: l.qtyExpected,
-    qtyReceived: 0,
-    cartons: l.cartonsExpected || 0,
-    status: "pending" as const,
-  })) : [];
+  const workOrderLines = Array.isArray(shipment.lines)
+    ? shipment.lines.map((l, idx) => ({
+        lineNo: idx + 1,
+        sku: l.sku,
+        upc: l.upc || "",
+        description: "",
+        lot: l.lot,
+        qtyExpected: l.qtyExpected,
+        qtyReceived: 0,
+        cartons: l.cartonsExpected || 0,
+        status: "pending" as const,
+      }))
+    : [];
 
   const workOrderData = {
     id: woId,
@@ -551,7 +568,11 @@ export async function createInboundShipmentRecord(
 export async function updateInboundLineFields(
   shipmentId: string,
   lineNo: number,
-  updates: Partial<InboundLine> & { receivedQty?: number; palletIds?: string[]; status?: "expected" | "partial" | "received" },
+  updates: Partial<InboundLine> & {
+    receivedQty?: number;
+    palletIds?: string[];
+    status?: "expected" | "partial" | "received";
+  },
 ) {
   // Delegates to the array-safe implementation (see updateInboundLine).
   return updateInboundLine(shipmentId, lineNo, updates as Partial<InboundLine>);
@@ -600,8 +621,7 @@ export async function recordInboundPalletBuild(
     // invisible and a deleted pallet would not change anything.
     const nextReceived = Math.max(0, Number(line.receivedQty ?? 0) + receivedDelta);
     const nextLineStatus: "expected" | "partial" | "received" =
-      Number(line.qtyExpected ?? 0) > 0 &&
-      nextReceived >= Number(line.qtyExpected ?? 0)
+      Number(line.qtyExpected ?? 0) > 0 && nextReceived >= Number(line.qtyExpected ?? 0)
         ? "received"
         : nextReceived > 0
           ? "partial"
@@ -674,15 +694,14 @@ export async function fetchInboundReceipts(): Promise<any[]> {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }));
 }
 
-export function subscribeInboundReceipts(
-  callback: (receipts: any[]) => void,
-): Unsubscribe {
+export function subscribeInboundReceipts(callback: (receipts: any[]) => void): Unsubscribe {
   return onSnapshot(collection(db, "inboundReceipts"), (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) })));
   });
 }
 
-export async function updateInboundShipmentStatus(  shipmentId: string,
+export async function updateInboundShipmentStatus(
+  shipmentId: string,
   status: "scheduled" | "arrived" | "on_dock" | "putaway" | "received" | "exception",
   receivedAt?: string,
 ) {
@@ -768,46 +787,51 @@ export async function updateInboundShipmentRecord(
     port?: string;
     doorAssigned?: string | null;
     warehouseLocation?: string | null;
-  }
+  },
 ) {
   const shipmentRef = doc(db, "inboundShipments", shipmentId);
-  
+
   // Get current shipment to check workOrderId
   const shipmentSnap = await getDoc(shipmentRef);
   if (!shipmentSnap.exists()) {
     throw new Error(`Shipment ${shipmentId} not found`);
   }
   const currentShipment = shipmentSnap.data() as InboundShipment;
-  
+
   const { status, receivedAt, workOrderId, ...shipmentUpdates } = updates;
   const woId = workOrderId || currentShipment.workOrderId || shipmentId; // Use inbound ID as work order ID
-  
+
   const batch = writeBatch(db);
-  batch.update(shipmentRef, stripUndefinedDeep({
-    ...shipmentUpdates,
-    ...(status && { status }),
-    ...(receivedAt && { receivedAt }),
-    ...(workOrderId && { workOrderId }),
-    workOrderId: woId, // Ensure workOrderId is set
-  }));
-  
+  batch.update(
+    shipmentRef,
+    stripUndefinedDeep({
+      ...shipmentUpdates,
+      ...(status && { status }),
+      ...(receivedAt && { receivedAt }),
+      ...(workOrderId && { workOrderId }),
+      workOrderId: woId, // Ensure workOrderId is set
+    }),
+  );
+
   // Sync to WorkOrder - create if doesn't exist, update if exists
   const woRef = doc(db, "workOrders", woId);
   const woSnap = await getDoc(woRef);
-  
-  const totalUnits = Array.isArray(updates.lines) ? updates.lines.reduce((sum, l) => sum + l.qtyExpected, 0) : 0;
-  const totalCartons = Array.isArray(updates.lines) ? updates.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0) : 0;
-  
+
+  const totalUnits = Array.isArray(updates.lines)
+    ? updates.lines.reduce((sum, l) => sum + l.qtyExpected, 0)
+    : 0;
+  const totalCartons = Array.isArray(updates.lines)
+    ? updates.lines.reduce((sum, l) => sum + (l.cartonsExpected || 0), 0)
+    : 0;
+
   // The work order lines are rebuilt from the container lines, but the
   // RECEIPT state of an existing line must be preserved — otherwise editing a
   // container that has already been received would reset its quantities.
-  const existingWoLines: any[] = woSnap.exists()
-    ? ((woSnap.data() as any).lines ?? [])
-    : [];
+  const existingWoLines: any[] = woSnap.exists() ? ((woSnap.data() as any).lines ?? []) : [];
   const workOrderLines = Array.isArray(updates.lines)
     ? projectWorkOrderLines(updates.lines as any, existingWoLines)
     : [];
-  
+
   const workOrderData = {
     id: woId,
     woNumber: woId,
@@ -839,10 +863,7 @@ export async function updateInboundShipmentRecord(
       const existing = woSnap.exists() ? (woSnap.data() as any).status : undefined;
       if (!status) return existing ?? "scheduled";
       const mapped = mapInboundStatusToWoStatus(status);
-      if (
-        (existing === "departed" || existing === "closed") &&
-        mapped === "received"
-      ) {
+      if ((existing === "departed" || existing === "closed") && mapped === "received") {
         return existing;
       }
       return mapped;
@@ -853,21 +874,24 @@ export async function updateInboundShipmentRecord(
     lines: workOrderLines,
     createdAt: woSnap.exists() ? woSnap.data().createdAt : new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    notes: woSnap.exists() ? (woSnap.data().notes || "") : "",
+    notes: woSnap.exists() ? woSnap.data().notes || "" : "",
     doorAssigned: updates.doorAssigned ?? currentShipment.doorAssigned ?? null,
     warehouseLocation: updates.warehouseLocation ?? currentShipment.warehouseLocation ?? null,
   };
-  
+
   if (woSnap.exists()) {
-    batch.update(woRef, stripUndefinedDeep({
-      ...workOrderData,
-      createdAt: woSnap.data().createdAt, // Preserve original createdAt
-      updatedAt: serverTimestamp(),
-    }));
+    batch.update(
+      woRef,
+      stripUndefinedDeep({
+        ...workOrderData,
+        createdAt: woSnap.data().createdAt, // Preserve original createdAt
+        updatedAt: serverTimestamp(),
+      }),
+    );
   } else {
     batch.set(woRef, stripUndefinedDeep(workOrderData));
   }
-  
+
   await batch.commit();
 }
 
@@ -1186,18 +1210,13 @@ export async function putAwayPallet(
 
     // 2. The inventory record + batch for this pallet
     const batch = {
-      batchId:
-        batchIdx >= 0 ? batches[batchIdx].batchId : `${pallet.sku}-${palletId}`,
+      batchId: batchIdx >= 0 ? batches[batchIdx].batchId : `${pallet.sku}-${palletId}`,
       palletId,
       receivedAt: now,
       qty: Number(pallet.units) || 0,
       location,
       poNumber: pallet.poNumber ?? "",
-      ediSource: (pallet.ediSource ?? "MANUAL") as
-        | "EDI_943"
-        | "EDI_944"
-        | "CSV"
-        | "MANUAL",
+      ediSource: (pallet.ediSource ?? "MANUAL") as "EDI_943" | "EDI_944" | "CSV" | "MANUAL",
       qtyAllocated: batchIdx >= 0 ? (batches[batchIdx].qtyAllocated ?? 0) : 0,
       ...(batchIdx >= 0 && batches[batchIdx].pickTicketNum !== undefined
         ? { pickTicketNum: batches[batchIdx].pickTicketNum }
@@ -1281,10 +1300,7 @@ export async function putAwayPallet(
  * Remove a pallet's inventory batch (used when the pallet is deleted or its
  * units are corrected).
  */
-export async function removeInventoryBatchForPallet(
-  sku: string,
-  palletId: string,
-): Promise<void> {
+export async function removeInventoryBatchForPallet(sku: string, palletId: string): Promise<void> {
   const invRef = doc(db, "inventoryItems", sku);
   const snap = await getDoc(invRef);
   if (!snap.exists()) return;
@@ -1780,9 +1796,7 @@ export async function updateInventoryBatch(sku: string, batchId: string, updates
   if (!snap.exists()) return;
   const item = snap.data() as any;
   const batches: any[] = Array.isArray(item.batches) ? [...item.batches] : [];
-  const idx = batches.findIndex(
-    (b) => b.batchId === batchId || b.palletId === batchId,
-  );
+  const idx = batches.findIndex((b) => b.batchId === batchId || b.palletId === batchId);
   if (idx < 0) return;
   batches[idx] = { ...batches[idx], ...updates };
   await updateDoc(ref, {
@@ -2918,10 +2932,7 @@ export async function createChargeRule(rule: ChargeRule) {
   await setDoc(doc(db, "chargeRules", rule.id), stripUndefinedDeep(rule));
 }
 
-export async function updateChargeRule(
-  ruleId: string,
-  updates: Partial<ChargeRule>,
-) {
+export async function updateChargeRule(ruleId: string, updates: Partial<ChargeRule>) {
   await updateDoc(doc(db, "chargeRules", ruleId), stripUndefinedDeep(updates));
 }
 
@@ -4333,7 +4344,9 @@ export function subscribeCsvUploadHistory(
 export async function createCsvUploadRecord(
   record: Omit<CsvUploadHistory, "id" | "uploadAt">,
 ): Promise<string> {
-  const id = `CSV-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, "0")}${(new Date().getDate()).toString().padStart(2, "0")}-${Math.floor(Math.random() * 10000)
+  const id = `CSV-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, "0")}${new Date().getDate().toString().padStart(2, "0")}-${Math.floor(
+    Math.random() * 10000,
+  )
     .toString()
     .padStart(4, "0")}`;
   await setDoc(doc(db, "csvUploadHistory", id), {
@@ -4384,10 +4397,13 @@ export async function createWorkOrder(data: any): Promise<string> {
 }
 
 export async function updateWorkOrder(id: string, updates: any): Promise<void> {
-  await updateDoc(doc(db, "workOrders", id), stripUndefinedDeep({
-    ...updates,
-    updatedAt: serverTimestamp(),
-  }));
+  await updateDoc(
+    doc(db, "workOrders", id),
+    stripUndefinedDeep({
+      ...updates,
+      updatedAt: serverTimestamp(),
+    }),
+  );
 
   // Sync back to linked InboundShipment for all relevant fields
   try {
@@ -4396,10 +4412,7 @@ export async function updateWorkOrder(id: string, updates: any): Promise<void> {
     if (linked) {
       // Sync status
       if (updates.status) {
-        const inboundStatus = mapWoStatusToInboundStatus(
-          updates.status as string,
-          linked.status,
-        );
+        const inboundStatus = mapWoStatusToInboundStatus(updates.status as string, linked.status);
         if (linked.status !== inboundStatus) {
           await updateInboundShipmentRecord(linked.id, {
             ...linked,
@@ -4480,8 +4493,13 @@ export async function deleteWorkOrder(id: string): Promise<void> {
 
 function genWoId(): string {
   const now = new Date();
-  const dateStr = now.getFullYear().toString() + (now.getMonth() + 1).toString().padStart(2, "0") + now.getDate().toString().padStart(2, "0");
-  const seq = Math.floor(Math.random() * 1000).toString().padStart(4, "0");
+  const dateStr =
+    now.getFullYear().toString() +
+    (now.getMonth() + 1).toString().padStart(2, "0") +
+    now.getDate().toString().padStart(2, "0");
+  const seq = Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(4, "0");
   return `WO-${dateStr}-${seq}`;
 }
 
@@ -4494,14 +4512,12 @@ function genWoId(): string {
  * Each repair is deliberately narrow and idempotent so an operator can fix
  * a single problem without touching anything else.
  */
-export async function repairIntegrityIssue(
-  issue: {
-    type: string;
-    entity: string;
-    recordId: string;
-    relatedId?: string;
-  },
-): Promise<{ ok: boolean; message: string }> {
+export async function repairIntegrityIssue(issue: {
+  type: string;
+  entity: string;
+  recordId: string;
+  relatedId?: string;
+}): Promise<{ ok: boolean; message: string }> {
   switch (issue.type) {
     /** P1 — detach a pallet from a container that no longer exists */
     case "pallet-missing-container": {
@@ -4548,7 +4564,10 @@ export async function repairIntegrityIssue(
     case "pallet-units-drift": {
       const [shipmentId] = issue.recordId.split(":");
       await syncInboundFromPallets(shipmentId);
-      return { ok: true, message: `Received quantity for ${issue.recordId} recalculated from its pallets.` };
+      return {
+        ok: true,
+        message: `Received quantity for ${issue.recordId} recalculated from its pallets.`,
+      };
     }
 
     /** S1 — recreate the missing work order for a container */
@@ -4559,7 +4578,10 @@ export async function repairIntegrityIssue(
       const s = snap.data() as any;
       const woId = issue.recordId;
       const totalUnits = (s.lines ?? []).reduce((a: number, l: any) => a + (l.qtyExpected || 0), 0);
-      const totalCartons = (s.lines ?? []).reduce((a: number, l: any) => a + (l.cartonsExpected || 0), 0);
+      const totalCartons = (s.lines ?? []).reduce(
+        (a: number, l: any) => a + (l.cartonsExpected || 0),
+        0,
+      );
       await setDoc(doc(db, "workOrders", woId), {
         id: woId,
         woNumber: woId,

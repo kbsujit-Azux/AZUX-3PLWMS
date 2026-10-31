@@ -1,18 +1,59 @@
 ﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Search, Container, Truck, Ship, Hash, Calendar, Check, Edit, X, AlertTriangle, ChevronRight, RefreshCw, MapPin, DoorOpen, Warehouse } from "lucide-react";
+import {
+  Search,
+  Container,
+  Truck,
+  Ship,
+  Hash,
+  Calendar,
+  Check,
+  Edit,
+  X,
+  AlertTriangle,
+  ChevronRight,
+  RefreshCw,
+  MapPin,
+  DoorOpen,
+  Warehouse,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { type WorkOrder, type WorkOrderStatus, closeInboundShipment } from "@/lib/inbound-data";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 import { useWmsData } from "@/components/db-context";
-import { autoBillContainer, resolveBillingClientId, findAutoInvoiceForContainer } from "@/lib/auto-billing";
-import { deleteWorkOrder, updateWorkOrder, updateInboundShipmentRecord, mapWoStatusToInboundStatus } from "@/lib/firestore-data";
+import {
+  autoBillContainer,
+  resolveBillingClientId,
+  findAutoInvoiceForContainer,
+} from "@/lib/auto-billing";
+import {
+  deleteWorkOrder,
+  updateWorkOrder,
+  updateInboundShipmentRecord,
+  mapWoStatusToInboundStatus,
+} from "@/lib/firestore-data";
 import { ContainerConfirmDialog } from "@/components/container-confirm-dialog";
 import { inventoryItems } from "@/lib/mock-data";
 import { useWorkspace } from "@/components/workspace-context";
@@ -122,7 +163,8 @@ function WorkOrdersPage() {
         if (warehouseId !== "all" && w.warehouseId !== warehouseId) return false;
         if (query) {
           const q = query.toLowerCase();
-          const blob = `${w.woNumber} ${w.clientName} ${w.containerNumber} ${w.carrier}`.toLowerCase();
+          const blob =
+            `${w.woNumber} ${w.clientName} ${w.containerNumber} ${w.carrier}`.toLowerCase();
           return blob.includes(q);
         }
         return true;
@@ -144,7 +186,9 @@ function WorkOrdersPage() {
   const hasPalletsBuilt = (wo: WorkOrder) => {
     if (!inboundShipments) return false;
     const relatedInbounds = inboundShipments.filter((s) => s.workOrderId === wo.id);
-    return relatedInbounds.some((s) => Array.isArray(s.lines) && s.lines.some((l) => l.palletIds && l.palletIds.length > 0));
+    return relatedInbounds.some(
+      (s) => Array.isArray(s.lines) && s.lines.some((l) => l.palletIds && l.palletIds.length > 0),
+    );
   };
 
   const canEdit = (wo: WorkOrder) => wo.status !== "closed";
@@ -173,7 +217,10 @@ function WorkOrdersPage() {
       if (!inboundId) return false;
       const inbound = inboundShipments?.find((s) => s.id === inboundId);
       if (!inbound) return false;
-      return Array.isArray(inbound.lines) && inbound.lines.every((l) => l.palletIds && l.palletIds.length > 0);
+      return (
+        Array.isArray(inbound.lines) &&
+        inbound.lines.every((l) => l.palletIds && l.palletIds.length > 0)
+      );
     }
     return true;
   };
@@ -189,10 +236,7 @@ function WorkOrdersPage() {
         if (inbound) {
           // The work order and the container use different status
           // vocabularies, so translate before writing.
-          const inboundStatus = mapWoStatusToInboundStatus(
-            newStatus,
-            inbound.status,
-          );
+          const inboundStatus = mapWoStatusToInboundStatus(newStatus, inbound.status);
           if (inboundStatus !== inbound.status) {
             await updateInboundShipmentRecord(inboundId, {
               ...inbound,
@@ -226,10 +270,7 @@ function WorkOrdersPage() {
   };
 
   /** Perform the action the operator confirmed. */
-  const runConfirmed = async (opts: {
-    departDate?: string;
-    acknowledged: boolean;
-  }) => {
+  const runConfirmed = async (opts: { departDate?: string; acknowledged: boolean }) => {
     if (!confirmTarget) return;
     const { workOrder, inbound, mode } = confirmTarget;
     setConfirmBusy(true);
@@ -271,8 +312,14 @@ function WorkOrdersPage() {
           containerNumber: inbound.containerNumber,
           trailerNumber: inbound.trailerNumber,
           units: (inbound.lines ?? []).reduce((a: number, l: any) => a + (l.qtyExpected || 0), 0),
-          cartons: (inbound.lines ?? []).reduce((a: number, l: any) => a + (l.cartonsExpected || 0), 0),
-          pallets: (inbound?.lines ?? []).reduce((a: number, l: any) => a + (l.palletIds?.length || 0), 0),
+          cartons: (inbound.lines ?? []).reduce(
+            (a: number, l: any) => a + (l.cartonsExpected || 0),
+            0,
+          ),
+          pallets: (inbound?.lines ?? []).reduce(
+            (a: number, l: any) => a + (l.palletIds?.length || 0),
+            0,
+          ),
           closedAt: receipt.closedAt,
         });
         toast.success(`Container closed - EDI 944 queued and billed`);
@@ -365,7 +412,9 @@ function WorkOrdersPage() {
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Work Orders · Container Management</h1>
+          <h1 className="text-xl font-semibold tracking-tight">
+            Work Orders · Container Management
+          </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Track containers from inbound entry through departure
           </p>
@@ -406,7 +455,10 @@ function WorkOrdersPage() {
           </div>
         )}
         {filtered.map((w) => {
-          const hasActions = canEdit(w) || canDelete(w) || (statusTransitions[w.status as WorkOrderStatus] && hasPalletsBuilt(w));
+          const hasActions =
+            canEdit(w) ||
+            canDelete(w) ||
+            (statusTransitions[w.status as WorkOrderStatus] && hasPalletsBuilt(w));
           return (
             <div key={w.id} className="rounded-md border border-border bg-card overflow-hidden">
               <div className="flex items-start justify-between gap-4 px-4 py-3 border-b border-border bg-muted/20">
@@ -418,9 +470,7 @@ function WorkOrdersPage() {
                     >
                       {w.status.replace("_", " ")}
                     </span>
-                    {hasActions && (
-                      <AlertTriangle className="h-3 w-3 text-muted-foreground" />
-                    )}
+                    {hasActions && <AlertTriangle className="h-3 w-3 text-muted-foreground" />}
                   </div>
                   <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-[11px]">
                     <KeyVal label="Client" value={w.clientName} />
@@ -429,23 +479,27 @@ function WorkOrdersPage() {
                     <KeyVal icon={Ship} label="Carrier" value={w.carrier} />
                     <KeyVal icon={Ship} label="Vessel" value={w.vessel} />
                     <KeyVal icon={Hash} label="Voyage" value={w.voyageNumber} />
-                    <KeyVal icon={Calendar} label="Arrival" value={w.arrivalDate ? new Date(w.arrivalDate).toLocaleDateString() : "—"} />
+                    <KeyVal
+                      icon={Calendar}
+                      label="Arrival"
+                      value={w.arrivalDate ? new Date(w.arrivalDate).toLocaleDateString() : "—"}
+                    />
                     <KeyVal label="PO" value={w.poNumber} />
                     <KeyVal
                       icon={Warehouse}
                       label="Warehouse"
-                      value={w.warehouseId ? (warehouses.find((x) => x.id === w.warehouseId)?.code ?? w.warehouseId) : "—"}
+                      value={
+                        w.warehouseId
+                          ? (warehouses.find((x) => x.id === w.warehouseId)?.code ?? w.warehouseId)
+                          : "—"
+                      }
                     />
                     <KeyVal
                       icon={MapPin}
                       label="Storage Slot"
                       value={w.warehouseLocation || "Unassigned"}
                     />
-                    <KeyVal
-                      icon={DoorOpen}
-                      label="Door"
-                      value={w.doorAssigned || "Unassigned"}
-                    />
+                    <KeyVal icon={DoorOpen} label="Door" value={w.doorAssigned || "Unassigned"} />
                   </div>
                 </div>
                 <div className="w-48 shrink-0 flex flex-col gap-2">
@@ -496,7 +550,13 @@ function WorkOrdersPage() {
                         }}
                       >
                         <ChevronRight className="h-3 w-3" />
-                        {w.status === "at_dock" ? "Mark Arrived" : w.status === "unloading" ? "Start Unload" : w.status === "received" ? "Mark Departed" : "Close"}
+                        {w.status === "at_dock"
+                          ? "Mark Arrived"
+                          : w.status === "unloading"
+                            ? "Start Unload"
+                            : w.status === "received"
+                              ? "Mark Departed"
+                              : "Close"}
                       </Button>
                     )}
                     {w.status === "received" && hasPalletsBuilt(w) && (
@@ -510,14 +570,29 @@ function WorkOrdersPage() {
                         Close
                       </Button>
                     )}
-                    <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={() => {
-                      const related = (pallets ?? []).filter((p: any) => p.poNumber === w.poNumber);
-                      if (related.length === 0) { toast.error("No pallets found for this work order"); return; }
-                      const win = window.open("", "_blank");
-                      if (!win) return;
-                      const labels = related.map((p: any) => {
-                        const bars = Array.from({ length: 64 }).map((_, i) => `<span style="display:inline-block;background:#000;width:${((i * 31 + p.id.charCodeAt(i % p.id.length)) % 3) + 1}px;height:100%;"></span>`).join("");
-                        return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[10px] gap-1"
+                      onClick={() => {
+                        const related = (pallets ?? []).filter(
+                          (p: any) => p.poNumber === w.poNumber,
+                        );
+                        if (related.length === 0) {
+                          toast.error("No pallets found for this work order");
+                          return;
+                        }
+                        const win = window.open("", "_blank");
+                        if (!win) return;
+                        const labels = related
+                          .map((p: any) => {
+                            const bars = Array.from({ length: 64 })
+                              .map(
+                                (_, i) =>
+                                  `<span style="display:inline-block;background:#000;width:${((i * 31 + p.id.charCodeAt(i % p.id.length)) % 3) + 1}px;height:100%;"></span>`,
+                              )
+                              .join("");
+                            return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
                           <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;">
                             <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">AZUX 3PL WMS Systems</span>
                             <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">PALLET LP</span>
@@ -534,72 +609,96 @@ function WorkOrdersPage() {
                           <div style="margin-top:8px;display:flex;align-items:flex-end;gap:1px;overflow:hidden;height:40px;background:#111;padding:4px;">${bars}</div>
                           <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${p.id}</div>
                         </div>`;
-                      }).join("");
-                      win.document.write(`<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; font-size: 48px; line-height: 1; }</style></head><body>${labels}</body></html>`);
-                      win.document.close();
-                      setTimeout(() => win.print(), 500);
-                    }}>
+                          })
+                          .join("");
+                        win.document.write(
+                          `<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; font-size: 48px; line-height: 1; }</style></head><body>${labels}</body></html>`,
+                        );
+                        win.document.close();
+                        setTimeout(() => win.print(), 500);
+                      }}
+                    >
                       Print Pallets
                     </Button>
-                    {w.status === "closed" && (<>                     <Button
-                      size="sm"
-                      variant="default"
-                      className="h-7 text-[10px] gap-1"
-                      onClick={async () => { if (!window.confirm("Proceed?")) return;
-                        const inbound = inboundShipments?.find((s: any) => s.workOrderId === w.id);
-                        const existing = await findAutoInvoiceForContainer(inbound?.id ?? w.id);
-                        if (existing) {
-                          toast.error("Invoice already exists for this container");
-                          return;
-                        }
-                        const clientId = await resolveBillingClientId(w.tenantId);
-                        const res = await autoBillContainer({
-                          clientId,
-                          tenantId: w.tenantId,
-                          warehouseId: w.warehouseId,
-                          shipmentId: inbound?.id ?? w.id,
-                          poNumber: inbound?.poNumber ?? w.poNumber,
-                          containerNumber: inbound?.containerNumber ?? w.containerNumber,
-                          trailerNumber: inbound?.trailerNumber ?? w.trailerNumber,
-                          units: (inbound?.lines ?? []).reduce((a: number, l: any) => a + (l.qtyExpected || 0), 0),
-                          cartons: (inbound?.lines ?? []).reduce((a: number, l: any) => a + (l.cartonsExpected || 0), 0),
-                          pallets: (inbound?.lines ?? []).reduce((a: number, l: any) => a + (l.palletIds?.length || 0), 0),
-                          closedAt: new Date().toISOString(),
-                        });
-                        if (res.skipped) toast.error(res.skipped);
-                        else toast.success(`Auto-billed: ${res.lines} lines, $${res.subtotal}`);
-                      }}
-                    >
-                      Bill
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="h-7 text-[10px] gap-1"
-                      onClick={async () => { if (!window.confirm("Proceed?")) return;
-                        const inbound = inboundShipments?.find((s: any) => s.workOrderId === w.id);
-                        await addDoc(collection(db, "ediLogs"), {
-                          id: `EDI-944-${Date.now()}`,
-                          txn: "944",
-                          direction: "outbound",
-                          partner: inbound?.partner ?? "SBX-PARTNER",
-                          documentRef: inbound?.ediRef ?? w.woNumber,
-                          tenantId: w.tenantId,
-                          warehouseId: w.warehouseId,
-                          isaControl: inbound?.isaControl ?? "999999998",
-                          gsControl: "944",
-                          segments: 10,
-                          bytes: 300,
-                          ackStatus: "AK",
-                          status: "processed",
-                          message: "Manual EDI 944 triggered from Work Order.",
-                          receivedAt: new Date().toISOString(),
-                        });
-                        toast.success("EDI 944 generated");
-                      }}
-                    >
-                      944
-                    </Button> </>)}
+                    {w.status === "closed" && (
+                      <>
+                        {" "}
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-[10px] gap-1"
+                          onClick={async () => {
+                            if (!window.confirm("Proceed?")) return;
+                            const inbound = inboundShipments?.find(
+                              (s: any) => s.workOrderId === w.id,
+                            );
+                            const existing = await findAutoInvoiceForContainer(inbound?.id ?? w.id);
+                            if (existing) {
+                              toast.error("Invoice already exists for this container");
+                              return;
+                            }
+                            const clientId = await resolveBillingClientId(w.tenantId);
+                            const res = await autoBillContainer({
+                              clientId,
+                              tenantId: w.tenantId,
+                              warehouseId: w.warehouseId,
+                              shipmentId: inbound?.id ?? w.id,
+                              poNumber: inbound?.poNumber ?? w.poNumber,
+                              containerNumber: inbound?.containerNumber ?? w.containerNumber,
+                              trailerNumber: inbound?.trailerNumber ?? w.trailerNumber,
+                              units: (inbound?.lines ?? []).reduce(
+                                (a: number, l: any) => a + (l.qtyExpected || 0),
+                                0,
+                              ),
+                              cartons: (inbound?.lines ?? []).reduce(
+                                (a: number, l: any) => a + (l.cartonsExpected || 0),
+                                0,
+                              ),
+                              pallets: (inbound?.lines ?? []).reduce(
+                                (a: number, l: any) => a + (l.palletIds?.length || 0),
+                                0,
+                              ),
+                              closedAt: new Date().toISOString(),
+                            });
+                            if (res.skipped) toast.error(res.skipped);
+                            else toast.success(`Auto-billed: ${res.lines} lines, $${res.subtotal}`);
+                          }}
+                        >
+                          Bill
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-[10px] gap-1"
+                          onClick={async () => {
+                            if (!window.confirm("Proceed?")) return;
+                            const inbound = inboundShipments?.find(
+                              (s: any) => s.workOrderId === w.id,
+                            );
+                            await addDoc(collection(db, "ediLogs"), {
+                              id: `EDI-944-${Date.now()}`,
+                              txn: "944",
+                              direction: "outbound",
+                              partner: inbound?.partner ?? "SBX-PARTNER",
+                              documentRef: inbound?.ediRef ?? w.woNumber,
+                              tenantId: w.tenantId,
+                              warehouseId: w.warehouseId,
+                              isaControl: inbound?.isaControl ?? "999999998",
+                              gsControl: "944",
+                              segments: 10,
+                              bytes: 300,
+                              ackStatus: "AK",
+                              status: "processed",
+                              message: "Manual EDI 944 triggered from Work Order.",
+                              receivedAt: new Date().toISOString(),
+                            });
+                            toast.success("EDI 944 generated");
+                          }}
+                        >
+                          944
+                        </Button>{" "}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -623,7 +722,10 @@ function WorkOrdersPage() {
       )}
 
       {workOrderToDelete && (
-        <AlertDialog open={!!workOrderToDelete} onOpenChange={(o) => !o && setWorkOrderToDelete(null)}>
+        <AlertDialog
+          open={!!workOrderToDelete}
+          onOpenChange={(o) => !o && setWorkOrderToDelete(null)}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Work Order?</AlertDialogTitle>
@@ -666,7 +768,15 @@ function WorkOrdersPage() {
   );
 }
 
-function StatCell({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: number }) {
+function StatCell({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: number;
+}) {
   return (
     <div className="px-4 py-2.5">
       <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -678,11 +788,21 @@ function StatCell({ icon: Icon, label, value }: { icon: React.ElementType; label
   );
 }
 
-function KeyVal({ icon: Icon, label, value }: { icon?: React.ElementType; label: string; value: string }) {
+function KeyVal({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon?: React.ElementType;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="flex items-center gap-1.5 min-w-0">
       {Icon && <Icon className="h-3 w-3 text-muted-foreground shrink-0" />}
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">{label}</span>
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+        {label}
+      </span>
       <span className="text-foreground truncate">{value}</span>
     </div>
   );
@@ -738,7 +858,9 @@ function EditWorkOrderDialog({
                 <Label className="text-[10px]">Container Number</Label>
                 <Input
                   value={editFormData.containerNumber || ""}
-                  onChange={(e) => setEditFormData({ ...editFormData, containerNumber: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, containerNumber: e.target.value })
+                  }
                   className="h-8 text-xs"
                 />
               </div>
@@ -746,7 +868,9 @@ function EditWorkOrderDialog({
                 <Label className="text-[10px]">Trailer Number</Label>
                 <Input
                   value={editFormData.trailerNumber || ""}
-                  onChange={(e) => setEditFormData({ ...editFormData, trailerNumber: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, trailerNumber: e.target.value })
+                  }
                   className="h-8 text-xs"
                 />
               </div>
@@ -794,7 +918,9 @@ function EditWorkOrderDialog({
                 <Label className="text-[10px]">Voyage</Label>
                 <Input
                   value={editFormData.voyageNumber || ""}
-                  onChange={(e) => setEditFormData({ ...editFormData, voyageNumber: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, voyageNumber: e.target.value })
+                  }
                   className="h-8 text-xs"
                 />
               </div>
@@ -812,7 +938,9 @@ function EditWorkOrderDialog({
                 <Input
                   type="datetime-local"
                   value={editFormData.departureDate || ""}
-                  onChange={(e) => setEditFormData({ ...editFormData, departureDate: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, departureDate: e.target.value })
+                  }
                   className="h-8 text-xs"
                 />
               </div>
@@ -861,7 +989,9 @@ function EditWorkOrderDialog({
                 <Label className="text-[10px]">Door Assigned</Label>
                 <Input
                   value={editFormData.doorAssigned || ""}
-                  onChange={(e) => setEditFormData({ ...editFormData, doorAssigned: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, doorAssigned: e.target.value })
+                  }
                   className="h-8 text-xs font-mono"
                 />
               </div>
@@ -877,7 +1007,9 @@ function EditWorkOrderDialog({
                 <Input
                   type="number"
                   value={editFormData.totalUnits ?? workOrder.totalUnits}
-                  onChange={(e) => setEditFormData({ ...editFormData, totalUnits: parseInt(e.target.value) || 0 })}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, totalUnits: parseInt(e.target.value) || 0 })
+                  }
                   className="h-8 text-xs"
                 />
               </div>
@@ -897,10 +1029,13 @@ function EditWorkOrderDialog({
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button size="sm" onClick={() => {
-            onEdited();
-            onOpenChange(false);
-          }}>
+          <Button
+            size="sm"
+            onClick={() => {
+              onEdited();
+              onOpenChange(false);
+            }}
+          >
             Save Changes
           </Button>
         </DialogFooter>

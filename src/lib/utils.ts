@@ -60,18 +60,26 @@ export const fmtTime = (iso: any) => {
   return tf.format(d);
 };
 
-export function downloadExcel(filename: string, data: any[], columns: { header: string; key: string }[]) {
+export function downloadExcel(
+  filename: string,
+  data: any[],
+  columns: { header: string; key: string }[],
+) {
   const csv = [
-    columns.map(c => c.header).join(","),
-    ...data.map(row => columns.map(c => {
-      const val = row[c.key];
-      if (val === null || val === undefined) return "";
-      const str = String(val);
-      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-        return '"' + str.replace(/"/g, '""') + '"';
-      }
-      return str;
-    }).join(","))
+    columns.map((c) => c.header).join(","),
+    ...data.map((row) =>
+      columns
+        .map((c) => {
+          const val = row[c.key];
+          if (val === null || val === undefined) return "";
+          const str = String(val);
+          if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+            return '"' + str.replace(/"/g, '""') + '"';
+          }
+          return str;
+        })
+        .join(","),
+    ),
   ].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

@@ -324,12 +324,7 @@ describe("GTIN Pack Conversion", () => {
   });
 
   it("reports an error when no hierarchy exists", () => {
-    const result = convertPackQuantity(
-      makeItem({ packHierarchy: [] }),
-      10,
-      "each",
-      "master",
-    );
+    const result = convertPackQuantity(makeItem({ packHierarchy: [] }), 10, "each", "master");
     expect(result.ok).toBe(false);
     expect(result.error).toBeTruthy();
   });

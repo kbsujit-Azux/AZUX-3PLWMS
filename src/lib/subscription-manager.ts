@@ -68,7 +68,12 @@ export class SubscriptionManager {
     this.startMaintenance();
   }
 
-  register(id: string, unsubscribe: Unsubscribe, tag?: string, context?: string): ManagedSubscription {
+  register(
+    id: string,
+    unsubscribe: Unsubscribe,
+    tag?: string,
+    context?: string,
+  ): ManagedSubscription {
     const sub: ManagedSubscription = {
       id,
       tag,

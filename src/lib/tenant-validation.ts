@@ -29,7 +29,11 @@ const TENANT_ACCESS: Record<string, TenantAccess> = {
   all: { tenantId: "all", warehouseIds: [], canViewAllWarehouses: true },
   acme: { tenantId: "acme", warehouseIds: ["atl1", "ord2"], canViewAllWarehouses: false },
   northstar: { tenantId: "northstar", warehouseIds: ["ord2", "lax3"], canViewAllWarehouses: false },
-  harborlite: { tenantId: "harborlite", warehouseIds: ["ewr1", "atl1"], canViewAllWarehouses: false },
+  harborlite: {
+    tenantId: "harborlite",
+    warehouseIds: ["ewr1", "atl1"],
+    canViewAllWarehouses: false,
+  },
   verdant: { tenantId: "verdant", warehouseIds: ["ord2", "atl1"], canViewAllWarehouses: false },
 };
 

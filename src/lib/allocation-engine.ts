@@ -195,18 +195,18 @@ export async function allocate_order(orderId: string): Promise<AllocationResult>
       };
     }
 
-  // Helper: location priority for wave/batch picking (lower = higher priority)
-  const locationPriority = (loc: string): number => {
-    const l = loc.toUpperCase();
-    if (l.startsWith("PK-") || l.startsWith("PRIMARY") || l.startsWith("A")) return 1;
-    if (l.startsWith("SP-") || l.startsWith("SECONDARY") || l.startsWith("B")) return 2;
-    if (l.startsWith("BLK-") || l.startsWith("BULK") || l.startsWith("C")) return 3;
-    if (l.startsWith("FLR-") || l.startsWith("FLOOR") || l.startsWith("D")) return 4;
-    if (l.startsWith("HLD-") || l.startsWith("HOLD") || l.startsWith("Q")) return 99;
-    return 5; // default
-  };
+    // Helper: location priority for wave/batch picking (lower = higher priority)
+    const locationPriority = (loc: string): number => {
+      const l = loc.toUpperCase();
+      if (l.startsWith("PK-") || l.startsWith("PRIMARY") || l.startsWith("A")) return 1;
+      if (l.startsWith("SP-") || l.startsWith("SECONDARY") || l.startsWith("B")) return 2;
+      if (l.startsWith("BLK-") || l.startsWith("BULK") || l.startsWith("C")) return 3;
+      if (l.startsWith("FLR-") || l.startsWith("FLOOR") || l.startsWith("D")) return 4;
+      if (l.startsWith("HLD-") || l.startsWith("HOLD") || l.startsWith("Q")) return 99;
+      return 5; // default
+    };
 
-  const candidates = item.batches
+    const candidates = item.batches
       .filter((b) => !NON_ALLOCATABLE_LOCATIONS.includes(b.location))
       .map((b) => ({
         batch: b,

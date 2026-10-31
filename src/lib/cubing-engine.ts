@@ -104,7 +104,9 @@ export function cartonizeOrder(
   const items = expandOrderLinesToItems(order, itemMaster);
   const cartons: Carton[] = [];
 
-  const sortedItems = [...items].sort((a, b) => b.lengthIn * b.widthIn * b.heightIn - a.lengthIn * a.widthIn * a.heightIn);
+  const sortedItems = [...items].sort(
+    (a, b) => b.lengthIn * b.widthIn * b.heightIn - a.lengthIn * a.widthIn * a.heightIn,
+  );
 
   let cartonSeq = 1;
   for (const item of sortedItems) {
@@ -124,7 +126,8 @@ export function cartonizeOrder(
       const existingCarton = cartons.find((c) => {
         if (c.cartonSizeId !== recommended.id) return false;
         const projectedWeight = c.weightLbs + item.weightLbs * packQty;
-        const projectedVolume = c.items.reduce((sum, i) => sum + i.lengthIn * i.widthIn * i.heightIn, 0) +
+        const projectedVolume =
+          c.items.reduce((sum, i) => sum + i.lengthIn * i.widthIn * i.heightIn, 0) +
           item.lengthIn * item.widthIn * item.heightIn * packQty;
         const maxVolume = recommended.lengthIn * recommended.widthIn * recommended.heightIn;
         return projectedWeight <= recommended.maxWeightLbs && projectedVolume <= maxVolume;

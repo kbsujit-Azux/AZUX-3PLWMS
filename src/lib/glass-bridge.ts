@@ -29,7 +29,10 @@ export interface GlassBridge {
   connected: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
-  displayText: (text: string, options?: { durationMs?: number; fontSize?: number }) => Promise<void>;
+  displayText: (
+    text: string,
+    options?: { durationMs?: number; fontSize?: number },
+  ) => Promise<void>;
   clearDisplay: () => Promise<void>;
   captureImage: () => Promise<Blob | null>;
   startCameraPreview: (element: HTMLVideoElement) => Promise<void>;
@@ -52,7 +55,11 @@ const HANDLERS = new Set<(input: GlassInput) => void>();
 
 function notifyHandlers(input: GlassInput) {
   for (const handler of HANDLERS) {
-    try { handler(input); } catch { /* ignore */ }
+    try {
+      handler(input);
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -69,7 +76,10 @@ export function createGlassBridge(vendor: GlassVendor = "generic"): GlassBridge 
     state.connected = false;
   };
 
-  const displayText = async (text: string, options?: { durationMs?: number; fontSize?: number }) => {
+  const displayText = async (
+    text: string,
+    options?: { durationMs?: number; fontSize?: number },
+  ) => {
     if (!state.connected) return;
     const durationMs = options?.durationMs ?? 3000;
     const fontSize = options?.fontSize ?? 24;
@@ -85,7 +95,9 @@ export function createGlassBridge(vendor: GlassVendor = "generic"): GlassBridge 
   const captureImage = async (): Promise<Blob | null> => {
     if (!state.connected) return null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
       const track = stream.getVideoTracks()[0];
       const imageTrack = track ? track.clone() : null;
       if (imageTrack) imageTrack.stop();
@@ -100,10 +112,14 @@ export function createGlassBridge(vendor: GlassVendor = "generic"): GlassBridge 
           const ctx = canvas.getContext("2d");
           if (ctx) {
             ctx.drawImage(video, 0, 0);
-            canvas.toBlob((b) => {
-              stream.getTracks().forEach((t) => t.stop());
-              resolve(b);
-            }, "image/jpeg", 0.85);
+            canvas.toBlob(
+              (b) => {
+                stream.getTracks().forEach((t) => t.stop());
+                resolve(b);
+              },
+              "image/jpeg",
+              0.85,
+            );
           } else {
             stream.getTracks().forEach((t) => t.stop());
             resolve(null);
@@ -119,7 +135,9 @@ export function createGlassBridge(vendor: GlassVendor = "generic"): GlassBridge 
   const startCameraPreview = async (element: HTMLVideoElement) => {
     if (!state.connected) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
       element.srcObject = stream;
       element.play();
     } catch {
@@ -151,7 +169,10 @@ export function createGlassBridge(vendor: GlassVendor = "generic"): GlassBridge 
   const playBeep = async (frequency = 1000, durationMs = 200) => {
     if (!state.connected) return;
     try {
-      const AudioCtx = window.AudioContext || ((window as unknown as Record<string, unknown>).webkitAudioContext as unknown as typeof AudioContext);
+      const AudioCtx =
+        window.AudioContext ||
+        ((window as unknown as Record<string, unknown>)
+          .webkitAudioContext as unknown as typeof AudioContext);
       const ctx = new AudioCtx();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();

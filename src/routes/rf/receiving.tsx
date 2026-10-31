@@ -42,7 +42,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useRfSession } from "@/lib/rf-session";
-import { fetchInboundShipments, receiveInboundShipment, createPalletsAndLinkToShipment, recordInboundPalletBuild } from "@/lib/firestore-data";
+import {
+  fetchInboundShipments,
+  receiveInboundShipment,
+  createPalletsAndLinkToShipment,
+  recordInboundPalletBuild,
+} from "@/lib/firestore-data";
 import { createPalletsFromInbound } from "@/lib/pallet-data";
 import { DROP001_LOCATION } from "@/lib/mock-data";
 import { type InboundShipment, type InboundLine } from "@/lib/inbound-data";
@@ -117,7 +122,9 @@ function ReceivingInner() {
           tts.speak("Cancelled");
           break;
         case "help":
-          tts.speak("Say confirm to record count or create pallets, next for next line, cancel to start over");
+          tts.speak(
+            "Say confirm to record count or create pallets, next for next line, cancel to start over",
+          );
           break;
         default:
           break;
@@ -148,44 +155,47 @@ function ReceivingInner() {
     }
   }, []);
 
-  const handleContainerScan = useCallback(async (code?: string) => {
-    if (!employee || busy) return;
-    const containerNo = code ?? containerRef.current?.value.trim();
-    if (!containerNo) {
-      setError("Scan or enter Container Number");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      const list = await fetchInboundShipments(
-        employee.assignedClientId,
-        employee.assignedWarehouseId,
-      );
-      const found = list.find(
-        (s) =>
-          s.containerNumber.toLowerCase() === containerNo.toLowerCase() ||
-          s.id.toLowerCase() === containerNo.toLowerCase(),
-      );
-      if (!found) {
-        setError(`Shipment for container ${containerNo} not found`);
-        playChime("err");
-        setBusy(false);
+  const handleContainerScan = useCallback(
+    async (code?: string) => {
+      if (!employee || busy) return;
+      const containerNo = code ?? containerRef.current?.value.trim();
+      if (!containerNo) {
+        setError("Scan or enter Container Number");
         return;
       }
-      setShipment(found);
-      setReceivedMap({});
-      setSplits([]);
-      setLineIdx(0);
-      setStep("manifest");
-      playChime("ok");
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Lookup failed");
-      playChime("err");
-    } finally {
-      setBusy(false);
-    }
-  }, [employee, busy, playChime]);
+      setBusy(true);
+      setError("");
+      try {
+        const list = await fetchInboundShipments(
+          employee.assignedClientId,
+          employee.assignedWarehouseId,
+        );
+        const found = list.find(
+          (s) =>
+            s.containerNumber.toLowerCase() === containerNo.toLowerCase() ||
+            s.id.toLowerCase() === containerNo.toLowerCase(),
+        );
+        if (!found) {
+          setError(`Shipment for container ${containerNo} not found`);
+          playChime("err");
+          setBusy(false);
+          return;
+        }
+        setShipment(found);
+        setReceivedMap({});
+        setSplits([]);
+        setLineIdx(0);
+        setStep("manifest");
+        playChime("ok");
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Lookup failed");
+        playChime("err");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [employee, busy, playChime],
+  );
 
   const recordCount = useCallback(
     async (line: InboundLine, qty: number) => {
@@ -338,16 +348,9 @@ function ReceivingInner() {
 
       {scanMode === "camera" && (
         <Card className="p-2 space-y-2">
-          <video
-            ref={videoRef}
-            className="w-full h-40 bg-black rounded"
-            playsInline
-            muted
-          />
+          <video ref={videoRef} className="w-full h-40 bg-black rounded" playsInline muted />
           {lastCode && (
-            <div className="text-xs font-mono text-emerald-400">
-              Last scan: {lastCode}
-            </div>
+            <div className="text-xs font-mono text-emerald-400">Last scan: {lastCode}</div>
           )}
         </Card>
       )}

@@ -30,10 +30,7 @@ export interface CrossDockEvaluationResult {
   totalUnmatchedQty: number;
 }
 
-export function findOpenOrdersForSku(
-  orders: Order[],
-  sku: string,
-): Order[] {
+export function findOpenOrdersForSku(orders: Order[], sku: string): Order[] {
   return orders.filter((o) => {
     const closed = ["shipped", "exception"];
     if (closed.includes(o.status)) return false;

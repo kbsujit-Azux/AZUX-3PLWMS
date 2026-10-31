@@ -28,23 +28,12 @@
  * ============================================================
  */
 
-import type {
-  ItemMasterRecord,
-  LocationRecord,
-  VelocityClassification,
-} from "./master-data";
+import type { ItemMasterRecord, LocationRecord, VelocityClassification } from "./master-data";
 
 export type PutawayAlgorithm = "best_fit" | "nearest_empty" | "zone_cluster";
 
 export type PutawayConstraintViolation = {
-  type:
-    | "weight"
-    | "dimension"
-    | "hazmat"
-    | "temperature"
-    | "capacity"
-    | "status"
-    | "client";
+  type: "weight" | "dimension" | "hazmat" | "temperature" | "capacity" | "status" | "client";
   detail: string;
 };
 
@@ -228,7 +217,8 @@ export function checkConstraints(
     }
   }
 
-  const hazmatAllowed = location.slottingRules?.requiredItemAttrs?.hazmatAllowed ?? location.hazmatAllowed ?? false;
+  const hazmatAllowed =
+    location.slottingRules?.requiredItemAttrs?.hazmatAllowed ?? location.hazmatAllowed ?? false;
   if (item?.hazmat && !hazmatAllowed) {
     violations.push({
       type: "hazmat",
@@ -236,7 +226,8 @@ export function checkConstraints(
     });
   }
 
-  const tempControlled = location.slottingRules?.requiredItemAttrs?.tempControlled ?? location.tempControlled ?? false;
+  const tempControlled =
+    location.slottingRules?.requiredItemAttrs?.tempControlled ?? location.tempControlled ?? false;
   if (item?.storageTempMin !== undefined || item?.storageTempMax !== undefined) {
     if (!tempControlled) {
       violations.push({
@@ -247,7 +238,9 @@ export function checkConstraints(
       const locMin = location.slottingRules?.requiredItemAttrs?.tempMin ?? location.tempMin;
       const locMax = location.slottingRules?.requiredItemAttrs?.tempMax ?? location.tempMax;
       if (
-        (locMin !== undefined && item.storageTempMin !== undefined && item.storageTempMin < locMin) ||
+        (locMin !== undefined &&
+          item.storageTempMin !== undefined &&
+          item.storageTempMin < locMin) ||
         (locMax !== undefined && item.storageTempMax !== undefined && item.storageTempMax > locMax)
       ) {
         violations.push({
@@ -305,7 +298,9 @@ export function scoreLocation(
   let zoneAffinity = 0;
   const style = input.itemStyle ?? item?.itemStyle;
   if (style && input.existingPallets?.length) {
-    const sameStyle = input.existingPallets.filter((p) => p.sku === input.sku || p.sku.startsWith(style));
+    const sameStyle = input.existingPallets.filter(
+      (p) => p.sku === input.sku || p.sku.startsWith(style),
+    );
     if (sameStyle.length) {
       const sameZone = sameStyle.filter((p) => {
         if (!p.location) return false;
@@ -347,7 +342,7 @@ export function scoreLocation(
   }
 
   /* 5. Constraints (10%) */
-  let constraints = violations.length === 0 ? 100 : Math.max(0, 100 - violations.length * 50);
+  const constraints = violations.length === 0 ? 100 : Math.max(0, 100 - violations.length * 50);
   for (const v of violations) {
     warnings.push(v.detail);
   }
@@ -399,9 +394,7 @@ export type RecommendPutawayArgs = {
  * Locations with hard constraint violations are excluded unless
  * `includeInfeasible` is set.
  */
-export function recommendPutaway(
-  args: RecommendPutawayArgs,
-): PutawayCandidate[] {
+export function recommendPutaway(args: RecommendPutawayArgs): PutawayCandidate[] {
   const {
     input,
     locations,
@@ -418,9 +411,7 @@ export function recommendPutaway(
       locationAvailableToClient(l, input.tenantId),
   );
 
-  const scored = warehouseLocations.map((l) =>
-    scoreLocation(l, input, item, weights),
-  );
+  const scored = warehouseLocations.map((l) => scoreLocation(l, input, item, weights));
 
   const feasible = scored.filter((c) => c.violations.length === 0);
 
@@ -447,9 +438,7 @@ export function recommendPutaway(
  * Suggest a single best location (highest scoring) — used by the
  * pallet build flow to pre-fill the suggestedLocation field.
  */
-export function suggestBestLocation(
-  args: RecommendPutawayArgs,
-): PutawayCandidate | null {
+export function suggestBestLocation(args: RecommendPutawayArgs): PutawayCandidate | null {
   const results = recommendPutaway({ ...args, limit: 1 });
   return results[0] ?? null;
 }

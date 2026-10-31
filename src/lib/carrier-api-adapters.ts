@@ -230,7 +230,13 @@ export class MockCarrierAdapter implements CarrierAdapter {
   private transitMin: number;
   private transitMax: number;
 
-  constructor(config: CarrierAdapterConfig & { baseRatePerLb: number; transitMin: number; transitMax: number }) {
+  constructor(
+    config: CarrierAdapterConfig & {
+      baseRatePerLb: number;
+      transitMin: number;
+      transitMax: number;
+    },
+  ) {
     this.carrierId = config.carrierId;
     this.carrierName = config.carrierName;
     this.baseRatePerLb = config.baseRatePerLb;
@@ -243,7 +249,8 @@ export class MockCarrierAdapter implements CarrierAdapter {
     const fuel = +(base * 0.15).toFixed(2);
     const accessorials = request.declaredValue ? +(request.declaredValue * 0.01).toFixed(2) : 0;
     const total = +(base + fuel + accessorials).toFixed(2);
-    const transitDays = Math.floor(Math.random() * (this.transitMax - this.transitMin + 1)) + this.transitMin;
+    const transitDays =
+      Math.floor(Math.random() * (this.transitMax - this.transitMin + 1)) + this.transitMin;
 
     return [
       {
@@ -280,7 +287,10 @@ export function createCarrierAdapter(config: CarrierAdapterConfig): CarrierAdapt
 }
 
 export function createMockAdapter(carrierId: string, carrierName: string): CarrierAdapter {
-  const mockConfigs: Record<string, { baseRatePerLb: number; transitMin: number; transitMax: number }> = {
+  const mockConfigs: Record<
+    string,
+    { baseRatePerLb: number; transitMin: number; transitMax: number }
+  > = {
     usps: { baseRatePerLb: 0.45, transitMin: 2, transitMax: 8 },
     ups: { baseRatePerLb: 0.55, transitMin: 1, transitMax: 5 },
     fedex: { baseRatePerLb: 0.52, transitMin: 1, transitMax: 5 },
@@ -288,7 +298,7 @@ export function createMockAdapter(carrierId: string, carrierName: string): Carri
     old_dominion: { baseRatePerLb: 0.38, transitMin: 1, transitMax: 4 },
   };
 
-  const cfg = mockConfigs[carrierId] || { baseRatePerLb: 0.50, transitMin: 2, transitMax: 5 };
+  const cfg = mockConfigs[carrierId] || { baseRatePerLb: 0.5, transitMin: 2, transitMax: 5 };
   return new MockCarrierAdapter({
     carrierId,
     carrierName,
@@ -303,11 +313,9 @@ export function createMockAdapter(carrierId: string, carrierName: string): Carri
 
 export async function getRatesFromCarriers(
   request: RateQuoteRequest,
-  adapters: CarrierAdapter[]
+  adapters: CarrierAdapter[],
 ): Promise<RateQuote[]> {
-  const results = await Promise.allSettled(
-    adapters.map((adapter) => adapter.getRates(request))
-  );
+  const results = await Promise.allSettled(adapters.map((adapter) => adapter.getRates(request)));
 
   const quotes: RateQuote[] = [];
   results.forEach((result) => {

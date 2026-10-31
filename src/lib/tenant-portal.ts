@@ -115,7 +115,13 @@ export function getWarehousesForTenant(tenantId: string): Warehouse[] {
   const ALL_WAREHOUSES: Warehouse[] = [
     { id: "atl1", name: "ATL-1 Distribution", code: "ATL1", city: "Atlanta, GA", capacityPct: 78 },
     { id: "ord2", name: "ORD-2 Fulfillment", code: "ORD2", city: "Chicago, IL", capacityPct: 64 },
-    { id: "lax3", name: "LAX-3 Cross-Dock", code: "LAX3", city: "Los Angeles, CA", capacityPct: 91 },
+    {
+      id: "lax3",
+      name: "LAX-3 Cross-Dock",
+      code: "LAX3",
+      city: "Los Angeles, CA",
+      capacityPct: 91,
+    },
     { id: "ewr1", name: "EWR-1 Bonded", code: "EWR1", city: "Newark, NJ", capacityPct: 47 },
   ];
   return ALL_WAREHOUSES.filter((w) => allowed.includes(w.id));

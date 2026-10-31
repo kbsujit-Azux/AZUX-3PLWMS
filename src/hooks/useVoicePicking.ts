@@ -9,7 +9,13 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createVoicePickingEngine, type VoicePickingOptions, type ParsedVoiceCommand, type VoiceCommand, type VoicePickingState } from "../lib/voice-picking";
+import {
+  createVoicePickingEngine,
+  type VoicePickingOptions,
+  type ParsedVoiceCommand,
+  type VoiceCommand,
+  type VoicePickingState,
+} from "../lib/voice-picking";
 
 export function useVoicePicking(options: VoicePickingOptions) {
   const [state, setState] = useState<VoicePickingState>({

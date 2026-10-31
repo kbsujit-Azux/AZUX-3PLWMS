@@ -119,10 +119,7 @@ export function palletCasePack(
  * must be released from the Inventory screen first, which returns them to
  * "staged" with no location.
  */
-export function isPalletLocked(pallet: {
-  location?: string | null;
-  status?: string;
-}): boolean {
+export function isPalletLocked(pallet: { location?: string | null; status?: string }): boolean {
   return (
     !!pallet.location ||
     pallet.status === "putaway" ||
@@ -134,22 +131,17 @@ export function isPalletLocked(pallet: {
 /**
  * A pallet is waiting to be put away when it is not stored anywhere yet.
  */
-export function isAwaitingPutaway(pallet: {
-  location?: string | null;
-  status?: string;
-}): boolean {
-  return (
-    !pallet.location &&
-    pallet.status !== "shipped" &&
-    pallet.status !== "picking"
-  );
+export function isAwaitingPutaway(pallet: { location?: string | null; status?: string }): boolean {
+  return !pallet.location && pallet.status !== "shipped" && pallet.status !== "picking";
 }
 
 /** Directed putaway: pick the best slot for an inbound pallet */
 export function suggestPutawayLocation(itemStyle: string, warehouseId: string): string {
   // In production this consults the warehouse slotting map (velocity, weight,
   // zone affinity, cube). Deterministic mock based on style + warehouse.
-  const styleHash = (itemStyle ?? "").split("").reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const styleHash = (itemStyle ?? "")
+    .split("")
+    .reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
   const zones = ["A", "B", "C", "D", "E", "F", "G"];
   const zone = zones[styleHash % zones.length];
   const aisle = ((styleHash >> 3) % 18) + 1;

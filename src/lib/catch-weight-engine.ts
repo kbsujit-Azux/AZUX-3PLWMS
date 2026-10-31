@@ -16,7 +16,7 @@ import type { CatchWeightLog, CatchWeightItem } from "./catch-weight-data";
 
 export function computeWeightVariancePct(log: CatchWeightLog, item: CatchWeightItem): number {
   if (item.targetWeightLbs === 0) return 0;
-  return Math.abs(log.netWeightLbs - item.targetWeightLbs) / item.targetWeightLbs * 100;
+  return (Math.abs(log.netWeightLbs - item.targetWeightLbs) / item.targetWeightLbs) * 100;
 }
 
 export function isWeightOutOfSpec(log: CatchWeightLog, item: CatchWeightItem): boolean {

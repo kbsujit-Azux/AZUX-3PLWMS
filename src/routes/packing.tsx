@@ -7,12 +7,43 @@ import { db } from "@/lib/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Printer, RefreshCw, Search, ChevronDown, ChevronRight, Package } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Printer,
+  RefreshCw,
+  Search,
+  ChevronDown,
+  ChevronRight,
+  Package,
+} from "lucide-react";
 import { generateNextUCC128 } from "@/lib/ucc128";
 
 export const Route = createFileRoute("/packing")({
@@ -137,9 +168,15 @@ function PackingPage() {
     const records = uccRecords.filter((r) => r.orderId === orderId);
     const win = window.open("", "_blank");
     if (!win) return;
-    const labels = records.map((r) => {
-      const bars = Array.from({ length: 48 }).map((_, i) => `<span style="display:inline-block;background:#000;width:${((i * 31 + r.id.charCodeAt(i % r.id.length)) % 3) + 1}px;height:100%;"></span>`).join("");
-      return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
+    const labels = records
+      .map((r) => {
+        const bars = Array.from({ length: 48 })
+          .map(
+            (_, i) =>
+              `<span style="display:inline-block;background:#000;width:${((i * 31 + r.id.charCodeAt(i % r.id.length)) % 3) + 1}px;height:100%;"></span>`,
+          )
+          .join("");
+        return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
         <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;">
           <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">AZUX 3PL WMS Systems</span>
           <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">UCC128 SSCC</span>
@@ -158,8 +195,11 @@ function PackingPage() {
         <div style="margin-top:8px;display:flex;align-items:flex-end;gap:1px;overflow:hidden;height:40px;background:#111;padding:4px;">${bars}</div>
         <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${r.id}</div>
       </div>`;
-    }).join("");
-    win.document.write(`<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; }</style></head><body>${labels}</body></html>`);
+      })
+      .join("");
+    win.document.write(
+      `<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; }</style></head><body>${labels}</body></html>`,
+    );
     win.document.close();
     setTimeout(() => win.print(), 500);
   };
@@ -177,7 +217,9 @@ function PackingPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Packing & UCC128</h1>
-          <p className="text-sm text-muted-foreground">UCC128 outbound pallet management — grouped by order</p>
+          <p className="text-sm text-muted-foreground">
+            UCC128 outbound pallet management — grouped by order
+          </p>
         </div>
         <div className="flex gap-2">
           <Input
@@ -201,7 +243,7 @@ function PackingPage() {
       <div className="space-y-3">
         {grouped.map(([orderId, records]) => {
           const totalUnits = records.reduce((s, r) => s + (r.units ?? 0), 0);
-           const order = liveOrders.find((o: any) => o.id === orderId) as any;
+          const order = liveOrders.find((o: any) => o.id === orderId) as any;
           const shipTo = records[0]?.toAddress ?? order?.shipToName ?? "—";
           const uccBuildDate = records[0]?.createdAt ?? "";
           const pickDate = order?.pickedAt ?? "—";
@@ -209,8 +251,17 @@ function PackingPage() {
             <div key={orderId} className="rounded-md border border-border bg-card overflow-hidden">
               <div className="flex items-center justify-between p-3 bg-muted/30">
                 <div className="flex items-center gap-4">
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => toggleExpand(orderId)}>
-                    {expandedOrders.has(orderId) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={() => toggleExpand(orderId)}
+                  >
+                    {expandedOrders.has(orderId) ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
                   </Button>
                   <div>
                     <div className="font-mono font-semibold text-sm">{orderId}</div>
@@ -218,14 +269,43 @@ function PackingPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-xs">
-                  <div><span className="text-muted-foreground">Units:</span> <span className="font-medium">{totalUnits}</span></div>
-                  <div><span className="text-muted-foreground">UCCs:</span> <span className="font-medium">{records.length}</span></div>
-                  <div><span className="text-muted-foreground">Pick:</span> <span className="font-medium">{typeof pickDate === "string" ? pickDate.slice(0, 10) : "—"}</span></div>
-                  <div><span className="text-muted-foreground">UCC Built:</span> <span className="font-medium">{uccBuildDate ? new Date(uccBuildDate).toLocaleDateString() : "—"}</span></div>
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => handlePrintAll(orderId)}>
+                  <div>
+                    <span className="text-muted-foreground">Units:</span>{" "}
+                    <span className="font-medium">{totalUnits}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">UCCs:</span>{" "}
+                    <span className="font-medium">{records.length}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Pick:</span>{" "}
+                    <span className="font-medium">
+                      {typeof pickDate === "string" ? pickDate.slice(0, 10) : "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">UCC Built:</span>{" "}
+                    <span className="font-medium">
+                      {uccBuildDate ? new Date(uccBuildDate).toLocaleDateString() : "—"}
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => handlePrintAll(orderId)}
+                  >
                     <Printer className="h-3 w-3" /> Print All
                   </Button>
-                  <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" onClick={() => { setMassDeleteOrder(orderId); setMassDeleteOpen(true); }}>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => {
+                      setMassDeleteOrder(orderId);
+                      setMassDeleteOpen(true);
+                    }}
+                  >
                     <Trash2 className="h-3 w-3" /> Delete All
                   </Button>
                 </div>
@@ -252,11 +332,25 @@ function PackingPage() {
                           <td className="p-2">{r.sku}</td>
                           <td className="p-2">{r.itemStyle}</td>
                           <td className="p-2 text-right">{r.units}</td>
-                          <td className="p-2 text-right">{r.cartonNumber}/{r.totalCartons}</td>
-                          <td className="p-2">{r.palletId || "—"}</td>
-                          <td className="p-2"><Badge variant="outline" className="text-[10px] h-5">{r.status}</Badge></td>
                           <td className="p-2 text-right">
-                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setDeleteTarget(r); setDeleteOpen(true); }}>
+                            {r.cartonNumber}/{r.totalCartons}
+                          </td>
+                          <td className="p-2">{r.palletId || "—"}</td>
+                          <td className="p-2">
+                            <Badge variant="outline" className="text-[10px] h-5">
+                              {r.status}
+                            </Badge>
+                          </td>
+                          <td className="p-2 text-right">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                setDeleteTarget(r);
+                                setDeleteOpen(true);
+                              }}
+                            >
                               <Trash2 className="h-3 w-3 text-destructive" />
                             </Button>
                           </td>
@@ -282,7 +376,12 @@ function PackingPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => { if (deleteTarget) handleDelete(deleteTarget); }}>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => {
+                if (deleteTarget) handleDelete(deleteTarget);
+              }}
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -300,7 +399,12 @@ function PackingPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setMassDeleteOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => { if (massDeleteOrder) handleMassDelete(massDeleteOrder); }}>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => {
+                if (massDeleteOrder) handleMassDelete(massDeleteOrder);
+              }}
+            >
               Delete All
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -80,7 +80,10 @@ export function calculateVasCost(
     return sum + l.qtyConsumed * 0.01;
   }, 0);
 
-  const totalLaborSec = lines.reduce((sum, l) => sum + (l.actualLaborSec || l.laborStandardSec || 0), 0);
+  const totalLaborSec = lines.reduce(
+    (sum, l) => sum + (l.actualLaborSec || l.laborStandardSec || 0),
+    0,
+  );
   const laborCost = (totalLaborSec / 3600) * laborRatePerHour;
 
   const overheadRate = 0.25;

@@ -338,7 +338,9 @@ export function buildBolFromOrder(o: Order): BillOfLading {
     sealNumber: `SL-${o.id.slice(-5)}`,
     freightChargeTerms: "prepaid",
     cod: 0,
-    declaredValue: Array.isArray(o.lines) ? +o.lines.reduce((a, l) => a + l.qtyOrdered * l.unitPrice, 0).toFixed(2) : 0,
+    declaredValue: Array.isArray(o.lines)
+      ? +o.lines.reduce((a, l) => a + l.qtyOrdered * l.unitPrice, 0).toFixed(2)
+      : 0,
     shipper: shipperFor(o.warehouseId, o.tenantId),
     consignee: consigneeFor(o),
     specialInstructions:
@@ -370,10 +372,12 @@ export function buildConsolidationGroups(pool: Order[] = orders): ConsolidationG
     const key = `${o.shipToName}|${o.carrier}|${o.warehouseId}`;
     const ex = groups.get(key);
     const units = Array.isArray(o.lines) ? o.lines.reduce((a, l) => a + l.qtyOrdered, 0) : 0;
-    const weight = Array.isArray(o.lines) ? o.lines.reduce((a, l) => {
-      const i = inventoryItems.find((x) => x.sku === l.sku);
-      return a + l.qtyOrdered * (i?.weightLbs ?? 1);
-    }, 0) : 0;
+    const weight = Array.isArray(o.lines)
+      ? o.lines.reduce((a, l) => {
+          const i = inventoryItems.find((x) => x.sku === l.sku);
+          return a + l.qtyOrdered * (i?.weightLbs ?? 1);
+        }, 0)
+      : 0;
     if (ex) {
       ex.orderIds.push(o.id);
       ex.totalUnits += units;
@@ -425,7 +429,14 @@ export function buildMasterBol(orderIds: string[]): BillOfLading {
     freightChargeTerms: "prepaid",
     cod: 0,
     declaredValue: +subset
-      .reduce((a, o) => a + (Array.isArray(o.lines) ? o.lines.reduce((b, l) => b + l.qtyOrdered * l.unitPrice, 0) : 0), 0)
+      .reduce(
+        (a, o) =>
+          a +
+          (Array.isArray(o.lines)
+            ? o.lines.reduce((b, l) => b + l.qtyOrdered * l.unitPrice, 0)
+            : 0),
+        0,
+      )
       .toFixed(2),
     shipper: shipperFor(first.warehouseId, first.tenantId),
     consignee: consigneeFor(first),
@@ -493,4 +504,3 @@ export function emit945ForBol(bol: BillOfLading): EdiLog {
   ediLogs.unshift(log);
   return log;
 }
-

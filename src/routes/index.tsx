@@ -59,11 +59,16 @@ function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !Array.isArray(payload) || !payload.length) return null;
   return (
     <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 shadow-md">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label ?? ""}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label ?? ""}
+      </div>
       <div className="mt-1 space-y-0.5">
         {payload.map((p, idx) => (
           <div key={p?.dataKey ?? idx} className="flex items-center gap-2 text-[11px] font-mono">
-            <span className="h-2 w-2 rounded-sm" style={{ background: p?.color ?? "currentColor" }} />
+            <span
+              className="h-2 w-2 rounded-sm"
+              style={{ background: p?.color ?? "currentColor" }}
+            />
             <span className="text-muted-foreground">{p?.name ?? p?.dataKey ?? "Value"}</span>
             <span className="ml-auto tabular-nums">{p?.value ?? ""}</span>
           </div>
@@ -109,87 +114,66 @@ function Dashboard() {
   const isAll = tenantId === "all";
   const isAllWh = warehouseId === "all";
 
-  const filteredTenants = useMemo(
-    () => {
-      const safeTenants = Array.isArray(tenants) ? tenants : [];
-      return isAll ? safeTenants : safeTenants.filter((t) => t?.id === tenantId);
-    },
-    [tenants, tenantId, isAll],
-  );
-  const filteredWarehouses = useMemo(
-    () => {
-      const safeWarehouses = Array.isArray(warehouses) ? warehouses : [];
-      return isAllWh
-        ? safeWarehouses.filter((w) => w?.id !== "all")
-        : safeWarehouses.filter((w) => w?.id === warehouseId);
-    },
-    [warehouses, warehouseId, isAllWh],
-  );
-  const filteredInventory = useMemo(
-    () => {
-      const safeInventory = Array.isArray(inventoryItems) ? inventoryItems : [];
-      return isAll
-        ? safeInventory
-        : safeInventory.filter((item) => {
-            const tenantMatch = item?.tenantId === tenantId;
-            const whMatch = isAllWh || item?.warehouseId === warehouseId;
-            return tenantMatch && whMatch;
-          });
-    },
-    [inventoryItems, tenantId, warehouseId, isAll, isAllWh],
-  );
-  const filteredInbound = useMemo(
-    () => {
-      const safeInbound = Array.isArray(inboundShipments) ? inboundShipments : [];
-      return isAll
-        ? safeInbound
-        : safeInbound.filter((s) => {
-            const tenantMatch = s?.tenantId === tenantId;
-            const whMatch = isAllWh || s?.warehouseId === warehouseId;
-            return tenantMatch && whMatch;
-          });
-    },
-    [inboundShipments, tenantId, warehouseId, isAll, isAllWh],
-  );
-  const filteredOrders = useMemo(
-    () => {
-      const safeOrders = Array.isArray(orders) ? orders : [];
-      return isAll
-        ? safeOrders
-        : safeOrders.filter((o) => {
-            const tenantMatch = o?.tenantId === tenantId;
-            const whMatch = isAllWh || o?.warehouseId === warehouseId;
-            return tenantMatch && whMatch;
-          });
-    },
-    [orders, tenantId, warehouseId, isAll, isAllWh],
-  );
-  const filteredPicks = useMemo(
-    () => {
-      const safePicks = Array.isArray(pickTickets) ? pickTickets : [];
-      return isAll
-        ? safePicks
-        : safePicks.filter((p) => {
-            const tenantMatch = p?.orderId?.includes(tenantId) ?? false;
-            const whMatch = isAllWh || (p?.fromLocation?.includes(warehouseId) ?? false);
-            return tenantMatch && whMatch;
-          });
-    },
-    [pickTickets, tenantId, warehouseId, isAll, isAllWh],
-  );
-  const filteredDispatches = useMemo(
-    () => {
-      const safeDispatches = Array.isArray(carrierDispatches) ? carrierDispatches : [];
-      return isAll
-        ? safeDispatches
-        : safeDispatches.filter((d) => {
-            const tenantMatch = d?.tenantId === tenantId;
-            const whMatch = isAllWh || d?.warehouseId === warehouseId;
-            return tenantMatch && whMatch;
-          });
-    },
-    [carrierDispatches, tenantId, warehouseId, isAll, isAllWh],
-  );
+  const filteredTenants = useMemo(() => {
+    const safeTenants = Array.isArray(tenants) ? tenants : [];
+    return isAll ? safeTenants : safeTenants.filter((t) => t?.id === tenantId);
+  }, [tenants, tenantId, isAll]);
+  const filteredWarehouses = useMemo(() => {
+    const safeWarehouses = Array.isArray(warehouses) ? warehouses : [];
+    return isAllWh
+      ? safeWarehouses.filter((w) => w?.id !== "all")
+      : safeWarehouses.filter((w) => w?.id === warehouseId);
+  }, [warehouses, warehouseId, isAllWh]);
+  const filteredInventory = useMemo(() => {
+    const safeInventory = Array.isArray(inventoryItems) ? inventoryItems : [];
+    return isAll
+      ? safeInventory
+      : safeInventory.filter((item) => {
+          const tenantMatch = item?.tenantId === tenantId;
+          const whMatch = isAllWh || item?.warehouseId === warehouseId;
+          return tenantMatch && whMatch;
+        });
+  }, [inventoryItems, tenantId, warehouseId, isAll, isAllWh]);
+  const filteredInbound = useMemo(() => {
+    const safeInbound = Array.isArray(inboundShipments) ? inboundShipments : [];
+    return isAll
+      ? safeInbound
+      : safeInbound.filter((s) => {
+          const tenantMatch = s?.tenantId === tenantId;
+          const whMatch = isAllWh || s?.warehouseId === warehouseId;
+          return tenantMatch && whMatch;
+        });
+  }, [inboundShipments, tenantId, warehouseId, isAll, isAllWh]);
+  const filteredOrders = useMemo(() => {
+    const safeOrders = Array.isArray(orders) ? orders : [];
+    return isAll
+      ? safeOrders
+      : safeOrders.filter((o) => {
+          const tenantMatch = o?.tenantId === tenantId;
+          const whMatch = isAllWh || o?.warehouseId === warehouseId;
+          return tenantMatch && whMatch;
+        });
+  }, [orders, tenantId, warehouseId, isAll, isAllWh]);
+  const filteredPicks = useMemo(() => {
+    const safePicks = Array.isArray(pickTickets) ? pickTickets : [];
+    return isAll
+      ? safePicks
+      : safePicks.filter((p) => {
+          const tenantMatch = p?.orderId?.includes(tenantId) ?? false;
+          const whMatch = isAllWh || (p?.fromLocation?.includes(warehouseId) ?? false);
+          return tenantMatch && whMatch;
+        });
+  }, [pickTickets, tenantId, warehouseId, isAll, isAllWh]);
+  const filteredDispatches = useMemo(() => {
+    const safeDispatches = Array.isArray(carrierDispatches) ? carrierDispatches : [];
+    return isAll
+      ? safeDispatches
+      : safeDispatches.filter((d) => {
+          const tenantMatch = d?.tenantId === tenantId;
+          const whMatch = isAllWh || d?.warehouseId === warehouseId;
+          return tenantMatch && whMatch;
+        });
+  }, [carrierDispatches, tenantId, warehouseId, isAll, isAllWh]);
 
   const activeInbound = useMemo(
     () => filteredInbound.filter((s) => s?.status !== "received").length,
@@ -197,7 +181,9 @@ function Dashboard() {
   );
   const activeOutbound = useMemo(
     () =>
-      filteredOrders.filter((o) => ["new", "allocated", "picked", "packed"].includes(o?.status ?? "")).length,
+      filteredOrders.filter((o) =>
+        ["new", "allocated", "picked", "packed"].includes(o?.status ?? ""),
+      ).length,
     [filteredOrders],
   );
   const totalSkus = useMemo(
@@ -338,9 +324,7 @@ function Dashboard() {
       logs.push(log);
     };
 
-    const activeInboundList = safeInbound.filter(
-      (s) => s?.status !== "received",
-    );
+    const activeInboundList = safeInbound.filter((s) => s?.status !== "received");
     if (activeInboundList.length > 0) {
       const s = activeInboundList[0];
       addLog({
@@ -376,7 +360,9 @@ function Dashboard() {
       });
     }
 
-    const ediWarnings = safeEdiLogs.filter((l) => l?.status === "warning" || l?.status === "rejected");
+    const ediWarnings = safeEdiLogs.filter(
+      (l) => l?.status === "warning" || l?.status === "rejected",
+    );
     for (const l of ediWarnings.slice(0, 2)) {
       addLog({
         ts: new Date(nowMs - 1200000).toLocaleTimeString("en-US", { hour12: false }),

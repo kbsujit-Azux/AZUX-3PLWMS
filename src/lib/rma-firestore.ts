@@ -55,14 +55,19 @@ export async function fetchRmaOrder(id: string): Promise<RmaOrder | null> {
   return { id: snap.id, ...(snap.data() ?? {}) } as RmaOrder;
 }
 
-export async function createRmaOrder(data: Omit<RmaOrder, "id" | "createdAt" | "updatedAt">): Promise<RmaOrder> {
+export async function createRmaOrder(
+  data: Omit<RmaOrder, "id" | "createdAt" | "updatedAt">,
+): Promise<RmaOrder> {
   const now = new Date().toISOString();
   const payload = { ...data, createdAt: now, updatedAt: now };
   const ref = await addDoc(collection(db, "rmaOrders"), payload);
   return { id: ref.id, ...payload } as RmaOrder;
 }
 
-export async function updateRmaOrder(id: string, data: Partial<Omit<RmaOrder, "id">>): Promise<void> {
+export async function updateRmaOrder(
+  id: string,
+  data: Partial<Omit<RmaOrder, "id">>,
+): Promise<void> {
   const ref = doc(db, "rmaOrders", id);
   await updateDoc(ref, { ...data, updatedAt: new Date().toISOString() });
 }
@@ -74,7 +79,7 @@ export async function deleteRmaOrder(id: string): Promise<void> {
 export function subscribeRmaOrders(
   callback: (orders: RmaOrder[]) => void,
   tenantId?: string,
-  warehouseId?: string
+  warehouseId?: string,
 ): Unsubscribe {
   let q = query(collection(db, "rmaOrders"), orderBy("createdAt", "desc"));
   if (tenantId && tenantId !== "all") q = query(q, where("tenantId", "==", tenantId));
@@ -89,12 +94,18 @@ export function subscribeRmaOrders(
 // ============================================================
 
 export async function fetchRmaLines(rmaId: string): Promise<RmaLine[]> {
-  const q = query(collection(db, "rmaLines"), where("rmaId", "==", rmaId), orderBy("createdAt", "asc"));
+  const q = query(
+    collection(db, "rmaLines"),
+    where("rmaId", "==", rmaId),
+    orderBy("createdAt", "asc"),
+  );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as RmaLine);
 }
 
-export async function createRmaLine(data: Omit<RmaLine, "id" | "createdAt" | "updatedAt">): Promise<RmaLine> {
+export async function createRmaLine(
+  data: Omit<RmaLine, "id" | "createdAt" | "updatedAt">,
+): Promise<RmaLine> {
   const now = new Date().toISOString();
   const payload = { ...data, createdAt: now, updatedAt: now };
   const ref = await addDoc(collection(db, "rmaLines"), payload);
@@ -122,7 +133,7 @@ export async function fetchRmaDispositions(rmaId?: string): Promise<RmaDispositi
 }
 
 export async function createRmaDisposition(
-  data: Omit<RmaDisposition, "id" | "createdAt" | "updatedAt">
+  data: Omit<RmaDisposition, "id" | "createdAt" | "updatedAt">,
 ): Promise<RmaDisposition> {
   const now = new Date().toISOString();
   const payload = { ...data, createdAt: now, updatedAt: now };
@@ -130,7 +141,10 @@ export async function createRmaDisposition(
   return { id: ref.id, ...payload } as RmaDisposition;
 }
 
-export async function updateRmaDisposition(id: string, data: Partial<Omit<RmaDisposition, "id">>): Promise<void> {
+export async function updateRmaDisposition(
+  id: string,
+  data: Partial<Omit<RmaDisposition, "id">>,
+): Promise<void> {
   const ref = doc(db, "rmaDispositions", id);
   await updateDoc(ref, { ...data, updatedAt: new Date().toISOString() });
 }
@@ -144,7 +158,7 @@ export async function deleteRmaDisposition(id: string): Promise<void> {
 // ============================================================
 
 export async function createReturnProcessingFee(
-  data: Omit<ReturnProcessingFee, "id" | "createdAt">
+  data: Omit<ReturnProcessingFee, "id" | "createdAt">,
 ): Promise<ReturnProcessingFee> {
   const payload = { ...data, createdAt: new Date().toISOString() };
   const ref = await addDoc(collection(db, "returnProcessingFees"), payload);
@@ -152,7 +166,11 @@ export async function createReturnProcessingFee(
 }
 
 export async function fetchReturnProcessingFees(rmaId: string): Promise<ReturnProcessingFee[]> {
-  const q = query(collection(db, "returnProcessingFees"), where("rmaId", "==", rmaId), orderBy("createdAt", "asc"));
+  const q = query(
+    collection(db, "returnProcessingFees"),
+    where("rmaId", "==", rmaId),
+    orderBy("createdAt", "asc"),
+  );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as ReturnProcessingFee);
 }

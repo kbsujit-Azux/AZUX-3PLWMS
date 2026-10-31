@@ -20,12 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { db } from "@/lib/firebase";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import {
   resolveRateQuotes,
   type RateQuoteRequest,
@@ -37,7 +32,10 @@ export const Route = createFileRoute("/rate-shopping/")({
   head: () => ({
     meta: [
       { title: "Rate Shopping — AZUX 3PL WMS Systems" },
-      { name: "description", content: "Multi-carrier rate comparison for LTL and parcel shipments." },
+      {
+        name: "description",
+        content: "Multi-carrier rate comparison for LTL and parcel shipments.",
+      },
     ],
   }),
   component: RateShoppingPage,
@@ -128,13 +126,16 @@ function RateShoppingPage() {
   };
 
   const cheapest = quotes.length > 0 ? quotes[0] : null;
-  const fastest = quotes.length > 0 ? [...quotes].sort((a, b) => a.transitDays - b.transitDays)[0] : null;
+  const fastest =
+    quotes.length > 0 ? [...quotes].sort((a, b) => a.transitDays - b.transitDays)[0] : null;
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Multi-Carrier Rate Shopping</h1>
-        <p className="text-muted-foreground">Compare LTL and parcel rates across carriers in real time.</p>
+        <p className="text-muted-foreground">
+          Compare LTL and parcel rates across carriers in real time.
+        </p>
       </div>
 
       {step === "input" && (
@@ -169,7 +170,9 @@ function RateShoppingPage() {
                   <Input
                     type="number"
                     value={form.weightLbs}
-                    onChange={(e) => setForm({ ...form, weightLbs: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setForm({ ...form, weightLbs: parseFloat(e.target.value) || 0 })
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -177,7 +180,9 @@ function RateShoppingPage() {
                   <Input
                     type="number"
                     value={form.lengthIn}
-                    onChange={(e) => setForm({ ...form, lengthIn: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setForm({ ...form, lengthIn: parseFloat(e.target.value) || 0 })
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -196,7 +201,9 @@ function RateShoppingPage() {
                   <Input
                     type="number"
                     value={form.heightIn}
-                    onChange={(e) => setForm({ ...form, heightIn: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setForm({ ...form, heightIn: parseFloat(e.target.value) || 0 })
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -204,7 +211,9 @@ function RateShoppingPage() {
                   <Input
                     type="number"
                     value={form.declaredValue}
-                    onChange={(e) => setForm({ ...form, declaredValue: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setForm({ ...form, declaredValue: parseFloat(e.target.value) || 0 })
+                    }
                   />
                 </div>
               </div>
@@ -233,25 +242,37 @@ function RateShoppingPage() {
                   <Checkbox
                     id="hazardous"
                     checked={form.hazardous}
-                    onCheckedChange={(checked) => setForm({ ...form, hazardous: checked as boolean })}
+                    onCheckedChange={(checked) =>
+                      setForm({ ...form, hazardous: checked as boolean })
+                    }
                   />
-                  <Label htmlFor="hazardous" className="text-sm font-normal">Hazardous Materials</Label>
+                  <Label htmlFor="hazardous" className="text-sm font-normal">
+                    Hazardous Materials
+                  </Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="liftgate"
                     checked={form.liftgateRequired}
-                    onCheckedChange={(checked) => setForm({ ...form, liftgateRequired: checked as boolean })}
+                    onCheckedChange={(checked) =>
+                      setForm({ ...form, liftgateRequired: checked as boolean })
+                    }
                   />
-                  <Label htmlFor="liftgate" className="text-sm font-normal">Liftgate Required</Label>
+                  <Label htmlFor="liftgate" className="text-sm font-normal">
+                    Liftgate Required
+                  </Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="inside"
                     checked={form.insideDelivery}
-                    onCheckedChange={(checked) => setForm({ ...form, insideDelivery: checked as boolean })}
+                    onCheckedChange={(checked) =>
+                      setForm({ ...form, insideDelivery: checked as boolean })
+                    }
                   />
-                  <Label htmlFor="inside" className="text-sm font-normal">Inside Delivery</Label>
+                  <Label htmlFor="inside" className="text-sm font-normal">
+                    Inside Delivery
+                  </Label>
                 </div>
               </div>
 
@@ -267,7 +288,11 @@ function RateShoppingPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                {loading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4 mr-2" />
+                )}
                 Compare Rates
               </Button>
             </form>
@@ -287,7 +312,8 @@ function RateShoppingPage() {
             <Card className="border-emerald-500/50 bg-emerald-950/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-emerald-400">
-                  <DollarSign className="h-5 w-5" /> Best Rate: {cheapest.carrierName} — ${cheapest.totalRate.toFixed(2)}
+                  <DollarSign className="h-5 w-5" /> Best Rate: {cheapest.carrierName} — $
+                  {cheapest.totalRate.toFixed(2)}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -317,7 +343,8 @@ function RateShoppingPage() {
             <Card className="border-sky-500/50 bg-sky-950/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-sky-400">
-                  <Truck className="h-5 w-5" /> Fastest: {fastest.carrierName} — {fastest.transitDays} days
+                  <Truck className="h-5 w-5" /> Fastest: {fastest.carrierName} —{" "}
+                  {fastest.transitDays} days
                 </CardTitle>
               </CardHeader>
               <CardContent>

@@ -31,12 +31,7 @@ export function AzuxLogo({
 
   return (
     <div className="flex items-center gap-2.5">
-      <svg
-        viewBox="0 0 48 48"
-        className={className}
-        role="img"
-        aria-label="AZUX 3PL"
-      >
+      <svg viewBox="0 0 48 48" className={className} role="img" aria-label="AZUX 3PL">
         <rect width="48" height="48" rx="10" className={plate} />
         {/* warehouse / dock glyph */}
         <path
@@ -54,20 +49,12 @@ export function AzuxLogo({
           strokeWidth="2.2"
           strokeLinecap="round"
         />
-        <path
-          d="M10 37h28"
-          fill="none"
-          stroke="#ffffff"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-        />
+        <path d="M10 37h28" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" />
       </svg>
       {variant === "full" && (
         <div className="leading-tight">
           <div className={`text-lg font-bold tracking-tight ${text}`}>AZUX 3PL</div>
-          <div className={`text-[9px] uppercase tracking-[0.18em] ${sub}`}>
-            WMS Systems
-          </div>
+          <div className={`text-[9px] uppercase tracking-[0.18em] ${sub}`}>WMS Systems</div>
         </div>
       )}
     </div>

@@ -81,10 +81,7 @@ describe("assessContainer", () => {
     const a = assessContainer(
       {
         ...inbound,
-        lines: [
-          { ...inbound.lines[0], damagedQty: 10, osdReason: "crushed" },
-          inbound.lines[1],
-        ],
+        lines: [{ ...inbound.lines[0], damagedQty: 10, osdReason: "crushed" }, inbound.lines[1]],
       },
       pallets,
     );

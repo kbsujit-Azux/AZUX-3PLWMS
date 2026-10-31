@@ -11,8 +11,7 @@
 import { useState, useEffect, useCallback } from "react";
 
 const SPEECH_AVAILABLE =
-  typeof window !== "undefined" &&
-  typeof (window as any).speechSynthesis !== "undefined";
+  typeof window !== "undefined" && typeof (window as any).speechSynthesis !== "undefined";
 
 let queue: string[] = [];
 let speaking = false;
@@ -67,9 +66,12 @@ export function useTTS() {
     if (!enabled) ttsStop();
   }, [enabled]);
 
-  const speak = useCallback((text: string) => {
-    if (enabled) ttsSpeak(text);
-  }, [enabled]);
+  const speak = useCallback(
+    (text: string) => {
+      if (enabled) ttsSpeak(text);
+    },
+    [enabled],
+  );
 
   return { enabled, setEnabled, speak, stop: ttsStop };
 }

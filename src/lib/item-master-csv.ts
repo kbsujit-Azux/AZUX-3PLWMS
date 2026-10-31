@@ -37,14 +37,7 @@ export type ItemMasterCsvField = {
   key: string;
   label: string;
   required?: boolean;
-  group:
-    | "core"
-    | "pack"
-    | "apparel"
-    | "dimensions"
-    | "pallet"
-    | "velocity"
-    | "compliance";
+  group: "core" | "pack" | "apparel" | "dimensions" | "pallet" | "velocity" | "compliance";
 };
 
 /** Full column contract for the Item Master import */
@@ -389,9 +382,9 @@ export function buildItemFromRow(args: BuildItemArgs): BuildItemResult {
     ? (patternRaw as PalletBuildConfig["palletPattern"])
     : "interlock";
   const palletTypeRaw = (str(get("palletType")) ?? "standard_48x40").toLowerCase();
-  const palletType = (
-    ["standard_48x40", "euro_48x32", "half_48x20", "custom"] as const
-  ).includes(palletTypeRaw as never)
+  const palletType = (["standard_48x40", "euro_48x32", "half_48x20", "custom"] as const).includes(
+    palletTypeRaw as never,
+  )
     ? (palletTypeRaw as PalletBuildConfig["palletType"])
     : "standard_48x40";
 
@@ -415,9 +408,9 @@ export function buildItemFromRow(args: BuildItemArgs): BuildItemResult {
     ? (abcRaw as VelocityClassification["abcClass"])
     : "B";
   const storageRaw = (str(get("storageClass")) ?? "reserve").toLowerCase();
-  const storageClass = (
-    ["forward", "reserve", "bulk", "cold", "hazmat"] as const
-  ).includes(storageRaw as never)
+  const storageClass = (["forward", "reserve", "bulk", "cold", "hazmat"] as const).includes(
+    storageRaw as never,
+  )
     ? (storageRaw as VelocityClassification["storageClass"])
     : "reserve";
 
@@ -425,7 +418,9 @@ export function buildItemFromRow(args: BuildItemArgs): BuildItemResult {
     abcClass,
     annualPicks: num(get("annualPicks")) ?? 500,
     linesPerOrder: num(get("linesPerOrder")) ?? 3,
-    peakMonths: csvList(get("peakMonths"))?.map(Number).filter((n) => Number.isFinite(n)),
+    peakMonths: csvList(get("peakMonths"))
+      ?.map(Number)
+      .filter((n) => Number.isFinite(n)),
     storageClass,
     reorderDays: num(get("reorderDays")),
   };
@@ -474,7 +469,11 @@ export function buildItemFromRow(args: BuildItemArgs): BuildItemResult {
       },
       fit: (str(get("fit")) ?? "regular") as ApparelAttributes["fit"],
       fabric: fabricPrimary
-        ? { primary: fabricPrimary, pct: num(get("fabricPct")) ?? 100, careCode: str(get("fabricCareCode")) }
+        ? {
+            primary: fabricPrimary,
+            pct: num(get("fabricPct")) ?? 100,
+            careCode: str(get("fabricCareCode")),
+          }
         : undefined,
       season: str(get("season")),
       gender: str(get("gender")),

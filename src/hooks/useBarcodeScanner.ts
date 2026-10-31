@@ -48,17 +48,13 @@ export function useBarcodeScanner({
       const reader = new BrowserMultiFormatReader();
       readerRef.current = reader;
       setScanning(true);
-      const stream = await reader.decodeFromVideoDevice(
-        undefined,
-        videoRef.current,
-        (result) => {
-          if (result) {
-            const code = result.getText();
-            setLastCode(code);
-            onScan?.(code);
-          }
-        },
-      );
+      const stream = await reader.decodeFromVideoDevice(undefined, videoRef.current, (result) => {
+        if (result) {
+          const code = result.getText();
+          setLastCode(code);
+          onScan?.(code);
+        }
+      });
       streamRef.current = stream as unknown as MediaStream;
     } catch (err) {
       setScanning(false);

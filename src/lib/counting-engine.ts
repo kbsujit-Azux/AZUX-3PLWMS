@@ -60,7 +60,8 @@ export function buildAbcClassificationReport(
   cutoff.setDate(cutoff.getDate() - windowDays);
 
   const relevantMovements = movements.filter((m) => {
-    const t = m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as unknown as string);
+    const t =
+      m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as unknown as string);
     return t >= cutoff;
   });
 
@@ -152,7 +153,12 @@ export function canAutoAdjust(line: CycleCountLine, tolerancePct: number): boole
   const withinTolerance = absVariancePct <= tolerancePct;
   const noSupervisorFlag = !line.supervisorReview;
 
-  return withinTolerance && noSupervisorFlag && !line.supervisorApproved && line.supervisorApproved !== false;
+  return (
+    withinTolerance &&
+    noSupervisorFlag &&
+    !line.supervisorApproved &&
+    line.supervisorApproved !== false
+  );
 }
 
 export function buildCountLinesFromInventory(
@@ -208,7 +214,10 @@ export function buildCountLinesFromInventory(
   return lines;
 }
 
-export function computeCountSummary(count: CycleCount, lines: CycleCountLine[]): Partial<CycleCount> {
+export function computeCountSummary(
+  count: CycleCount,
+  lines: CycleCountLine[],
+): Partial<CycleCount> {
   const updates: Partial<CycleCount> = {};
 
   updates.totalLines = lines.length;

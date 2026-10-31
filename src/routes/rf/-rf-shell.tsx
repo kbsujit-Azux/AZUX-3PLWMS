@@ -35,14 +35,17 @@ export function RfShell({ children }: { children: ReactNode }) {
             {employee?.assignedWarehouseId ?? "——"} · {employee?.badgeId ?? "——"}
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={logout}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-slate-400 hover:text-white"
+          onClick={logout}
+        >
           <LogOut className="h-4 w-4" />
         </Button>
       </header>
 
-      <main className="flex-1 overflow-y-auto">
-        {children}
-      </main>
+      <main className="flex-1 overflow-y-auto">{children}</main>
 
       <BottomNav />
       <BadgeGate />
@@ -70,7 +73,9 @@ function BadgeGate() {
           <p className="text-xs text-slate-400">Scan badge or enter Badge ID to continue</p>
         </div>
         <div className="space-y-2">
-          <label htmlFor="badge" className="text-xs text-slate-300">Badge ID</label>
+          <label htmlFor="badge" className="text-xs text-slate-300">
+            Badge ID
+          </label>
           <input
             id="badge"
             autoFocus
@@ -87,7 +92,9 @@ function BadgeGate() {
         >
           {loading ? "Verifying…" : "Sign In"}
         </Button>
-        <p className="text-center text-[10px] text-slate-500">Demo badges: WH-1001, WH-1002, WH-1003</p>
+        <p className="text-center text-[10px] text-slate-500">
+          Demo badges: WH-1001, WH-1002, WH-1003
+        </p>
       </form>
     </div>
   );
@@ -107,7 +114,9 @@ function BottomNav() {
               className="flex flex-col items-center gap-0.5 py-2 text-[10px] transition-colors"
             >
               <item.icon className={`h-5 w-5 ${active ? "text-emerald-400" : "text-slate-500"}`} />
-              <span className={active ? "text-emerald-400 font-medium" : "text-slate-500"}>{item.title}</span>
+              <span className={active ? "text-emerald-400 font-medium" : "text-slate-500"}>
+                {item.title}
+              </span>
             </Link>
           );
         })}

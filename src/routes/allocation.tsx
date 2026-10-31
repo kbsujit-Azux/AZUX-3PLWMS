@@ -132,7 +132,8 @@ function AllocationPage() {
 
   const activeOrders = useMemo(() => {
     return orders.filter((o) => {
-      if (!["ALLOCATED", "picking", "PICKED", "OUTBOUND_PALLETIZED"].includes(o.status)) return false;
+      if (!["ALLOCATED", "picking", "PICKED", "OUTBOUND_PALLETIZED"].includes(o.status))
+        return false;
       if (tenantId !== "all" && o.tenantId !== tenantId) return false;
       if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
       if (search) {
@@ -241,7 +242,10 @@ function AllocationPage() {
       try {
         const { hasUCC128Records } = await import("@/lib/ucc128-build");
         if (await hasUCC128Records(orderId)) {
-          showError("Deallocate Blocked", "UCC128 labels already built for this order. Undo UCC128 first.");
+          showError(
+            "Deallocate Blocked",
+            "UCC128 labels already built for this order. Undo UCC128 first.",
+          );
           return;
         }
       } catch {}
@@ -249,7 +253,9 @@ function AllocationPage() {
       try {
         const { collection, getDocs, query, where } = await import("firebase/firestore");
         const { db } = await import("@/lib/firebase");
-        const snap = await getDocs(query(collection(db, "billsOfLading"), where("orderIds", "array-contains", orderId)));
+        const snap = await getDocs(
+          query(collection(db, "billsOfLading"), where("orderIds", "array-contains", orderId)),
+        );
         if (!snap.empty) {
           showError("Deallocate Blocked", "A BOL already exists for this order. Delete BOL first.");
           return;
@@ -272,9 +278,12 @@ function AllocationPage() {
         const waveId = (order as any).waveId;
         if (waveId) {
           try {
-            const { collection, getDocs, query, where, deleteDoc, doc } = await import("firebase/firestore");
+            const { collection, getDocs, query, where, deleteDoc, doc } =
+              await import("firebase/firestore");
             const { db } = await import("@/lib/firebase");
-            const snap = await getDocs(query(collection(db, "orders"), where("waveId", "==", waveId)));
+            const snap = await getDocs(
+              query(collection(db, "orders"), where("waveId", "==", waveId)),
+            );
             if (snap.empty) await deleteDoc(doc(db, "waves", waveId));
           } catch {}
         }
@@ -425,7 +434,12 @@ function AllocationPage() {
   };
 
   const handleUnpick = async (orderId: string) => {
-    if (!confirm(`Unpick order ${orderId}? This will return picked inventory to its original location.`)) return;
+    if (
+      !confirm(
+        `Unpick order ${orderId}? This will return picked inventory to its original location.`,
+      )
+    )
+      return;
     try {
       const order = validateOrderForUnpick(orderId);
       if (!order) {
@@ -436,7 +450,10 @@ function AllocationPage() {
       try {
         const { hasUCC128Records } = await import("@/lib/ucc128-build");
         if (await hasUCC128Records(orderId)) {
-          showError("Unpick Blocked", "UCC128 labels already built for this order. Undo UCC128 first.");
+          showError(
+            "Unpick Blocked",
+            "UCC128 labels already built for this order. Undo UCC128 first.",
+          );
           return;
         }
       } catch {}
@@ -534,7 +551,10 @@ function AllocationPage() {
       );
       const totalCartons = outboundPallets.reduce(
         (s, p) =>
-          s + (Array.isArray(p.lines) ? p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0) : 0),
+          s +
+          (Array.isArray(p.lines)
+            ? p.lines.reduce((ls, l) => ls + Math.ceil(l.unitsPicked / Math.max(1, l.caseQty)), 0)
+            : 0),
         0,
       );
 
@@ -558,7 +578,9 @@ function AllocationPage() {
         pallets: outboundPallets.length,
         cartons: totalCartons,
         weightLbs: Math.round(totalWeight * 10) / 10,
-        declaredValue: Array.isArray(order.lines) ? order.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0) : 0,
+        declaredValue: Array.isArray(order.lines)
+          ? order.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0)
+          : 0,
       });
 
       for (const pallet of outboundPallets) {
@@ -742,7 +764,9 @@ function AllocationPage() {
               )}
               {allocatableOrders.map((o) => {
                 const config = configMap.get(o.tenantId);
-                const totalUnits = Array.isArray(o.lines) ? o.lines.reduce((s, l) => s + l.qtyOrdered, 0) : 0;
+                const totalUnits = Array.isArray(o.lines)
+                  ? o.lines.reduce((s, l) => s + l.qtyOrdered, 0)
+                  : 0;
                 return (
                   <TableRow key={o.id}>
                     <TableCell className="text-xs font-mono">{o.id}</TableCell>

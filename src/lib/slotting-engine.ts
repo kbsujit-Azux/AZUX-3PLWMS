@@ -34,7 +34,12 @@ export interface SlottingRecommendation {
   suggestedLocationId: string;
   currentZone: SlottingZone | string;
   suggestedZone: SlottingZone | string;
-  reason: "velocity_mismatch" | "capacity_overflow" | "forward_full" | "reserve_underutilized" | "cube_inefficiency";
+  reason:
+    | "velocity_mismatch"
+    | "capacity_overflow"
+    | "forward_full"
+    | "reserve_underutilized"
+    | "cube_inefficiency";
   priority: "high" | "medium" | "low";
   velocityScore: number;
   daysInCurrentLocation: number;
@@ -63,7 +68,8 @@ export function computeSkuVelocity(
 
   const relevant = movements.filter((m) => {
     if (m.itemCode !== sku) return false;
-    const ts = m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as unknown as string);
+    const ts =
+      m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as unknown as string);
     return ts >= cutoff;
   });
 
@@ -75,14 +81,18 @@ export function computeSkuVelocity(
   const totalVelocity = picksPerDay + movesPerDay;
 
   const lastPick = picks.sort((a, b) => {
-    const ta = a.timestamp instanceof Date ? a.timestamp : new Date(a.timestamp as unknown as string);
-    const tb = b.timestamp instanceof Date ? b.timestamp : new Date(b.timestamp as unknown as string);
+    const ta =
+      a.timestamp instanceof Date ? a.timestamp : new Date(a.timestamp as unknown as string);
+    const tb =
+      b.timestamp instanceof Date ? b.timestamp : new Date(b.timestamp as unknown as string);
     return tb.getTime() - ta.getTime();
   })[0];
 
   const lastMove = moves.sort((a, b) => {
-    const ta = a.timestamp instanceof Date ? a.timestamp : new Date(a.timestamp as unknown as string);
-    const tb = b.timestamp instanceof Date ? b.timestamp : new Date(b.timestamp as unknown as string);
+    const ta =
+      a.timestamp instanceof Date ? a.timestamp : new Date(a.timestamp as unknown as string);
+    const tb =
+      b.timestamp instanceof Date ? b.timestamp : new Date(b.timestamp as unknown as string);
     return tb.getTime() - ta.getTime();
   })[0];
 
@@ -92,8 +102,16 @@ export function computeSkuVelocity(
     picksPerDay,
     movesPerDay,
     totalVelocity,
-    lastPickDate: lastPick ? (lastPick.timestamp instanceof Date ? lastPick.timestamp.toISOString().slice(0, 10) : new Date(lastPick.timestamp as unknown as string).toISOString().slice(0, 10)) : undefined,
-    lastMoveDate: lastMove ? (lastMove.timestamp instanceof Date ? lastMove.timestamp.toISOString().slice(0, 10) : new Date(lastMove.timestamp as unknown as string).toISOString().slice(0, 10)) : undefined,
+    lastPickDate: lastPick
+      ? lastPick.timestamp instanceof Date
+        ? lastPick.timestamp.toISOString().slice(0, 10)
+        : new Date(lastPick.timestamp as unknown as string).toISOString().slice(0, 10)
+      : undefined,
+    lastMoveDate: lastMove
+      ? lastMove.timestamp instanceof Date
+        ? lastMove.timestamp.toISOString().slice(0, 10)
+        : new Date(lastMove.timestamp as unknown as string).toISOString().slice(0, 10)
+      : undefined,
     fastMover: totalVelocity >= 1,
     slowMover: totalVelocity < 0.1,
   };
@@ -101,7 +119,8 @@ export function computeSkuVelocity(
 
 export function classifyLocationZone(location: LocationRecord): SlottingZone {
   const zone = location.zone.toLowerCase();
-  if (zone.includes("forward") || zone.includes("pick") || zone.includes("face")) return "forward_pick";
+  if (zone.includes("forward") || zone.includes("pick") || zone.includes("face"))
+    return "forward_pick";
   if (zone.includes("reserve") || zone.includes("bulk")) return "reserve";
   if (zone.includes("hazmat") || zone.includes("haz")) return "hazmat";
   if (zone.includes("cold") || zone.includes("freeze") || zone.includes("chill")) return "cold";

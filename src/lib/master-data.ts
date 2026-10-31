@@ -80,8 +80,8 @@ export type ApparelAttributes = {
   color: { code: string; name: string };
   /** Size code + dimension overrides */
   size: {
-    code: string;           // S, M, L, XL, 2XL
-    lengthIn?: number;      // Override base dimensions
+    code: string; // S, M, L, XL, 2XL
+    lengthIn?: number; // Override base dimensions
     widthIn?: number;
     heightIn?: number;
     weightLbs?: number;
@@ -90,9 +90,9 @@ export type ApparelAttributes = {
   fit?: "regular" | "slim" | "relaxed" | "oversized";
   /** Fabric composition for storage requirements */
   fabric?: {
-    primary: string;        // cotton, polyester, blend
+    primary: string; // cotton, polyester, blend
     pct: number;
-    careCode?: string;      // wash/dry instructions
+    careCode?: string; // wash/dry instructions
   };
   /** Season: Spring, Summer, Fall, Winter, Core */
   season?: string;
@@ -1703,7 +1703,11 @@ const locationSeeds: LocationSeed[] = [
  */
 function seedSlottingRules(seed: LocationSeed): SlottingRules {
   const zone = seed.zone.toLowerCase();
-  const isStaging = seed.type === "DROP" || zone.includes("dock") || zone.includes("staging") || zone.includes("drop");
+  const isStaging =
+    seed.type === "DROP" ||
+    zone.includes("dock") ||
+    zone.includes("staging") ||
+    zone.includes("drop");
   const isBulk = seed.type === "FLR" || zone.includes("bulk");
   const isForward = zone.includes("forward");
   const isHazmat = zone.includes("hazmat");

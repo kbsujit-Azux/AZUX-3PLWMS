@@ -181,38 +181,41 @@ function PickInner() {
     [],
   );
 
-  const handlePickSubmit = useCallback(async (code?: string) => {
-    if (!employee || busy) return;
-    const raw = code ?? pickInputRef.current?.value ?? "";
-    const pickNum = parseInt(raw, 10);
-    if (isNaN(pickNum)) {
-      setError("Enter a valid pick ticket number");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      const tickets = await fetchPickTickets(undefined);
-      const found = tickets.find(
-        (t) => t.pickTicketNum === pickNum && (t.status === "GENERATED" || t.status === "PICKED"),
-      );
-      if (!found) {
-        setError(`Pick ticket ${pickNum} not found or already closed`);
-        playChime("err");
-        setBusy(false);
+  const handlePickSubmit = useCallback(
+    async (code?: string) => {
+      if (!employee || busy) return;
+      const raw = code ?? pickInputRef.current?.value ?? "";
+      const pickNum = parseInt(raw, 10);
+      if (isNaN(pickNum)) {
+        setError("Enter a valid pick ticket number");
         return;
       }
-      setTicket(found);
-      setStep("verify");
-      setPickedTotal(0);
-      playChime("ok");
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Lookup failed");
-      playChime("err");
-    } finally {
-      setBusy(false);
-    }
-  }, [employee, busy, playChime]);
+      setBusy(true);
+      setError("");
+      try {
+        const tickets = await fetchPickTickets(undefined);
+        const found = tickets.find(
+          (t) => t.pickTicketNum === pickNum && (t.status === "GENERATED" || t.status === "PICKED"),
+        );
+        if (!found) {
+          setError(`Pick ticket ${pickNum} not found or already closed`);
+          playChime("err");
+          setBusy(false);
+          return;
+        }
+        setTicket(found);
+        setStep("verify");
+        setPickedTotal(0);
+        playChime("ok");
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Lookup failed");
+        playChime("err");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [employee, busy, playChime],
+  );
 
   const handlePickQty = useCallback(async () => {
     if (!ticket || !employee || busy) return;
@@ -371,16 +374,9 @@ function PickInner() {
 
       {scanMode === "camera" && (
         <Card className="p-2 space-y-2">
-          <video
-            ref={videoRef}
-            className="w-full h-40 bg-black rounded"
-            playsInline
-            muted
-          />
+          <video ref={videoRef} className="w-full h-40 bg-black rounded" playsInline muted />
           {lastCode && (
-            <div className="text-xs font-mono text-emerald-400">
-              Last scan: {lastCode}
-            </div>
+            <div className="text-xs font-mono text-emerald-400">Last scan: {lastCode}</div>
           )}
         </Card>
       )}

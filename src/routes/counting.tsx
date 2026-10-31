@@ -177,7 +177,7 @@ function CountingPage() {
       return;
     }
 
-    let cancelled = false;
+    const cancelled = false;
     const unsub = subscribeCycleCountLines((lines) => {
       if (!cancelled) {
         setCountLines(lines);
@@ -301,7 +301,12 @@ function CountingPage() {
         startedAt: new Date().toISOString(),
       });
       if (count.locationIds && count.locationIds.length > 0) {
-        const lines = buildCountLinesFromInventory(count.id, count.locationIds, liveInventory, count.countType === "BLIND");
+        const lines = buildCountLinesFromInventory(
+          count.id,
+          count.locationIds,
+          liveInventory,
+          count.countType === "BLIND",
+        );
         await batchWriteCycleCountLines(lines);
         await updateCycleCount(count.id, { totalLines: lines.length });
       }
@@ -511,9 +516,14 @@ function CountingPage() {
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Progress</span>
-                    <span className="font-medium">{count.countedLines}/{count.totalLines}</span>
+                    <span className="font-medium">
+                      {count.countedLines}/{count.totalLines}
+                    </span>
                   </div>
-                  <Progress value={(count.countedLines / Math.max(1, count.totalLines)) * 100} className="h-1" />
+                  <Progress
+                    value={(count.countedLines / Math.max(1, count.totalLines)) * 100}
+                    className="h-1"
+                  />
                 </div>
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex gap-1">
@@ -645,7 +655,9 @@ function CountingPage() {
                         ${row.annualUsageValue.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs">{row.totalQty}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">${row.unitCost.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        ${row.unitCost.toFixed(2)}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -690,21 +702,29 @@ function CountingPage() {
           {summary && (
             <div className="grid grid-cols-4 gap-4 py-4">
               <div className="rounded-lg border p-3 space-y-1">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Efficiency</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Efficiency
+                </p>
                 <p className="text-lg font-semibold">{efficiency.toFixed(0)}%</p>
               </div>
               <div className="rounded-lg border p-3 space-y-1">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Variance Rate</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Variance Rate
+                </p>
                 <p className="text-lg font-semibold">{varianceRate.toFixed(1)}%</p>
               </div>
               <div className="rounded-lg border p-3 space-y-1">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Counted</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Counted
+                </p>
                 <p className="text-lg font-semibold">
                   {summary.countedLines}/{summary.totalLines}
                 </p>
               </div>
               <div className="rounded-lg border p-3 space-y-1">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Adjusted</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Adjusted
+                </p>
                 <p className="text-lg font-semibold">{summary.adjustedLines}</p>
               </div>
             </div>
@@ -741,7 +761,9 @@ function CountingPage() {
                           <TableCell className="font-mono text-xs text-muted-foreground">
                             {line.batchId || "—"}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs">{line.expectedQty}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">
+                            {line.expectedQty}
+                          </TableCell>
                           <TableCell className="text-right">
                             {selectedCount?.status === "in_progress" ||
                             selectedCount?.status === "counted" ? (
@@ -749,7 +771,9 @@ function CountingPage() {
                                 type="number"
                                 value={line.countedQty}
                                 onChange={(e) =>
-                                  handleUpdateLine(line, { countedQty: parseInt(e.target.value) || 0 })
+                                  handleUpdateLine(line, {
+                                    countedQty: parseInt(e.target.value) || 0,
+                                  })
                                 }
                                 className="h-7 w-20 text-right text-xs font-mono"
                               />
@@ -828,7 +852,10 @@ function CountingPage() {
             <DialogTitle>New Count Schedule</DialogTitle>
             <DialogDescription>Configure an automated recurring count schedule.</DialogDescription>
           </DialogHeader>
-          <ScheduleForm onSubmit={handleCreateSchedule} onCancel={() => setNewScheduleOpen(false)} />
+          <ScheduleForm
+            onSubmit={handleCreateSchedule}
+            onCancel={() => setNewScheduleOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 
@@ -844,7 +871,10 @@ function CountingPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground">
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

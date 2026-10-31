@@ -1,5 +1,13 @@
 import { useRef, useState } from "react";
-import { Upload, FileSpreadsheet, ArrowRight, CheckCircle2, XCircle, FileDown, Download } from "lucide-react";
+import {
+  Upload,
+  FileSpreadsheet,
+  ArrowRight,
+  CheckCircle2,
+  XCircle,
+  FileDown,
+  Download,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,11 +39,7 @@ type Props = {
    * Receives the selected file, the chosen tenant and the user's column
    * mapping (target field key -> CSV header name).
    */
-  onConfirm?: (
-    file: File,
-    tenantId: string | undefined,
-    mapping: Record<string, string>,
-  ) => void;
+  onConfirm?: (file: File, tenantId: string | undefined, mapping: Record<string, string>) => void;
   errors?: ErrorItem[];
   warnings?: ErrorItem[];
   tenants?: TenantOption[];
@@ -148,11 +152,13 @@ export function CsvUploader({
                 className="h-8 text-xs rounded-md border border-input bg-background px-2 w-full"
               >
                 <option value="">Select client...</option>
-                {tenants.filter((t) => t.id !== "all").map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.code} · {t.name}
-                  </option>
-                ))}
+                {tenants
+                  .filter((t) => t.id !== "all")
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.code} · {t.name}
+                    </option>
+                  ))}
               </select>
             </div>
           </div>
@@ -169,7 +175,9 @@ export function CsvUploader({
                 <div className="max-h-32 overflow-y-auto rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs">
                   {errors.map((e, i) => (
                     <div key={i} className="py-1 border-b border-destructive/30 last:border-b-0">
-                      <span className="font-mono text-destructive">{e.row}:{e.field}</span>
+                      <span className="font-mono text-destructive">
+                        {e.row}:{e.field}
+                      </span>
                       <span className="text-muted-foreground mx-2">·</span>
                       <span>{e.message}</span>
                     </div>
@@ -186,7 +194,9 @@ export function CsvUploader({
                 <div className="max-h-32 overflow-y-auto rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-xs">
                   {warnings.map((w, i) => (
                     <div key={i} className="py-1 border-b border-amber-500/30 last:border-b-0">
-                      <span className="font-mono text-amber-500">{w.row}:{w.field}</span>
+                      <span className="font-mono text-amber-500">
+                        {w.row}:{w.field}
+                      </span>
                       <span className="text-muted-foreground mx-2">·</span>
                       <span>{w.message}</span>
                     </div>

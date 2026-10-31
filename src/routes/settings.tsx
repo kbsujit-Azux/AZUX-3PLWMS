@@ -1,7 +1,13 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
 import { UCC128Panel } from "@/components/ucc128-panel";
-import { generateNextUCC128, getUCC128Config, saveUCC128Config, DEFAULT_UCC128_CONFIGS, type UCC128Config } from "@/lib/ucc128";
+import {
+  generateNextUCC128,
+  getUCC128Config,
+  saveUCC128Config,
+  DEFAULT_UCC128_CONFIGS,
+  type UCC128Config,
+} from "@/lib/ucc128";
 import {
   Plus,
   Pencil,
@@ -292,7 +298,15 @@ function emptyClient(): ClientRecord {
   };
 }
 
-function ClientsPanel({ items, q, onSearch }: { items: ClientRecord[]; q: string; onSearch: (v: string) => void }) {
+function ClientsPanel({
+  items,
+  q,
+  onSearch,
+}: {
+  items: ClientRecord[];
+  q: string;
+  onSearch: (v: string) => void;
+}) {
   const [editing, setEditing] = useState<ClientRecord | null>(null);
   const [toDelete, setToDelete] = useState<ClientRecord | null>(null);
 
@@ -419,9 +433,7 @@ function ClientsPanel({ items, q, onSearch }: { items: ClientRecord[]; q: string
         </Table>
       </div>
 
-      {editing && (
-        <ClientDialog value={editing} onClose={() => setEditing(null)} onSave={save} />
-      )}
+      {editing && <ClientDialog value={editing} onClose={() => setEditing(null)} onSave={save} />}
       <ConfirmDelete
         open={!!toDelete}
         label={toDelete?.name ?? ""}
@@ -606,7 +618,15 @@ function emptyWarehouse(): Omit<Warehouse, "id"> {
   };
 }
 
-function WarehousesPanel({ items, q, onSearch }: { items: Warehouse[]; q: string; onSearch: (v: string) => void }) {
+function WarehousesPanel({
+  items,
+  q,
+  onSearch,
+}: {
+  items: Warehouse[];
+  q: string;
+  onSearch: (v: string) => void;
+}) {
   const [editing, setEditing] = useState<Warehouse | null>(null);
   const [toDelete, setToDelete] = useState<Warehouse | null>(null);
 
@@ -678,7 +698,9 @@ function WarehousesPanel({ items, q, onSearch }: { items: Warehouse[]; q: string
                 <TableCell className="font-mono text-[11px]">{w.code}</TableCell>
                 <TableCell className="font-medium text-sm">{w.name}</TableCell>
                 <TableCell className="text-xs">{w.city}</TableCell>
-                <TableCell className="text-[11px] text-muted-foreground">{w.addressLine ?? "—"}</TableCell>
+                <TableCell className="text-[11px] text-muted-foreground">
+                  {w.addressLine ?? "—"}
+                </TableCell>
                 <TableCell className="text-right font-mono text-[11px]">
                   {w.squareFeet != null ? w.squareFeet.toLocaleString() : "—"}
                 </TableCell>
@@ -834,7 +856,15 @@ function emptyUser(): UserRecord {
   return { id: "", name: "", email: "", role: "Viewer", warehouseCode: "ALL", active: true };
 }
 
-function UsersPanel({ items, q, onSearch }: { items: UserRecord[]; q: string; onSearch: (v: string) => void }) {
+function UsersPanel({
+  items,
+  q,
+  onSearch,
+}: {
+  items: UserRecord[];
+  q: string;
+  onSearch: (v: string) => void;
+}) {
   const [editing, setEditing] = useState<UserRecord | null>(null);
   const [toDelete, setToDelete] = useState<UserRecord | null>(null);
 
@@ -1047,7 +1077,15 @@ function emptyCarrier(): CarrierServiceRecordSettings {
   };
 }
 
-function CarriersPanel({ items, q, onSearch }: { items: CarrierServiceRecord[]; q: string; onSearch: (v: string) => void }) {
+function CarriersPanel({
+  items,
+  q,
+  onSearch,
+}: {
+  items: CarrierServiceRecord[];
+  q: string;
+  onSearch: (v: string) => void;
+}) {
   const [editing, setEditing] = useState<CarrierServiceRecord | null>(null);
   const [toDelete, setToDelete] = useState<CarrierServiceRecord | null>(null);
 
@@ -1149,9 +1187,7 @@ function CarriersPanel({ items, q, onSearch }: { items: CarrierServiceRecord[]; 
         </Table>
       </div>
 
-      {editing && (
-        <CarrierDialog value={editing} onClose={() => setEditing(null)} onSave={save} />
-      )}
+      {editing && <CarrierDialog value={editing} onClose={() => setEditing(null)} onSave={save} />}
       <ConfirmDelete
         open={!!toDelete}
         label={toDelete?.serviceDescription ?? ""}

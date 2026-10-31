@@ -90,7 +90,9 @@ export function BolDocument({ bol }: { bol: BillOfLading }) {
           </thead>
           <tbody>
             {bol.childOrderIds.map((oid, idx) => {
-              const olines = Array.isArray(bol.lines) ? bol.lines.filter((l) => l.orderId === oid) : [];
+              const olines = Array.isArray(bol.lines)
+                ? bol.lines.filter((l) => l.orderId === oid)
+                : [];
               const pkgs = olines.reduce((a, l) => a + l.qty, 0);
               const wt = olines.reduce((a, l) => a + l.weightLbs, 0).toFixed(1);
               const hasPallet = olines.some((l) => l.pkgType === "PLT");
@@ -135,22 +137,23 @@ export function BolDocument({ bol }: { bol: BillOfLading }) {
             </tr>
           </thead>
           <tbody>
-            {Array.isArray(bol.lines) && bol.lines.map((l, i) => (
-              <tr key={i} className="border-t border-black/30">
-                <Td className="text-right tabular-nums">{l.qty}</Td>
-                <Td mono>{l.pkgType}</Td>
-                <Td className="text-right tabular-nums">{l.weightLbs.toFixed(1)}</Td>
-                <Td className="text-center">{l.hazmat ? "X" : ""}</Td>
-                <Td>
-                  <div>{l.description}</div>
-                  <div className="text-[8px] text-black/60">
-                    SKU {l.sku} · PO {l.poNumber} · SO {l.orderId}
-                  </div>
-                </Td>
-                <Td mono>{l.nmfc}</Td>
-                <Td className="text-right tabular-nums">{l.freightClass}</Td>
-              </tr>
-            ))}
+            {Array.isArray(bol.lines) &&
+              bol.lines.map((l, i) => (
+                <tr key={i} className="border-t border-black/30">
+                  <Td className="text-right tabular-nums">{l.qty}</Td>
+                  <Td mono>{l.pkgType}</Td>
+                  <Td className="text-right tabular-nums">{l.weightLbs.toFixed(1)}</Td>
+                  <Td className="text-center">{l.hazmat ? "X" : ""}</Td>
+                  <Td>
+                    <div>{l.description}</div>
+                    <div className="text-[8px] text-black/60">
+                      SKU {l.sku} · PO {l.poNumber} · SO {l.orderId}
+                    </div>
+                  </Td>
+                  <Td mono>{l.nmfc}</Td>
+                  <Td className="text-right tabular-nums">{l.freightClass}</Td>
+                </tr>
+              ))}
             <tr className="border-t-2 border-black/80 bg-black/5 font-semibold">
               <Td className="text-right tabular-nums">{bol.totals.pallets + bol.totals.cartons}</Td>
               <Td>—</Td>

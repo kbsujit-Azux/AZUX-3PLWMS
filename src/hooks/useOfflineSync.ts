@@ -16,12 +16,7 @@ type QueuedOp = {
 };
 
 type OfflineSyncState = {
-  enqueue: (op: {
-    collection: string;
-    docId?: string;
-    type: QueuedOpType;
-    data: any;
-  }) => void;
+  enqueue: (op: { collection: string; docId?: string; type: QueuedOpType; data: any }) => void;
   queue: QueuedOp[];
   online: boolean;
   flushing: boolean;
@@ -80,7 +75,7 @@ export function useOfflineSync(): OfflineSyncState {
     if (flushRef.current) return;
     flushRef.current = true;
     setFlushing(true);
-    let remaining = queue;
+    const remaining = queue;
     for (const op of remaining) {
       try {
         if (op.type === "update" && op.collection && op.docId) {

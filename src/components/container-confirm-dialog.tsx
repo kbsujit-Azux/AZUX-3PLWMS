@@ -23,13 +23,7 @@
 
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  PackageCheck,
-  Truck,
-  X,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, PackageCheck, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,9 +72,7 @@ export function assessContainer(inbound: any, pallets: any[]): ContainerAssessme
   const variance = receivedUnits - expectedUnits;
 
   // ── Lines not fully received ──
-  for (const l of lines.filter(
-    (x) => (x.receivedQty || 0) < (x.qtyExpected || 0),
-  )) {
+  for (const l of lines.filter((x) => (x.receivedQty || 0) < (x.qtyExpected || 0))) {
     const missing = (l.qtyExpected || 0) - (l.receivedQty || 0);
     issues.push({
       severity: "error",
@@ -118,9 +110,7 @@ export function assessContainer(inbound: any, pallets: any[]): ContainerAssessme
   const containerPallets = pallets.filter(
     (p) => (p.shipmentId ?? p.inboundShipmentId) === inbound?.id,
   );
-  const notPutAway = containerPallets.filter(
-    (p) => p.status !== "putaway" || !p.location,
-  );
+  const notPutAway = containerPallets.filter((p) => p.status !== "putaway" || !p.location);
   for (const p of notPutAway) {
     issues.push({
       severity: "error",
@@ -336,8 +326,8 @@ export function ContainerConfirmDialog({
                   I understand this container is not complete
                 </span>
                 <span className="block text-muted-foreground">
-                  {assessment.blocking.length} outstanding item(s) remain. Closing
-                  now records the receipt with these discrepancies.
+                  {assessment.blocking.length} outstanding item(s) remain. Closing now records the
+                  receipt with these discrepancies.
                 </span>
               </span>
             </label>

@@ -72,7 +72,9 @@ export const Route = createFileRoute("/inventory")({
 });
 
 /** Build PO → { container, trailer } map from inbound ASNs. */
-function buildPoRefs(shipments: { poNumber: string; containerNumber: string; trailerNumber: string }[]) {
+function buildPoRefs(
+  shipments: { poNumber: string; containerNumber: string; trailerNumber: string }[],
+) {
   const m = new Map<string, { container: string; trailer: string }>();
   for (const s of shipments) {
     m.set(s.poNumber, {
@@ -140,8 +142,11 @@ function csvEscape(v: string | number) {
 
 function InventoryPage() {
   const { tenantId, warehouseId } = useWorkspace();
-  const { refreshData, inventoryItems: liveInventory, inboundShipments: liveInbound } =
-    useWmsData();
+  const {
+    refreshData,
+    inventoryItems: liveInventory,
+    inboundShipments: liveInbound,
+  } = useWmsData();
   const [query, setQuery] = useState("");
   const [scanItem, setScanItem] = useState<InventoryItem | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
@@ -155,7 +160,15 @@ function InventoryPage() {
   const [newItemOpen, setNewItemOpen] = useState(false);
   const [newItemConfirmOpen, setNewItemConfirmOpen] = useState(false);
   const [newItemForm, setNewItemForm] = useState<
-    Partial<InventoryItem & { palletId: string; location: string; qty: number; poNumber: string; container?: string }>
+    Partial<
+      InventoryItem & {
+        palletId: string;
+        location: string;
+        qty: number;
+        poNumber: string;
+        container?: string;
+      }
+    >
   >({});
   const fileRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
@@ -412,22 +425,22 @@ function InventoryPage() {
             <Button
               size="sm"
               className="h-8 text-xs gap-1.5"
-onClick={() => {
-                 setNewItemForm({
-                   sku: "",
-                   upc: "",
-                   description: "",
-                   tenantId: tenantId !== "all" ? tenantId : "",
-                   warehouseId: warehouseId !== "all" ? warehouseId : "",
-                   caseQty: 1,
-                   palletId: "",
-                   location: "",
-                   qty: 0,
-                   poNumber: "",
-                   container: "",
-                 });
-                 setNewItemOpen(true);
-               }}
+              onClick={() => {
+                setNewItemForm({
+                  sku: "",
+                  upc: "",
+                  description: "",
+                  tenantId: tenantId !== "all" ? tenantId : "",
+                  warehouseId: warehouseId !== "all" ? warehouseId : "",
+                  caseQty: 1,
+                  palletId: "",
+                  location: "",
+                  qty: 0,
+                  poNumber: "",
+                  container: "",
+                });
+                setNewItemOpen(true);
+              }}
             >
               <Plus className="h-3.5 w-3.5" /> New item
             </Button>
@@ -511,8 +524,12 @@ onClick={() => {
               const item = liveInventory.find((i) => i.sku === r.sku);
               return (
                 <TableRow key={`${r.batchId}-${r.palletId}`} className="text-xs hover:bg-muted/30">
-                  <TableCell className="py-2 text-xs">{tenants.find((t) => t.id === r.tenantId)?.code ?? r.tenantId}</TableCell>
-                  <TableCell className="py-2 text-xs">{warehouses.find((w) => w.id === r.warehouseId)?.code ?? r.warehouseId}</TableCell>
+                  <TableCell className="py-2 text-xs">
+                    {tenants.find((t) => t.id === r.tenantId)?.code ?? r.tenantId}
+                  </TableCell>
+                  <TableCell className="py-2 text-xs">
+                    {warehouses.find((w) => w.id === r.warehouseId)?.code ?? r.warehouseId}
+                  </TableCell>
                   <TableCell className="py-2 font-mono">
                     <div className="font-medium">{r.sku}</div>
                     <div className="text-[10px] text-muted-foreground font-sans">
@@ -646,22 +663,18 @@ onClick={() => {
       </div>
 
       {/* Release pallet from inventory */}
-      <AlertDialog
-        open={!!releaseTarget}
-        onOpenChange={(o) => !o && setReleaseTarget(null)}
-      >
+      <AlertDialog open={!!releaseTarget} onOpenChange={(o) => !o && setReleaseTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Release pallet from inventory</AlertDialogTitle>
             <AlertDialogDescription>
               This removes the inventory batch for{" "}
-              <span className="font-mono">{releaseTarget?.palletId}</span> and returns
-              the pallet to <span className="font-mono">staged</span> so it can be
-              put away again.
+              <span className="font-mono">{releaseTarget?.palletId}</span> and returns the pallet to{" "}
+              <span className="font-mono">staged</span> so it can be put away again.
               {releaseTarget?.allocatedUnits ? (
                 <span className="mt-2 block font-medium text-destructive">
-                  {releaseTarget.allocatedUnits} unit(s) are allocated — release the
-                  allocation first.
+                  {releaseTarget.allocatedUnits} unit(s) are allocated — release the allocation
+                  first.
                 </span>
               ) : null}
             </AlertDialogDescription>
@@ -858,9 +871,7 @@ onClick={() => {
                 <span className="text-[10px] text-muted-foreground w-32 shrink-0 truncate">
                   {t.user}
                 </span>
-                {t.orderId && (
-                  <span className="text-[10px] font-mono">Order: {t.orderId}</span>
-                )}
+                {t.orderId && <span className="text-[10px] font-mono">Order: {t.orderId}</span>}
                 {t.pickTicketNum && (
                   <span className="text-[10px] font-mono">PT: {t.pickTicketNum}</span>
                 )}
@@ -898,7 +909,8 @@ onClick={() => {
                   const qtyBefore = editBatch.qty;
                   const qtyAfter = updates.qty ?? qtyBefore;
                   const qtyChange = qtyAfter - qtyBefore;
-                  const locationChanged = (updates.location ?? editBatch.location) !== editBatch.location;
+                  const locationChanged =
+                    (updates.location ?? editBatch.location) !== editBatch.location;
                   const reason = (updates as any).reason?.trim() ?? "";
                   const { reason: _r, ...batchUpdates } = updates as any;
 
@@ -953,69 +965,78 @@ onClick={() => {
                   Manually add inventory to the system. Only Admin users can perform this action.
                 </DialogDescription>
               </DialogHeader>
-<div className="space-y-4">
-                 <div className="grid grid-cols-3 gap-3">
-                   <div>
-                     <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                       SKU
-                     </Label>
-                     <select
-                       value={newItemForm.sku ?? ""}
-                       onChange={(e) => {
-                          const selected = liveInventory.find((i) => i.sku === e.target.value);
-                         setNewItemForm({
-                           ...newItemForm,
-                           sku: e.target.value,
-                           description: selected?.description ?? "",
-                           upc: selected?.upc ?? "",
-                         });
-                       }}
-                       className="h-8 text-xs font-mono mt-1 rounded-md border border-input bg-background px-2 w-full"
-                     >
-                       <option value="">Select SKU...</option>
-                        {liveInventory.map((i) => (
-                         <option key={i.sku} value={i.sku}>{i.sku}</option>
-                       ))}
-                     </select>
-                   </div>
-                   <div>
-                     <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                       UPC / GTIN
-                     </Label>
-                     <Input
-                       value={newItemForm.upc ?? ""}
-                       onChange={(e) => setNewItemForm({ ...newItemForm, upc: e.target.value })}
-                       placeholder="e.g. 081234500017"
-                       className="h-8 text-xs font-mono mt-1"
-                     />
-                   </div>
-                   <div>
-                     <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                       Container
-                     </Label>
-                     <Input
-                       value={newItemForm.container ?? ""}
-                       onChange={(e) => setNewItemForm({ ...newItemForm, container: e.target.value })}
-                       placeholder="CNT-12345"
-                       className="h-8 text-xs font-mono mt-1"
-                     />
-                   </div>
-                 </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      SKU
+                    </Label>
+                    <select
+                      value={newItemForm.sku ?? ""}
+                      onChange={(e) => {
+                        const selected = liveInventory.find((i) => i.sku === e.target.value);
+                        setNewItemForm({
+                          ...newItemForm,
+                          sku: e.target.value,
+                          description: selected?.description ?? "",
+                          upc: selected?.upc ?? "",
+                        });
+                      }}
+                      className="h-8 text-xs font-mono mt-1 rounded-md border border-input bg-background px-2 w-full"
+                    >
+                      <option value="">Select SKU...</option>
+                      {liveInventory.map((i) => (
+                        <option key={i.sku} value={i.sku}>
+                          {i.sku}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      UPC / GTIN
+                    </Label>
+                    <Input
+                      value={newItemForm.upc ?? ""}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, upc: e.target.value })}
+                      placeholder="e.g. 081234500017"
+                      className="h-8 text-xs font-mono mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Container
+                    </Label>
+                    <Input
+                      value={newItemForm.container ?? ""}
+                      onChange={(e) =>
+                        setNewItemForm({ ...newItemForm, container: e.target.value })
+                      }
+                      placeholder="CNT-12345"
+                      className="h-8 text-xs font-mono mt-1"
+                    />
+                  </div>
+                </div>
 
-                 <div>
-                   <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                     Description
-                   </Label>
-                   <Input
-                     value={newItemForm.description ?? ""}
-                     onChange={(e) =>
-                       setNewItemForm({ ...newItemForm, description: e.target.value })
-                     }
-                     placeholder="Item description"
-                     className="h-8 text-xs mt-1"
-                      readOnly={!!(newItemForm.sku && liveInventory.find((i) => i.sku === newItemForm.sku)?.description)}
-                   />
-                 </div>
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Description
+                  </Label>
+                  <Input
+                    value={newItemForm.description ?? ""}
+                    onChange={(e) =>
+                      setNewItemForm({ ...newItemForm, description: e.target.value })
+                    }
+                    placeholder="Item description"
+                    className="h-8 text-xs mt-1"
+                    readOnly={
+                      !!(
+                        newItemForm.sku &&
+                        liveInventory.find((i) => i.sku === newItemForm.sku)?.description
+                      )
+                    }
+                  />
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1100,17 +1121,17 @@ onClick={() => {
                   </div>
                 </div>
 
-<div>
-                   <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                     PO Number
-                   </Label>
-                   <Input
-                     value={newItemForm.poNumber ?? ""}
-                     onChange={(e) => setNewItemForm({ ...newItemForm, poNumber: e.target.value })}
-                     placeholder="PO-554120"
-                     className="h-8 text-xs font-mono mt-1"
-                   />
-                 </div>
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    PO Number
+                  </Label>
+                  <Input
+                    value={newItemForm.poNumber ?? ""}
+                    onChange={(e) => setNewItemForm({ ...newItemForm, poNumber: e.target.value })}
+                    placeholder="PO-554120"
+                    className="h-8 text-xs font-mono mt-1"
+                  />
+                </div>
 
                 <div>
                   <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -1168,30 +1189,30 @@ onClick={() => {
                   Please confirm the following inventory item will be added:
                 </p>
                 <div className="rounded-md border border-border bg-muted/30 p-4 space-y-2">
-<div className="grid grid-cols-2 gap-2 text-xs">
-                     <span className="text-muted-foreground">SKU</span>
-                     <span className="font-mono">{newItemForm.sku}</span>
-                     <span className="text-muted-foreground">Description</span>
-                     <span className="font-mono">{newItemForm.description}</span>
-                     <span className="text-muted-foreground">Client</span>
-                     <span className="font-mono">
-                       {tenants.find((t) => t.id === newItemForm.tenantId)?.code}
-                     </span>
-                     <span className="text-muted-foreground">Warehouse</span>
-                     <span className="font-mono">
-                       {warehouses.find((w) => w.id === newItemForm.warehouseId)?.code}
-                     </span>
-                     <span className="text-muted-foreground">Container</span>
-                     <span className="font-mono">{newItemForm.container || "—"}</span>
-                     <span className="text-muted-foreground">Pallet ID</span>
-                     <span className="font-mono">{newItemForm.palletId}</span>
-                     <span className="text-muted-foreground">Location</span>
-                     <span className="font-mono">{newItemForm.location}</span>
-                     <span className="text-muted-foreground">Qty</span>
-                     <span className="font-mono">{newItemForm.qty?.toLocaleString()}</span>
-                     <span className="text-muted-foreground">PO Number</span>
-                     <span className="font-mono">{newItemForm.poNumber || "—"}</span>
-                   </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <span className="text-muted-foreground">SKU</span>
+                    <span className="font-mono">{newItemForm.sku}</span>
+                    <span className="text-muted-foreground">Description</span>
+                    <span className="font-mono">{newItemForm.description}</span>
+                    <span className="text-muted-foreground">Client</span>
+                    <span className="font-mono">
+                      {tenants.find((t) => t.id === newItemForm.tenantId)?.code}
+                    </span>
+                    <span className="text-muted-foreground">Warehouse</span>
+                    <span className="font-mono">
+                      {warehouses.find((w) => w.id === newItemForm.warehouseId)?.code}
+                    </span>
+                    <span className="text-muted-foreground">Container</span>
+                    <span className="font-mono">{newItemForm.container || "—"}</span>
+                    <span className="text-muted-foreground">Pallet ID</span>
+                    <span className="font-mono">{newItemForm.palletId}</span>
+                    <span className="text-muted-foreground">Location</span>
+                    <span className="font-mono">{newItemForm.location}</span>
+                    <span className="text-muted-foreground">Qty</span>
+                    <span className="font-mono">{newItemForm.qty?.toLocaleString()}</span>
+                    <span className="text-muted-foreground">PO Number</span>
+                    <span className="font-mono">{newItemForm.poNumber || "—"}</span>
+                  </div>
                 </div>
                 <p className="text-[10px] text-muted-foreground">
                   This action will create a new inventory batch and log an audit trail entry.
@@ -1317,9 +1338,7 @@ function EditBatchForm({
 }: {
   item: InventoryItem;
   batch: InventoryItem["batches"][0];
-  onSave: (
-    updates: Partial<InventoryItem["batches"][0]> & { reason?: string },
-  ) => Promise<void>;
+  onSave: (updates: Partial<InventoryItem["batches"][0]> & { reason?: string }) => Promise<void>;
   onCancel: () => void;
 }) {
   const [formData, setFormData] = useState({
@@ -1411,8 +1430,8 @@ function EditBatchForm({
           />
           {reasonError && (
             <p className="text-[10px] text-destructive">
-              A reason is required for every quantity or location correction. It is
-              written to the audit trail.
+              A reason is required for every quantity or location correction. It is written to the
+              audit trail.
             </p>
           )}
         </div>

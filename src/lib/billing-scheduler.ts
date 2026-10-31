@@ -23,7 +23,12 @@
 import type { Pallet } from "./pallet-data";
 import type { LocationRecord } from "./master-data";
 import type { ChargeRule, BillableEvent, BillingClient } from "./billing-data";
-import { buildVolumetricStorageSnapshots, buildVolumetricStorageLines, buildInvoiceLinesFromEvents, applyMinimumCharges } from "./billing-engine";
+import {
+  buildVolumetricStorageSnapshots,
+  buildVolumetricStorageLines,
+  buildInvoiceLinesFromEvents,
+  applyMinimumCharges,
+} from "./billing-engine";
 
 export interface BillingSchedulerConfig {
   pallets: Pallet[];
@@ -70,7 +75,9 @@ function isDue(frequency: string | undefined, customCycleDays?: number, lastRun?
   }
 }
 
-export async function runVolumetricSnapshots(config: BillingSchedulerConfig): Promise<SnapshotJobResult[]> {
+export async function runVolumetricSnapshots(
+  config: BillingSchedulerConfig,
+): Promise<SnapshotJobResult[]> {
   const results: SnapshotJobResult[] = [];
   const targetClients = config.clientIds?.length
     ? config.clients.filter((c) => config.clientIds!.includes(c.id))
@@ -78,7 +85,9 @@ export async function runVolumetricSnapshots(config: BillingSchedulerConfig): Pr
 
   for (const client of targetClients) {
     const clientRules = config.rules.filter((r) => r.clientId === client.id && r.enabled);
-    const storageRules = clientRules.filter((r) => r.category === "Storage" && r.unit === "cubicFeet");
+    const storageRules = clientRules.filter(
+      (r) => r.category === "Storage" && r.unit === "cubicFeet",
+    );
 
     if (storageRules.length === 0) continue;
 
@@ -135,7 +144,9 @@ export async function runVolumetricSnapshots(config: BillingSchedulerConfig): Pr
   return results;
 }
 
-export async function runAutomatedBillingPass(config: BillingSchedulerConfig): Promise<SnapshotJobResult[]> {
+export async function runAutomatedBillingPass(
+  config: BillingSchedulerConfig,
+): Promise<SnapshotJobResult[]> {
   const results: SnapshotJobResult[] = [];
   const targetClients = config.clientIds?.length
     ? config.clients.filter((c) => config.clientIds!.includes(c.id))
@@ -147,9 +158,7 @@ export async function runAutomatedBillingPass(config: BillingSchedulerConfig): P
       const { subscribeBillableEvents } = await import("./firestore-data");
       return new Promise<any[]>((resolve) => {
         const unsub = subscribeBillableEvents((all) => {
-          const filtered = all.filter(
-            (e) => e.clientId === client.id && !e.billed,
-          );
+          const filtered = all.filter((e) => e.clientId === client.id && !e.billed);
           unsub();
           resolve(filtered);
         });
@@ -158,7 +167,8 @@ export async function runAutomatedBillingPass(config: BillingSchedulerConfig): P
 
     if (events.length === 0 || clientRules.length === 0) continue;
 
-    const { matchEventToRule, computeTieredRate, applyPeakSurcharge } = await import("./billing-engine");
+    const { matchEventToRule, computeTieredRate, applyPeakSurcharge } =
+      await import("./billing-engine");
 
     const matched: { event: any; rule: any; rate: number; total: number }[] = [];
     for (const ev of events) {
@@ -170,7 +180,13 @@ export async function runAutomatedBillingPass(config: BillingSchedulerConfig): P
       }
       let total = +(ev.quantity * rate).toFixed(2);
       if (rule.peakSurchargePct && rule.peakSurchargePct > 0) {
-        total = applyPeakSurcharge(total, rule.peakSurchargePct, new Date(), rule.peakStartMonth, rule.peakEndMonth);
+        total = applyPeakSurcharge(
+          total,
+          rule.peakSurchargePct,
+          new Date(),
+          rule.peakStartMonth,
+          rule.peakEndMonth,
+        );
       }
       matched.push({ event: ev, rule, rate, total });
     }
@@ -217,7 +233,10 @@ export async function runAutomatedBillingPass(config: BillingSchedulerConfig): P
   return results;
 }
 
-export function startBillingScheduler(config: BillingSchedulerConfig, intervalMs = 60 * 60 * 1000): void {
+export function startBillingScheduler(
+  config: BillingSchedulerConfig,
+  intervalMs = 60 * 60 * 1000,
+): void {
   if (schedulerInterval) return;
   running = true;
 

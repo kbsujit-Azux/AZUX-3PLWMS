@@ -373,15 +373,21 @@ function EmployeesPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-slate-300">Role</Label>
-              <Select
-                value={form.role}
-                onValueChange={(v) => setForm({ ...form, role: v })}
-              >
+              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
                 <SelectTrigger className="h-9 bg-slate-800 border-slate-700 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["Picker", "Packer", "Receiver", "Putaway", "Warehouse Lead", "Operations Manager", "Admin", "Billing"].map((r) => (
+                  {[
+                    "Picker",
+                    "Packer",
+                    "Receiver",
+                    "Putaway",
+                    "Warehouse Lead",
+                    "Operations Manager",
+                    "Admin",
+                    "Billing",
+                  ].map((r) => (
                     <SelectItem key={r} value={r} className="text-xs">
                       {r}
                     </SelectItem>
@@ -391,15 +397,21 @@ function EmployeesPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-slate-300">Team</Label>
-              <Select
-                value={form.team || ""}
-                onValueChange={(v) => setForm({ ...form, team: v })}
-              >
+              <Select value={form.team || ""} onValueChange={(v) => setForm({ ...form, team: v })}>
                 <SelectTrigger className="h-9 bg-slate-800 border-slate-700 text-sm">
                   <SelectValue placeholder="Select team" />
                 </SelectTrigger>
                 <SelectContent>
-                  {["Picking", "Packing", "Receiving", "Putaway", "Move", "Operations", "Admin", "All"].map((t) => (
+                  {[
+                    "Picking",
+                    "Packing",
+                    "Receiving",
+                    "Putaway",
+                    "Move",
+                    "Operations",
+                    "Admin",
+                    "All",
+                  ].map((t) => (
                     <SelectItem key={t} value={t} className="text-xs">
                       {t}
                     </SelectItem>

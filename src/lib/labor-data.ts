@@ -34,29 +34,29 @@ import type { LaborStandard, LaborTaskType } from "./rf-types";
 export const LABOR_STANDARDS: LaborStandard[] = [
   {
     taskType: "DIRECTED_PICK",
-    secFixed: 10,      // walk to location, scan location, scan item
-    secPerUnit: 2.5,   // per pick line
+    secFixed: 10, // walk to location, scan location, scan item
+    secPerUnit: 2.5, // per pick line
     uom: "line",
     description: "Directed pick per line item",
   },
   {
     taskType: "PUTAWAY",
-    secFixed: 25,      // drive to location, scan location, place pallet
-    secPerUnit: 0,     // per pallet (fixed)
+    secFixed: 25, // drive to location, scan location, place pallet
+    secPerUnit: 0, // per pallet (fixed)
     uom: "pallet",
     description: "Putaway per pallet",
   },
   {
     taskType: "MOVE_PALLET",
-    secFixed: 15,      // drive to origin, pick up, drive to dest, place
-    secPerUnit: 0,     // per pallet
+    secFixed: 15, // drive to origin, pick up, drive to dest, place
+    secPerUnit: 0, // per pallet
     uom: "pallet",
     description: "Pallet move between locations",
   },
   {
     taskType: "DOCK_RECEIVING",
-    secFixed: 20,      // scan container, scan pallet, label
-    secPerUnit: 0,     // per pallet
+    secFixed: 20, // scan container, scan pallet, label
+    secPerUnit: 0, // per pallet
     uom: "pallet",
     description: "Dock receiving per pallet",
   },

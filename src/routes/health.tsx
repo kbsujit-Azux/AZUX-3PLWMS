@@ -2,7 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, Database, Wifi, WifiOff, AlertTriangle, CheckCircle2, RefreshCcw } from "lucide-react";
+import {
+  Activity,
+  Database,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  CheckCircle2,
+  RefreshCcw,
+} from "lucide-react";
 import { db } from "@/lib/firestore";
 import { globalSubscriptionManager } from "@/lib/subscription-manager";
 import { getDoc, doc } from "firebase/firestore";
@@ -82,19 +90,20 @@ function HealthPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const firestoreStatus = health.firestore === "connected" ? (
-    <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-400">
-      <CheckCircle2 className="h-3 w-3" /> Connected
-    </Badge>
-  ) : health.firestore === "disconnected" ? (
-    <Badge variant="outline" className="gap-1 border-red-500/30 text-red-400">
-      <WifiOff className="h-3 w-3" /> Disconnected
-    </Badge>
-  ) : (
-    <Badge variant="outline" className="gap-1 border-amber-500/30 text-amber-400">
-      <Activity className="h-3 w-3 animate-pulse" /> Checking…
-    </Badge>
-  );
+  const firestoreStatus =
+    health.firestore === "connected" ? (
+      <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-400">
+        <CheckCircle2 className="h-3 w-3" /> Connected
+      </Badge>
+    ) : health.firestore === "disconnected" ? (
+      <Badge variant="outline" className="gap-1 border-red-500/30 text-red-400">
+        <WifiOff className="h-3 w-3" /> Disconnected
+      </Badge>
+    ) : (
+      <Badge variant="outline" className="gap-1 border-amber-500/30 text-amber-400">
+        <Activity className="h-3 w-3 animate-pulse" /> Checking…
+      </Badge>
+    );
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">

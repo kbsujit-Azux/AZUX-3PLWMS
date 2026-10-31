@@ -4,7 +4,11 @@ import { packSizeOf } from "./pallet-build-engine";
 import { generateNextUCC128 } from "./ucc128";
 import type { UCC128Record } from "./ucc128-record";
 
-export async function buildUCC128ForOrder(order: any, pickTickets: any[], itemMaster?: any[]): Promise<UCC128Record[]> {
+export async function buildUCC128ForOrder(
+  order: any,
+  pickTickets: any[],
+  itemMaster?: any[],
+): Promise<UCC128Record[]> {
   const records: UCC128Record[] = [];
   const tenantId = order.tenantId ?? "acme";
   const warehouseId = order.warehouseId ?? "atl1";
@@ -84,7 +88,9 @@ export async function buildUCC128ForOrder(order: any, pickTickets: any[], itemMa
 }
 
 export async function getUCC128RecordsByOrder(orderId: string): Promise<UCC128Record[]> {
-  const snap = await getDocs(query(collection(db, "ucc128Records"), where("orderId", "==", orderId)));
+  const snap = await getDocs(
+    query(collection(db, "ucc128Records"), where("orderId", "==", orderId)),
+  );
   return snap.docs.map((d) => d.data() as UCC128Record);
 }
 

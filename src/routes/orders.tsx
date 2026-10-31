@@ -1,5 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
-﻿import { buildUCC128ForOrder, hasUCC128Records, getUCC128RecordsByOrder } from "@/lib/ucc128-build";
+import { createFileRoute } from "@tanstack/react-router";
+import { buildUCC128ForOrder, hasUCC128Records, getUCC128RecordsByOrder } from "@/lib/ucc128-build";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { useMemo, useState, useEffect } from "react";
@@ -151,7 +151,9 @@ function OrdersPage() {
   const { refreshData, orders, pickTickets } = useWmsData();
   const [waves, setWaves] = useState<any[]>([]);
   useEffect(() => {
-    getDocs(collection(db, "waves")).then((snap) => setWaves(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+    getDocs(collection(db, "waves")).then((snap) =>
+      setWaves(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
   }, []);
   const [query, setQuery] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
@@ -165,7 +167,9 @@ function OrdersPage() {
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [uccBuiltOrders, setUccBuiltOrders] = useState<Set<string>>(new Set());
   const [uccConfirmOpen, setUccConfirmOpen] = useState(false);
-  const [uccPlan, setUccPlan] = useState<{ sku: string; units: number; casePack: number; cartons: number }[]>([]);
+  const [uccPlan, setUccPlan] = useState<
+    { sku: string; units: number; casePack: number; cartons: number }[]
+  >([]);
   const [uccOrderTarget, setUccOrderTarget] = useState<any>(null);
 
   useEffect(() => {
@@ -359,29 +363,29 @@ function OrdersPage() {
         }
       }
     } else {
-    for (const o of filtered) {
-      const tenant = tenants.find((t) => t.id === o.tenantId);
-      const wh = warehouses.find((w) => w.id === o.warehouseId);
-      const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
-      lines.push(
-        [
-          o.id,
-          o.poNumber,
-          o.customerOrderNumber,
-          o.ediRef,
-          tenant?.code ?? o.tenantId,
-          wh?.code ?? o.warehouseId,
-          o.shipToName,
-          o.carrier,
-          o.serviceLevel,
-          String(linesFor(o).length),
-          String(units),
-          o.status,
-          o.source,
-          new Date(o.mustShipDate).toLocaleDateString(),
-        ].join(","),
-      );
-    }
+      for (const o of filtered) {
+        const tenant = tenants.find((t) => t.id === o.tenantId);
+        const wh = warehouses.find((w) => w.id === o.warehouseId);
+        const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
+        lines.push(
+          [
+            o.id,
+            o.poNumber,
+            o.customerOrderNumber,
+            o.ediRef,
+            tenant?.code ?? o.tenantId,
+            wh?.code ?? o.warehouseId,
+            o.shipToName,
+            o.carrier,
+            o.serviceLevel,
+            String(linesFor(o).length),
+            String(units),
+            o.status,
+            o.source,
+            new Date(o.mustShipDate).toLocaleDateString(),
+          ].join(","),
+        );
+      }
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -422,7 +426,12 @@ function OrdersPage() {
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={exportCsv}>
             <Download className="h-3.5 w-3.5" /> Export
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setReportOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setReportOpen(true)}
+          >
             <FileText className="h-3.5 w-3.5" /> Report
           </Button>
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setNewOrderOpen(true)}>
@@ -532,15 +541,21 @@ function OrdersPage() {
                   </TableCell>
                   <TableCell className="py-2 font-mono text-[11px]">{wh?.code}</TableCell>
                   <TableCell className="py-2">{o.shipToName}</TableCell>
-                   <TableCell className="py-2">
-                      <div className="flex items-center gap-1">
-                        <Truck className="h-3 w-3 text-muted-foreground" />
-                        <span>{o.carrier}</span>
-                        <span className="text-[10px] text-muted-foreground">· {o.serviceLevel}</span>
-                      </div>
-                   </TableCell>
-                   <TableCell className="text-xs">{waves.find((w) => w.id === (o as any).waveId)?.name || (o as any).waveId || "—"}</TableCell>
-                   <TableCell className="text-xs">{o.entryDate ? new Date(o.entryDate).toLocaleDateString() : "—"}</TableCell>
+                  <TableCell className="py-2">
+                    <div className="flex items-center gap-1">
+                      <Truck className="h-3 w-3 text-muted-foreground" />
+                      <span>{o.carrier}</span>
+                      <span className="text-[10px] text-muted-foreground">· {o.serviceLevel}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {waves.find((w) => w.id === (o as any).waveId)?.name ||
+                      (o as any).waveId ||
+                      "—"}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {o.entryDate ? new Date(o.entryDate).toLocaleDateString() : "—"}
+                  </TableCell>
                   <TableCell className="py-2 text-right tabular-nums">{lines.length}</TableCell>
                   <TableCell className="py-2 text-right tabular-nums font-medium">
                     {units.toLocaleString()}
@@ -601,10 +616,18 @@ function OrdersPage() {
                           onClick={(e) => {
                             e.stopPropagation();
                             try {
-                              const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === o.id);
+                              const pts = (pickTickets ?? []).filter(
+                                (pt: any) => pt.orderId === o.id,
+                              );
                               const plan = pts.map((pt: any) => {
                                 const item = itemMaster.find((i: any) => i.sku === pt.sku);
-                                const casePack = item ? (item.packHierarchy?.find((h: any) => h.packLevel === "inner")?.qtyPerParent || item.caseQty || item.innerPackQty || 1) : 1;
+                                const casePack = item
+                                  ? item.packHierarchy?.find((h: any) => h.packLevel === "inner")
+                                      ?.qtyPerParent ||
+                                    item.caseQty ||
+                                    item.innerPackQty ||
+                                    1
+                                  : 1;
                                 const units = pt.quantityToPick ?? 0;
                                 const fullCartons = Math.floor(units / casePack);
                                 const remainder = units % casePack;
@@ -615,7 +638,9 @@ function OrdersPage() {
                               setUccOrderTarget(o);
                               setUccConfirmOpen(true);
                             } catch (err) {
-                              toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+                              toast.error(
+                                `Failed: ${err instanceof Error ? err.message : String(err)}`,
+                              );
                             }
                           }}
                           title={uccBuiltOrders.has(o.id) ? "UCC128 already built" : "Build UCC128"}
@@ -624,20 +649,29 @@ function OrdersPage() {
                         </Button>
                       )}
                       {["PICKED", "picked", "picking", "packed"].includes(o.status) && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const oid = o.id;
-                          const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === oid);
-                          if (pts.length === 0) { toast.error("No pick tickets for this order"); return; }
-                          const win = window.open("", "_blank");
-                          if (!win) return;
-                          const labels = pts.map((pt: any) => {
-                            const bars = Array.from({ length: 48 }).map((_, i) => `<span style="display:inline-block;background:#000;width:${((i * 31 + String(pt.pickTicketNum).charCodeAt(i % String(pt.pickTicketNum).length)) % 3) + 1}px;height:100%;"></span>`).join("");
-                            return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const oid = o.id;
+                            const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === oid);
+                            if (pts.length === 0) {
+                              toast.error("No pick tickets for this order");
+                              return;
+                            }
+                            const win = window.open("", "_blank");
+                            if (!win) return;
+                            const labels = pts
+                              .map((pt: any) => {
+                                const bars = Array.from({ length: 48 })
+                                  .map(
+                                    (_, i) =>
+                                      `<span style="display:inline-block;background:#000;width:${((i * 31 + String(pt.pickTicketNum).charCodeAt(i % String(pt.pickTicketNum).length)) % 3) + 1}px;height:100%;"></span>`,
+                                  )
+                                  .join("");
+                                return `<div style="border:2px solid #000;padding:12px;margin:8px;font-family:monospace;page-break-after:always;">
                               <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;">
                                 <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">AZUX 3PL WMS Systems</span>
                                 <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">PICK TICKET</span>
@@ -656,15 +690,18 @@ function OrdersPage() {
                               <div style="margin-top:8px;display:flex;align-items:flex-end;gap:1px;overflow:hidden;height:40px;background:#111;padding:4px;">${bars}</div>
                               <div style="margin-top:2px;text-align:center;font-size:10px;letter-spacing:0.3em;">${pt.pickTicketNum}</div>
                             </div>`;
-                          }).join("");
-                          win.document.write(`<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; }</style></head><body>${labels}</body></html>`);
-                          win.document.close();
-                          setTimeout(() => win.print(), 500);
-                        }}
-                        title="Print pick tickets"
-                      >
-                        <Printer className="h-3.5 w-3.5" />
-                      </Button>
+                              })
+                              .join("");
+                            win.document.write(
+                              `<html><head><link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet"><style>@media print { body { margin: 0; } } .barcode { font-family: "Libre Barcode 128", cursive; }</style></head><body>${labels}</body></html>`,
+                            );
+                            win.document.close();
+                            setTimeout(() => win.print(), 500);
+                          }}
+                          title="Print pick tickets"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                        </Button>
                       )}
                       <Button
                         size="icon"
@@ -915,31 +952,44 @@ function OrdersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Build UCC128 Labels</AlertDialogTitle>
             <AlertDialogDescription>
-              {uccPlan.reduce((s, p) => s + p.cartons, 0)} UCC128 labels will be created for {uccOrderTarget?.id}:
+              {uccPlan.reduce((s, p) => s + p.cartons, 0)} UCC128 labels will be created for{" "}
+              {uccOrderTarget?.id}:
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 text-xs">
             {uccPlan.map((p, i) => (
-              <div key={i} className="flex items-center justify-between rounded border border-border p-2">
+              <div
+                key={i}
+                className="flex items-center justify-between rounded border border-border p-2"
+              >
                 <span className="font-mono">{p.sku}</span>
-                <span>{p.units} units ÷ {p.casePack} case pack = {p.cartons} UCC{p.cartons > 1 ? "s" : ""}</span>
+                <span>
+                  {p.units} units ÷ {p.casePack} case pack = {p.cartons} UCC
+                  {p.cartons > 1 ? "s" : ""}
+                </span>
               </div>
             ))}
-            <div className="font-medium pt-2">Total UCCs: {uccPlan.reduce((s, p) => s + p.cartons, 0)}</div>
+            <div className="font-medium pt-2">
+              Total UCCs: {uccPlan.reduce((s, p) => s + p.cartons, 0)}
+            </div>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setUccConfirmOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => {
-              setUccConfirmOpen(false);
-              try {
-                const pts = (pickTickets ?? []).filter((pt: any) => pt.orderId === uccOrderTarget?.id);
-                const records = await buildUCC128ForOrder(uccOrderTarget, pts, itemMaster);
-                setUccBuiltOrders((prev) => new Set(prev).add(uccOrderTarget.id));
-                toast.success(`Built ${records.length} UCC128 labels for ${uccOrderTarget.id}`);
-              } catch (err) {
-                toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
-              }
-            }}>
+            <AlertDialogAction
+              onClick={async () => {
+                setUccConfirmOpen(false);
+                try {
+                  const pts = (pickTickets ?? []).filter(
+                    (pt: any) => pt.orderId === uccOrderTarget?.id,
+                  );
+                  const records = await buildUCC128ForOrder(uccOrderTarget, pts, itemMaster);
+                  setUccBuiltOrders((prev) => new Set(prev).add(uccOrderTarget.id));
+                  toast.success(`Built ${records.length} UCC128 labels for ${uccOrderTarget.id}`);
+                } catch (err) {
+                  toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+                }
+              }}
+            >
               Confirm & Build
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -949,29 +999,49 @@ function OrdersPage() {
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Outbound Orders Report</DialogTitle>
-            <DialogDescription>Filter and export orders by date range, client, warehouse, and status.</DialogDescription>
+            <DialogDescription>
+              Filter and export orders by date range, client, warehouse, and status.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium">From Date</label>
-                <Input type="date" value={reportDateFrom} onChange={(e) => setReportDateFrom(e.target.value)} className="h-8 text-xs" />
+                <Input
+                  type="date"
+                  value={reportDateFrom}
+                  onChange={(e) => setReportDateFrom(e.target.value)}
+                  className="h-8 text-xs"
+                />
               </div>
               <div>
                 <label className="text-xs font-medium">To Date</label>
-                <Input type="date" value={reportDateTo} onChange={(e) => setReportDateTo(e.target.value)} className="h-8 text-xs" />
+                <Input
+                  type="date"
+                  value={reportDateTo}
+                  onChange={(e) => setReportDateTo(e.target.value)}
+                  className="h-8 text-xs"
+                />
               </div>
             </div>
-              <div>
-                <label className="text-xs font-medium">Report Type</label>
-                <select value={reportDetail ? "detail" : "summary"} onChange={(e) => setReportDetail(e.target.value === "detail")} className="w-full h-8 text-xs border rounded px-2">
-                  <option value="summary">Summary (order level)</option>
-                  <option value="detail">Detail (line level)</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium">Status</label>
-                <select value={reportStatus} onChange={(e) => setReportStatus(e.target.value)} className="w-full h-8 text-xs border rounded px-2">
+            <div>
+              <label className="text-xs font-medium">Report Type</label>
+              <select
+                value={reportDetail ? "detail" : "summary"}
+                onChange={(e) => setReportDetail(e.target.value === "detail")}
+                className="w-full h-8 text-xs border rounded px-2"
+              >
+                <option value="summary">Summary (order level)</option>
+                <option value="detail">Detail (line level)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium">Status</label>
+              <select
+                value={reportStatus}
+                onChange={(e) => setReportStatus(e.target.value)}
+                className="w-full h-8 text-xs border rounded px-2"
+              >
                 <option value="all">All Statuses</option>
                 <option value="new">New</option>
                 <option value="released">Released</option>
@@ -984,68 +1054,116 @@ function OrdersPage() {
               </select>
             </div>
             <div className="flex gap-2 pt-2">
-              <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => {
-                const from = reportDateFrom ? new Date(reportDateFrom) : null;
-                const to = reportDateTo ? new Date(reportDateTo) : null;
-                const filteredReport = orders.filter((o) => {
-                  if (tenantId !== "all" && o.tenantId !== tenantId) return false;
-                  if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
-                  if (reportStatus !== "all" && o.status !== reportStatus) return false;
-                  const d = new Date(o.receivedAt || o.entryDate);
-                  if (from && d < from) return false;
-                  if (to && d > to) return false;
-                  return true;
-                });
-                const headers = ["Order #", "PO Number", "Client", "Warehouse", "Ship-to", "Carrier", "Service", "Lines", "Units", "Status", "Source", "Received"];
-                const lines = [headers.join(",")];
-                for (const o of filteredReport) {
-                  const tenant = tenants.find((t) => t.id === o.tenantId);
-                  const wh = warehouses.find((w) => w.id === o.warehouseId);
-                  const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
-                  lines.push([o.id, o.poNumber, tenant?.code ?? o.tenantId, wh?.code ?? o.warehouseId, o.shipToName, o.carrier, o.serviceLevel, String(linesFor(o).length), String(units), o.status, o.source, new Date(o.receivedAt).toLocaleDateString()].join(","));
-                }
-                const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `azux-orders-report-${new Date().toISOString().slice(0,10)}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
-                toast.success(`Report exported: ${filteredReport.length} records`);
-              }}>
+              <Button
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => {
+                  const from = reportDateFrom ? new Date(reportDateFrom) : null;
+                  const to = reportDateTo ? new Date(reportDateTo) : null;
+                  const filteredReport = orders.filter((o) => {
+                    if (tenantId !== "all" && o.tenantId !== tenantId) return false;
+                    if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
+                    if (reportStatus !== "all" && o.status !== reportStatus) return false;
+                    const d = new Date(o.receivedAt || o.entryDate);
+                    if (from && d < from) return false;
+                    if (to && d > to) return false;
+                    return true;
+                  });
+                  const headers = [
+                    "Order #",
+                    "PO Number",
+                    "Client",
+                    "Warehouse",
+                    "Ship-to",
+                    "Carrier",
+                    "Service",
+                    "Lines",
+                    "Units",
+                    "Status",
+                    "Source",
+                    "Received",
+                  ];
+                  const lines = [headers.join(",")];
+                  for (const o of filteredReport) {
+                    const tenant = tenants.find((t) => t.id === o.tenantId);
+                    const wh = warehouses.find((w) => w.id === o.warehouseId);
+                    const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
+                    lines.push(
+                      [
+                        o.id,
+                        o.poNumber,
+                        tenant?.code ?? o.tenantId,
+                        wh?.code ?? o.warehouseId,
+                        o.shipToName,
+                        o.carrier,
+                        o.serviceLevel,
+                        String(linesFor(o).length),
+                        String(units),
+                        o.status,
+                        o.source,
+                        new Date(o.receivedAt).toLocaleDateString(),
+                      ].join(","),
+                    );
+                  }
+                  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `azux-orders-report-${new Date().toISOString().slice(0, 10)}.csv`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                  toast.success(`Report exported: ${filteredReport.length} records`);
+                }}
+              >
                 <Download className="h-3.5 w-3.5" /> Export CSV
               </Button>
-              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => {
-                const from = reportDateFrom ? new Date(reportDateFrom) : null;
-                const to = reportDateTo ? new Date(reportDateTo) : null;
-                const filteredReport = orders.filter((o) => {
-                  if (tenantId !== "all" && o.tenantId !== tenantId) return false;
-                  if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
-                  if (reportStatus !== "all" && o.status !== reportStatus) return false;
-                  const d = new Date(o.receivedAt || o.entryDate);
-                  if (from && d < from) return false;
-                  if (to && d > to) return false;
-                  return true;
-                });
-                const win = window.open("", "_blank");
-                if (!win) return;
-                const rows = reportDetail
-                  ? filteredReport.flatMap((o) => {
-                      const tenant = tenants.find((t) => t.id === o.tenantId);
-                      const wh = warehouses.find((w) => w.id === o.warehouseId);
-                      return linesFor(o).map((l) => `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${tenant?.code ?? o.tenantId}</td><td>${wh?.code ?? o.warehouseId}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.serviceLevel}</td><td>${l.sku}</td><td>${l.description}</td><td>${l.qtyOrdered}</td><td>${l.qtyAllocated ?? 0}</td><td>${o.status}</td><td>${o.source}</td><td>${o.entryDate ? new Date(o.entryDate).toLocaleDateString() : ""}</td></tr>`).join("");
-                    }).join("")
-                  : filteredReport.map((o) => {
-                      const tenant = tenants.find((t) => t.id === o.tenantId);
-                      const wh = warehouses.find((w) => w.id === o.warehouseId);
-                      const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
-                      return `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${tenant?.code ?? o.tenantId}</td><td>${wh?.code ?? o.warehouseId}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.serviceLevel}</td><td>${linesFor(o).length}</td><td>${units}</td><td>${o.status}</td><td>${o.source}</td><td>${new Date(o.receivedAt).toLocaleDateString()}</td></tr>`;
-                    }).join("");
-                win.document.write(`<!DOCTYPE html><html><head><title>Outbound Orders Report</title><style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#1a365d;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#1a365d;color:#fff;font-weight:600}tr:nth-child(even){background:#f7f9fc}td{white-space:nowrap}@media print{body{padding:0}}</style></head><body><h1>AZUX 3PL WMS - Outbound Orders Report</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${filteredReport.length} | Date range: ${reportDateFrom || "All"} to ${reportDateTo || "All"} | Status: ${reportStatus}</p><table><thead><tr>${reportDetail ? "<th>Order #</th><th>PO #</th><th>Client</th><th>Warehouse</th><th>Ship-to</th><th>Carrier</th><th>Service</th><th>SKU</th><th>Description</th><th>Qty Ordered</th><th>Qty Allocated</th><th>Status</th><th>Source</th><th>940 Add Date</th>" : "<th>Order #</th><th>PO #</th><th>Client</th><th>Warehouse</th><th>Ship-to</th><th>Carrier</th><th>Service</th><th>Lines</th><th>Units</th><th>Status</th><th>Source</th><th>Received</th>"}</tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();}</script></body></html>`);
-                win.document.close();
-              }}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => {
+                  const from = reportDateFrom ? new Date(reportDateFrom) : null;
+                  const to = reportDateTo ? new Date(reportDateTo) : null;
+                  const filteredReport = orders.filter((o) => {
+                    if (tenantId !== "all" && o.tenantId !== tenantId) return false;
+                    if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
+                    if (reportStatus !== "all" && o.status !== reportStatus) return false;
+                    const d = new Date(o.receivedAt || o.entryDate);
+                    if (from && d < from) return false;
+                    if (to && d > to) return false;
+                    return true;
+                  });
+                  const win = window.open("", "_blank");
+                  if (!win) return;
+                  const rows = reportDetail
+                    ? filteredReport
+                        .flatMap((o) => {
+                          const tenant = tenants.find((t) => t.id === o.tenantId);
+                          const wh = warehouses.find((w) => w.id === o.warehouseId);
+                          return linesFor(o)
+                            .map(
+                              (l) =>
+                                `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${tenant?.code ?? o.tenantId}</td><td>${wh?.code ?? o.warehouseId}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.serviceLevel}</td><td>${l.sku}</td><td>${l.description}</td><td>${l.qtyOrdered}</td><td>${l.qtyAllocated ?? 0}</td><td>${o.status}</td><td>${o.source}</td><td>${o.entryDate ? new Date(o.entryDate).toLocaleDateString() : ""}</td></tr>`,
+                            )
+                            .join("");
+                        })
+                        .join("")
+                    : filteredReport
+                        .map((o) => {
+                          const tenant = tenants.find((t) => t.id === o.tenantId);
+                          const wh = warehouses.find((w) => w.id === o.warehouseId);
+                          const units = linesFor(o).reduce((s, l) => s + l.qtyOrdered, 0);
+                          return `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${tenant?.code ?? o.tenantId}</td><td>${wh?.code ?? o.warehouseId}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.serviceLevel}</td><td>${linesFor(o).length}</td><td>${units}</td><td>${o.status}</td><td>${o.source}</td><td>${new Date(o.receivedAt).toLocaleDateString()}</td></tr>`;
+                        })
+                        .join("");
+                  win.document.write(
+                    `<!DOCTYPE html><html><head><title>Outbound Orders Report</title><style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#1a365d;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#1a365d;color:#fff;font-weight:600}tr:nth-child(even){background:#f7f9fc}td{white-space:nowrap}@media print{body{padding:0}}</style></head><body><h1>AZUX 3PL WMS - Outbound Orders Report</h1><p>Generated: ${new Date().toLocaleString()} | Records: ${filteredReport.length} | Date range: ${reportDateFrom || "All"} to ${reportDateTo || "All"} | Status: ${reportStatus}</p><table><thead><tr>${reportDetail ? "<th>Order #</th><th>PO #</th><th>Client</th><th>Warehouse</th><th>Ship-to</th><th>Carrier</th><th>Service</th><th>SKU</th><th>Description</th><th>Qty Ordered</th><th>Qty Allocated</th><th>Status</th><th>Source</th><th>940 Add Date</th>" : "<th>Order #</th><th>PO #</th><th>Client</th><th>Warehouse</th><th>Ship-to</th><th>Carrier</th><th>Service</th><th>Lines</th><th>Units</th><th>Status</th><th>Source</th><th>Received</th>"}</tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();}</script></body></html>`,
+                  );
+                  win.document.close();
+                }}
+              >
                 <FileText className="h-3.5 w-3.5" /> Print PDF
               </Button>
             </div>
@@ -1197,7 +1315,9 @@ function NewOrderDialog({
   const updateLine = (idx: number, patch: Partial<OrderLine>) => {
     setForm((prev) => ({
       ...prev,
-      lines: Array.isArray(prev.lines) ? prev.lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)) : [],
+      lines: Array.isArray(prev.lines)
+        ? prev.lines.map((l, i) => (i === idx ? { ...l, ...patch } : l))
+        : [],
     }));
   };
 
@@ -1251,7 +1371,9 @@ function NewOrderDialog({
   };
 
   const handleSave = () => {
-    const lines = Array.isArray(form.lines) ? form.lines.filter((l) => l.sku.trim() !== "" || l.description.trim() !== "") : [];
+    const lines = Array.isArray(form.lines)
+      ? form.lines.filter((l) => l.sku.trim() !== "" || l.description.trim() !== "")
+      : [];
     const newOrder: Order = {
       id: form.id || nextOrderId(),
       poNumber: form.poNumber,
@@ -1289,8 +1411,12 @@ function NewOrderDialog({
 
   const tenant = tenants.find((t) => t.id === form.tenantId);
   const warehouse = warehouses.find((w) => w.id === form.warehouseId);
-  const totalUnits = Array.isArray(form.lines) ? form.lines.reduce((s, l) => s + l.qtyOrdered, 0) : 0;
-  const totalValue = Array.isArray(form.lines) ? form.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0) : 0;
+  const totalUnits = Array.isArray(form.lines)
+    ? form.lines.reduce((s, l) => s + l.qtyOrdered, 0)
+    : 0;
+  const totalValue = Array.isArray(form.lines)
+    ? form.lines.reduce((s, l) => s + l.qtyOrdered * l.unitPrice, 0)
+    : 0;
 
   return (
     <>
@@ -1737,119 +1863,123 @@ function NewOrderDialog({
                           </TableCell>
                         </TableRow>
                       )}
-                      {Array.isArray(form.lines) && form.lines.map((l, idx) => {
-                        const editing = editingLineIdx === idx;
-                        return (
-                          <TableRow key={idx} className="text-xs">
-                            <TableCell className="py-1.5 font-mono">
-                              <Select value={l.sku} onValueChange={(v) => handleSkuChange(idx, v)}>
-                                <SelectTrigger className="h-7 text-xs font-mono w-40">
-                                  <SelectValue placeholder="Select SKU" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {filteredItemMaster.map((it) => (
-                                    <SelectItem key={it.sku} value={it.sku} className="text-xs">
-                                      {it.sku} — {it.description}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="py-1.5">
-                              <Input
-                                value={l.description}
-                                onChange={(e) => updateLine(idx, { description: e.target.value })}
-                                className="h-7 text-xs"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1.5 text-[10px] text-muted-foreground">
-                              <Input
-                                value={l.upc || ""}
-                                onChange={(e) => updateLine(idx, { upc: e.target.value })}
-                                className="h-7 text-xs font-mono"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1.5 text-[10px]">
-                              <Input
-                                value={l.style || ""}
-                                onChange={(e) => updateLine(idx, { style: e.target.value })}
-                                className="h-7 text-xs"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1.5 text-[10px]">
-                              <Input
-                                value={l.color || ""}
-                                onChange={(e) => updateLine(idx, { color: e.target.value })}
-                                className="h-7 text-xs"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1.5 text-[10px]">
-                              <Input
-                                value={l.size || ""}
-                                onChange={(e) => updateLine(idx, { size: e.target.value })}
-                                className="h-7 text-xs"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1.5 text-[10px]">
-                              <Input
-                                value={l.dim || ""}
-                                onChange={(e) => updateLine(idx, { dim: e.target.value })}
-                                className="h-7 text-xs"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1.5 text-right tabular-nums">
-                              <Input
-                                type="number"
-                                min={0}
-                                value={l.qtyOrdered}
-                                onChange={(e) =>
-                                  updateLine(idx, { qtyOrdered: Number(e.target.value) || 0 })
-                                }
-                                className="h-7 text-xs text-right w-20 ml-auto"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1.5 text-right tabular-nums">
-                              <Input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={l.unitPrice}
-                                onChange={(e) =>
-                                  updateLine(idx, { unitPrice: Number(e.target.value) || 0 })
-                                }
-                                className="h-7 text-xs text-right w-24 ml-auto"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1.5 text-right tabular-nums font-medium">
-                              ${(l.qtyOrdered * l.unitPrice).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="py-1.5 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7"
-                                  onClick={() => setEditingLineIdx(editing ? null : idx)}
+                      {Array.isArray(form.lines) &&
+                        form.lines.map((l, idx) => {
+                          const editing = editingLineIdx === idx;
+                          return (
+                            <TableRow key={idx} className="text-xs">
+                              <TableCell className="py-1.5 font-mono">
+                                <Select
+                                  value={l.sku}
+                                  onValueChange={(v) => handleSkuChange(idx, v)}
                                 >
-                                  {editing ? (
-                                    <Save className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  )}
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7 text-destructive hover:text-destructive"
-                                  onClick={() => requestDeleteLine(idx)}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                                  <SelectTrigger className="h-7 text-xs font-mono w-40">
+                                    <SelectValue placeholder="Select SKU" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {filteredItemMaster.map((it) => (
+                                      <SelectItem key={it.sku} value={it.sku} className="text-xs">
+                                        {it.sku} — {it.description}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell className="py-1.5">
+                                <Input
+                                  value={l.description}
+                                  onChange={(e) => updateLine(idx, { description: e.target.value })}
+                                  className="h-7 text-xs"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1.5 text-[10px] text-muted-foreground">
+                                <Input
+                                  value={l.upc || ""}
+                                  onChange={(e) => updateLine(idx, { upc: e.target.value })}
+                                  className="h-7 text-xs font-mono"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1.5 text-[10px]">
+                                <Input
+                                  value={l.style || ""}
+                                  onChange={(e) => updateLine(idx, { style: e.target.value })}
+                                  className="h-7 text-xs"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1.5 text-[10px]">
+                                <Input
+                                  value={l.color || ""}
+                                  onChange={(e) => updateLine(idx, { color: e.target.value })}
+                                  className="h-7 text-xs"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1.5 text-[10px]">
+                                <Input
+                                  value={l.size || ""}
+                                  onChange={(e) => updateLine(idx, { size: e.target.value })}
+                                  className="h-7 text-xs"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1.5 text-[10px]">
+                                <Input
+                                  value={l.dim || ""}
+                                  onChange={(e) => updateLine(idx, { dim: e.target.value })}
+                                  className="h-7 text-xs"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1.5 text-right tabular-nums">
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={l.qtyOrdered}
+                                  onChange={(e) =>
+                                    updateLine(idx, { qtyOrdered: Number(e.target.value) || 0 })
+                                  }
+                                  className="h-7 text-xs text-right w-20 ml-auto"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1.5 text-right tabular-nums">
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  value={l.unitPrice}
+                                  onChange={(e) =>
+                                    updateLine(idx, { unitPrice: Number(e.target.value) || 0 })
+                                  }
+                                  className="h-7 text-xs text-right w-24 ml-auto"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1.5 text-right tabular-nums font-medium">
+                                ${(l.qtyOrdered * l.unitPrice).toFixed(2)}
+                              </TableCell>
+                              <TableCell className="py-1.5 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7"
+                                    onClick={() => setEditingLineIdx(editing ? null : idx)}
+                                  >
+                                    {editing ? (
+                                      <Save className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 text-destructive hover:text-destructive"
+                                    onClick={() => requestDeleteLine(idx)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                     </TableBody>
                   </Table>
                 </div>
@@ -1913,7 +2043,6 @@ function NewOrderDialog({
         </AlertDialogContent>
       </AlertDialog>
     </>
-
   );
 }
 
@@ -2078,7 +2207,9 @@ function OrderDetailDialog({
                   <Input
                     className="h-7 text-xs font-mono ml-1 inline-block w-40"
                     value={headerDraft.customerOrderNumber ?? ""}
-                    onChange={(e) => setHeaderDraft((p) => ({ ...p, customerOrderNumber: e.target.value }))}
+                    onChange={(e) =>
+                      setHeaderDraft((p) => ({ ...p, customerOrderNumber: e.target.value }))
+                    }
                   />
                 ) : (
                   <span className="font-mono ml-1">{order.customerOrderNumber || "—"}</span>
@@ -2301,9 +2432,7 @@ function OrderDetailDialog({
                           </Select>
                         ) : (
                           <div className="flex items-center gap-1.5">
-                            <span>
-                              {l.sku || <span className="text-muted-foreground">—</span>}
-                            </span>
+                            <span>{l.sku || <span className="text-muted-foreground">—</span>}</span>
                             {excReason && (
                               <a
                                 href={`/masters?${new URLSearchParams({
@@ -2605,23 +2734,11 @@ function OrderDetailDialog({
               className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={confirmDeleteLine}
             >
-Delete
+              Delete
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
-
   );
 }
-
-
-
-
-
-
-
-
-
-
-

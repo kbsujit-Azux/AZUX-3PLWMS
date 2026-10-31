@@ -73,7 +73,15 @@ function CsvHistoryPage() {
   }, [histories]);
 
   const exportHistory = () => {
-    const headers = ["ID", "File Name", "Status", "Records", "Upload Time", "Uploaded By", "Source"];
+    const headers = [
+      "ID",
+      "File Name",
+      "Status",
+      "Records",
+      "Upload Time",
+      "Uploaded By",
+      "Source",
+    ];
     const rows = histories.map((h) => [
       h.id,
       h.fileName,
@@ -130,11 +138,26 @@ function CsvHistoryPage() {
       </div>
 
       <div className="grid grid-cols-5 gap-3">
-        <StatCard icon={FileSpreadsheet} label="Total Uploads" value={stats.total} color="text-primary" />
-        <StatCard icon={CheckCircle2} label="Completed" value={stats.completed} color="text-emerald-500" />
+        <StatCard
+          icon={FileSpreadsheet}
+          label="Total Uploads"
+          value={stats.total}
+          color="text-primary"
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="Completed"
+          value={stats.completed}
+          color="text-emerald-500"
+        />
         <StatCard icon={XCircle} label="Failed" value={stats.failed} color="text-destructive" />
         <StatCard icon={Clock} label="Pending" value={stats.pending} color="text-amber-500" />
-        <StatCard icon={User} label="Total Records" value={stats.totalRecords.toString()} color="text-sky-500" />
+        <StatCard
+          icon={User}
+          label="Total Records"
+          value={stats.totalRecords.toString()}
+          color="text-sky-500"
+        />
       </div>
 
       {histories.length === 0 ? (
@@ -183,7 +206,10 @@ function CsvHistoryPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">{h.uploadedBy}</TableCell>
                   <TableCell>
-                    <Dialog open={detailOpen === h.id} onOpenChange={(o) => setDetailOpen(o ? h.id : null)}>
+                    <Dialog
+                      open={detailOpen === h.id}
+                      onOpenChange={(o) => setDetailOpen(o ? h.id : null)}
+                    >
                       <DialogTrigger asChild>
                         <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
                           <FileSpreadsheet className="h-3.5 w-3.5" />
@@ -191,9 +217,7 @@ function CsvHistoryPage() {
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
                         <DialogHeader>
-                          <DialogTitle className="text-base">
-                            {h.fileName} - Details
-                          </DialogTitle>
+                          <DialogTitle className="text-base">{h.fileName} - Details</DialogTitle>
                         </DialogHeader>
                         <div className="flex-1 overflow-y-auto space-y-4 p-4">
                           <div className="grid grid-cols-2 gap-4 text-xs">
@@ -204,9 +228,7 @@ function CsvHistoryPage() {
                             <div>
                               <span className="text-muted-foreground">Status</span>
                               <div>
-                                <Badge variant={getStatusVariant(h.status)}>
-                                  {h.status}
-                                </Badge>
+                                <Badge variant={getStatusVariant(h.status)}>{h.status}</Badge>
                               </div>
                             </div>
                             <div>
@@ -229,7 +251,9 @@ function CsvHistoryPage() {
 
                           {h.errors.length > 0 && (
                             <div>
-                              <h4 className="text-xs font-semibold mb-2 text-destructive">Errors ({h.errors.length})</h4>
+                              <h4 className="text-xs font-semibold mb-2 text-destructive">
+                                Errors ({h.errors.length})
+                              </h4>
                               <div className="max-h-40 overflow-y-auto rounded-md border border-destructive/20 bg-destructive/5">
                                 <Table>
                                   <TableHeader>
@@ -243,13 +267,18 @@ function CsvHistoryPage() {
                                     {h.errors.slice(0, 50).map((e, i) => (
                                       <TableRow key={i}>
                                         <TableCell className="font-mono text-xs">{e.row}</TableCell>
-                                        <TableCell className="font-mono text-xs">{e.field}</TableCell>
+                                        <TableCell className="font-mono text-xs">
+                                          {e.field}
+                                        </TableCell>
                                         <TableCell className="text-xs">{e.message}</TableCell>
                                       </TableRow>
                                     ))}
                                     {h.errors.length > 50 && (
                                       <TableRow>
-                                        <TableCell colSpan={3} className="text-center text-muted-foreground text-xs">
+                                        <TableCell
+                                          colSpan={3}
+                                          className="text-center text-muted-foreground text-xs"
+                                        >
                                           ...and {h.errors.length - 50} more errors
                                         </TableCell>
                                       </TableRow>
@@ -262,7 +291,9 @@ function CsvHistoryPage() {
 
                           {h.warnings.length > 0 && (
                             <div>
-                              <h4 className="text-xs font-semibold mb-2 text-amber-500">Warnings ({h.warnings.length})</h4>
+                              <h4 className="text-xs font-semibold mb-2 text-amber-500">
+                                Warnings ({h.warnings.length})
+                              </h4>
                               <div className="max-h-40 overflow-y-auto rounded-md border border-amber-500/20 bg-amber-500/5">
                                 <Table>
                                   <TableHeader>
@@ -276,7 +307,9 @@ function CsvHistoryPage() {
                                     {h.warnings.slice(0, 50).map((w, i) => (
                                       <TableRow key={i}>
                                         <TableCell className="font-mono text-xs">{w.row}</TableCell>
-                                        <TableCell className="font-mono text-xs">{w.field}</TableCell>
+                                        <TableCell className="font-mono text-xs">
+                                          {w.field}
+                                        </TableCell>
                                         <TableCell className="text-xs">{w.message}</TableCell>
                                       </TableRow>
                                     ))}

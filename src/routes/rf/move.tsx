@@ -21,7 +21,17 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { MoveRight, ScanLine, MapPin, AlertTriangle, ArrowLeft, CheckCircle2, Mic, MicOff, Camera } from "lucide-react";
+import {
+  MoveRight,
+  ScanLine,
+  MapPin,
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Mic,
+  MicOff,
+  Camera,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -343,26 +353,19 @@ function MoveInner() {
             <div>
               To: <span className="text-indigo-400">{newLocation || "scan destination"}</span>
             </div>
-            <div>SKU: <span className="text-white">{pallet.sku}</span></div>
-            {step === "confirm" && (
-              <div className="text-emerald-400">Ready to confirm move</div>
-            )}
+            <div>
+              SKU: <span className="text-white">{pallet.sku}</span>
+            </div>
+            {step === "confirm" && <div className="text-emerald-400">Ready to confirm move</div>}
           </div>
         </Card>
       )}
 
       {scanMode === "camera" && (
         <Card className="p-2 space-y-2">
-          <video
-            ref={videoRef}
-            className="w-full h-40 bg-black rounded"
-            playsInline
-            muted
-          />
+          <video ref={videoRef} className="w-full h-40 bg-black rounded" playsInline muted />
           {lastCode && (
-            <div className="text-xs font-mono text-emerald-400">
-              Last scan: {lastCode}
-            </div>
+            <div className="text-xs font-mono text-emerald-400">Last scan: {lastCode}</div>
           )}
         </Card>
       )}

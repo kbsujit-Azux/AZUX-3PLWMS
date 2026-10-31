@@ -44,7 +44,10 @@ export interface MatchedBillableEvent {
   rule: ChargeRule;
   rate: number;
   total: number;
-  tierBreakdown?: { effectiveRate: number; breakdown: { minQty: number; maxQty: number | null; rate: number }[] };
+  tierBreakdown?: {
+    effectiveRate: number;
+    breakdown: { minQty: number; maxQty: number | null; rate: number }[];
+  };
   peakSurcharge?: { baseAmount: number; surchargePct: number; totalAmount: number };
 }
 
@@ -77,21 +80,16 @@ export function applyPeakSurcharge(
 }
 
 /** Enforce minimum monthly charge */
-export function enforceMinimum(
-  calculatedTotal: number,
-  minMonthlyCharge: number,
-): number {
+export function enforceMinimum(calculatedTotal: number, minMonthlyCharge: number): number {
   return Math.max(calculatedTotal, minMonthlyCharge);
 }
 
 /** Match a BillableEvent to the best ChargeRule */
-export function matchEventToRule(
-  event: BillableEvent,
-  rules: ChargeRule[],
-): ChargeRule | null {
+export function matchEventToRule(event: BillableEvent, rules: ChargeRule[]): ChargeRule | null {
   const candidates = rules.filter((r) => {
     if (!r.enabled) return false;
-    if (event.type !== r.category && !(r.category === "Custom" && event.type === "Custom")) return false;
+    if (event.type !== r.category && !(r.category === "Custom" && event.type === "Custom"))
+      return false;
     if (event.unit !== r.unit && !(r.unit === "flat" && event.unit === "flat")) return false;
     if (r.warehouseId && event.warehouseId !== r.warehouseId) return false;
     if (r.locationId && event.locationId !== r.locationId) return false;
@@ -136,7 +134,13 @@ export function buildInvoiceLinesFromEvents(
 
     // Apply peak surcharge if applicable
     if (rule.peakSurchargePct && rule.peakSurchargePct > 0) {
-      total = applyPeakSurcharge(total, rule.peakSurchargePct, event.date, rule.peakStartMonth, rule.peakEndMonth);
+      total = applyPeakSurcharge(
+        total,
+        rule.peakSurchargePct,
+        event.date,
+        rule.peakStartMonth,
+        rule.peakEndMonth,
+      );
     }
 
     lines.push({
@@ -155,10 +159,7 @@ export function buildInvoiceLinesFromEvents(
 }
 
 /** Apply minimum monthly charges per rule category */
-export function applyMinimumCharges(
-  lines: InvoiceLine[],
-  rules: ChargeRule[],
-): InvoiceLine[] {
+export function applyMinimumCharges(lines: InvoiceLine[], rules: ChargeRule[]): InvoiceLine[] {
   // Group lines by activity type
   const totalsByType = new Map<string, { sum: number; lineIds: string[] }>();
   for (const line of lines) {
@@ -246,7 +247,10 @@ export async function buildVolumetricStorageSnapshots(
     if (cubeCuFt <= 0) continue;
 
     const receivedAt = new Date(pallet.receivedAt);
-    const daysInStorage = Math.max(1, Math.ceil((asOfDate.getTime() - receivedAt.getTime()) / (1000 * 60 * 60 * 24)));
+    const daysInStorage = Math.max(
+      1,
+      Math.ceil((asOfDate.getTime() - receivedAt.getTime()) / (1000 * 60 * 60 * 24)),
+    );
 
     // Pro-rate monthly rate by days in storage
     const monthlyRate = ratePerCuFtPerMonth;
@@ -271,9 +275,7 @@ export async function buildVolumetricStorageSnapshots(
 }
 
 /** Generate volumetric storage invoice lines from snapshots */
-export function buildVolumetricStorageLines(
-  snapshots: VolumetricStorageSnapshot[],
-): InvoiceLine[] {
+export function buildVolumetricStorageLines(snapshots: VolumetricStorageSnapshot[]): InvoiceLine[] {
   // Group by location for summary lines, or keep per-pallet detail
   const lines: InvoiceLine[] = [];
 
@@ -366,7 +368,19 @@ export async function maybeCaptureBillableEvent(params: {
   rules: ChargeRule[];
   createEvent: (evt: BillableEvent) => Promise<string | void>;
 }): Promise<BillableEvent | undefined> {
-  const { clientId, tenantId, warehouseId, type, reference, description, quantity, unit, accessorialType, rules, createEvent } = params;
+  const {
+    clientId,
+    tenantId,
+    warehouseId,
+    type,
+    reference,
+    description,
+    quantity,
+    unit,
+    accessorialType,
+    rules,
+    createEvent,
+  } = params;
 
   const mockEvent: BillableEvent = {
     id: `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -439,7 +453,10 @@ export type BillableAccrual = {
   notes?: string;
 };
 
-export function buildAccrualsFromEvents(events: BillableEvent[], rules: ChargeRule[]): BillableAccrual[] {
+export function buildAccrualsFromEvents(
+  events: BillableEvent[],
+  rules: ChargeRule[],
+): BillableAccrual[] {
   const accruals: BillableAccrual[] = [];
   for (const event of events) {
     if (event.billed) continue;
@@ -452,7 +469,13 @@ export function buildAccrualsFromEvents(events: BillableEvent[], rules: ChargeRu
     }
     let total = +(event.quantity * rate).toFixed(2);
     if (rule.peakSurchargePct && rule.peakSurchargePct > 0) {
-      total = applyPeakSurcharge(total, rule.peakSurchargePct, event.date, rule.peakStartMonth, rule.peakEndMonth);
+      total = applyPeakSurcharge(
+        total,
+        rule.peakSurchargePct,
+        event.date,
+        rule.peakStartMonth,
+        rule.peakEndMonth,
+      );
     }
 
     accruals.push({
@@ -484,7 +507,16 @@ export function summarizeAccrualsByClient(accruals: BillableAccrual[]): Map<stri
 // Payments, Credits, Disputes
 // ============================================================
 
-export function recordPayment(invoice: Invoice, payment: { amount: number; paymentDate: string; paymentMethod: string; reference?: string; notes?: string }): Invoice {
+export function recordPayment(
+  invoice: Invoice,
+  payment: {
+    amount: number;
+    paymentDate: string;
+    paymentMethod: string;
+    reference?: string;
+    notes?: string;
+  },
+): Invoice {
   const total = lineTotal(invoice);
   const newPaidTotal = (invoice.paidDate ? total : 0) + payment.amount;
   const isPaid = newPaidTotal >= total;
@@ -494,11 +526,16 @@ export function recordPayment(invoice: Invoice, payment: { amount: number; payme
     status: isPaid ? "Paid" : "Sent",
     paidDate: isPaid ? payment.paymentDate : invoice.paidDate,
     paymentMethod: payment.paymentMethod,
-    notes: payment.notes ? `${invoice.notes ? invoice.notes + "; " : ""}Payment: ${payment.notes}` : invoice.notes,
+    notes: payment.notes
+      ? `${invoice.notes ? invoice.notes + "; " : ""}Payment: ${payment.notes}`
+      : invoice.notes,
   };
 }
 
-export function issueCreditMemo(invoice: Invoice, creditLines: { description: string; amount: number }[]): Invoice {
+export function issueCreditMemo(
+  invoice: Invoice,
+  creditLines: { description: string; amount: number }[],
+): Invoice {
   const creditTotal = creditLines.reduce((s, l) => s + l.amount, 0);
   const newLines = [
     ...invoice.lines,

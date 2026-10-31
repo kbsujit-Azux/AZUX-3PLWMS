@@ -26,7 +26,13 @@ import {
 
 export type CarrierType = "parcel" | "ltl" | "ftl" | "same_day";
 
-export type CarrierServiceLevel = "ground" | "express" | "overnight" | "same_day" | "ltl_std" | "ltl_acc";
+export type CarrierServiceLevel =
+  | "ground"
+  | "express"
+  | "overnight"
+  | "same_day"
+  | "ltl_std"
+  | "ltl_acc";
 
 export type CarrierStatus = "active" | "inactive" | "maintenance";
 
@@ -226,7 +232,9 @@ export async function simulateRateQuotes(request: RateQuoteRequest): Promise<Rat
     .filter((c) => {
       if (request.serviceLevels && request.serviceLevels.length > 0) {
         return request.serviceLevels.some((s) =>
-          c.type === "parcel" ? ["ground", "express", "overnight"].includes(s) : ["ltl_std", "ltl_acc"].includes(s)
+          c.type === "parcel"
+            ? ["ground", "express", "overnight"].includes(s)
+            : ["ltl_std", "ltl_acc"].includes(s),
         );
       }
       return true;
@@ -250,7 +258,11 @@ export async function simulateRateQuotes(request: RateQuoteRequest): Promise<Rat
         accessorials,
         totalRate: total,
         currency: "USD",
-        metadata: { source: "mock", nmfcCode: request.nmfcCode, freightClass: request.freightClass },
+        metadata: {
+          source: "mock",
+          nmfcCode: request.nmfcCode,
+          freightClass: request.freightClass,
+        },
       };
     });
 
@@ -306,7 +318,10 @@ import {
 import { db } from "./firebase";
 import { onSnapshot } from "firebase/firestore";
 
-export async function persistRateQuotes(request: RateQuoteRequest, response: RateQuoteResponse): Promise<void> {
+export async function persistRateQuotes(
+  request: RateQuoteRequest,
+  response: RateQuoteResponse,
+): Promise<void> {
   try {
     await addDoc(collection(db, "carrierRateQuotes"), {
       tenantId: request.tenantId,
@@ -321,12 +336,15 @@ export async function persistRateQuotes(request: RateQuoteRequest, response: Rat
   }
 }
 
-export async function fetchRecentRateQuotes(tenantId: string, maxResults = 50): Promise<RateQuoteResponse[]> {
+export async function fetchRecentRateQuotes(
+  tenantId: string,
+  maxResults = 50,
+): Promise<RateQuoteResponse[]> {
   const q = query(
     collection(db, "carrierRateQuotes"),
     where("tenantId", "==", tenantId),
     orderBy("requestedAt", "desc"),
-    limit(maxResults)
+    limit(maxResults),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => d.data() as RateQuoteResponse);
@@ -335,13 +353,13 @@ export async function fetchRecentRateQuotes(tenantId: string, maxResults = 50): 
 export function subscribeRecentRateQuotes(
   callback: (quotes: RateQuoteResponse[]) => void,
   tenantId: string,
-  maxResults = 50
+  maxResults = 50,
 ): Unsubscribe {
   const q = query(
     collection(db, "carrierRateQuotes"),
     where("tenantId", "==", tenantId),
     orderBy("requestedAt", "desc"),
-    limit(maxResults)
+    limit(maxResults),
   );
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => d.data() as RateQuoteResponse));
@@ -354,7 +372,7 @@ export function subscribeRecentRateQuotes(
 
 export async function resolveRateQuotes(
   request: RateQuoteRequest,
-  adapterConfigs: CarrierAdapterConfig[] = []
+  adapterConfigs: CarrierAdapterConfig[] = [],
 ): Promise<RateQuoteResponse> {
   const cacheKey = `${request.originZip}-${request.destinationZip}-${request.weightLbs}-${request.lengthIn}-${request.widthIn}-${request.heightIn}`;
 
@@ -364,7 +382,9 @@ export async function resolveRateQuotes(
   let quotes: RateQuote[];
 
   if (adapterConfigs.length > 0) {
-    const adapters = adapterConfigs.map((cfg) => createCarrierAdapter(cfg)).filter((a): a is NonNullable<typeof a> => a !== null);
+    const adapters = adapterConfigs
+      .map((cfg) => createCarrierAdapter(cfg))
+      .filter((a): a is NonNullable<typeof a> => a !== null);
     if (adapters.length > 0) {
       quotes = await getRatesFromCarriers(request, adapters);
     } else {

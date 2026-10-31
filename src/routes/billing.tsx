@@ -340,11 +340,24 @@ function BillingPage() {
     }
   };
 
-  const handleRecordPayment = async (invoiceId: string, amount: number, paymentDate: string, paymentMethod: string, reference?: string, notes?: string) => {
+  const handleRecordPayment = async (
+    invoiceId: string,
+    amount: number,
+    paymentDate: string,
+    paymentMethod: string,
+    reference?: string,
+    notes?: string,
+  ) => {
     try {
       const invoice = invoices.find((i) => i.id === invoiceId);
       if (!invoice) return;
-      const updated = recordPayment(invoice, { amount, paymentDate, paymentMethod, reference, notes });
+      const updated = recordPayment(invoice, {
+        amount,
+        paymentDate,
+        paymentMethod,
+        reference,
+        notes,
+      });
       await updateInvoice(invoiceId, updated);
       await createInvoicePayment({
         id: `pmt-${Date.now()}`,
@@ -357,14 +370,16 @@ function BillingPage() {
         reference,
         notes,
       });
-      await createBillingAuditLog(buildAuditLogEntry({
-        tenantId: invoice.tenantId,
-        actor: user?.email || "system",
-        action: "payment",
-        entityType: "invoice",
-        entityId: invoiceId,
-        notes: `Payment of ${fmtUSD(amount)} recorded`,
-      }));
+      await createBillingAuditLog(
+        buildAuditLogEntry({
+          tenantId: invoice.tenantId,
+          actor: user?.email || "system",
+          action: "payment",
+          entityType: "invoice",
+          entityId: invoiceId,
+          notes: `Payment of ${fmtUSD(amount)} recorded`,
+        }),
+      );
       setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? updated : i)));
       setPaymentOpen(false);
       toast.success("Payment recorded");
@@ -373,20 +388,25 @@ function BillingPage() {
     }
   };
 
-  const handleIssueCredit = async (invoiceId: string, creditLines: { description: string; amount: number }[]) => {
+  const handleIssueCredit = async (
+    invoiceId: string,
+    creditLines: { description: string; amount: number }[],
+  ) => {
     try {
       const invoice = invoices.find((i) => i.id === invoiceId);
       if (!invoice) return;
       const updated = issueCreditMemo(invoice, creditLines);
       await updateInvoice(invoiceId, updated);
-      await createBillingAuditLog(buildAuditLogEntry({
-        tenantId: invoice.tenantId,
-        actor: user?.email || "system",
-        action: "credit",
-        entityType: "invoice",
-        entityId: invoiceId,
-        notes: `Credit memo issued: ${creditLines.map((l) => l.description).join(", ")}`,
-      }));
+      await createBillingAuditLog(
+        buildAuditLogEntry({
+          tenantId: invoice.tenantId,
+          actor: user?.email || "system",
+          action: "credit",
+          entityType: "invoice",
+          entityId: invoiceId,
+          notes: `Credit memo issued: ${creditLines.map((l) => l.description).join(", ")}`,
+        }),
+      );
       setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? updated : i)));
       toast.success("Credit memo issued");
     } catch (e: any) {
@@ -400,14 +420,16 @@ function BillingPage() {
       if (!invoice) return;
       const updated = markInvoiceDisputed(invoice, notes);
       await updateInvoice(invoiceId, updated);
-      await createBillingAuditLog(buildAuditLogEntry({
-        tenantId: invoice.tenantId,
-        actor: user?.email || "system",
-        action: "dispute",
-        entityType: "invoice",
-        entityId: invoiceId,
-        notes,
-      }));
+      await createBillingAuditLog(
+        buildAuditLogEntry({
+          tenantId: invoice.tenantId,
+          actor: user?.email || "system",
+          action: "dispute",
+          entityType: "invoice",
+          entityId: invoiceId,
+          notes,
+        }),
+      );
       setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? updated : i)));
       setDisputeOpen(false);
       toast.success("Invoice marked as disputed");
@@ -422,14 +444,16 @@ function BillingPage() {
       if (!invoice) return;
       const updated = resolveDispute(invoice, resolutionNotes);
       await updateInvoice(invoiceId, updated);
-      await createBillingAuditLog(buildAuditLogEntry({
-        tenantId: invoice.tenantId,
-        actor: user?.email || "system",
-        action: "update",
-        entityType: "invoice",
-        entityId: invoiceId,
-        notes: `Dispute resolved: ${resolutionNotes}`,
-      }));
+      await createBillingAuditLog(
+        buildAuditLogEntry({
+          tenantId: invoice.tenantId,
+          actor: user?.email || "system",
+          action: "update",
+          entityType: "invoice",
+          entityId: invoiceId,
+          notes: `Dispute resolved: ${resolutionNotes}`,
+        }),
+      );
       setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? updated : i)));
       setDisputeOpen(false);
       toast.success("Dispute resolved");
@@ -674,7 +698,9 @@ function SetupTab({
                     <TableCell>{fmtUSD(r.rate)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {r.unit === "cubicFeet" && r.ratePerCuFt && (
-                        <span className="text-emerald-400">{fmtUSD(r.ratePerCuFt)} / cu ft / mo</span>
+                        <span className="text-emerald-400">
+                          {fmtUSD(r.ratePerCuFt)} / cu ft / mo
+                        </span>
                       )}
                       {r.priceTiers && r.priceTiers.length > 0 && (
                         <span className="text-sky-400">Tiers: {r.priceTiers.length}</span>
@@ -686,7 +712,9 @@ function SetupTab({
                         <span className="text-orange-400">Peak +{r.peakSurchargePct}%</span>
                       )}
                       {r.accessorialType && (
-                        <span className="text-violet-400">{accessorialLabel(r.accessorialType)}</span>
+                        <span className="text-violet-400">
+                          {accessorialLabel(r.accessorialType)}
+                        </span>
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
@@ -883,7 +911,7 @@ function RuleDialog({
               <SelectTrigger>
                 <SelectValue placeholder="All warehouses" />
               </SelectTrigger>
-<SelectContent>
+              <SelectContent>
                 <SelectItem value="all">ALL Warehouses</SelectItem>
                 {warehouses
                   .filter((w) => w.id !== "all")
@@ -952,8 +980,8 @@ function RuleDialog({
           <span>
             <span className="font-medium">Bill automatically on container close</span>
             <span className="block text-[11px] text-muted-foreground">
-              Include this rate when a container is closed and a draft invoice is
-              generated. Turn it off to create a rate that is only applied manually.
+              Include this rate when a container is closed and a draft invoice is generated. Turn it
+              off to create a rate that is only applied manually.
             </span>
           </span>
         </label>
@@ -1017,7 +1045,10 @@ function RuleDialog({
                     value={tier.maxQty ?? ""}
                     onChange={(e) => {
                       const newTiers = [...priceTiers];
-                      newTiers[idx] = { ...newTiers[idx], maxQty: e.target.value ? parseInt(e.target.value) : null };
+                      newTiers[idx] = {
+                        ...newTiers[idx],
+                        maxQty: e.target.value ? parseInt(e.target.value) : null,
+                      };
                       setPriceTiers(newTiers);
                     }}
                     placeholder="unlimited"
@@ -1044,9 +1075,7 @@ function RuleDialog({
               size="sm"
               onClick={() => {
                 const lastTier = priceTiers[priceTiers.length - 1];
-                const nextMinQty = lastTier.maxQty
-                  ? lastTier.maxQty + 1
-                  : lastTier.minQty + 1;
+                const nextMinQty = lastTier.maxQty ? lastTier.maxQty + 1 : lastTier.minQty + 1;
                 setPriceTiers([...priceTiers, { minQty: nextMinQty, maxQty: null, rate: 0 }]);
               }}
             >
@@ -1077,21 +1106,35 @@ function RuleDialog({
         {peakSurchargePct > 0 && (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Peak Start Month">
-              <Select value={String(peakStartMonth)} onValueChange={(v) => setPeakStartMonth(parseInt(v))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={String(peakStartMonth)}
+                onValueChange={(v) => setPeakStartMonth(parseInt(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: 12 }, (_, i) => (
-                    <SelectItem key={i + 1} value={String(i + 1)}>{new Date(2026, i).toLocaleString("default", { month: "short" })}</SelectItem>
+                    <SelectItem key={i + 1} value={String(i + 1)}>
+                      {new Date(2026, i).toLocaleString("default", { month: "short" })}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
             <Field label="Peak End Month">
-              <Select value={String(peakEndMonth)} onValueChange={(v) => setPeakEndMonth(parseInt(v))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={String(peakEndMonth)}
+                onValueChange={(v) => setPeakEndMonth(parseInt(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: 12 }, (_, i) => (
-                    <SelectItem key={i + 1} value={String(i + 1)}>{new Date(2026, i).toLocaleString("default", { month: "short" })}</SelectItem>
+                    <SelectItem key={i + 1} value={String(i + 1)}>
+                      {new Date(2026, i).toLocaleString("default", { month: "short" })}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1102,7 +1145,10 @@ function RuleDialog({
         {category === "Custom" && (
           <>
             <Field label="Accessorial Type">
-              <Select value={accessorialType} onValueChange={(v) => setAccessorialType(v as AccessorialType)}>
+              <Select
+                value={accessorialType}
+                onValueChange={(v) => setAccessorialType(v as AccessorialType)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select accessorial type..." />
                 </SelectTrigger>
@@ -1214,7 +1260,12 @@ function InvoicesTab({
         if (!rule) return null;
         // Compute tiered rate if applicable
         let rate = rule.rate;
-        let tierBreakdown: { effectiveRate: number; breakdown: { minQty: number; maxQty: number | null; rate: number }[] } | undefined;
+        let tierBreakdown:
+          | {
+              effectiveRate: number;
+              breakdown: { minQty: number; maxQty: number | null; rate: number }[];
+            }
+          | undefined;
         if (rule.priceTiers && rule.priceTiers.length > 0) {
           const sorted = [...rule.priceTiers].sort((a, b) => a.minQty - b.minQty);
           let matchedTier = sorted[sorted.length - 1];
@@ -1232,11 +1283,23 @@ function InvoicesTab({
         }
         let total = +(ev.quantity * rate).toFixed(2);
         // Apply peak surcharge if applicable
-        let peakSurcharge: { baseAmount: number; surchargePct: number; totalAmount: number } | undefined;
+        let peakSurcharge:
+          | { baseAmount: number; surchargePct: number; totalAmount: number }
+          | undefined;
         if (rule.peakSurchargePct && rule.peakSurchargePct > 0) {
           const baseAmount = total;
-          const totalAmount = applyPeakSurcharge(baseAmount, rule.peakSurchargePct, new Date(), rule.peakStartMonth, rule.peakEndMonth);
-          peakSurcharge = { baseAmount, surchargePct: rule.peakSurchargePct, totalAmount: totalAmount };
+          const totalAmount = applyPeakSurcharge(
+            baseAmount,
+            rule.peakSurchargePct,
+            new Date(),
+            rule.peakStartMonth,
+            rule.peakEndMonth,
+          );
+          peakSurcharge = {
+            baseAmount,
+            surchargePct: rule.peakSurchargePct,
+            totalAmount: totalAmount,
+          };
           total = totalAmount;
         }
         return {
@@ -1836,15 +1899,16 @@ function InvoicePreview({
               </tr>
             </thead>
             <tbody>
-              {Array.isArray(invoice.lines) && invoice.lines.map((l) => (
-                <tr key={l.id} className="border-b">
-                  <td className="p-2 align-top">{l.activityType}</td>
-                  <td className="p-2 align-top">{l.description}</td>
-                  <td className="p-2 align-top text-right">{l.quantity.toLocaleString()}</td>
-                  <td className="p-2 align-top text-right">{fmtUSD(l.rate)}</td>
-                  <td className="p-2 align-top text-right font-medium">{fmtUSD(l.total)}</td>
-                </tr>
-              ))}
+              {Array.isArray(invoice.lines) &&
+                invoice.lines.map((l) => (
+                  <tr key={l.id} className="border-b">
+                    <td className="p-2 align-top">{l.activityType}</td>
+                    <td className="p-2 align-top">{l.description}</td>
+                    <td className="p-2 align-top text-right">{l.quantity.toLocaleString()}</td>
+                    <td className="p-2 align-top text-right">{fmtUSD(l.rate)}</td>
+                    <td className="p-2 align-top text-right font-medium">{fmtUSD(l.total)}</td>
+                  </tr>
+                ))}
             </tbody>
           </table>
 
@@ -1960,7 +2024,23 @@ function TransactionsTab({
   );
 }
 
-function PaymentForm({ invoice, remaining, onSubmit, onCancel }: { invoice: Invoice; remaining: number; onSubmit: (data: { amount: number; paymentDate: string; paymentMethod: string; reference?: string; notes?: string }) => void; onCancel: () => void }) {
+function PaymentForm({
+  invoice,
+  remaining,
+  onSubmit,
+  onCancel,
+}: {
+  invoice: Invoice;
+  remaining: number;
+  onSubmit: (data: {
+    amount: number;
+    paymentDate: string;
+    paymentMethod: string;
+    reference?: string;
+    notes?: string;
+  }) => void;
+  onCancel: () => void;
+}) {
   const [amount, setAmount] = useState(remaining.toFixed(2));
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState("wire");
@@ -1971,7 +2051,12 @@ function PaymentForm({ invoice, remaining, onSubmit, onCancel }: { invoice: Invo
     <div className="grid gap-3">
       <div className="grid grid-cols-2 gap-3">
         <Field label="Payment Amount">
-          <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <Input
+            type="number"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
         </Field>
         <Field label="Payment Date">
           <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
@@ -1979,7 +2064,9 @@ function PaymentForm({ invoice, remaining, onSubmit, onCancel }: { invoice: Invo
       </div>
       <Field label="Payment Method">
         <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="wire">Wire Transfer</SelectItem>
             <SelectItem value="ach">ACH</SelectItem>
@@ -1989,37 +2076,74 @@ function PaymentForm({ invoice, remaining, onSubmit, onCancel }: { invoice: Invo
         </Select>
       </Field>
       <Field label="Reference (optional)">
-        <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. TXN-12345" />
+        <Input
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+          placeholder="e.g. TXN-12345"
+        />
       </Field>
       <Field label="Notes (optional)">
         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
       <DialogFooter>
-        <Button variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button onClick={() => onSubmit({ amount: parseFloat(amount) || 0, paymentDate, paymentMethod, reference, notes })}>Record Payment</Button>
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          onClick={() =>
+            onSubmit({
+              amount: parseFloat(amount) || 0,
+              paymentDate,
+              paymentMethod,
+              reference,
+              notes,
+            })
+          }
+        >
+          Record Payment
+        </Button>
       </DialogFooter>
     </div>
   );
 }
 
-function DisputeForm({ invoice, onSubmit, onCancel }: { invoice: Invoice; onSubmit: (notes: string) => void; onCancel: () => void }) {
+function DisputeForm({
+  invoice,
+  onSubmit,
+  onCancel,
+}: {
+  invoice: Invoice;
+  onSubmit: (notes: string) => void;
+  onCancel: () => void;
+}) {
   const [notes, setNotes] = useState("");
 
   return (
     <div className="grid gap-3">
       <Field label="Notes">
-        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason for dispute..." />
+        <Textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Reason for dispute..."
+        />
       </Field>
       <DialogFooter>
-        <Button variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button variant="destructive" onClick={() => onSubmit(notes)}>{invoice.disputeStatus === "disputed" ? "Resolve Dispute" : "Mark as Disputed"}</Button>
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button variant="destructive" onClick={() => onSubmit(notes)}>
+          {invoice.disputeStatus === "disputed" ? "Resolve Dispute" : "Mark as Disputed"}
+        </Button>
       </DialogFooter>
     </div>
   );
 }
 
 function AuditLogTable({ logs }: { logs: BillingAuditLog[] }) {
-  const sorted = useMemo(() => [...logs].sort((a, b) => b.timestamp.localeCompare(a.timestamp)), [logs]);
+  const sorted = useMemo(
+    () => [...logs].sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
+    [logs],
+  );
   return (
     <Table>
       <TableHeader>
@@ -2034,10 +2158,18 @@ function AuditLogTable({ logs }: { logs: BillingAuditLog[] }) {
       <TableBody>
         {sorted.map((log) => (
           <TableRow key={log.id}>
-            <TableCell className="text-xs text-muted-foreground">{new Date(log.timestamp).toLocaleString()}</TableCell>
+            <TableCell className="text-xs text-muted-foreground">
+              {new Date(log.timestamp).toLocaleString()}
+            </TableCell>
             <TableCell className="text-xs">{log.actor}</TableCell>
-            <TableCell><Badge variant="outline" className="text-xs">{log.action}</Badge></TableCell>
-            <TableCell className="text-xs">{log.entityType} / {log.entityId}</TableCell>
+            <TableCell>
+              <Badge variant="outline" className="text-xs">
+                {log.action}
+              </Badge>
+            </TableCell>
+            <TableCell className="text-xs">
+              {log.entityType} / {log.entityId}
+            </TableCell>
             <TableCell className="text-xs">{log.notes || "—"}</TableCell>
           </TableRow>
         ))}

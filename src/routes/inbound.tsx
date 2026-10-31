@@ -94,15 +94,27 @@ import {
   packSizeOf,
   type PalletBuildRecommendation,
 } from "@/lib/pallet-build-engine";
-import {
-  recommendPutaway,
-  type PutawayCandidate,
-} from "@/lib/putaway-engine";
+import { recommendPutaway, type PutawayCandidate } from "@/lib/putaway-engine";
 import { CsvUploader } from "@/components/csv-uploader";
 import { fmtDateTime, fmtDateYear } from "@/lib/utils";
 import { validateLineAgainstItemMaster, masterReasonLabel } from "@/lib/master-data";
 import { locationMaster, type ItemMasterRecord } from "@/lib/master-data";
-import { createCsvUploadRecord, createInboundShipmentRecord, createPalletsAndLinkToShipment, deleteInboundShipment, recordInboundPalletBuild, updateInboundShipmentRecord, updateInboundLine, upsertInventoryItem, logInventoryTransaction, captureBillableEventForPutaway, captureBillableEventForInboundReceive, deleteWorkOrder as deleteWorkOrderRecord, updateWorkOrder, saveInboundReceipt } from "@/lib/firestore-data";
+import {
+  createCsvUploadRecord,
+  createInboundShipmentRecord,
+  createPalletsAndLinkToShipment,
+  deleteInboundShipment,
+  recordInboundPalletBuild,
+  updateInboundShipmentRecord,
+  updateInboundLine,
+  upsertInventoryItem,
+  logInventoryTransaction,
+  captureBillableEventForPutaway,
+  captureBillableEventForInboundReceive,
+  deleteWorkOrder as deleteWorkOrderRecord,
+  updateWorkOrder,
+  saveInboundReceipt,
+} from "@/lib/firestore-data";
 
 export const Route = createFileRoute("/inbound")({
   head: () => ({
@@ -182,10 +194,18 @@ function InboundPage() {
   const [editWorkOrder, setEditWorkOrder] = useState<WorkOrder | null>(null);
   const [printReceipt, setPrintReceipt] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
-  const [reportStart, setReportStart] = useState(() => localStorage.getItem("inbound-report-start") || "");
-  const [reportEnd, setReportEnd] = useState(() => localStorage.getItem("inbound-report-end") || "");
-  const [csvErrors, setCsvErrors] = useState<Array<{ row: number; field: string; message: string }>>([]);
-  const [csvWarnings, setCsvWarnings] = useState<Array<{ row: number; field: string; message: string }>>([]);
+  const [reportStart, setReportStart] = useState(
+    () => localStorage.getItem("inbound-report-start") || "",
+  );
+  const [reportEnd, setReportEnd] = useState(
+    () => localStorage.getItem("inbound-report-end") || "",
+  );
+  const [csvErrors, setCsvErrors] = useState<
+    Array<{ row: number; field: string; message: string }>
+  >([]);
+  const [csvWarnings, setCsvWarnings] = useState<
+    Array<{ row: number; field: string; message: string }>
+  >([]);
 
   const handleQueryChange = (value: string) => {
     setQuery(value);
@@ -243,7 +263,10 @@ function InboundPage() {
     return t;
   }, [filtered]);
 
-  const inboundStatusTransitions: Record<InboundShipment["status"], InboundShipment["status"] | null> = {
+  const inboundStatusTransitions: Record<
+    InboundShipment["status"],
+    InboundShipment["status"] | null
+  > = {
     scheduled: "arrived",
     arrived: "on_dock",
     on_dock: "putaway",
@@ -252,7 +275,10 @@ function InboundPage() {
     exception: null,
   };
 
-  const handleInboundStatusTransition = async (s: InboundShipment, newStatus: InboundShipment["status"]) => {
+  const handleInboundStatusTransition = async (
+    s: InboundShipment,
+    newStatus: InboundShipment["status"],
+  ) => {
     try {
       // Map inbound status to work order status
       const woStatusMap: Record<InboundShipment["status"], string> = {
@@ -404,7 +430,12 @@ function InboundPage() {
           />
         </div>
         {(query || reportStart || reportEnd) && (
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={resetFilters}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={resetFilters}
+          >
             <X className="h-3.5 w-3.5" /> Reset
           </Button>
         )}
@@ -426,7 +457,9 @@ function InboundPage() {
             onEditWorkOrder={setEditWorkOrder}
             onDeleteWorkOrder={setDeleteWorkOrder}
             onCloseContainer={
-              s.status === "putaway" && Array.isArray(s.lines) && s.lines.every((l) => l.palletIds && l.palletIds.length > 0)
+              s.status === "putaway" &&
+              Array.isArray(s.lines) &&
+              s.lines.every((l) => l.palletIds && l.palletIds.length > 0)
                 ? () => setCloseContainer(s)
                 : undefined
             }
@@ -438,16 +471,11 @@ function InboundPage() {
                 const linked = s.workOrderId
                   ? workOrders.find((w) => w.id === s.workOrderId)
                   : null;
-                const closed =
-                  linked?.status === "closed" || linked?.status === "departed";
+                const closed = linked?.status === "closed" || linked?.status === "departed";
                 return closed ? undefined : () => setEditContainer(s);
               })()
             }
-            onDelete={
-              s.status === "scheduled"
-                ? () => setDeleteContainer(s)
-                : undefined
-            }
+            onDelete={s.status === "scheduled" ? () => setDeleteContainer(s) : undefined}
             onPrintReceipt={() => setPrintReceipt(s.id)}
             onStatusTransition={handleInboundStatusTransition}
           />
@@ -500,26 +528,20 @@ function InboundPage() {
       />
 
       {deleteContainer && (
-        <AlertDialog
-          open={!!deleteContainer}
-          onOpenChange={(o) => !o && setDeleteContainer(null)}
-        >
+        <AlertDialog open={!!deleteContainer} onOpenChange={(o) => !o && setDeleteContainer(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Container?</AlertDialogTitle>
-<AlertDialogDescription>
-                This will permanently delete the inbound shipment "
-                {deleteContainer.id} " (ASN: {deleteContainer.ediRef}) and all
-                associated lines. This action cannot be undone.
+              <AlertDialogDescription>
+                This will permanently delete the inbound shipment "{deleteContainer.id} " (ASN:{" "}
+                {deleteContainer.ediRef}) and all associated lines. This action cannot be undone.
                 <br />
                 <br />
                 Only scheduled containers can be deleted.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setDeleteContainer(null)}>
-                Cancel
-              </AlertDialogCancel>
+              <AlertDialogCancel onClick={() => setDeleteContainer(null)}>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={async () => {
                   try {
@@ -545,22 +567,17 @@ function InboundPage() {
       )}
 
       {deleteWorkOrder && (
-        <AlertDialog
-          open={!!deleteWorkOrder}
-          onOpenChange={(o) => !o && setDeleteWorkOrder(null)}
-        >
+        <AlertDialog open={!!deleteWorkOrder} onOpenChange={(o) => !o && setDeleteWorkOrder(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Work Order?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete work order &quot;{deleteWorkOrder.woNumber}&quot; and its linked inbound shipment.
-                This action cannot be undone.
+                This will permanently delete work order &quot;{deleteWorkOrder.woNumber}&quot; and
+                its linked inbound shipment. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setDeleteWorkOrder(null)}>
-                Cancel
-              </AlertDialogCancel>
+              <AlertDialogCancel onClick={() => setDeleteWorkOrder(null)}>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => handleDeleteWorkOrder(deleteWorkOrder)}
                 className="bg-destructive hover:bg-destructive/90"
@@ -643,11 +660,19 @@ function InboundPage() {
               const csvLocation = getField("location") || getField("rack") || "";
 
               if (!csvClient) {
-                errors.push({ row: rowNum, field: "client", message: "Client/Tenant is required in CSV" });
+                errors.push({
+                  row: rowNum,
+                  field: "client",
+                  message: "Client/Tenant is required in CSV",
+                });
                 return;
               }
               if (!csvWarehouse) {
-                errors.push({ row: rowNum, field: "warehouse", message: "Warehouse is required in CSV" });
+                errors.push({
+                  row: rowNum,
+                  field: "warehouse",
+                  message: "Warehouse is required in CSV",
+                });
                 return;
               }
 
@@ -658,11 +683,19 @@ function InboundPage() {
               const rowWarehouse = warehouses.find((w) => w.id === rowWarehouseId);
 
               if (!rowTenant) {
-                errors.push({ row: rowNum, field: "client", message: `Client "${csvClient}" not found` });
+                errors.push({
+                  row: rowNum,
+                  field: "client",
+                  message: `Client "${csvClient}" not found`,
+                });
                 return;
               }
               if (!rowWarehouse) {
-                errors.push({ row: rowNum, field: "warehouse", message: `Warehouse "${csvWarehouse}" not found` });
+                errors.push({
+                  row: rowNum,
+                  field: "warehouse",
+                  message: `Warehouse "${csvWarehouse}" not found`,
+                });
                 return;
               }
 
@@ -670,10 +703,18 @@ function InboundPage() {
               if (csvLocation) {
                 const validLocations = locationByWarehouse.get(rowWarehouseId) || [];
                 if (!validLocations.includes(csvLocation)) {
-                  warnings.push({ row: rowNum, field: "location", message: `Location "${csvLocation}" not found in warehouse "${rowWarehouse.code}" location master` });
+                  warnings.push({
+                    row: rowNum,
+                    field: "location",
+                    message: `Location "${csvLocation}" not found in warehouse "${rowWarehouse.code}" location master`,
+                  });
                 }
               } else {
-                warnings.push({ row: rowNum, field: "location", message: "Location not entered — defaulting to warehouse drop zone" });
+                warnings.push({
+                  row: rowNum,
+                  field: "location",
+                  message: "Location not entered — defaulting to warehouse drop zone",
+                });
               }
 
               const asnRef = getField("asn_ref") || getField("asn");
@@ -681,12 +722,20 @@ function InboundPage() {
               const containerNumber = getField("container_number") || getField("container");
 
               if (!asnRef) {
-                errors.push({ row: rowNum, field: "asn_ref", message: "ASN or Reference is required" });
+                errors.push({
+                  row: rowNum,
+                  field: "asn_ref",
+                  message: "ASN or Reference is required",
+                });
                 return;
               }
 
               if (!containerNumber) {
-                errors.push({ row: rowNum, field: "container_number", message: "Container is required" });
+                errors.push({
+                  row: rowNum,
+                  field: "container_number",
+                  message: "Container is required",
+                });
                 return;
               }
 
@@ -695,51 +744,75 @@ function InboundPage() {
               if (shipmentMap.has(key)) {
                 const existingPo = shipmentMap.get(key).poNumber;
                 if (poNumber && existingPo && existingPo !== poNumber) {
-                  warnings.push({ row: rowNum, field: "po_number", message: `Multiple POs (${existingPo}, ${poNumber}) for same ASN - lines will be consolidated` });
+                  warnings.push({
+                    row: rowNum,
+                    field: "po_number",
+                    message: `Multiple POs (${existingPo}, ${poNumber}) for same ASN - lines will be consolidated`,
+                  });
                 }
               }
 
               if (!shipmentMap.has(key)) {
                 const carrier = getField("carrier");
                 if (!carrier) {
-                  warnings.push({ row: rowNum, field: "carrier", message: "Carrier is recommended" });
+                  warnings.push({
+                    row: rowNum,
+                    field: "carrier",
+                    message: "Carrier is recommended",
+                  });
                 }
 
-                const expectedAtStr = getField("expected_at") || getField("appointment") || getField("eta") || "";
+                const expectedAtStr =
+                  getField("expected_at") || getField("appointment") || getField("eta") || "";
                 if (!expectedAtStr) {
-                  errors.push({ row: rowNum, field: "expected_at", message: "Expected/Appointment date is required" });
+                  errors.push({
+                    row: rowNum,
+                    field: "expected_at",
+                    message: "Expected/Appointment date is required",
+                  });
                   return;
                 } else {
                   const expectedAt = parseFlexibleDate(expectedAtStr);
                   if (!expectedAt) {
-                    errors.push({ row: rowNum, field: "expected_at", message: `Invalid appointment date format: ${expectedAtStr}` });
+                    errors.push({
+                      row: rowNum,
+                      field: "expected_at",
+                      message: `Invalid appointment date format: ${expectedAtStr}`,
+                    });
                     return;
                   } else if (expectedAt < new Date(new Date().setHours(0, 0, 0, 0))) {
-                    warnings.push({ row: rowNum, field: "expected_at", message: "Appointment date is in the past" });
+                    warnings.push({
+                      row: rowNum,
+                      field: "expected_at",
+                      message: "Appointment date is in the past",
+                    });
                   }
                 }
 
-                shipmentMap.set(key,
-                  {
-                    ediRef: asnRef,
-                    poNumber: poNumber || "",
-                    tenantId: rowTenantId,
-                    warehouseId: rowWarehouseId,
-                    location: csvLocation || "",
-                    door: getField("door") || getField("door_assigned") || getField("dock") || "",
-                    carrier: carrier,
-                    trailerNumber: getField("trailer_number") || getField("trailer"),
-                    containerNumber: containerNumber,
-                    sealNumber: getField("seal_number") || "",
-                    bolNumber: getField("bol_number") || "",
-                    origin: getField("origin") || "",
-                    vessel: getField("vessel") || "",
-                    voyageNumber: getField("voyage_number") || getField("voyage") || "",
-                    port: getField("port") || getField("port_of_loading") || "",
-                    warehouseLocation: getField("warehouse_location") || getField("wh_location") || getField("location") || "",
-                    appointmentAt: expectedAtStr,
-                    lines: [],
-                  });
+                shipmentMap.set(key, {
+                  ediRef: asnRef,
+                  poNumber: poNumber || "",
+                  tenantId: rowTenantId,
+                  warehouseId: rowWarehouseId,
+                  location: csvLocation || "",
+                  door: getField("door") || getField("door_assigned") || getField("dock") || "",
+                  carrier: carrier,
+                  trailerNumber: getField("trailer_number") || getField("trailer"),
+                  containerNumber: containerNumber,
+                  sealNumber: getField("seal_number") || "",
+                  bolNumber: getField("bol_number") || "",
+                  origin: getField("origin") || "",
+                  vessel: getField("vessel") || "",
+                  voyageNumber: getField("voyage_number") || getField("voyage") || "",
+                  port: getField("port") || getField("port_of_loading") || "",
+                  warehouseLocation:
+                    getField("warehouse_location") ||
+                    getField("wh_location") ||
+                    getField("location") ||
+                    "",
+                  appointmentAt: expectedAtStr,
+                  lines: [],
+                });
               }
 
               const shipment = shipmentMap.get(key);
@@ -747,30 +820,52 @@ function InboundPage() {
 
               const sku = getField("sku") || getField("item");
               if (!sku) {
-                errors.push({ row: rowNum, field: "sku", message: "SKU/Item is required (check CSV column header)" });
+                errors.push({
+                  row: rowNum,
+                  field: "sku",
+                  message: "SKU/Item is required (check CSV column header)",
+                });
                 return;
               }
 
               const lot = getField("lot") || "";
               if (lot && !lot) {
-                warnings.push({ row: rowNum, field: "lot", message: "LOT is empty, will use blank" });
+                warnings.push({
+                  row: rowNum,
+                  field: "lot",
+                  message: "LOT is empty, will use blank",
+                });
               }
 
               const qtyStr = getField("qty_expected") || getField("units");
               if (!qtyStr) {
-                errors.push({ row: rowNum, field: "qty_expected", message: "Quantity expected is required" });
+                errors.push({
+                  row: rowNum,
+                  field: "qty_expected",
+                  message: "Quantity expected is required",
+                });
                 return;
               }
 
               const qty = parseInt(qtyStr, 10);
               if (isNaN(qty) || qty <= 0) {
-                errors.push({ row: rowNum, field: "qty_expected", message: `Invalid quantity: ${qtyStr}` });
+                errors.push({
+                  row: rowNum,
+                  field: "qty_expected",
+                  message: `Invalid quantity: ${qtyStr}`,
+                });
                 return;
               }
 
-              const itemMasterItem = itemMaster.find((i) => i.sku === sku && i.tenantId === rowTenantId);
+              const itemMasterItem = itemMaster.find(
+                (i) => i.sku === sku && i.tenantId === rowTenantId,
+              );
               if (!itemMasterItem) {
-                errors.push({ row: rowNum, field: "sku", message: `SKU "${sku}" not found in Item Master for tenant "${rowTenantId}"` });
+                errors.push({
+                  row: rowNum,
+                  field: "sku",
+                  message: `SKU "${sku}" not found in Item Master for tenant "${rowTenantId}"`,
+                });
                 return;
               }
 
@@ -780,13 +875,21 @@ function InboundPage() {
               if (cartonsEntered) {
                 const parsedCartons = parseInt(cartonsEntered, 10);
                 if (isNaN(parsedCartons) || parsedCartons < 0) {
-                  warnings.push({ row: rowNum, field: "cartons", message: `Invalid cartons value: ${cartonsEntered}` });
+                  warnings.push({
+                    row: rowNum,
+                    field: "cartons",
+                    message: `Invalid cartons value: ${cartonsEntered}`,
+                  });
                   cartonsExpected = 0;
                 } else if (parsedCartons === 0) {
                   // Zero entered → auto-calculate
                   cartonsExpected = Math.ceil(qty / Math.max(1, itemMasterItem?.caseQty || 1));
                   if (cartonsExpected === 0) cartonsExpected = 1;
-                  warnings.push({ row: rowNum, field: "cartons", message: `Cartons entered as 0 — auto-calculated as ${cartonsExpected} (Units/${itemMasterItem?.caseQty || 1} pack size)` });
+                  warnings.push({
+                    row: rowNum,
+                    field: "cartons",
+                    message: `Cartons entered as 0 — auto-calculated as ${cartonsExpected} (Units/${itemMasterItem?.caseQty || 1} pack size)`,
+                  });
                 } else {
                   cartonsExpected = parsedCartons;
                 }
@@ -794,19 +897,35 @@ function InboundPage() {
                 // Default: Units / caseQty (pack size), rounded up
                 cartonsExpected = Math.ceil(qty / Math.max(1, itemMasterItem?.caseQty || 1));
                 if (cartonsExpected === 0) cartonsExpected = 1;
-                warnings.push({ row: rowNum, field: "cartons", message: `Cartons not entered — auto-calculated as ${cartonsExpected} (Units/${itemMasterItem?.caseQty || 1} pack size)` });
+                warnings.push({
+                  row: rowNum,
+                  field: "cartons",
+                  message: `Cartons not entered — auto-calculated as ${cartonsExpected} (Units/${itemMasterItem?.caseQty || 1} pack size)`,
+                });
               }
 
               if (getField("expiration_date") || getField("exp")) {
                 const expStr = getField("expiration_date") || getField("exp") || "";
                 const expDate = parseFlexibleDate(expStr);
                 if (!expDate) {
-                  warnings.push({ row: rowNum, field: "expiration_date", message: `Invalid expiration date format: ${expStr}` });
+                  warnings.push({
+                    row: rowNum,
+                    field: "expiration_date",
+                    message: `Invalid expiration date format: ${expStr}`,
+                  });
                 } else if (expDate < new Date(new Date().setHours(0, 0, 0, 0))) {
-                  warnings.push({ row: rowNum, field: "expiration_date", message: "Expiration date is in the past" });
+                  warnings.push({
+                    row: rowNum,
+                    field: "expiration_date",
+                    message: "Expiration date is in the past",
+                  });
                 }
               } else {
-                warnings.push({ row: rowNum, field: "expiration_date", message: "Expiration date not entered — defaulting to 12/31/2099" });
+                warnings.push({
+                  row: rowNum,
+                  field: "expiration_date",
+                  message: "Expiration date not entered — defaulting to 12/31/2099",
+                });
               }
 
               shipment.lines.push({
@@ -824,29 +943,29 @@ function InboundPage() {
             });
 
             for (const [, shipment] of shipmentMap) {
-try {
-                    await createInboundShipmentRecord({
-                      tenantId: shipment.tenantId,
-                      warehouseId: shipment.warehouseId,
-                      ediRef: shipment.ediRef,
-                      poNumber: shipment.poNumber,
-                      carrier: shipment.carrier,
-                      trailerNumber: shipment.trailerNumber,
-                      containerNumber: shipment.containerNumber,
-                      sealNumber: shipment.sealNumber,
-                      bolNumber: shipment.bolNumber,
-                      origin: shipment.origin,
-                      vessel: shipment.vessel,
-                      voyageNumber: shipment.voyageNumber,
-                      port: shipment.port,
-                      warehouseLocation: shipment.warehouseLocation,
-                      doorAssigned: shipment.door || shipment.location || null,
-                      appointmentAt: shipment.appointmentAt,
-                      expectedAt: shipment.appointmentAt,
-                      status: "scheduled",
-                      source: "CSV",
-                      lines: shipment.lines,
-                    });
+              try {
+                await createInboundShipmentRecord({
+                  tenantId: shipment.tenantId,
+                  warehouseId: shipment.warehouseId,
+                  ediRef: shipment.ediRef,
+                  poNumber: shipment.poNumber,
+                  carrier: shipment.carrier,
+                  trailerNumber: shipment.trailerNumber,
+                  containerNumber: shipment.containerNumber,
+                  sealNumber: shipment.sealNumber,
+                  bolNumber: shipment.bolNumber,
+                  origin: shipment.origin,
+                  vessel: shipment.vessel,
+                  voyageNumber: shipment.voyageNumber,
+                  port: shipment.port,
+                  warehouseLocation: shipment.warehouseLocation,
+                  doorAssigned: shipment.door || shipment.location || null,
+                  appointmentAt: shipment.appointmentAt,
+                  expectedAt: shipment.appointmentAt,
+                  status: "scheduled",
+                  source: "CSV",
+                  lines: shipment.lines,
+                });
               } catch (e: any) {
                 errors.push({ row: 0, field: "server", message: `Server error: ${e.message}` });
               }
@@ -856,8 +975,12 @@ try {
             setCsvWarnings(warnings);
 
             const recordId = await createCsvUploadRecord({
-              tenantId: tenantId !== "all" ? tenantId : (tenants.find((t) => t.id !== "all")?.id || "acme"),
-              warehouseId: warehouseId !== "all" ? warehouseId : (warehouses.find((w) => w.id !== "all")?.id || "atl1"),
+              tenantId:
+                tenantId !== "all" ? tenantId : tenants.find((t) => t.id !== "all")?.id || "acme",
+              warehouseId:
+                warehouseId !== "all"
+                  ? warehouseId
+                  : warehouses.find((w) => w.id !== "all")?.id || "atl1",
               fileName: file.name,
               fileSize: file.size,
               uploadedBy: "Manual Upload",
@@ -876,7 +999,9 @@ try {
                 description: errorList,
               });
             } else if (warnings.length > 0) {
-              const warningList = warnings.map((w) => `${w.row}:${w.field} - ${w.message}`).join("\n");
+              const warningList = warnings
+                .map((w) => `${w.row}:${w.field} - ${w.message}`)
+                .join("\n");
               toast.warning(`Uploaded with ${warnings.length} warning(s)`, {
                 description: warningList,
               });
@@ -975,8 +1100,12 @@ function ShipmentCard({
   const tenant = tenants.find((t) => t.id === shipment.tenantId);
   const wh = warehouses.find((w) => w.id === shipment.warehouseId);
   const pct = shipmentProgressPct(shipment);
-  const totalUnits = Array.isArray(shipment.lines) ? shipment.lines.reduce((a, l) => a + (l.qtyExpected || 0), 0) : 0;
-  const totalCartons = Array.isArray(shipment.lines) ? shipment.lines.reduce((a, l) => a + (l.cartonsExpected || 0), 0) : 0;
+  const totalUnits = Array.isArray(shipment.lines)
+    ? shipment.lines.reduce((a, l) => a + (l.qtyExpected || 0), 0)
+    : 0;
+  const totalCartons = Array.isArray(shipment.lines)
+    ? shipment.lines.reduce((a, l) => a + (l.cartonsExpected || 0), 0)
+    : 0;
 
   /**
    * Pack size = units per pack for the SKU.
@@ -1032,19 +1161,23 @@ function ShipmentCard({
     return recommendPalletPlan(master, remaining, packSizeFor(l));
   };
 
-  const allLinesHavePallets = Array.isArray(shipment.lines) && shipment.lines.length > 0 && shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
+  const allLinesHavePallets =
+    Array.isArray(shipment.lines) &&
+    shipment.lines.length > 0 &&
+    shipment.lines.every((l) => l.palletIds && l.palletIds.length > 0);
   const canClose = onCloseContainer && allLinesHavePallets;
   // The receipt can be produced at any point in the container's life.
   const canPrintReceipt = !!onPrintReceipt;
-  const linkedWO = shipment.workOrderId ? workOrders.find((w) => w.id === shipment.workOrderId) : null;
+  const linkedWO = shipment.workOrderId
+    ? workOrders.find((w) => w.id === shipment.workOrderId)
+    : null;
   /**
    * The container stays editable until the WORK ORDER is closed (it has
    * departed or been closed). The container itself may already be
    * "received" — the operator can still add a SKU found on the truck or
    * correct the header while the work order is open.
    */
-  const woClosed =
-    linkedWO?.status === "closed" || linkedWO?.status === "departed";
+  const woClosed = linkedWO?.status === "closed" || linkedWO?.status === "departed";
   const canEditContainer = !!onEdit && !woClosed;
 
   return (
@@ -1103,7 +1236,11 @@ function ShipmentCard({
               value={`${shipment.sealNumber} · ${shipment.bolNumber}`}
             />
             <KV icon={DoorOpen} label="Door" value={shipment.doorAssigned ?? "Unassigned"} />
-            <KV icon={Warehouse} label="Storage Slot" value={shipment.warehouseLocation ?? "Unassigned"} />
+            <KV
+              icon={Warehouse}
+              label="Storage Slot"
+              value={shipment.warehouseLocation ?? "Unassigned"}
+            />
             <KV
               icon={CalendarClock}
               label="Appointment"
@@ -1184,180 +1321,180 @@ function ShipmentCard({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {Array.isArray(shipment.lines) && shipment.lines.map((l) => {
-            const lPct = inboundProgressPct(l);
-            // Variance is shown whenever the received units differ from the
-            // expected units — an over-receipt must be visible, not capped away.
-            const variance = (l.receivedQty || 0) - (l.qtyExpected || 0);
-            const remaining = Math.max(0, l.qtyExpected - l.receivedQty);
-            const plan = palletPlanFor(l);
-            const palletsRemaining = remaining > 0 ? plan.palletCount : 0;
-            return (
-              <TableRow key={l.lineNo} className="text-xs hover:bg-muted/30">
-                <TableCell className="py-2 font-mono text-[11px] text-muted-foreground">
-                  {l.lineNo.toString().padStart(2, "0")}
-                </TableCell>
-                <TableCell className="py-2">
-                  <div className="font-mono font-medium">{l.sku}</div>
-                  <div className="text-[10px] text-muted-foreground">{l.description}</div>
-                  <div className="text-[10px] text-muted-foreground font-mono">
-                    UPC {l.upc} · Style {l.itemStyle}
-                  </div>
-                </TableCell>
-                <TableCell className="py-2 font-mono text-[11px]">{l.lot}</TableCell>
-                <TableCell className="py-2 text-[11px] tabular-nums">
-                  {fmtDateYear(l.expirationDate)}
-                </TableCell>
-                <TableCell className="py-2 text-right tabular-nums font-medium">
-                  {l.qtyExpected.toLocaleString()}
-                </TableCell>
-                <TableCell
-                  className="py-2 text-right tabular-nums text-muted-foreground"
-                  title="Units per pack (Item Master)"
-                >
-                  {packSizeFor(l)?.toLocaleString() ?? "—"}
-                </TableCell>
-                <TableCell
-                  className={`py-2 text-right tabular-nums ${
-                    cartonMismatch(l) ? "text-amber-600" : ""
-                  }`}
-                  title={
-                    cartonMismatch(l)
-                      ? `ASN carton count does not match the pack size (${packSizeFor(l)} units/pack → ${Math.ceil(l.qtyExpected / Math.max(1, packSizeFor(l) ?? 1))} packs expected)`
-                      : "Cartons on the ASN"
-                  }
-                >
-                  {l.cartonsExpected.toLocaleString()}
-                  {cartonMismatch(l) && (
-                    <AlertTriangle className="h-3 w-3 inline ml-1 align-text-bottom" />
-                  )}
-                </TableCell>
-                <TableCell
-                  className="py-2 text-right tabular-nums text-muted-foreground"
-                  title={plan.note}
-                >
-                  {plan.unitsPerPallet}
-                </TableCell>
-                <TableCell className="py-2 w-40">
-                  <div className="flex items-center gap-2">
-                    <Progress value={lPct} className="h-1.5 flex-1" />
-                    <span className="text-[10px] tabular-nums text-muted-foreground w-9 text-right">
-                      {lPct}%
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-muted-foreground tabular-nums mt-0.5">
-                    {l.receivedQty.toLocaleString()} / {l.qtyExpected.toLocaleString()}
-                  </div>
-                  {variance !== 0 && (
-                    <div
-                      className={`text-[10px] font-medium tabular-nums mt-0.5 ${
-                        variance > 0 ? "text-amber-600" : "text-destructive"
-                      }`}
-                    >
-                      {variance > 0 ? "Over" : "Short"} by{" "}
-                      {Math.abs(variance).toLocaleString()}
+          {Array.isArray(shipment.lines) &&
+            shipment.lines.map((l) => {
+              const lPct = inboundProgressPct(l);
+              // Variance is shown whenever the received units differ from the
+              // expected units — an over-receipt must be visible, not capped away.
+              const variance = (l.receivedQty || 0) - (l.qtyExpected || 0);
+              const remaining = Math.max(0, l.qtyExpected - l.receivedQty);
+              const plan = palletPlanFor(l);
+              const palletsRemaining = remaining > 0 ? plan.palletCount : 0;
+              return (
+                <TableRow key={l.lineNo} className="text-xs hover:bg-muted/30">
+                  <TableCell className="py-2 font-mono text-[11px] text-muted-foreground">
+                    {l.lineNo.toString().padStart(2, "0")}
+                  </TableCell>
+                  <TableCell className="py-2">
+                    <div className="font-mono font-medium">{l.sku}</div>
+                    <div className="text-[10px] text-muted-foreground">{l.description}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">
+                      UPC {l.upc} · Style {l.itemStyle}
                     </div>
-                  )}
-                  {(l.damagedQty ?? 0) > 0 && (
-                    <div
-                      className="text-[10px] font-medium tabular-nums mt-0.5 text-destructive"
-                      title={l.osdReason || "Damaged units held separately"}
-                    >
-                      {l.damagedQty} damaged
-                      {l.osdReason ? ` — ${l.osdReason}` : ""}
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="py-2">
-                  {l.palletIds && l.palletIds.length === 0 ? (
-                    <span
-                      className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${lineStatusStyles[l.status]}`}
-                    >
-                      {l.status}
-                    </span>
-                  ) : (
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1 rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium tabular-nums">
-                          <Boxes className="h-2.5 w-2.5 text-muted-foreground" />
-                          {l.palletIds.length} pallet{l.palletIds.length === 1 ? "" : "s"}
-                        </span>
-                        {plan.unitsPerPallet > 0 && (
-                          <span className="text-[10px] text-muted-foreground tabular-nums">
-                            {plan.unitsPerPallet} u/pallet
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {l.palletIds.map((id) => (
-                          <Link
-                            key={id}
-                            to="/pallets"
-                            className="inline-flex items-center gap-0.5 rounded-sm border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono text-primary hover:bg-primary/20"
-                          >
-                            {id} <ChevronRight className="h-2.5 w-2.5" />
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="py-2 text-right">
-                  {(() => {
-                    const masterReason = validateLineAgainstItemMaster({
-                      sku: l.sku,
-                      upc: l.upc,
-                      tenantId: shipment.tenantId,
-                    });
-                    if (masterReason) {
-                      const qs = new URLSearchParams({
-                        tab: "items",
-                        addSku: l.sku,
-                        tenantId: shipment.tenantId,
-                        upc: l.upc ?? "",
-                        desc: l.description ?? "",
-                        style: l.itemStyle ?? "",
-                      }).toString();
-                      return (
-                        <Link
-                          to={`/masters?${qs}`}
-                          className="inline-flex items-center gap-1 rounded-sm border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/15"
-                          title={masterReasonLabel(masterReason)}
-                        >
-                          <Database className="h-3 w-3" />
-                          Add to Item Master
-                        </Link>
-                      );
+                  </TableCell>
+                  <TableCell className="py-2 font-mono text-[11px]">{l.lot}</TableCell>
+                  <TableCell className="py-2 text-[11px] tabular-nums">
+                    {fmtDateYear(l.expirationDate)}
+                  </TableCell>
+                  <TableCell className="py-2 text-right tabular-nums font-medium">
+                    {l.qtyExpected.toLocaleString()}
+                  </TableCell>
+                  <TableCell
+                    className="py-2 text-right tabular-nums text-muted-foreground"
+                    title="Units per pack (Item Master)"
+                  >
+                    {packSizeFor(l)?.toLocaleString() ?? "—"}
+                  </TableCell>
+                  <TableCell
+                    className={`py-2 text-right tabular-nums ${
+                      cartonMismatch(l) ? "text-amber-600" : ""
+                    }`}
+                    title={
+                      cartonMismatch(l)
+                        ? `ASN carton count does not match the pack size (${packSizeFor(l)} units/pack → ${Math.ceil(l.qtyExpected / Math.max(1, packSizeFor(l) ?? 1))} packs expected)`
+                        : "Cartons on the ASN"
                     }
-                    return (
-                      <div className="flex flex-col items-end gap-1">
-                        <Button
-                          size="sm"
-                          variant={l.status === "received" ? "outline" : "default"}
-                          className="h-7 text-[11px] gap-1.5"
-                          disabled={l.status === "received" || shipment.status === "scheduled"}
-                          title={plan.note}
-                          onClick={() => onBuildPallets(l)}
-                        >
-                          <ScanLine className="h-3 w-3" />
-                          {l.status === "received"
-                            ? "Complete"
-                            : shipment.status === "scheduled"
-                              ? "Awaiting arrival"
-                              : `Build ${palletsRemaining} pallet${palletsRemaining === 1 ? "" : "s"}`}
-                        </Button>
-                        {plan.basis === "pack" && palletsRemaining > 0 && (
-                          <span className="text-[9px] text-muted-foreground">
-                            {plan.unitsPerPallet} units/pallet
-                          </span>
-                        )}
+                  >
+                    {l.cartonsExpected.toLocaleString()}
+                    {cartonMismatch(l) && (
+                      <AlertTriangle className="h-3 w-3 inline ml-1 align-text-bottom" />
+                    )}
+                  </TableCell>
+                  <TableCell
+                    className="py-2 text-right tabular-nums text-muted-foreground"
+                    title={plan.note}
+                  >
+                    {plan.unitsPerPallet}
+                  </TableCell>
+                  <TableCell className="py-2 w-40">
+                    <div className="flex items-center gap-2">
+                      <Progress value={lPct} className="h-1.5 flex-1" />
+                      <span className="text-[10px] tabular-nums text-muted-foreground w-9 text-right">
+                        {lPct}%
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground tabular-nums mt-0.5">
+                      {l.receivedQty.toLocaleString()} / {l.qtyExpected.toLocaleString()}
+                    </div>
+                    {variance !== 0 && (
+                      <div
+                        className={`text-[10px] font-medium tabular-nums mt-0.5 ${
+                          variance > 0 ? "text-amber-600" : "text-destructive"
+                        }`}
+                      >
+                        {variance > 0 ? "Over" : "Short"} by {Math.abs(variance).toLocaleString()}
                       </div>
-                    );
-                  })()}
-                </TableCell>
-              </TableRow>
-            );
-          })}
+                    )}
+                    {(l.damagedQty ?? 0) > 0 && (
+                      <div
+                        className="text-[10px] font-medium tabular-nums mt-0.5 text-destructive"
+                        title={l.osdReason || "Damaged units held separately"}
+                      >
+                        {l.damagedQty} damaged
+                        {l.osdReason ? ` — ${l.osdReason}` : ""}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-2">
+                    {l.palletIds && l.palletIds.length === 0 ? (
+                      <span
+                        className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${lineStatusStyles[l.status]}`}
+                      >
+                        {l.status}
+                      </span>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium tabular-nums">
+                            <Boxes className="h-2.5 w-2.5 text-muted-foreground" />
+                            {l.palletIds.length} pallet{l.palletIds.length === 1 ? "" : "s"}
+                          </span>
+                          {plan.unitsPerPallet > 0 && (
+                            <span className="text-[10px] text-muted-foreground tabular-nums">
+                              {plan.unitsPerPallet} u/pallet
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {l.palletIds.map((id) => (
+                            <Link
+                              key={id}
+                              to="/pallets"
+                              className="inline-flex items-center gap-0.5 rounded-sm border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono text-primary hover:bg-primary/20"
+                            >
+                              {id} <ChevronRight className="h-2.5 w-2.5" />
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-2 text-right">
+                    {(() => {
+                      const masterReason = validateLineAgainstItemMaster({
+                        sku: l.sku,
+                        upc: l.upc,
+                        tenantId: shipment.tenantId,
+                      });
+                      if (masterReason) {
+                        const qs = new URLSearchParams({
+                          tab: "items",
+                          addSku: l.sku,
+                          tenantId: shipment.tenantId,
+                          upc: l.upc ?? "",
+                          desc: l.description ?? "",
+                          style: l.itemStyle ?? "",
+                        }).toString();
+                        return (
+                          <Link
+                            to={`/masters?${qs}`}
+                            className="inline-flex items-center gap-1 rounded-sm border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/15"
+                            title={masterReasonLabel(masterReason)}
+                          >
+                            <Database className="h-3 w-3" />
+                            Add to Item Master
+                          </Link>
+                        );
+                      }
+                      return (
+                        <div className="flex flex-col items-end gap-1">
+                          <Button
+                            size="sm"
+                            variant={l.status === "received" ? "outline" : "default"}
+                            className="h-7 text-[11px] gap-1.5"
+                            disabled={l.status === "received" || shipment.status === "scheduled"}
+                            title={plan.note}
+                            onClick={() => onBuildPallets(l)}
+                          >
+                            <ScanLine className="h-3 w-3" />
+                            {l.status === "received"
+                              ? "Complete"
+                              : shipment.status === "scheduled"
+                                ? "Awaiting arrival"
+                                : `Build ${palletsRemaining} pallet${palletsRemaining === 1 ? "" : "s"}`}
+                          </Button>
+                          {plan.basis === "pack" && palletsRemaining > 0 && (
+                            <span className="text-[9px] text-muted-foreground">
+                              {plan.unitsPerPallet} units/pallet
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
         </TableBody>
       </Table>
 
@@ -1423,12 +1560,7 @@ function ShipmentCard({
       )}
       {(shipment.status === "scheduled" || shipment.status === "arrived") && onEdit && (
         <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs gap-1.5"
-            onClick={onEdit}
-          >
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={onEdit}>
             <Edit className="h-3 w-3" /> Edit Container
           </Button>
         </div>
@@ -1504,9 +1636,7 @@ function EditContainerDialog({
   const { itemMaster: liveItemMaster } = useWmsData();
   const catalogSkus = useMemo(
     () =>
-      (liveItemMaster ?? []).filter(
-        (i) => i.tenantId === shipment.tenantId && i.active !== false,
-      ),
+      (liveItemMaster ?? []).filter((i) => i.tenantId === shipment.tenantId && i.active !== false),
     [liveItemMaster, shipment.tenantId],
   );
 
@@ -1516,13 +1646,10 @@ function EditContainerDialog({
 
   const handleAddLine = (sku?: string) => {
     // A SKU picked from the Item Master brings its own pack data with it.
-    const master = sku
-      ? catalogSkus.find((s) => s.sku === sku)
-      : undefined;
+    const master = sku ? catalogSkus.find((s) => s.sku === sku) : undefined;
     if (sku && !master) {
       toast.error(`${sku} is not in the Item Master for this client`, {
-        description:
-          "Add the SKU to Master Data → Item Master before adding it to a container.",
+        description: "Add the SKU to Master Data → Item Master before adding it to a container.",
       });
       return;
     }
@@ -1561,8 +1688,7 @@ function EditContainerDialog({
     const master = catalogSkus.find((s) => s.sku === sku);
     if (sku && !master) {
       toast.error(`${sku} is not in the Item Master for this client`, {
-        description:
-          "Add the SKU to Master Data → Item Master before adding it to a container.",
+        description: "Add the SKU to Master Data → Item Master before adding it to a container.",
       });
       return;
     }
@@ -1604,14 +1730,14 @@ function EditContainerDialog({
       }
 
       const ts = (d: string) => {
-      const parsed = parseFlexibleDate(d);
-      return parsed ? parsed.toISOString() : new Date().toISOString();
-    };
+        const parsed = parseFlexibleDate(d);
+        return parsed ? parsed.toISOString() : new Date().toISOString();
+      };
 
       const { updateInboundShipmentRecord } = await import("@/lib/firestore-data");
 
       const cleanHeader = Object.fromEntries(
-        Object.entries(header).filter(([_, v]) => v !== undefined && v !== "")
+        Object.entries(header).filter(([_, v]) => v !== undefined && v !== ""),
       );
 
       // Full shipment header for proper sync to WorkOrder
@@ -1840,14 +1966,18 @@ function EditContainerDialog({
                     type="number"
                     placeholder="Qty"
                     value={l.qtyExpected}
-                    onChange={(e) => handleUpdateLine(idx, "qtyExpected", parseInt(e.target.value || "0", 10))}
+                    onChange={(e) =>
+                      handleUpdateLine(idx, "qtyExpected", parseInt(e.target.value || "0", 10))
+                    }
                     className="h-7 text-xs text-right"
                   />
                   <Input
                     type="number"
                     placeholder="Cartons"
                     value={l.cartonsExpected}
-                    onChange={(e) => handleUpdateLine(idx, "cartonsExpected", parseInt(e.target.value || "0", 10))}
+                    onChange={(e) =>
+                      handleUpdateLine(idx, "cartonsExpected", parseInt(e.target.value || "0", 10))
+                    }
                     className="h-7 text-xs text-right"
                   />
                   <Input
@@ -1898,8 +2028,8 @@ function EditContainerDialog({
             </div>
             {catalogSkus.length === 0 && (
               <div className="text-[10px] text-amber-600">
-                No Item Master records for this client — add the SKU to the Item
-                Master first, or use a blank line.
+                No Item Master records for this client — add the SKU to the Item Master first, or
+                use a blank line.
               </div>
             )}
           </div>
@@ -1913,7 +2043,12 @@ function EditContainerDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleSave}>
@@ -1961,13 +2096,7 @@ function BuildPalletsDialog({
   /** Variance against the expected quantity. */
   const variance = foundQty - remaining;
   const osdType: "over" | "short" | "damaged" | "wrong_item" | null =
-    damagedQty > 0
-      ? "damaged"
-      : variance > 0
-        ? "over"
-        : variance < 0
-          ? "short"
-          : null;
+    damagedQty > 0 ? "damaged" : variance > 0 ? "over" : variance < 0 ? "short" : null;
 
   /** The pallet id prefix used for this container. */
   const palletPrefix = `PLT-${warehouseCode(ship?.warehouseId ?? "")}`;
@@ -1975,8 +2104,11 @@ function BuildPalletsDialog({
   const damagePrefix = `${palletPrefix}-DMG`;
 
   // Live Item Master so the recommendation uses real dimensions / constraints
-  const { itemMaster: liveItemMaster, locationMaster: liveLocations, pallets: livePallets } =
-    useWmsData();
+  const {
+    itemMaster: liveItemMaster,
+    locationMaster: liveLocations,
+    pallets: livePallets,
+  } = useWmsData();
 
   const masterItem = useMemo(
     () => (line ? liveItemMaster.find((i) => i.sku === line.sku) : undefined),
@@ -2170,10 +2302,7 @@ function BuildPalletsDialog({
         tenantId: ship.tenantId,
         warehouseId: ship.warehouseId,
         poNumber: ship.poNumber,
-        ediSource:
-          ship.source === "EDI_943" || ship.source === "EDI_944"
-            ? ship.source
-            : "MANUAL",
+        ediSource: ship.source === "EDI_943" || ship.source === "EDI_944" ? ship.source : "MANUAL",
         palletCount: 1,
         unitsPerPallet: damagedQty,
         casePack,
@@ -2307,14 +2436,8 @@ function BuildPalletsDialog({
                   <KV label="Cases / layer" value={String(recommendation.casesPerLayer)} />
                   <KV label="Layers" value={String(recommendation.layersPerPallet)} />
                   <KV label="Pattern" value={recommendation.pattern} />
-                  <KV
-                    label="Stack height"
-                    value={`${recommendation.stackedHeightIn}"`}
-                  />
-                  <KV
-                    label="Pallet weight"
-                    value={`${recommendation.weightPerPalletLbs} lb`}
-                  />
+                  <KV label="Stack height" value={`${recommendation.stackedHeightIn}"`} />
+                  <KV label="Pallet weight" value={`${recommendation.weightPerPalletLbs} lb`} />
                   <KV label="Footprint" value={recommendation.footprint.label} />
                 </div>
                 {recommendation.notes.length > 0 && (
@@ -2429,9 +2552,7 @@ function BuildPalletsDialog({
                 onChange={(e) => setFoundQty(Math.max(0, parseInt(e.target.value || "0", 10)))}
                 className="h-8 text-xs"
               />
-              <div className="text-[9px] text-muted-foreground">
-                expected {remaining}
-              </div>
+              <div className="text-[9px] text-muted-foreground">expected {remaining}</div>
             </div>
             <div className="space-y-1">
               <Label
@@ -2493,13 +2614,12 @@ function BuildPalletsDialog({
                   onChange={(e) => setBuildDamagePallet(e.target.checked)}
                   className="h-3.5 w-3.5 accent-primary"
                 />
-                Build a separate damage / hold pallet for the {damagedQty} damaged
-                unit(s)
+                Build a separate damage / hold pallet for the {damagedQty} damaged unit(s)
               </label>
               {buildDamagePallet && (
                 <div className="text-[10px] text-muted-foreground">
-                  The damaged units get their own pallet ID ({damagePrefix}) and are
-                  never mixed with sellable stock.
+                  The damaged units get their own pallet ID ({damagePrefix}) and are never mixed
+                  with sellable stock.
                 </div>
               )}
             </div>
@@ -2553,10 +2673,7 @@ function BuildPalletsDialog({
             {willReceive.toLocaleString()} units across {palletCount} pallet
             {palletCount === 1 ? "" : "s"}
             {damagedQty > 0 && (
-              <span className="text-destructive">
-                {" "}
-                + {damagedQty} damaged held separately
-              </span>
+              <span className="text-destructive"> + {damagedQty} damaged held separately</span>
             )}
           </span>
         </div>
@@ -2791,8 +2908,7 @@ function AddContainerDialog({
 
     try {
       const shipmentId = await createInboundShipmentRecord({
-        tenantId:
-          selectedTenantId || (tenantId !== "all" ? tenantId : (tenants[0]?.id ?? "")),
+        tenantId: selectedTenantId || (tenantId !== "all" ? tenantId : (tenants[0]?.id ?? "")),
         warehouseId: wsToSelect,
         ediRef: header.ediRef,
         poNumber: header.poNumber,
@@ -2971,15 +3087,15 @@ function AddContainerDialog({
                   className="h-8 text-xs"
                 />
               </div>
-            <div className="space-y-1">
-              <Label className="text-[10px]">Storage Slot</Label>
-              <Input
-                value={header.warehouseLocation}
-                onChange={(e) => setHeader({ ...header, warehouseLocation: e.target.value })}
-                className="h-8 text-xs font-mono"
-                placeholder="e.g. D04-01-A"
-              />
-            </div>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Storage Slot</Label>
+                <Input
+                  value={header.warehouseLocation}
+                  onChange={(e) => setHeader({ ...header, warehouseLocation: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                  placeholder="e.g. D04-01-A"
+                />
+              </div>
               <div className="space-y-1">
                 <Label className="text-[10px]">Appointment Date</Label>
                 <Input
@@ -3259,10 +3375,7 @@ function CloseContainerDialog({
             qty: pallet?.units ?? 0,
             // Prefer the pallet's real putaway location; fall back to the
             // door while the pallet is still staged.
-            location:
-              pallet?.location ??
-              shipment.doorAssigned ??
-              `DOCK-${shipment.trailerNumber}`,
+            location: pallet?.location ?? shipment.doorAssigned ?? `DOCK-${shipment.trailerNumber}`,
             poNumber: shipment.poNumber,
             ediSource: shipment.source,
             qtyAllocated: 0,
@@ -3351,10 +3464,7 @@ function CloseContainerDialog({
     let billNote = "";
     try {
       const clientId = await resolveBillingClientId(shipment.tenantId);
-      const totalUnits = (shipment.lines ?? []).reduce(
-        (a, l) => a + (l.receivedQty || 0),
-        0,
-      );
+      const totalUnits = (shipment.lines ?? []).reduce((a, l) => a + (l.receivedQty || 0), 0);
       const totalCartons = (shipment.lines ?? []).reduce((a, l) => {
         const casePack = liveItemMaster?.find((i) => i.sku === l.sku)?.caseQty || 1;
         return a + Math.ceil((l.receivedQty || 0) / casePack);
@@ -3424,7 +3534,9 @@ function CloseContainerDialog({
           <KV label="Total Lines" value={shipment.lines?.length.toString() ?? "0"} />
           <KV
             label="Total Pallets"
-            value={shipment.lines?.reduce((a, l) => a + (l.palletIds?.length || 0), 0).toString() ?? "0"}
+            value={
+              shipment.lines?.reduce((a, l) => a + (l.palletIds?.length || 0), 0).toString() ?? "0"
+            }
           />
         </div>
         <AlertDialogFooter>
@@ -3447,12 +3559,13 @@ function ReceiptPreviewDialog({
   onOpenChange: (open: boolean) => void;
   shipmentId: string;
 }) {
-  const { itemMaster: liveItemMaster, inboundShipments: liveInbound, inboundReceipts: liveReceipts } =
-    useWmsData();
+  const {
+    itemMaster: liveItemMaster,
+    inboundShipments: liveInbound,
+    inboundReceipts: liveReceipts,
+  } = useWmsData();
   const shipment = (liveInbound ?? inboundShipments).find((s) => s.id === shipmentId);
-  const receipt = (liveReceipts ?? []).find(
-    (r: any) => r.inboundShipmentId === shipmentId,
-  );
+  const receipt = (liveReceipts ?? []).find((r: any) => r.inboundShipmentId === shipmentId);
 
   if (!shipment) return null;
 
@@ -3476,8 +3589,7 @@ function ReceiptPreviewDialog({
     arrivalAt ??
     null;
 
-  const receiptRef =
-    receipt?.receiptRef ?? `RCPT-${shipment.id.replace(/[^A-Za-z0-9]/g, "")}`;
+  const receiptRef = receipt?.receiptRef ?? `RCPT-${shipment.id.replace(/[^A-Za-z0-9]/g, "")}`;
 
   /** Detail rows, enriched with the catalogue description / UPC / case pack. */
   const rows = (shipment.lines ?? []).map((l) => {
@@ -3514,7 +3626,10 @@ function ReceiptPreviewDialog({
       ["Vessel", shipment.vessel || "—"],
       ["Voyage", shipment.voyageNumber || "—"],
       ["PO Number", shipment.poNumber || "—"],
-      ["Container / Trailer", `${shipment.containerNumber || "—"} / ${shipment.trailerNumber || "—"}`],
+      [
+        "Container / Trailer",
+        `${shipment.containerNumber || "—"} / ${shipment.trailerNumber || "—"}`,
+      ],
       ["Seal / BOL", `${shipment.sealNumber || "—"} / ${shipment.bolNumber || "—"}`],
       ["Scheduled Date", scheduledAt ? fmtDateTime(scheduledAt) : "—"],
       ["Arrival Date", arrivalAt ? fmtDateTime(arrivalAt) : "—"],
@@ -3614,9 +3729,7 @@ function ReceiptPreviewDialog({
     ${headerCells
       .map(
         ([k, v]) =>
-          `<div class="cell"><div class="k">${k}</div><div class="v">${
-            v || "—"
-          }</div></div>`,
+          `<div class="cell"><div class="k">${k}</div><div class="v">${v || "—"}</div></div>`,
       )
       .join("")}
   </div>
@@ -3855,10 +3968,7 @@ function ReceiptPreviewDialog({
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-5 gap-y-2 border-b border-border pb-4">
             <KV label="Inbound Workorder #" value={shipment.id} />
             <KV label="Work Order #" value={shipment.workOrderId ?? "—"} />
-            <KV
-              label="Client"
-              value={tenant ? `${tenant.code} · ${tenant.name}` : "—"}
-            />
+            <KV label="Client" value={tenant ? `${tenant.code} · ${tenant.name}` : "—"} />
             <KV label="Warehouse" value={wh ? `${wh.code} · ${wh.city}` : "—"} />
             <KV label="Carrier" value={shipment.carrier || "—"} />
             <KV label="Vessel" value={shipment.vessel || "—"} />
@@ -3872,18 +3982,9 @@ function ReceiptPreviewDialog({
               label="Seal / BOL"
               value={`${shipment.sealNumber || "—"} / ${shipment.bolNumber || "—"}`}
             />
-            <KV
-              label="Scheduled Date"
-              value={scheduledAt ? fmtDateTime(scheduledAt) : "—"}
-            />
-            <KV
-              label="Arrival Date"
-              value={arrivalAt ? fmtDateTime(arrivalAt) : "—"}
-            />
-            <KV
-              label="Unloading Date"
-              value={unloadingAt ? fmtDateTime(unloadingAt) : "—"}
-            />
+            <KV label="Scheduled Date" value={scheduledAt ? fmtDateTime(scheduledAt) : "—"} />
+            <KV label="Arrival Date" value={arrivalAt ? fmtDateTime(arrivalAt) : "—"} />
+            <KV label="Unloading Date" value={unloadingAt ? fmtDateTime(unloadingAt) : "—"} />
           </div>
 
           {/* ── Totals ── */}
@@ -3944,9 +4045,7 @@ function ReceiptPreviewDialog({
                     <TableRow key={r.lineNo}>
                       <TableCell className="py-2 font-mono text-xs">{r.sku}</TableCell>
                       <TableCell className="py-2 text-xs">{r.description || "—"}</TableCell>
-                      <TableCell className="py-2 font-mono text-[11px]">
-                        {r.upc || "—"}
-                      </TableCell>
+                      <TableCell className="py-2 font-mono text-[11px]">{r.upc || "—"}</TableCell>
                       <TableCell className="py-2 text-right text-xs tabular-nums">
                         {r.casePack || "—"}
                       </TableCell>
@@ -3998,11 +4097,7 @@ function ReceiptPreviewDialog({
                     </td>
                     <td
                       className={`py-2 px-2 text-right text-xs font-bold tabular-nums ${
-                        variance < 0
-                          ? "text-destructive"
-                          : variance > 0
-                            ? "text-amber-600"
-                            : ""
+                        variance < 0 ? "text-destructive" : variance > 0 ? "text-amber-600" : ""
                       }`}
                     >
                       {variance > 0 ? "+" : ""}
@@ -4453,9 +4548,7 @@ function EditWorkOrderInboundDialog({
               <Label className="text-[10px]">Storage Slot</Label>
               <select
                 value={formData.warehouseLocation}
-                onChange={(e) =>
-                  setFormData({ ...formData, warehouseLocation: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, warehouseLocation: e.target.value })}
                 className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
                 disabled={!formData.warehouseId}
               >

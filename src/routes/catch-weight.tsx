@@ -137,15 +137,14 @@ function CatchWeightPage() {
   }, [tenantId, warehouseId]);
 
   const filteredItems = useMemo(() => {
-    return items.filter((i) =>
-      i.sku.toLowerCase().includes(query.toLowerCase()),
-    );
+    return items.filter((i) => i.sku.toLowerCase().includes(query.toLowerCase()));
   }, [items, query]);
 
   const filteredLogs = useMemo(() => {
-    return logs.filter((l) =>
-      l.sku.toLowerCase().includes(query.toLowerCase()) ||
-      l.id.toLowerCase().includes(query.toLowerCase()),
+    return logs.filter(
+      (l) =>
+        l.sku.toLowerCase().includes(query.toLowerCase()) ||
+        l.id.toLowerCase().includes(query.toLowerCase()),
     );
   }, [logs, query]);
 
@@ -202,13 +201,26 @@ function CatchWeightPage() {
                   <TableRow key={item.sku}>
                     <TableCell className="font-mono text-xs">{item.sku}</TableCell>
                     <TableCell className="text-xs">{item.unitType}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{item.targetWeightLbs}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{item.weightTolerancePct}%</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{item.tareWeightLbs}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{item.minWeightLbs}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{item.maxWeightLbs}</TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {item.targetWeightLbs}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {item.weightTolerancePct}%
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {item.tareWeightLbs}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {item.minWeightLbs}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {item.maxWeightLbs}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant={item.billByWeight ? "default" : "secondary"} className="text-[10px] h-5">
+                      <Badge
+                        variant={item.billByWeight ? "default" : "secondary"}
+                        className="text-[10px] h-5"
+                      >
                         {item.billByWeight ? "Yes" : "No"}
                       </Badge>
                     </TableCell>
@@ -253,9 +265,15 @@ function CatchWeightPage() {
                       <TableCell className="font-mono text-xs">{log.id}</TableCell>
                       <TableCell className="font-mono text-xs">{log.sku}</TableCell>
                       <TableCell className="text-xs">{log.transactionType}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{log.grossWeightLbs}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{log.tareWeightLbs}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{log.netWeightLbs}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {log.grossWeightLbs}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {log.tareWeightLbs}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {log.netWeightLbs}
+                      </TableCell>
                       <TableCell className="text-xs">{fmtDateTime(log.capturedAt)}</TableCell>
                       <TableCell className="text-xs">{log.capturedBy}</TableCell>
                     </TableRow>

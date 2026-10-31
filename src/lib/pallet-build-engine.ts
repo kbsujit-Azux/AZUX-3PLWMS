@@ -35,12 +35,7 @@
  * ============================================================
  */
 
-import type {
-  ItemMasterRecord,
-  PalletBuildConfig,
-  GTINHierarchy,
-  PackLevel,
-} from "./master-data";
+import type { ItemMasterRecord, PalletBuildConfig, GTINHierarchy, PackLevel } from "./master-data";
 
 /* ───── Pallet geometry ─────────────────────────────────────────────── */
 
@@ -213,9 +208,7 @@ export type RecommendPalletBuildArgs = {
  * Returns the best valid pattern plus the full set of evaluated
  * alternatives so the UI can explain the decision.
  */
-export function recommendPalletBuild(
-  args: RecommendPalletBuildArgs,
-): PalletBuildRecommendation {
+export function recommendPalletBuild(args: RecommendPalletBuildArgs): PalletBuildRecommendation {
   const { item, quantity } = args;
   const config: PalletBuildConfig = {
     ...item.palletBuild,
@@ -267,13 +260,7 @@ export function recommendPalletBuild(
   const alternatives: PalletBuildRecommendation["alternatives"] = [];
 
   for (const pattern of patterns) {
-    const cpl = casesPerLayer(
-      dims.lengthIn,
-      dims.widthIn,
-      dims.heightIn,
-      footprint,
-      pattern,
-    );
+    const cpl = casesPerLayer(dims.lengthIn, dims.widthIn, dims.heightIn, footprint, pattern);
     if (cpl <= 0) {
       alternatives.push({
         pattern,
@@ -290,19 +277,14 @@ export function recommendPalletBuild(
     }
 
     // Apply item-level caps (geometric fit may exceed the configured limits)
-    const cappedCpl = config.maxCasesPerLayer
-      ? Math.min(cpl, config.maxCasesPerLayer)
-      : cpl;
+    const cappedCpl = config.maxCasesPerLayer ? Math.min(cpl, config.maxCasesPerLayer) : cpl;
 
     // How many layers can we legally stack? Driven by the height limits
     // and the item's stackability, NOT by the quantity.
     const layersByHeight = Math.floor(config.maxPalletHeightIn / dims.heightIn);
     let allowedLayers = layersByHeight;
     if (config.stackability === "limited" && config.maxStackHeightIn) {
-      allowedLayers = Math.min(
-        allowedLayers,
-        Math.floor(config.maxStackHeightIn / dims.heightIn),
-      );
+      allowedLayers = Math.min(allowedLayers, Math.floor(config.maxStackHeightIn / dims.heightIn));
     }
     if (config.stackability === "non-stackable" || config.stackability === "crushable") {
       allowedLayers = 1;
@@ -400,9 +382,7 @@ export function recommendPalletBuild(
     );
   }
   if (config.maxCasesPerLayer && best.casesPerLayer === config.maxCasesPerLayer) {
-    notes.push(
-      `Cases per layer capped at ${config.maxCasesPerLayer} by item configuration.`,
-    );
+    notes.push(`Cases per layer capped at ${config.maxCasesPerLayer} by item configuration.`);
   }
   if (config.maxLayers && best.layersPerPallet === config.maxLayers) {
     notes.push(
@@ -470,7 +450,7 @@ export function recommendPalletPlan(
   fallbackPackSize?: number,
 ): PalletPlan {
   const remaining = Math.max(0, quantity);
-  const packSize = item ? packSizeOf(item) : (fallbackPackSize || 1);
+  const packSize = item ? packSizeOf(item) : fallbackPackSize || 1;
 
   if (item && remaining > 0) {
     const rec = recommendPalletBuild({ item, quantity: remaining });
@@ -662,10 +642,7 @@ export function packLabelForLevel(level: PackLevel): string {
  *   unitsPerPackLevel(item, "inner")  = 24
  *   unitsPerPackLevel(item, "master") = 24 * 4 = 96
  */
-export function unitsPerPackLevel(
-  item: ItemMasterRecord,
-  level: PackLevel,
-): number {
+export function unitsPerPackLevel(item: ItemMasterRecord, level: PackLevel): number {
   if (level === "each") return 1;
   const hierarchy = item.packHierarchy ?? [];
   const levelIdx = LEVEL_ORDER.indexOf(level);

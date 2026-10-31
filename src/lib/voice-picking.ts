@@ -59,12 +59,20 @@ export interface VoicePickingState {
   error: string;
 }
 
-const COMMAND_PATTERNS: Array<{ regex: RegExp; command: VoiceCommand; parse?: (match: RegExpMatchArray) => string | number | undefined }> = [
+const COMMAND_PATTERNS: Array<{
+  regex: RegExp;
+  command: VoiceCommand;
+  parse?: (match: RegExpMatchArray) => string | number | undefined;
+}> = [
   { regex: /^(next|skip|skip\s*to\s*next|move\s*next)/i, command: "next" },
   { regex: /^(previous|prev|back|go\s*back)/i, command: "previous" },
   { regex: /^(confirm|yes|okay|ok|done|complete|finished|yep|yup)/i, command: "confirm" },
   { regex: /^(skip|skip\s*this|pass|next\s*item|continue)/i, command: "skip" },
-  { regex: /^(quantity|qty|how\s*many|number|count)\s+(\d+)/i, command: "quantity", parse: (m) => parseInt(m[2], 10) },
+  {
+    regex: /^(quantity|qty|how\s*many|number|count)\s+(\d+)/i,
+    command: "quantity",
+    parse: (m) => parseInt(m[2], 10),
+  },
   { regex: /^(help|assist|support|what\s*can\s*i\s*say)/i, command: "help" },
   { regex: /^(repeat|say\s*again|say\s*that\s*again)/i, command: "repeat" },
   { regex: /^(cancel|stop|abort|quit|exit|never\s*mind)/i, command: "cancel" },
@@ -94,7 +102,14 @@ function parseCommand(transcript: string): ParsedVoiceCommand {
 }
 
 export function createVoicePickingEngine(options: VoicePickingOptions) {
-  const { enabled, onCommand, onError, locale = "en-US", continuous = true, interimResults = false } = options;
+  const {
+    enabled,
+    onCommand,
+    onError,
+    locale = "en-US",
+    continuous = true,
+    interimResults = false,
+  } = options;
   const state: VoicePickingState = {
     listening: false,
     supported: false,
@@ -121,7 +136,9 @@ export function createVoicePickingEngine(options: VoicePickingOptions) {
   };
 
   const startWebSpeech = () => {
-    const SpeechRecognition = (window as unknown as Record<string, unknown>).SpeechRecognition || (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
+    const SpeechRecognition =
+      (window as unknown as Record<string, unknown>).SpeechRecognition ||
+      (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       updateState({ supported: false, error: "Web Speech API not supported in this browser" });
       onError?.(new Error("Web Speech API not supported"));
@@ -129,12 +146,25 @@ export function createVoicePickingEngine(options: VoicePickingOptions) {
     }
 
     updateState({ supported: true, error: "" });
-    const rec = new (SpeechRecognition as new () => { lang: string; continuous: boolean; interimResults: boolean; onresult: (event: { results: ArrayLike<{ 0: { transcript: string; confidence: number } }> }) => void; onerror: (event: { error: string }) => void; onend: () => void; start: () => void; stop: () => void })();
+    const rec = new (SpeechRecognition as new () => {
+      lang: string;
+      continuous: boolean;
+      interimResults: boolean;
+      onresult: (event: {
+        results: ArrayLike<{ 0: { transcript: string; confidence: number } }>;
+      }) => void;
+      onerror: (event: { error: string }) => void;
+      onend: () => void;
+      start: () => void;
+      stop: () => void;
+    })();
     rec.lang = locale;
     rec.continuous = continuous;
     rec.interimResults = interimResults;
 
-    rec.onresult = (event: { results: ArrayLike<{ 0: { transcript: string; confidence: number } }> }) => {
+    rec.onresult = (event: {
+      results: ArrayLike<{ 0: { transcript: string; confidence: number } }>;
+    }) => {
       const last = event.results[event.results.length - 1];
       if (last) {
         handleResult(last[0].transcript, last[0].confidence ?? 0);
@@ -179,8 +209,9 @@ export function createVoicePickingEngine(options: VoicePickingOptions) {
     if (!enabled) return;
     if (state.listening) return;
 
-    const hasSpeechRecognition = typeof window !== "undefined" &&
-      (("SpeechRecognition" in window) || ("webkitSpeechRecognition" in window));
+    const hasSpeechRecognition =
+      typeof window !== "undefined" &&
+      ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
     if (hasSpeechRecognition) {
       startWebSpeech();
     } else if (navigator.mediaDevices && !!(navigator.mediaDevices as any).getUserMedia) {
@@ -193,7 +224,11 @@ export function createVoicePickingEngine(options: VoicePickingOptions) {
 
   const stop = () => {
     if (recognition) {
-      try { recognition.stop(); } catch { /* ignore */ }
+      try {
+        recognition.stop();
+      } catch {
+        /* ignore */
+      }
       recognition = null;
     }
     if (stream) {

@@ -79,7 +79,14 @@ import {
   validLocationsFor,
   type PutawayValidation,
 } from "@/lib/putaway-validation";
-import { createPallet, deletePallet, updatePallet, syncInboundFromPallets, putAwayPallet, syncInventoryBatchUnits } from "@/lib/firestore-data";
+import {
+  createPallet,
+  deletePallet,
+  updatePallet,
+  syncInboundFromPallets,
+  putAwayPallet,
+  syncInventoryBatchUnits,
+} from "@/lib/firestore-data";
 import { orders } from "@/lib/edi-data";
 import { fmtDateTime, fmtDateYear, fmtTime, downloadExcel } from "@/lib/utils";
 
@@ -206,8 +213,7 @@ function PalletsPage() {
    * The case pack of a pallet — units per carton.
    */
   const casePackFor = useCallback(
-    (p: { sku: string; casePack?: number }): number =>
-      palletCasePack(p, liveItemMaster),
+    (p: { sku: string; casePack?: number }): number => palletCasePack(p, liveItemMaster),
     [liveItemMaster],
   );
 
@@ -436,22 +442,21 @@ function PalletsPage() {
     });
   };
 
-  return (
-    isLoading ? (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
-      </div>
-    ) : (
-      <div className="px-6 py-6 space-y-4">
-        {/* Header */}
-        <div className="flex items-end justify-between">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Palletization</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Build pallets by item style · directed putaway & picking · {strategy} routing active
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+  return isLoading ? (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
+    </div>
+  ) : (
+    <div className="px-6 py-6 space-y-4">
+      {/* Header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Palletization</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Build pallets by item style · directed putaway & picking · {strategy} routing active
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={refreshData}>
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </Button>
@@ -461,20 +466,20 @@ function PalletsPage() {
           <Button
             size="sm"
             className="h-8 text-xs gap-1.5"
-onClick={() => {
-                setNewPalletData({
-                  tenantId: tenantId === "all" ? (warehouses[0]?.id ?? "") : tenantId,
-                  warehouseId: warehouseId === "all" ? (warehouses[0]?.id ?? "") : warehouseId,
-                 sku: "",
-                 description: "",
-                 itemStyle: "",
-                 units: 0,
-                 casePack: 1,
-                 weightLbsPerUnit: 0,
-                 container: "",
-               });
-               setNewPalletOpen(true);
-             }}
+            onClick={() => {
+              setNewPalletData({
+                tenantId: tenantId === "all" ? (warehouses[0]?.id ?? "") : tenantId,
+                warehouseId: warehouseId === "all" ? (warehouses[0]?.id ?? "") : warehouseId,
+                sku: "",
+                description: "",
+                itemStyle: "",
+                units: 0,
+                casePack: 1,
+                weightLbsPerUnit: 0,
+                container: "",
+              });
+              setNewPalletOpen(true);
+            }}
           >
             <Plus className="h-3.5 w-3.5" /> NEW Pallet
           </Button>
@@ -483,24 +488,24 @@ onClick={() => {
             size="sm"
             className="h-8 text-xs gap-1.5"
             onClick={() => {
-const reportData = visiblePallets.map((p) => ({
-                 Pallet: p.id,
-                 "Item Style": p.itemStyle,
-                 SKU: p.sku,
-                 Description: p.description,
-                 Client: tenants.find((t) => t.id === p.tenantId)?.code || "",
-                 Warehouse: warehouses.find((w) => w.id === p.warehouseId)?.code || "",
-                 "PO Number": p.poNumber,
-                 Container: p.container || "—",
-                 Units: p.units,
-                 Cases: Math.ceil(p.units / Math.max(1, p.casePack)),
-                 "Weight (lb)": p.weightLbs,
-                 Location: p.location || "",
-                 "Suggested Location": p.suggestedLocation,
-                 Zone: p.zone,
-                 "Built At": p.builtAt,
-                 Status: p.status,
-               }));
+              const reportData = visiblePallets.map((p) => ({
+                Pallet: p.id,
+                "Item Style": p.itemStyle,
+                SKU: p.sku,
+                Description: p.description,
+                Client: tenants.find((t) => t.id === p.tenantId)?.code || "",
+                Warehouse: warehouses.find((w) => w.id === p.warehouseId)?.code || "",
+                "PO Number": p.poNumber,
+                Container: p.container || "—",
+                Units: p.units,
+                Cases: Math.ceil(p.units / Math.max(1, p.casePack)),
+                "Weight (lb)": p.weightLbs,
+                Location: p.location || "",
+                "Suggested Location": p.suggestedLocation,
+                Zone: p.zone,
+                "Built At": p.builtAt,
+                Status: p.status,
+              }));
               downloadExcel("pallets-report.xlsx", reportData, [
                 { header: "Pallet", key: "Pallet" },
                 { header: "Item Style", key: "Item Style" },
@@ -660,8 +665,8 @@ const reportData = visiblePallets.map((p) => ({
                           <span className="text-muted-foreground">{`${p.units === 1 ? "unit" : "units"}`}</span>
                         </div>
                         <div className="text-[10px] text-muted-foreground tabular-nums">
-                          {Math.ceil(p.units / Math.max(1, casePackFor(p))).toLocaleString()}{" "}
-                          case{Math.ceil(p.units / Math.max(1, casePackFor(p))) === 1 ? "" : "s"} @{" "}
+                          {Math.ceil(p.units / Math.max(1, casePackFor(p))).toLocaleString()} case
+                          {Math.ceil(p.units / Math.max(1, casePackFor(p))) === 1 ? "" : "s"} @{" "}
                           {casePackFor(p)}/case
                         </div>
                       </TableCell>
@@ -790,49 +795,49 @@ const reportData = visiblePallets.map((p) => ({
               </TableHeader>
               <TableBody>
                 {awaitingPutaway.map((p) => (
-                    <TableRow key={`pa-${p.id}`} className="text-xs hover:bg-muted/30">
-                      <TableCell className="py-2 font-mono font-medium">{p.id}</TableCell>
-                      <TableCell className="py-2 font-mono text-[11px]">{p.itemStyle}</TableCell>
-                      <TableCell className="py-2 text-right tabular-nums">{p.units}</TableCell>
-                      <TableCell className="py-2 text-right tabular-nums text-muted-foreground">
-                        {weightFor(p).toLocaleString()} lb
-                      </TableCell>
-                      <TableCell className="py-2 text-[11px] text-muted-foreground">
-                        {p.status === "building" ? "On dock" : "Staging"}
-                      </TableCell>
-                      <TableCell className="py-2 font-mono text-[11px]">
-                        <div className="inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 text-primary px-1.5 py-0.5">
-                          <MapPin className="h-3 w-3" />
-                          {p.suggestedLocation}
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <span className="inline-flex items-center justify-center rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-                          {p.zone}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-2 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-[10px] gap-1"
-                          onClick={() => {
-                            // A pallet that is already in the inventory must
-                            // be released first — it is already stored.
-                            if (p.location) {
-                              toast.error("Already in the inventory", {
-                                description: `${p.id} is stored at ${p.location}. Release it from the Inventory screen before putting it away again.`,
-                              });
-                              return;
-                            }
-                            setScanTarget(p);
-                          }}
-                        >
-                          <ScanLine className="h-3 w-3" /> Scan to confirm
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  <TableRow key={`pa-${p.id}`} className="text-xs hover:bg-muted/30">
+                    <TableCell className="py-2 font-mono font-medium">{p.id}</TableCell>
+                    <TableCell className="py-2 font-mono text-[11px]">{p.itemStyle}</TableCell>
+                    <TableCell className="py-2 text-right tabular-nums">{p.units}</TableCell>
+                    <TableCell className="py-2 text-right tabular-nums text-muted-foreground">
+                      {weightFor(p).toLocaleString()} lb
+                    </TableCell>
+                    <TableCell className="py-2 text-[11px] text-muted-foreground">
+                      {p.status === "building" ? "On dock" : "Staging"}
+                    </TableCell>
+                    <TableCell className="py-2 font-mono text-[11px]">
+                      <div className="inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 text-primary px-1.5 py-0.5">
+                        <MapPin className="h-3 w-3" />
+                        {p.suggestedLocation}
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <span className="inline-flex items-center justify-center rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                        {p.zone}
+                      </span>
+                    </TableCell>
+                    <TableCell className="py-2 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] gap-1"
+                        onClick={() => {
+                          // A pallet that is already in the inventory must
+                          // be released first — it is already stored.
+                          if (p.location) {
+                            toast.error("Already in the inventory", {
+                              description: `${p.id} is stored at ${p.location}. Release it from the Inventory screen before putting it away again.`,
+                            });
+                            return;
+                          }
+                          setScanTarget(p);
+                        }}
+                      >
+                        <ScanLine className="h-3 w-3" /> Scan to confirm
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
@@ -1057,7 +1062,7 @@ const reportData = visiblePallets.map((p) => ({
         isCreating={isCreating}
       />
     </div>
-  ));
+  );
 }
 
 function Toolbar({
@@ -1319,8 +1324,7 @@ function PalletEditDialog({
         <DialogHeader>
           <DialogTitle className="text-base">Edit Pallet {pallet.id}</DialogTitle>
           <DialogDescription className="text-xs">
-            Changes save to Firestore and re-derive the receipt on the linked
-            inbound container.
+            Changes save to Firestore and re-derive the receipt on the linked inbound container.
           </DialogDescription>
         </DialogHeader>
 
@@ -1375,9 +1379,7 @@ function PalletEditDialog({
             <Label className="text-[10px]">Location</Label>
             <Select
               value={form.location || "__none__"}
-              onValueChange={(v) =>
-                setForm({ ...form, location: v === "__none__" ? "" : v })
-              }
+              onValueChange={(v) => setForm({ ...form, location: v === "__none__" ? "" : v })}
             >
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Not put away" />
@@ -1479,8 +1481,7 @@ function ScanConfirmDialog({
     (field: ScanField, raw: string) => {
       if (!pallet) return false;
       const result = validatePutawayTarget({
-        scannedPalletId:
-          field === "pallet" ? raw : palletScan.trim() || undefined,
+        scannedPalletId: field === "pallet" ? raw : palletScan.trim() || undefined,
         expectedPalletId: pallet.id,
         scannedLocation: field === "location" ? raw : targetLocation,
         locations,
@@ -1497,10 +1498,9 @@ function ScanConfirmDialog({
 
       setShake(field);
       setTimeout(() => setShake(null), 350);
-      toast.error(
-        field === "pallet" ? "Pallet mismatch" : "Location not valid",
-        { description: result.errors[0] },
-      );
+      toast.error(field === "pallet" ? "Pallet mismatch" : "Location not valid", {
+        description: result.errors[0],
+      });
       if (field === "pallet") setPalletScan("");
       else setLocationScan("");
       return false;
@@ -1508,21 +1508,14 @@ function ScanConfirmDialog({
     [pallet, palletScan, targetLocation, locations],
   );
 
-  const palletOk =
-    !!pallet && palletScan.trim().toUpperCase() === pallet.id.toUpperCase();
-  const locationOk =
-    !!targetLocation &&
-    !!validation?.ok &&
-    validation.errors.length === 0;
+  const palletOk = !!pallet && palletScan.trim().toUpperCase() === pallet.id.toUpperCase();
+  const locationOk = !!targetLocation && !!validation?.ok && validation.errors.length === 0;
   const palletEntered = palletScan.length > 0;
   const locationEntered = locationScan.length > 0;
 
   /** The locations this client may put away into at this warehouse. */
   const allowedLocations = useMemo(
-    () =>
-      pallet
-        ? validLocationsFor(locations, pallet.tenantId, pallet.warehouseId)
-        : [],
+    () => (pallet ? validLocationsFor(locations, pallet.tenantId, pallet.warehouseId) : []),
     [locations, pallet?.tenantId, pallet?.warehouseId],
   );
 
@@ -1595,8 +1588,8 @@ function ScanConfirmDialog({
               <div className="mt-0.5 flex items-start gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-1 text-[10px] text-amber-700">
                 <AlertTriangle className="h-3 w-3 shrink-0" />
                 <span>
-                  No recommendation — the Location Master has no valid slot set up
-                  for this client at this warehouse. Scan any valid location.
+                  No recommendation — the Location Master has no valid slot set up for this client
+                  at this warehouse. Scan any valid location.
                 </span>
               </div>
             )}
@@ -1610,8 +1603,8 @@ function ScanConfirmDialog({
           </div>
           {allowedLocations.length === 0 ? (
             <div className="text-[11px] text-destructive">
-              No locations are set up in the Location Master for this client and
-              warehouse. Ask an administrator to add them before putting away.
+              No locations are set up in the Location Master for this client and warehouse. Ask an
+              administrator to add them before putting away.
             </div>
           ) : (
             <div className="flex flex-wrap gap-1">
@@ -1826,142 +1819,146 @@ function NewPalletDialog({
             will be in "Staged" status for putaway.
           </DialogDescription>
         </DialogHeader>
-<div className="space-y-4">
-           <div className="grid grid-cols-2 gap-3">
-             <div className="col-span-2">
-               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                 Client
-               </Label>
-               <select
-                 value={data.tenantId}
-                 onChange={(e) => updateField("tenantId", e.target.value)}
-                 className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs mt-1"
-               >
-                 <option value="">Select client...</option>
-                 {tenants.map((t) => (
-                   <option key={t.id} value={t.id} disabled={t.id === "all"}>
-                     {t.name}
-                   </option>
-                 ))}
-               </select>
-             </div>
-             <div className="col-span-2">
-               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                 Warehouse
-               </Label>
-               <select
-                 value={data.warehouseId}
-                 onChange={(e) => updateField("warehouseId", e.target.value)}
-                 className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs mt-1"
-               >
-                 <option value="">Select warehouse...</option>
-                 {warehouses.map((w) => (
-                   <option key={w.id} value={w.id} disabled={w.id === "all"}>
-                     {w.code} - {w.name}
-                   </option>
-                 ))}
-               </select>
-             </div>
-             <div>
-               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                 SKU
-               </Label>
-               <select
-                 value={data.sku}
-                 onChange={(e) => {
-                   const selected = inventoryItems.find((i) => i.sku === e.target.value);
-                   setData({
-                     ...data,
-                     sku: e.target.value,
-                     description: selected?.description ?? "",
-                     itemStyle: selected?.itemStyle ?? "",
-                     casePack: selected?.caseQty ?? 1,
-                   });
-                 }}
-                 className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs font-mono mt-1"
-               >
-                 <option value="">Select SKU...</option>
-                 {inventoryItems.map((i) => (
-                   <option key={i.sku} value={i.sku}>{i.sku}</option>
-                 ))}
-               </select>
-             </div>
-             <div>
-               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                 Item Style
-               </Label>
-               <Input
-                 value={data.itemStyle}
-                 onChange={(e) => updateField("itemStyle", e.target.value)}
-                 placeholder="e.g. TENT-2P"
-                 className="h-8 text-xs font-mono mt-1"
-                 readOnly={!!(data.sku && inventoryItems.find((i) => i.sku === data.sku)?.itemStyle)}
-               />
-             </div>
-             <div className="col-span-2">
-               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                 Description
-               </Label>
-               <Input
-                 value={data.description}
-                 onChange={(e) => updateField("description", e.target.value)}
-                 placeholder="Product description..."
-                 className="h-8 text-xs mt-1"
-                 readOnly={!!(data.sku && inventoryItems.find((i) => i.sku === data.sku)?.description)}
-               />
-             </div>
-             <div>
-               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                 Units
-               </Label>
-               <Input
-                 type="number"
-                 value={data.units || ""}
-                 onChange={(e) => updateField("units", parseInt(e.target.value) || 0)}
-                 placeholder="0"
-                 className="h-8 text-xs font-mono mt-1"
-                 min={0}
-               />
-             </div>
-             <div>
-               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                 Case Pack
-               </Label>
-               <Input
-                 type="number"
-                 value={data.casePack || ""}
-                 onChange={(e) => updateField("casePack", parseInt(e.target.value) || 1)}
-                 placeholder="1"
-                 className="h-8 text-xs font-mono mt-1"
-                 min={1}
-               />
-             </div>
-             <div>
-               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                 Weight per Unit (lb)
-               </Label>
-               <Input
-                 type="number"
-                 step="0.1"
-                 value={data.weightLbsPerUnit || ""}
-                 onChange={(e) => updateField("weightLbsPerUnit", parseFloat(e.target.value) || 0)}
-                 placeholder="0.0"
-                 className="h-8 text-xs font-mono mt-1"
-                 min={0}
-               />
-             </div>
-             <div>
-               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                 Container
-               </Label>
-               <Input
-                 value={data.container}
-                 onChange={(e) => updateField("container", e.target.value)}
-                 placeholder="CNT-12345"
-                 className="h-8 text-xs font-mono mt-1"
-               />
-             </div>
-           </div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Client
+              </Label>
+              <select
+                value={data.tenantId}
+                onChange={(e) => updateField("tenantId", e.target.value)}
+                className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs mt-1"
+              >
+                <option value="">Select client...</option>
+                {tenants.map((t) => (
+                  <option key={t.id} value={t.id} disabled={t.id === "all"}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Warehouse
+              </Label>
+              <select
+                value={data.warehouseId}
+                onChange={(e) => updateField("warehouseId", e.target.value)}
+                className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs mt-1"
+              >
+                <option value="">Select warehouse...</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id} disabled={w.id === "all"}>
+                    {w.code} - {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                SKU
+              </Label>
+              <select
+                value={data.sku}
+                onChange={(e) => {
+                  const selected = inventoryItems.find((i) => i.sku === e.target.value);
+                  setData({
+                    ...data,
+                    sku: e.target.value,
+                    description: selected?.description ?? "",
+                    itemStyle: selected?.itemStyle ?? "",
+                    casePack: selected?.caseQty ?? 1,
+                  });
+                }}
+                className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs font-mono mt-1"
+              >
+                <option value="">Select SKU...</option>
+                {inventoryItems.map((i) => (
+                  <option key={i.sku} value={i.sku}>
+                    {i.sku}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Item Style
+              </Label>
+              <Input
+                value={data.itemStyle}
+                onChange={(e) => updateField("itemStyle", e.target.value)}
+                placeholder="e.g. TENT-2P"
+                className="h-8 text-xs font-mono mt-1"
+                readOnly={!!(data.sku && inventoryItems.find((i) => i.sku === data.sku)?.itemStyle)}
+              />
+            </div>
+            <div className="col-span-2">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Description
+              </Label>
+              <Input
+                value={data.description}
+                onChange={(e) => updateField("description", e.target.value)}
+                placeholder="Product description..."
+                className="h-8 text-xs mt-1"
+                readOnly={
+                  !!(data.sku && inventoryItems.find((i) => i.sku === data.sku)?.description)
+                }
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Units
+              </Label>
+              <Input
+                type="number"
+                value={data.units || ""}
+                onChange={(e) => updateField("units", parseInt(e.target.value) || 0)}
+                placeholder="0"
+                className="h-8 text-xs font-mono mt-1"
+                min={0}
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Case Pack
+              </Label>
+              <Input
+                type="number"
+                value={data.casePack || ""}
+                onChange={(e) => updateField("casePack", parseInt(e.target.value) || 1)}
+                placeholder="1"
+                className="h-8 text-xs font-mono mt-1"
+                min={1}
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Weight per Unit (lb)
+              </Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={data.weightLbsPerUnit || ""}
+                onChange={(e) => updateField("weightLbsPerUnit", parseFloat(e.target.value) || 0)}
+                placeholder="0.0"
+                className="h-8 text-xs font-mono mt-1"
+                min={0}
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Container
+              </Label>
+              <Input
+                value={data.container}
+                onChange={(e) => updateField("container", e.target.value)}
+                placeholder="CNT-12345"
+                className="h-8 text-xs font-mono mt-1"
+              />
+            </div>
+          </div>
           <div className="rounded-md border border-dashed border-border bg-card p-3 text-[11px] text-muted-foreground">
             The pallet will be created with:
             <ul className="mt-1 space-y-1 ml-4 list-disc">

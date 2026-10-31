@@ -57,7 +57,11 @@ export const Route = createFileRoute("/compliance")({
   head: () => ({
     meta: [
       { title: "Compliance & Governance — AZUX 3PL WMS Systems" },
-      { name: "description", content: "Regulatory compliance dashboard for serialized inventory, recalls, quarantine, and documents." },
+      {
+        name: "description",
+        content:
+          "Regulatory compliance dashboard for serialized inventory, recalls, quarantine, and documents.",
+      },
     ],
   }),
   component: CompliancePage,
@@ -75,7 +79,12 @@ function CompliancePage() {
   const [documents, setDocuments] = useState<ComplianceDocument[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [recallForm, setRecallForm] = useState({ title: "", description: "", skus: "", severity: "medium" as Recall["severity"] });
+  const [recallForm, setRecallForm] = useState({
+    title: "",
+    description: "",
+    skus: "",
+    severity: "medium" as Recall["severity"],
+  });
   const [quarantineForm, setQuarantineForm] = useState({ serialIds: "", reason: "" });
 
   useEffect(() => {
@@ -98,21 +107,33 @@ function CompliancePage() {
     };
     load();
 
-    const unsubLots = subscribeSerialInventory((records) => {
-      if (!cancelled) setSerialInventory(records);
-    }, { tenantId: "tenant-1" });
+    const unsubLots = subscribeSerialInventory(
+      (records) => {
+        if (!cancelled) setSerialInventory(records);
+      },
+      { tenantId: "tenant-1" },
+    );
 
-    const unsubDocs = subscribeComplianceDocuments((docs) => {
-      if (!cancelled) setDocuments(docs);
-    }, { tenantId: "tenant-1" });
+    const unsubDocs = subscribeComplianceDocuments(
+      (docs) => {
+        if (!cancelled) setDocuments(docs);
+      },
+      { tenantId: "tenant-1" },
+    );
 
-    const unsubRecalls = subscribeRecalls((recalls) => {
-      if (!cancelled) setRecalls(recalls);
-    }, { tenantId: "tenant-1" });
+    const unsubRecalls = subscribeRecalls(
+      (recalls) => {
+        if (!cancelled) setRecalls(recalls);
+      },
+      { tenantId: "tenant-1" },
+    );
 
-    const unsubQuarantine = subscribeQuarantineOrders((orders) => {
-      if (!cancelled) setQuarantineOrders(orders);
-    }, { tenantId: "tenant-1" });
+    const unsubQuarantine = subscribeQuarantineOrders(
+      (orders) => {
+        if (!cancelled) setQuarantineOrders(orders);
+      },
+      { tenantId: "tenant-1" },
+    );
 
     return () => {
       cancelled = true;
@@ -124,12 +145,20 @@ function CompliancePage() {
   }, []);
 
   useEffect(() => {
-    if (serialInventory.length > 0 || documents.length > 0 || recalls.length > 0 || quarantineOrders.length > 0) {
+    if (
+      serialInventory.length > 0 ||
+      documents.length > 0 ||
+      recalls.length > 0 ||
+      quarantineOrders.length > 0
+    ) {
       setLoading(false);
     }
   }, [serialInventory, documents, recalls, quarantineOrders]);
 
-  const activeQuarantine = useMemo(() => quarantineOrders.filter((q) => q.status === "active"), [quarantineOrders]);
+  const activeQuarantine = useMemo(
+    () => quarantineOrders.filter((q) => q.status === "active"),
+    [quarantineOrders],
+  );
   const activeRecalls = useMemo(() => recalls.filter((r) => r.status === "active"), [recalls]);
 
   const handleQuarantine = async () => {
@@ -137,7 +166,10 @@ function CompliancePage() {
       toast.error("Serial IDs and reason are required");
       return;
     }
-    const ids = quarantineForm.serialIds.split(",").map((s) => s.trim()).filter(Boolean);
+    const ids = quarantineForm.serialIds
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     const quarantineId = `qo-${Date.now()}`;
     try {
       await createQuarantineOrder({
@@ -194,7 +226,10 @@ function CompliancePage() {
       toast.error("Title, description, and SKUs are required");
       return;
     }
-    const skus = recallForm.skus.split(",").map((s) => s.trim()).filter(Boolean);
+    const skus = recallForm.skus
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     try {
       await createRecall({
         id: `recall-${Date.now()}`,
@@ -268,19 +303,31 @@ function CompliancePage() {
       </div>
 
       <div className="flex gap-2 border-b">
-        <Button variant={activeTab === "expiry" ? "default" : "ghost"} onClick={() => setActiveTab("expiry")}>
+        <Button
+          variant={activeTab === "expiry" ? "default" : "ghost"}
+          onClick={() => setActiveTab("expiry")}
+        >
           <Thermometer className="h-4 w-4 mr-2" />
           Expiry Alerts
         </Button>
-        <Button variant={activeTab === "documents" ? "default" : "ghost"} onClick={() => setActiveTab("documents")}>
+        <Button
+          variant={activeTab === "documents" ? "default" : "ghost"}
+          onClick={() => setActiveTab("documents")}
+        >
           <FileText className="h-4 w-4 mr-2" />
           Documents
         </Button>
-        <Button variant={activeTab === "recalls" ? "default" : "ghost"} onClick={() => setActiveTab("recalls")}>
+        <Button
+          variant={activeTab === "recalls" ? "default" : "ghost"}
+          onClick={() => setActiveTab("recalls")}
+        >
           <Shield className="h-4 w-4 mr-2" />
           Recalls
         </Button>
-        <Button variant={activeTab === "quarantine" ? "default" : "ghost"} onClick={() => setActiveTab("quarantine")}>
+        <Button
+          variant={activeTab === "quarantine" ? "default" : "ghost"}
+          onClick={() => setActiveTab("quarantine")}
+        >
           <Ban className="h-4 w-4 mr-2" />
           Quarantine
         </Button>
@@ -389,7 +436,11 @@ function CompliancePage() {
                         <TableCell>{doc.expiresAt || "N/A"}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="gap-1">
-                            {doc.status === "active" ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                            {doc.status === "active" ? (
+                              <CheckCircle2 className="h-3 w-3" />
+                            ) : (
+                              <XCircle className="h-3 w-3" />
+                            )}
                             {doc.status}
                           </Badge>
                         </TableCell>
@@ -424,7 +475,10 @@ function CompliancePage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Severity</Label>
-                  <Select value={recallForm.severity} onValueChange={(v: any) => setRecallForm({ ...recallForm, severity: v })}>
+                  <Select
+                    value={recallForm.severity}
+                    onValueChange={(v: any) => setRecallForm({ ...recallForm, severity: v })}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -490,7 +544,9 @@ function CompliancePage() {
                         <TableCell className="font-mono text-xs">{recall.recallNumber}</TableCell>
                         <TableCell className="font-medium">{recall.title}</TableCell>
                         <TableCell>
-                          <Badge className={getSeverityBadge(recall.severity)}>{recall.severity}</Badge>
+                          <Badge className={getSeverityBadge(recall.severity)}>
+                            {recall.severity}
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-xs">{recall.skus.join(", ")}</TableCell>
                         <TableCell>{recall.issuedAt}</TableCell>
@@ -499,7 +555,11 @@ function CompliancePage() {
                         </TableCell>
                         <TableCell>
                           {recall.status === "active" && (
-                            <Button size="sm" variant="outline" onClick={() => handleResolveRecall(recall.id)}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleResolveRecall(recall.id)}
+                            >
                               Resolve
                             </Button>
                           )}
@@ -528,7 +588,9 @@ function CompliancePage() {
                 <Label>Serial Inventory IDs (comma-separated)</Label>
                 <Input
                   value={quarantineForm.serialIds}
-                  onChange={(e) => setQuarantineForm({ ...quarantineForm, serialIds: e.target.value })}
+                  onChange={(e) =>
+                    setQuarantineForm({ ...quarantineForm, serialIds: e.target.value })
+                  }
                   placeholder="si-001, si-002, si-003"
                 />
               </div>
@@ -574,7 +636,9 @@ function CompliancePage() {
                     quarantineOrders.map((order) => (
                       <TableRow key={order.id}>
                         <TableCell className="font-mono text-xs">{order.id}</TableCell>
-                        <TableCell className="text-xs">{order.serialInventoryIds.join(", ")}</TableCell>
+                        <TableCell className="text-xs">
+                          {order.serialInventoryIds.join(", ")}
+                        </TableCell>
                         <TableCell>{order.reason}</TableCell>
                         <TableCell>{order.issuedAt}</TableCell>
                         <TableCell>
@@ -582,7 +646,11 @@ function CompliancePage() {
                         </TableCell>
                         <TableCell>
                           {order.status === "active" && (
-                            <Button size="sm" variant="outline" onClick={() => handleReleaseQuarantine(order.id)}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleReleaseQuarantine(order.id)}
+                            >
                               Release
                             </Button>
                           )}

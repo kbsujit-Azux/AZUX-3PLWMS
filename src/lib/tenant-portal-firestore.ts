@@ -39,7 +39,11 @@ import type {
 // ============================================================
 
 export async function fetchTenantPortalUsers(tenantId: string): Promise<TenantPortalUser[]> {
-  const q = query(collection(db, "tenantPortalUsers"), where("tenantId", "==", tenantId), orderBy("createdAt", "desc"));
+  const q = query(
+    collection(db, "tenantPortalUsers"),
+    where("tenantId", "==", tenantId),
+    orderBy("createdAt", "desc"),
+  );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as TenantPortalUser);
 }
@@ -50,14 +54,19 @@ export async function fetchTenantPortalUser(id: string): Promise<TenantPortalUse
   return { id: snap.id, ...(snap.data() ?? {}) } as TenantPortalUser;
 }
 
-export async function createTenantPortalUser(data: Omit<TenantPortalUser, "id" | "createdAt" | "updatedAt">): Promise<TenantPortalUser> {
+export async function createTenantPortalUser(
+  data: Omit<TenantPortalUser, "id" | "createdAt" | "updatedAt">,
+): Promise<TenantPortalUser> {
   const now = new Date().toISOString();
   const payload = { ...data, createdAt: now, updatedAt: now };
   const ref = await addDoc(collection(db, "tenantPortalUsers"), payload);
   return { id: ref.id, ...payload } as TenantPortalUser;
 }
 
-export async function updateTenantPortalUser(id: string, data: Partial<Omit<TenantPortalUser, "id">>): Promise<void> {
+export async function updateTenantPortalUser(
+  id: string,
+  data: Partial<Omit<TenantPortalUser, "id">>,
+): Promise<void> {
   const ref = doc(db, "tenantPortalUsers", id);
   await updateDoc(ref, { ...data, updatedAt: new Date().toISOString() });
 }
@@ -68,9 +77,13 @@ export async function deleteTenantPortalUser(id: string): Promise<void> {
 
 export function subscribeTenantPortalUsers(
   callback: (users: TenantPortalUser[]) => void,
-  tenantId: string
+  tenantId: string,
 ): Unsubscribe {
-  const q = query(collection(db, "tenantPortalUsers"), where("tenantId", "==", tenantId), orderBy("createdAt", "desc"));
+  const q = query(
+    collection(db, "tenantPortalUsers"),
+    where("tenantId", "==", tenantId),
+    orderBy("createdAt", "desc"),
+  );
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as TenantPortalUser));
   });
@@ -80,19 +93,30 @@ export function subscribeTenantPortalUsers(
 // Tenant Portal CSV Uploads
 // ============================================================
 
-export async function fetchTenantPortalCsvUploads(tenantId: string): Promise<TenantPortalCsvUpload[]> {
-  const q = query(collection(db, "tenantPortalCsvUploads"), where("tenantId", "==", tenantId), orderBy("uploadedAt", "desc"));
+export async function fetchTenantPortalCsvUploads(
+  tenantId: string,
+): Promise<TenantPortalCsvUpload[]> {
+  const q = query(
+    collection(db, "tenantPortalCsvUploads"),
+    where("tenantId", "==", tenantId),
+    orderBy("uploadedAt", "desc"),
+  );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as TenantPortalCsvUpload);
 }
 
-export async function createTenantPortalCsvUpload(data: Omit<TenantPortalCsvUpload, "id" | "uploadedAt">): Promise<TenantPortalCsvUpload> {
+export async function createTenantPortalCsvUpload(
+  data: Omit<TenantPortalCsvUpload, "id" | "uploadedAt">,
+): Promise<TenantPortalCsvUpload> {
   const payload = { ...data, uploadedAt: new Date().toISOString() };
   const ref = await addDoc(collection(db, "tenantPortalCsvUploads"), payload);
   return { id: ref.id, ...payload } as TenantPortalCsvUpload;
 }
 
-export async function updateTenantPortalCsvUpload(id: string, data: Partial<Omit<TenantPortalCsvUpload, "id">>): Promise<void> {
+export async function updateTenantPortalCsvUpload(
+  id: string,
+  data: Partial<Omit<TenantPortalCsvUpload, "id">>,
+): Promise<void> {
   const ref = doc(db, "tenantPortalCsvUploads", id);
   await updateDoc(ref, data);
 }
@@ -102,18 +126,27 @@ export async function updateTenantPortalCsvUpload(id: string, data: Partial<Omit
 // ============================================================
 
 export async function fetchTenantPortalReports(tenantId: string): Promise<TenantPortalReport[]> {
-  const q = query(collection(db, "tenantPortalReports"), where("tenantId", "==", tenantId), orderBy("generatedAt", "desc"));
+  const q = query(
+    collection(db, "tenantPortalReports"),
+    where("tenantId", "==", tenantId),
+    orderBy("generatedAt", "desc"),
+  );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as TenantPortalReport);
 }
 
-export async function createTenantPortalReport(data: Omit<TenantPortalReport, "id" | "generatedAt">): Promise<TenantPortalReport> {
+export async function createTenantPortalReport(
+  data: Omit<TenantPortalReport, "id" | "generatedAt">,
+): Promise<TenantPortalReport> {
   const payload = { ...data, generatedAt: new Date().toISOString() };
   const ref = await addDoc(collection(db, "tenantPortalReports"), payload);
   return { id: ref.id, ...payload } as TenantPortalReport;
 }
 
-export async function updateTenantPortalReport(id: string, data: Partial<Omit<TenantPortalReport, "id">>): Promise<void> {
+export async function updateTenantPortalReport(
+  id: string,
+  data: Partial<Omit<TenantPortalReport, "id">>,
+): Promise<void> {
   const ref = doc(db, "tenantPortalReports", id);
   await updateDoc(ref, data);
 }

@@ -401,9 +401,7 @@ export function projectWorkOrderLines(
       qtyReceived: l.receivedQty || prior?.qtyReceived || 0,
       cartons: l.cartonsExpected || 0,
       status:
-        l.status === "received" || l.status === "partial"
-          ? l.status
-          : (prior?.status ?? "pending"),
+        l.status === "received" || l.status === "partial" ? l.status : (prior?.status ?? "pending"),
     };
   });
 }
@@ -469,29 +467,31 @@ export function closeInboundShipment(
 ): InboundReceipt {
   const ts = (d: string) => new Date(d).toISOString();
 
-  const lines: InboundReceiptLine[] = Array.isArray(shipment.lines) ? shipment.lines.map((l, idx) => {
-    const putaway = putawayInfo.find((p) => p.lineNo === l.lineNo);
-    const osd = osdInfo.find((o) => o.lineNo === l.lineNo);
-    const cartonsPerUnit = l.qtyExpected > 0 ? l.cartonsExpected / l.qtyExpected : 0;
+  const lines: InboundReceiptLine[] = Array.isArray(shipment.lines)
+    ? shipment.lines.map((l, idx) => {
+        const putaway = putawayInfo.find((p) => p.lineNo === l.lineNo);
+        const osd = osdInfo.find((o) => o.lineNo === l.lineNo);
+        const cartonsPerUnit = l.qtyExpected > 0 ? l.cartonsExpected / l.qtyExpected : 0;
 
-    return {
-      lineNo: l.lineNo,
-      sku: l.sku,
-      upc: l.upc,
-      description: l.description,
-      lot: l.lot,
-      expirationDate: l.expirationDate,
-      qtyExpected: l.qtyExpected,
-      qtyReceived: l.receivedQty,
-      cartonsExpected: l.cartonsExpected,
-      cartonsReceived: Math.round(l.receivedQty * cartonsPerUnit),
-      palletCount: l.palletIds.length,
-      putawayDate: putaway?.putawayDate ?? null,
-      putawayBy: putaway?.putawayBy ?? null,
-      osdQty: osd?.osdQty ?? 0,
-      osdReason: osd?.osdReason ?? "",
-    };
-  }) : [];
+        return {
+          lineNo: l.lineNo,
+          sku: l.sku,
+          upc: l.upc,
+          description: l.description,
+          lot: l.lot,
+          expirationDate: l.expirationDate,
+          qtyExpected: l.qtyExpected,
+          qtyReceived: l.receivedQty,
+          cartonsExpected: l.cartonsExpected,
+          cartonsReceived: Math.round(l.receivedQty * cartonsPerUnit),
+          palletCount: l.palletIds.length,
+          putawayDate: putaway?.putawayDate ?? null,
+          putawayBy: putaway?.putawayBy ?? null,
+          osdQty: osd?.osdQty ?? 0,
+          osdReason: osd?.osdReason ?? "",
+        };
+      })
+    : [];
 
   const receipt: InboundReceipt = {
     id: genReceiptId(),
@@ -518,7 +518,13 @@ export function closeInboundShipment(
   return receipt;
 }
 
-export type WorkOrderStatus = "scheduled" | "at_dock" | "unloading" | "received" | "departed" | "closed";
+export type WorkOrderStatus =
+  | "scheduled"
+  | "at_dock"
+  | "unloading"
+  | "received"
+  | "departed"
+  | "closed";
 
 export type WorkOrderLine = {
   lineNo: number;
@@ -573,7 +579,12 @@ export type WorkOrder = {
 
 export function genWorkOrderId(): string {
   const now = new Date();
-  const dateStr = now.getFullYear().toString() + (now.getMonth() + 1).toString().padStart(2, "0") + (now.getDate()).toString().padStart(2, "0");
-  const seq = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
+  const dateStr =
+    now.getFullYear().toString() +
+    (now.getMonth() + 1).toString().padStart(2, "0") +
+    now.getDate().toString().padStart(2, "0");
+  const seq = Math.floor(Math.random() * 10000)
+    .toString()
+    .padStart(4, "0");
   return `INB-${dateStr}-${seq}`;
 }
