@@ -237,6 +237,14 @@ function AllocationPage() {
   const handleDeallocate = async (orderId: string) => {
     if (!confirm(`Deallocate order ${orderId}? This will revert allocations to NEW.`)) return;
     try {
+      // Block if UCC128 built
+      try {
+        const { hasUCC128Records } = await import("@/lib/ucc128-build");
+        if (await hasUCC128Records(orderId)) {
+          showError("Deallocate Blocked", "UCC128 labels already built for this order. Undo UCC128 first.");
+          return;
+        }
+      } catch {}
       const order = validateOrderForDeallocation(orderId);
       if (!order) {
         showError("Validation Failed", `Order ${orderId} not found or not in ALLOCATED.`);
