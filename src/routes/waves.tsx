@@ -188,7 +188,16 @@ function WavesPage() {
   const deselectAll = () => setSelectedIds(new Set());
 
   const handleDeallocateWave = async (w: Wave) => {
-    if (!confirm(`Deallocate all orders in wave ${w.name}?`)) return;
+    // Block if any UCC128 records exist
+    try {
+      for (const oid of w.orderIds) {
+        if (await hasUCC128Records(oid)) {
+          toast.error("Cannot deallocate: UCC128 labels already built. Undo UCC128 first.");
+          return;
+        }
+      }
+    } catch {}
+    if (!confirm(`Deallocate all ${w.orderIds.length} orders in wave ${w.name}? This reverts allocations to NEW.`)) return;
     setCreating(true);
     try {
       for (const oid of w.orderIds) {
@@ -544,7 +553,7 @@ function WavesPage() {
                             setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
                             toast.success(`Wave ${w.waveNumber} closed`);
                            }}>Close Wave</Button>
-                           <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={() => handleDeallocateWave(w)}>Deallocate</Button>
+                           <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={() => handleDeallocateWave(w)} disabled={creating || !w.orderIds.every((oid: string) => { const o = orders.find((x: any) => x.id === oid); return o?.status === "ALLOCATED"; })}>Deallocate</Button>
                         </div>
                       )}
                     </TableCell>
