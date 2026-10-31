@@ -70,7 +70,7 @@ function WavesPage() {
   const [showPicking, setShowPicking] = useState(false);
   const [waves, setWaves] = useState<Wave[]>([]);
   const [selectedWave, setSelectedWave] = useState<Wave | null>(null);
-  const [waveFilter, setWaveFilter] = useState("all");
+  const [expandedWaves, setExpandedWaves] = useState<Set<string>>(new Set());
 
   // Load waves from Firestore on mount
   useEffect(() => {
@@ -416,8 +416,27 @@ function WavesPage() {
               <TableRow>
                 <TableCell colSpan={10} className="text-center text-xs text-muted-foreground py-8">
                   No candidate orders match the filters.
-                </TableCell>
-              </TableRow>
+                     </TableCell>
+                   </TableRow>
+                   {expandedWaves.has(w.id) && (
+                     <TableRow>
+                       <TableCell colSpan={8} className="bg-muted/20 p-2">
+                         <div className="text-xs space-y-1">
+                           {w.orderIds.map((oid: string) => {
+                             const o = orders.find((x: any) => x.id === oid);
+                             return (
+                               <div key={oid} className="flex gap-3 border-b py-1">
+                                 <span className="font-mono">{oid}</span>
+                                 <span>{o?.shipToName ?? "—"}</span>
+                                 <span className="text-muted-foreground">{o?.status ?? "—"}</span>
+                                 <span>{o?.lines?.reduce((s: number, l: any) => s + l.qtyOrdered, 0) ?? 0} units</span>
+                               </div>
+                             );
+                           })}
+                         </div>
+                       </TableCell>
+                     </TableRow>
+                   )}
             ) : (
               candidates.map((o) => {
                 const tenant = tenants.find((t) => t.id === o.tenantId);
@@ -545,6 +564,7 @@ function WavesPage() {
                               toast.error(`Master BOL failed: ${err instanceof Error ? err.message : String(err)}`);
                             }
                            }}>Master BOL</Button>
+                           <Button size="sm" className="h-6 text-[10px]" onClick={() => setExpandedWaves((prev) => { const n = new Set(prev); if (n.has(w.id)) n.delete(w.id); else n.add(w.id); return n; })}>{expandedWaves.has(w.id) ? "Collapse" : "Expand"}</Button>
                            <Button size="sm" className="h-6 text-[10px]" onClick={() => handleMassPick(w)} disabled={creating || w.status !== "released"}>Mass Pick</Button>
                            <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveUccBuild(w)} disabled={creating || w.status !== "picked"}>Build UCC128</Button>
                            <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveReport(w)}>Wave Report</Button>
