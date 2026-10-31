@@ -262,6 +262,22 @@ function AllocationPage() {
       }
       const result = await deallocate_order(orderId);
       if (result.success) {
+        // Clear waveId on order
+        try {
+          const { doc, updateDoc } = await import("firebase/firestore");
+          const { db } = await import("@/lib/firebase");
+          await updateDoc(doc(db, "orders", orderId), { waveId: null });
+        } catch {}
+        // Clean up wave if no orders remain
+        const waveId = (order as any).waveId;
+        if (waveId) {
+          try {
+            const { collection, getDocs, query, where, deleteDoc, doc } = await import("firebase/firestore");
+            const { db } = await import("@/lib/firebase");
+            const snap = await getDocs(query(collection(db, "orders"), where("waveId", "==", waveId)));
+            if (snap.empty) await deleteDoc(doc(db, "waves", waveId));
+          } catch {}
+        }
         toast.success(`Order ${orderId} deallocated`, {
           description: `${result.deallocatedLines.length} line(s) reverted to NEW`,
         });
