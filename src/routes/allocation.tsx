@@ -245,6 +245,16 @@ function AllocationPage() {
           return;
         }
       } catch {}
+      // Block if BOL exists
+      try {
+        const { collection, getDocs, query, where } = await import("firebase/firestore");
+        const { db } = await import("@/lib/firebase");
+        const snap = await getDocs(query(collection(db, "billsOfLading"), where("orderIds", "array-contains", orderId)));
+        if (!snap.empty) {
+          showError("Deallocate Blocked", "A BOL already exists for this order. Delete BOL first.");
+          return;
+        }
+      } catch {}
       const order = validateOrderForDeallocation(orderId);
       if (!order) {
         showError("Validation Failed", `Order ${orderId} not found or not in ALLOCATED.`);
