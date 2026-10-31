@@ -351,14 +351,67 @@ function WavesPage() {
     const waveOrders = orders.filter((o: any) => w.orderIds.includes(o.id));
     const win = window.open("", "_blank");
     if (!win) return;
+
+    // Build detailed rows with SKU-level breakdown
     const rows = waveOrders
-      .map(
-        (o: any) =>
-          `<tr><td>${o.id}</td><td>${o.poNumber}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.lines?.length ?? 0}</td><td>${o.lines?.reduce((s: number, l: any) => s + l.qtyOrdered, 0) ?? 0}</td><td>${o.status}</td></tr>`,
-      )
+      .map((o: any) => {
+        const linesHtml = o.lines
+          ?.map(
+            (l: any) =>
+              `<tr class="line-row"><td></td><td colspan="6"><table class="line-table"><tr><td>${l.sku}</td><td>${l.description || ""}</td><td style="text-align:right">${l.qtyOrdered}</td><td style="text-align:right">${l.qtyAllocated || 0}</td><td style="text-align:right">${l.qtyPicked || 0}</td><td>${l.fromLocation || ""}</td><td>${l.lotNumber || ""}</td></tr></table></td></tr>`,
+          )
+          .join("");
+        return `<tr class="order-row"><td>${o.id}</td><td>${o.poNumber}</td><td>${o.shipToName}</td><td>${o.carrier}</td><td>${o.serviceLevel}</td><td style="text-align:right">${o.lines?.length ?? 0}</td><td style="text-align:right">${o.lines?.reduce((s: number, l: any) => s + l.qtyOrdered, 0) ?? 0}</td><td>${o.status}</td></tr>${linesHtml}`;
+      })
       .join("");
+
     win.document.write(
-      `<!DOCTYPE html><html><head><title>Wave Report ${w.name}</title><style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#1a365d}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ddd;padding:6px 8px}th{background:#1a365d;color:#fff}</style></head><body><h1>Wave Report: ${w.name}</h1><p>Wave #: ${w.waveNumber} | Status: ${w.status} | Orders: ${waveOrders.length} | Units: ${w.totalUnits}</p><table><thead><tr><th>Order #</th><th>PO #</th><th>Ship-to</th><th>Carrier</th><th>Lines</th><th>Units</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();}</script></body></html>`,
+      `<!DOCTYPE html><html><head><title>Wave Report ${w.name}</title><style>
+        body{font-family:Arial,sans-serif;padding:20px}
+        h1{color:#1a365d}
+        table{width:100%;border-collapse:collapse;font-size:11px}
+        th,td{border:1px solid #ddd;padding:6px 8px}
+        th{background:#1a365d;color:#fff}
+        .order-row{font-weight:bold;background:#f8fafc}
+        .line-row{background:#fff}
+        .line-table{width:100%;border-collapse:collapse;margin:0}
+        .line-table td{border:1px solid #e2e8f0;padding:4px 8px;font-size:10px;background:#fff}
+        .line-table tr:nth-child(even) td{background:#f1f5f9}
+        .summary{background:#f0f9ff;border:1px solid #bae6fd;padding:12px;margin-bottom:16px;border-radius:6px}
+        .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+        .summary-item{text-align:center}
+        .summary-label{font-size:10px;color:#64748b;text-transform:uppercase}
+        .summary-value{font-size:18px;font-weight:bold;color:#1e3a5f}
+      </style></head><body>
+        <h1>Wave Report: ${w.name}</h1>
+        <div class="summary">
+          <div class="summary-grid">
+            <div class="summary-item"><div class="summary-label">Wave #</div><div class="summary-value">${w.waveNumber}</div></div>
+            <div class="summary-item"><div class="summary-label">Status</div><div class="summary-value">${w.status.toUpperCase()}</div></div>
+            <div class="summary-item"><div class="summary-label">Orders</div><div class="summary-value">${waveOrders.length}</div></div>
+            <div class="summary-item"><div class="summary-label">Total Units</div><div class="summary-value">${w.totalUnits}</div></div>
+            <div class="summary-item"><div class="summary-label">Lines</div><div class="summary-value">${w.totalLines}</div></div>
+            <div class="summary-item"><div class="summary-label">Created</div><div class="summary-value">${new Date(w.createdAt).toLocaleString()}</div></div>
+            <div class="summary-item"><div class="summary-label">Carrier Filter</div><div class="summary-value">${w.carrierFilter || "All"}</div></div>
+            <div class="summary-item"><div class="summary-label">UCC128</div><div class="summary-value">${w.uccBuilt ? "Built" : "Not Built"}</div></div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>PO #</th>
+              <th>Ship-to</th>
+              <th>Carrier</th>
+              <th>Service</th>
+              <th style="text-align:right">Lines</th>
+              <th style="text-align:right">Units</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <script>window.onload=function(){window.print();}</script></body></html>`,
     );
     win.document.close();
   };
