@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { db } from "@/lib/firestore";
-import { collection, doc, setDoc, getDocs, updateDoc, query, where } from "firebase/firestore";
+import { collection, doc, setDoc, getDocs, updateDoc, query, where, deleteDoc } from "firebase/firestore";
 import {
   Table,
   TableBody,
@@ -78,7 +78,16 @@ function WavesPage() {
       try {
         const snap = await getDocs(collection(db, "waves"));
         const loaded = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as Wave);
-        setWaves(loaded.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        // Auto-remove waves with no active orders
+        const orderWaveIds = new Set(orders.map((o: any) => o.waveId).filter(Boolean));
+        const active = loaded.filter((w) => orderWaveIds.has(w.id) || (w.status !== "cancelled" && w.orderIds?.some((oid: string) => orders.some((o: any) => o.id === oid)));
+        // Delete orphaned waves from Firestore
+        for (const w of loaded) {
+          if (!active.includes(w)) {
+            try { await deleteDoc(doc(db, "waves", w.id)); } catch {}
+          }
+        }
+        setWaves(active.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
       } catch (err) {
         console.error("Failed to load waves:", err);
       }
