@@ -99,36 +99,34 @@ function WavesPage() {
   const [waveFilter, setWaveFilter] = useState("all");
   const [reportOpen, setReportOpen] = useState(false);
 
-  // Load waves from Firestore on mount
+  // Load waves from Firestore - refresh when tenant/warehouse changes or data refreshes
   useEffect(() => {
+    let mounted = true;
     const loadWaves = async () => {
       try {
         const snap = await getDocs(collection(db, "waves"));
         const loaded = snap.docs.map((d) => ({ id: d.id, ...(d.data() ?? {}) }) as unknown as Wave);
-        // Auto-remove waves with no active orders
-        const orderWaveIds = new Set(orders.map((o: any) => o.waveId).filter(Boolean));
-        const active = loaded.filter((w) => {
-          if (orderWaveIds.has(w.id)) return true;
-          if (w.status === "cancelled") return false;
-          return (w.orderIds ?? []).some((oid: string) => orders.some((o: any) => o.id === oid));
+        if (!mounted) return;
+        // Filter by tenant/warehouse if not "all"
+        const filtered = loaded.filter((w) => {
+          if (tenantId !== "all" && w.tenantId !== tenantId) return false;
+          if (warehouseId !== "all" && w.warehouseId !== warehouseId) return false;
+          return true;
         });
-        // Delete orphaned waves from Firestore
-        for (const w of loaded) {
-          if (!active.includes(w)) {
-            try {
-              await deleteDoc(doc(db, "waves", w.id));
-            } catch {}
-          }
-        }
         setWaves(
-          active.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+          filtered.sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          ),
         );
       } catch (err) {
         console.error("Failed to load waves:", err);
       }
     };
     loadWaves();
-  }, []);
+    return () => {
+      mounted = false;
+    };
+  }, [tenantId, warehouseId, refreshData]);
 
   // Candidate orders: unallocated, matching filters
   const candidates = useMemo(() => {
