@@ -533,49 +533,50 @@ function WavesPage() {
                     <TableCell className="text-xs text-right">{w.totalLines}</TableCell>
                     <TableCell className="text-xs text-right">{w.totalUnits}</TableCell>
                     <TableCell className="text-xs">{new Date(w.createdAt).toLocaleString()}</TableCell>
-                    <TableCell className="text-xs">
-                      {w.status === "released" && (
-                        <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
-                          await updateDoc(doc(db, "waves", w.id), { status: "picking" });
-                          setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picking" } : wave));
-                          toast.success(`Wave ${w.waveNumber} started picking`);
-                        }}>Start Picking</Button>
-                      )}
-                      {w.status === "picking" && (
-                        <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
-                          const unpicked = (pickTickets ?? []).filter((pt: any) => pt.status !== "PICKED" && pt.status !== "picked");
-                          if (unpicked.length > 0) {
-                            toast.error(`Cannot complete: ${unpicked.length} pick tickets still unpicked`);
-                            return;
-                          }
-                          await updateDoc(doc(db, "waves", w.id), { status: "picked", completedAt: new Date().toISOString() });
-                          setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picked", completedAt: new Date().toISOString() } : wave));
-                          toast.success(`Wave ${w.waveNumber} marked as picked`);
-                        }}>Complete Pick</Button>
-                      )}
-                      {w.status === "picked" && (
-                        <div className="flex gap-1">
-                          <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
-                            try {
-                              const masterBol = buildMasterBol(w.orderIds);
-                              await createBol(masterBol);
-                              toast.success(`Master BOL ${masterBol.bolNumber} created for ${w.orderIds.length} orders`);
-                            } catch (err) {
-                              toast.error(`Master BOL failed: ${err instanceof Error ? err.message : String(err)}`);
-                            }
+                     <TableCell className="text-xs">
+                       <div className="flex flex-wrap gap-1">
+                         {w.status === "released" && (
+                           <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
+                             await updateDoc(doc(db, "waves", w.id), { status: "picking" });
+                             setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picking" } : wave));
+                             toast.success(`Wave ${w.waveNumber} started picking`);
+                           }}>Start Picking</Button>
+                         )}
+                         {w.status === "picking" && (
+                           <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
+                             const unpicked = (pickTickets ?? []).filter((pt: any) => pt.status !== "PICKED" && pt.status !== "picked");
+                             if (unpicked.length > 0) {
+                               toast.error(`Cannot complete: ${unpicked.length} pick tickets still unpicked`);
+                               return;
+                             }
+                             await updateDoc(doc(db, "waves", w.id), { status: "picked", completedAt: new Date().toISOString() });
+                             setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "picked", completedAt: new Date().toISOString() } : wave));
+                             toast.success(`Wave ${w.waveNumber} marked as picked`);
+                           }}>Complete Pick</Button>
+                         )}
+                         <Button size="sm" className="h-6 text-[10px]" onClick={() => setExpandedWaves((prev) => { const n = new Set(prev); if (n.has(w.id)) n.delete(w.id); else n.add(w.id); return n; })}>{expandedWaves.has(w.id) ? "Collapse" : "Expand"}</Button>
+                         <Button size="sm" className="h-6 text-[10px]" onClick={() => handleMassPick(w)} disabled={creating || w.status !== "released"}>Mass Pick</Button>
+                         <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveUccBuild(w)} disabled={creating || w.status !== "picked"}>Build UCC128</Button>
+                         <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveReport(w)}>Wave Report</Button>
+                         {w.status === "picked" && (
+                           <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
+                             try {
+                               const masterBol = buildMasterBol(w.orderIds);
+                               await createBol(masterBol);
+                               toast.success(`Master BOL ${masterBol.bolNumber} created for ${w.orderIds.length} orders`);
+                             } catch (err) {
+                               toast.error(`Master BOL failed: ${err instanceof Error ? err.message : String(err)}`);
+                             }
                            }}>Master BOL</Button>
-                           <Button size="sm" className="h-6 text-[10px]" onClick={() => setExpandedWaves((prev) => { const n = new Set(prev); if (n.has(w.id)) n.delete(w.id); else n.add(w.id); return n; })}>{expandedWaves.has(w.id) ? "Collapse" : "Expand"}</Button>
-                           <Button size="sm" className="h-6 text-[10px]" onClick={() => handleMassPick(w)} disabled={creating || w.status !== "released"}>Mass Pick</Button>
-                           <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveUccBuild(w)} disabled={creating || w.status !== "picked"}>Build UCC128</Button>
-                           <Button size="sm" className="h-6 text-[10px]" onClick={() => handleWaveReport(w)}>Wave Report</Button>
-                          <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
-                            await updateDoc(doc(db, "waves", w.id), { status: "closed" });
-                            setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
-                            toast.success(`Wave ${w.waveNumber} closed`);
-                           }}>Close Wave</Button>
-                           <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={() => handleDeallocateWave(w)} disabled={creating || !w.orderIds.every((oid: string) => { const o = orders.find((x: any) => x.id === oid); return o?.status === "ALLOCATED"; })}>Deallocate</Button>
-                        </div>
-                      )}
+                         )}
+                         <Button size="sm" className="h-6 text-[10px]" onClick={async () => {
+                           await updateDoc(doc(db, "waves", w.id), { status: "closed" });
+                           setWaves((prev) => prev.map((wave) => wave.id === w.id ? { ...wave, status: "closed" } : wave));
+                           toast.success(`Wave ${w.waveNumber} closed`);
+                         }}>Close Wave</Button>
+                         <Button size="sm" variant="destructive" className="h-6 text-[10px]" onClick={() => handleDeallocateWave(w)} disabled={creating || !w.orderIds.every((oid: string) => { const o = orders.find((x: any) => x.id === oid); return o?.status === "ALLOCATED"; })}>Deallocate</Button>
+                       </div>
+                     </TableCell>
                     </TableCell>
                   </TableRow>
                 ))}
