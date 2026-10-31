@@ -235,6 +235,7 @@ function AllocationPage() {
   };
 
   const handleDeallocate = async (orderId: string) => {
+    if (!confirm(`Deallocate order ${orderId}? This will revert allocations to NEW.`)) return;
     try {
       const order = validateOrderForDeallocation(orderId);
       if (!order) {
