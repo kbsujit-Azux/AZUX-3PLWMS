@@ -568,7 +568,14 @@ function WavesPage() {
           <div className="p-3 space-y-3">
             {(() => {
               // Get all allocated pick tickets, sorted by location
-              const allocatedTickets = (pickTickets ?? []).filter((pt: any) => pt.status === "GENERATED" || pt.status === "allocated");
+              const allocatedTickets = (pickTickets ?? []).filter((pt: any) => {
+                if (pt.status !== "GENERATED" && pt.status !== "allocated") return false;
+                const o = orders.find((x: any) => x.id === pt.orderId);
+                if (!o) return false;
+                if (tenantId !== "all" && o.tenantId !== tenantId) return false;
+                if (warehouseId !== "all" && o.warehouseId !== warehouseId) return false;
+                return true;
+              });
               const sorted = [...allocatedTickets].sort((a: any, b: any) => {
                 const locA = (a.fromLocation || "").toUpperCase();
                 const locB = (b.fromLocation || "").toUpperCase();
