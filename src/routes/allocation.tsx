@@ -391,12 +391,21 @@ function AllocationPage() {
   };
 
   const handleUnpick = async (orderId: string) => {
+    if (!confirm(`Unpick order ${orderId}? This will return picked inventory to its original location.`)) return;
     try {
       const order = validateOrderForUnpick(orderId);
       if (!order) {
         showError("Validation Failed", `Order ${orderId} not found or not in PICKED.`);
         return;
       }
+      // Block if UCC128 built
+      try {
+        const { hasUCC128Records } = await import("@/lib/ucc128-build");
+        if (await hasUCC128Records(orderId)) {
+          showError("Unpick Blocked", "UCC128 labels already built for this order. Undo UCC128 first.");
+          return;
+        }
+      } catch {}
       const result = await unpick_order(orderId);
       if (result.success) {
         toast.success(`Order ${orderId} unpicked`, {
